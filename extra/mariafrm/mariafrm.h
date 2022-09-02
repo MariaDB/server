@@ -1,3 +1,21 @@
+/*
+   Copyright (c) 2000, 2015, Oracle and/or its affiliates.
+   Copyright (c) 2010, 2019, MariaDB
+
+   This program is free software; you can redistribute it and/or modify
+   it under the terms of the GNU General Public License as published by
+   the Free Software Foundation; version 2 of the License.
+
+   This program is distributed in the hope that it will be useful,
+   but WITHOUT ANY WARRANTY; without even the implied warranty of
+   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+   GNU General Public License for more details.
+
+   You should have received a copy of the GNU General Public License
+   along with this program; if not, write to the Free Software
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA
+*/
+
 #include <vector>
 #include <unordered_set>
 
@@ -24,10 +42,20 @@ struct column
   enum enum_field_types type;
   LEX_CSTRING comment;
   uint charset_id;
+  uint subtype;
   uint defaults_offset;
   uint null_byte;
   LEX_CSTRING default_value;
   int label_id;
+};
+
+struct key_part
+{
+  uint fieldnr;
+  uint offset;
+  uint key_part_flag;
+  uint key_type;
+  uint length;
 };
 
 struct key
@@ -36,7 +64,9 @@ struct key
   LEX_CSTRING name;
   LEX_CSTRING comment;
   uint flags;
-  uint field_number, length;
+  //uint fieldnr, length;
+  uint key_info_length;
+  key_part *key_parts;
   LEX_CSTRING column_name;
   bool is_unique;
 
@@ -79,7 +109,105 @@ struct frm_file_data
   uint key_extra_length;
   uint key_extra_info_offset;
   uint key_comment_offset;
+
+  uint extra2_len;
+  LEX_CUSTRING version;
+  LEX_CUSTRING options;
+  //Lex_ident engine;
+  LEX_CUSTRING engine;
+  LEX_CUSTRING gis;
+  LEX_CUSTRING field_flags;
+  LEX_CUSTRING system_period;
+  LEX_CUSTRING application_period;
+  LEX_CUSTRING field_data_type_info;
+  LEX_CUSTRING without_overlaps;
+  LEX_CUSTRING index_flags;
 };
 
 #define BYTES_PER_KEY 8
 #define BYTES_PER_KEY_PART 9
+
+
+#define FRM_HEADER_SIZE 64
+#define FRM_FORMINFO_SIZE 288
+#define FRM_MAX_SIZE (1024 * 1024)
+
+static inline bool is_binary_frm_header(uchar *head)
+{
+  return head[0] == 254 && head[1] == 1 && head[2] >= FRM_VER &&
+         head[2] <= FRM_VER_CURRENT;
+}
+
+#define FIELDFLAG_DECIMAL 1U
+#define FIELDFLAG_ZEROFILL 4U
+#define FIELDFLAG_NO_DEFAULT 16384U /* sql */
+#define FIELDFLAG_MAYBE_NULL 32768U // sql
+#define FIELDFLAG_DEC_SHIFT 8
+#define FIELDFLAG_MAX_DEC 63U
+
+#define f_is_dec(x) ((x) &FIELDFLAG_DECIMAL)
+#define f_is_zerofill(x) ((x) &FIELDFLAG_ZEROFILL)
+#define f_maybe_null(x) ((x) &FIELDFLAG_MAYBE_NULL)
+#define f_no_default(x) ((x) &FIELDFLAG_NO_DEFAULT)
+#define f_decimals(x)                                                         \
+  ((uint8) (((x) >> FIELDFLAG_DEC_SHIFT) & FIELDFLAG_MAX_DEC))
+
+#define NOT_FIXED_DEC 31
+
+inline bool is_temporal_type_with_date(enum_field_types type)
+{
+  switch (type)
+  {
+  case MYSQL_TYPE_DATE:
+  case MYSQL_TYPE_DATETIME:
+  case MYSQL_TYPE_TIMESTAMP:
+    return true;
+  case MYSQL_TYPE_DATETIME2:
+  case MYSQL_TYPE_TIMESTAMP2:
+    DBUG_ASSERT(0); // field->real_type() should not get to here.
+    return false;
+  default:
+    return false;
+  }
+}
+/*
+enum row_type
+{
+  ROW_TYPE_NOT_USED= -1,
+  ROW_TYPE_DEFAULT,
+  ROW_TYPE_FIXED,
+  ROW_TYPE_DYNAMIC,
+  ROW_TYPE_COMPRESSED,
+  ROW_TYPE_REDUNDANT,
+  ROW_TYPE_COMPACT,
+  ROW_TYPE_PAGE
+};
+*/
+enum extra2_frm_value_type
+{
+  EXTRA2_TABLEDEF_VERSION= 0,
+  EXTRA2_DEFAULT_PART_ENGINE= 1,
+  EXTRA2_GIS= 2,
+  EXTRA2_APPLICATION_TIME_PERIOD= 3,
+  EXTRA2_PERIOD_FOR_SYSTEM_TIME= 4,
+  EXTRA2_INDEX_FLAGS= 5,
+
+#define EXTRA2_ENGINE_IMPORTANT 128
+
+  EXTRA2_ENGINE_TABLEOPTS= 128,
+  EXTRA2_FIELD_FLAGS= 129,
+  EXTRA2_FIELD_DATA_TYPE_INFO= 130,
+  EXTRA2_PERIOD_WITHOUT_OVERLAPS= 131,
+};
+
+enum geometry_types
+{
+  GEOM_GEOMETRY= 0,
+  GEOM_POINT= 1,
+  GEOM_LINESTRING= 2,
+  GEOM_POLYGON= 3,
+  GEOM_MULTIPOINT= 4,
+  GEOM_MULTILINESTRING= 5,
+  GEOM_MULTIPOLYGON= 6,
+  GEOM_GEOMETRYCOLLECTION= 7
+};

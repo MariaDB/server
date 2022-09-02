@@ -25,15 +25,10 @@
 #include <my_base.h>
 #include <m_ctype.h>
 #include <m_string.h>
-#include <unireg.h>
-#include <handler.h>
 #include <mysql_com.h>
 #include <strfunc.h>
 
-#include <sql_type.h>
-#include <field.h>
 #include <table.h>
-
 #include <my_getopt.h>
 #include <welcome_copyright_notice.h>   /* ORACLE_WELCOME_COPYRIGHT_NOTICE */
 
@@ -41,7 +36,7 @@
 
 static uint opt_verbose= 0;
 
-static struct my_option my_long_options[]= {
+static struct my_option my_long_option[]= {
   {"help", '?', "Display this help and exit.", 0, 0, 0, GET_NO_ARG, NO_ARG,
   0, 0, 0, 0, 0, 0},
   {"verbose", 'v',
@@ -65,8 +60,7 @@ static void usage(void)
   puts("Generates the table DDL by parsing the FRM file. \n");
   printf("Usage: %s [OPTIONS] [FILE] [DIRECTORY]\n", my_progname);
   puts("");
-  my_print_help(my_long_options);
-  //my_print_variables(my_long_options);
+  my_print_help(my_long_option);
 }
 
 static my_bool get_one_option(const struct my_option *opt,
@@ -82,7 +76,6 @@ static my_bool get_one_option(const struct my_option *opt,
     exit(0);
     break;
   case '?':
-  case 'I': /* Info */
     usage();
     exit(0);
   }
@@ -92,7 +85,7 @@ static my_bool get_one_option(const struct my_option *opt,
 static void get_options(int *argc, char ***argv)
 {
   int ho_error;
-  if ((ho_error= handle_options(argc, argv, my_long_options, get_one_option)))
+  if ((ho_error= handle_options(argc, argv, my_long_option, get_one_option)))
     exit(ho_error);
   return;
 }
@@ -298,8 +291,12 @@ int parse(frm_file_data *ffd, const uchar *frm, size_t len)
     ffd->columns[i].comment.length= uint2korr(frm + current_pos + 15);
     ffd->columns[i].charset_id=
         (frm[current_pos + 11] << 8) + frm[current_pos + 14];
-    if (ffd->columns[i].charset_id == MYSQL_TYPE_GEOMETRY)
+    if (ffd->columns[i].type == MYSQL_TYPE_GEOMETRY)
+    {
       ffd->columns[i].charset_id= 63;
+      ffd->columns[i].subtype=
+          (enum geometry_types)(uint) frm[current_pos + 14];
+    }
     ffd->columns[i].defaults_offset= uint3korr(frm + current_pos + 5);
     ffd->columns[i].label_id= (uint) frm[current_pos + 12] - 1;
     current_pos+= 17;
@@ -370,7 +367,8 @@ int parse(frm_file_data *ffd, const uchar *frm, size_t len)
   {
     ffd->keys[i].flags= uint2korr(frm + current_pos) ^ HA_NOSAME;
     current_pos+= 2;
-    //uint2korr(frm + current_pos); // length, not used
+    ffd->keys[i].key_info_length=uint2korr(frm + current_pos); // length, not used
+    current_pos+= 2;
     ffd->keys[i].parts_count= frm[current_pos++];
     ffd->keys[i].algorithm= (enum ha_key_alg)(uint) frm[current_pos++];
     ffd->keys[i].key_block_size= uint2korr(frm + current_pos);
@@ -388,16 +386,106 @@ int parse(frm_file_data *ffd, const uchar *frm, size_t len)
     {
       // read parser information
     }
-    ffd->keys[i].field_number= uint2korr(frm + current_pos) & 0x3fff;
-    current_pos+= 7;
-    ffd->keys[i].length= uint2korr(frm + current_pos);
-    current_pos+= 2;
+    ffd->keys[i].key_parts= new key_part[ffd->keys[i].parts_count];
+    for (uint j = 0; j < ffd->keys[i].parts_count; j++)
+    {
+      ffd->keys[i].key_parts[j].fieldnr=
+          uint2korr(frm + current_pos) & FIELD_NR_MASK;
+      ffd->keys[i].key_parts[j].offset= uint2korr(frm + current_pos + 2) - 1;
+      ffd->keys[i].key_parts[j].key_part_flag= frm[current_pos + 4];
+      ffd->keys[i].key_parts[j].key_type= uint2korr(frm + current_pos + 5);
+      ffd->keys[i].key_parts[j].length= uint2korr(frm + current_pos + 7);
+      current_pos+= 9;
+    }
     ffd->keys[i].is_unique= ffd->keys[i].flags & HA_NOSAME;
   }
+  ffd->extra2_len= uint2korr(frm + 4);
+  current_pos= 64;
+  end= current_pos + ffd->extra2_len;
+  if ((uchar)frm[64] !='/')
+  {
+    while (current_pos + 3 <= end)
+    {
+      extra2_frm_value_type type= (extra2_frm_value_type) frm[current_pos++];
+      size_t tlen= frm[current_pos++];
+      if (!tlen)
+      {
+        if (current_pos + 2 >= end)
+          goto err;
+        tlen= uint2korr(frm + current_pos);
+        current_pos+= 2;
+        if (tlen < 256 || current_pos + tlen > end)
+          goto err;
+      }
+      switch (type)
+      {
+        case EXTRA2_TABLEDEF_VERSION:
+          ffd->version= {frm + current_pos, tlen};
+          break;
+        case EXTRA2_ENGINE_TABLEOPTS:
+          ffd->options= {frm + current_pos, tlen};
+          break;
+        case EXTRA2_DEFAULT_PART_ENGINE:
+          ffd->engine= {frm + current_pos, tlen};
+          break;
+        case EXTRA2_GIS:
+          ffd->gis= {frm + current_pos, tlen};
+          break;
+        case EXTRA2_PERIOD_FOR_SYSTEM_TIME:
+          ffd->system_period= {frm + current_pos, tlen};
+          break;
+        case EXTRA2_FIELD_FLAGS:
+          ffd->field_flags= {frm + current_pos, tlen};
+          break;
+        case EXTRA2_APPLICATION_TIME_PERIOD:
+          ffd->application_period= {frm + current_pos, tlen};
+          break;
+        case EXTRA2_PERIOD_WITHOUT_OVERLAPS:
+          ffd->without_overlaps= {frm + current_pos, tlen};
+          break;
+        case EXTRA2_FIELD_DATA_TYPE_INFO:
+          ffd->field_data_type_info= {frm + current_pos, tlen};
+          break;
+        case EXTRA2_INDEX_FLAGS:
+          ffd->index_flags= {frm + current_pos, tlen};
+          break;
+        default:
+          if (type >= EXTRA2_ENGINE_IMPORTANT)
+            goto extra2_end;
+      }
+      current_pos+= tlen;
+    }
+  }
+extra2_end:;
   return 0;
 err:
+  printf("Corrupt frm file...\n");
   printf("Do nothing...\n");
+  exit(0);
   return -1;
+}
+
+static std::unordered_set<uint> default_cs{
+    1,  3,  4,  6,  7,  8,  9,  10, 11, 12, 13, 16, 18, 19,
+    22, 24, 25, 26, 28, 30, 32, 33, 35, 36, 37, 38, 39, 40,
+    41, 45, 51, 54, 56, 57, 59, 60, 63, 92, 95, 97, 98};
+
+void print_column_charset(uint cs_id, uint table_cs_id) 
+{
+  if (table_cs_id == cs_id)
+    return;
+  if (cs_id == 63)  //binary
+    return;
+  CHARSET_INFO *c= get_charset(cs_id, MYF(0));
+  printf(" CHARACTER SET %s", c->cs_name.str);
+  if (!default_cs.count(cs_id))
+    printf(" COLLATE=%s", c->coll_name.str);
+}
+
+uint get_max_len(uint cs_id) 
+{
+  CHARSET_INFO *c= get_charset(cs_id, MYF(0));
+  return c->mbmaxlen;
 }
 
 void print_column(frm_file_data *ffd, int c_id) 
@@ -407,8 +495,158 @@ void print_column(frm_file_data *ffd, int c_id)
   int label_id= ffd->columns[c_id].label_id;
   const Type_handler *handler= Type_handler::get_handler_by_real_type(ftype);
   Name type_name= handler->name();
-  if (is_temporal_type_with_date(ftype) || ftype == MYSQL_TYPE_NEWDATE)
-    printf("%s", type_name.ptr());
+  if (ftype == MYSQL_TYPE_TINY || ftype == MYSQL_TYPE_SHORT ||
+      ftype == MYSQL_TYPE_INT24 || ftype == MYSQL_TYPE_LONG ||
+      ftype == MYSQL_TYPE_LONGLONG)
+  {
+    printf("%s(%d)", type_name.ptr(), length);
+    if (!f_is_dec(ffd->columns[c_id].flags))
+      printf(" unsigned");
+    if (f_is_zerofill(ffd->columns[c_id].flags))
+      printf(" zerofill");
+  }
+  else if (ftype == MYSQL_TYPE_NEWDECIMAL)
+  {
+    uint precision= ffd->columns[c_id].length;
+    uint scale= f_decimals(ffd->columns[c_id].flags);
+    if (scale)
+      precision--;
+    if (precision)
+      precision--;
+    printf("%s(%d,%d)",type_name.ptr(), precision, scale);
+  }
+  else if (ftype == MYSQL_TYPE_FLOAT || ftype == MYSQL_TYPE_DOUBLE)
+  {
+    uint decimals= f_decimals(ffd->columns[c_id].flags);
+    if (decimals != NOT_FIXED_DEC)
+    {
+      uint precision= ffd->columns[c_id].length;
+      uint scale= decimals;
+      if (scale < NOT_FIXED_DEC)
+        printf("%s(%d,%d)", type_name.ptr(), precision, scale);
+      if (!f_is_dec(ffd->columns[c_id].flags))
+        printf(" unsigned");
+      if (f_is_zerofill(ffd->columns[c_id].flags))
+        printf(" zerofill");
+    }
+  }
+  else if (ftype == MYSQL_TYPE_STRING)
+  {
+    if (ffd->columns[c_id].charset_id == 63)
+      printf("binary");
+    else
+      printf("char");
+    printf("(%d)",
+        ffd->columns[c_id].length / get_max_len(ffd->columns[c_id].charset_id));
+    print_column_charset(ffd->columns[c_id].charset_id, ffd->table_charset);
+  }
+  else if (ftype == MYSQL_TYPE_VARCHAR)
+  {
+    if (ffd->columns[c_id].charset_id == 63)
+      printf("varbinary");
+    else
+      printf("varchar");
+    printf("(%d)", ffd->columns[c_id].length /
+                       get_max_len(ffd->columns[c_id].charset_id));
+    print_column_charset(ffd->columns[c_id].charset_id, ffd->table_charset);
+  }
+  else if (ftype == MYSQL_TYPE_TINY_BLOB)
+  {
+    if (ffd->columns[c_id].charset_id == 63)
+      printf("tinyblob");
+    else
+      printf("tinytext");
+    print_column_charset(ffd->columns[c_id].charset_id, ffd->table_charset);
+  }
+  else if (ftype == MYSQL_TYPE_BLOB)
+  {
+    if (ffd->columns[c_id].charset_id == 63)
+      printf("blob");
+    else
+      printf("text");
+    print_column_charset(ffd->columns[c_id].charset_id, ffd->table_charset);
+  }
+  else if (ftype == MYSQL_TYPE_MEDIUM_BLOB)
+  {
+    if (ffd->columns[c_id].charset_id == 63)
+      printf("mediumblob");
+    else
+      printf("mediumtext");
+    print_column_charset(ffd->columns[c_id].charset_id, ffd->table_charset);
+  }
+  else if (ftype == MYSQL_TYPE_LONG_BLOB)
+  {
+    if (ffd->columns[c_id].charset_id == 63)
+      printf("longblob");
+    else
+      printf("longtext");
+    print_column_charset(ffd->columns[c_id].charset_id, ffd->table_charset);
+  }
+  else if (ftype == MYSQL_TYPE_BIT)
+  {
+    printf("bit(%d)", ffd->columns[c_id].length);
+  }
+  else if (ftype == MYSQL_TYPE_TIME || ftype == MYSQL_TYPE_TIME2)
+  {
+    uint scale= ffd->columns[c_id].length - MAX_TIME_WIDTH - 1;
+    if (scale > 0)
+      printf("time(%d)", scale);
+    else
+      printf("time");
+  }
+  else if (ftype == MYSQL_TYPE_TIMESTAMP || ftype == MYSQL_TYPE_TIMESTAMP2)
+  {
+    uint scale= ffd->columns[c_id].length - MAX_DATETIME_WIDTH - 1;
+    if (scale > 0)
+      printf("timestamp(%d)", scale);
+    else printf("timestamp");
+  }
+  else if (ftype == MYSQL_TYPE_YEAR)
+  {
+    printf("year(%d)", ffd->columns[c_id].length);
+  }
+  else if (ftype == MYSQL_TYPE_DATE || ftype == MYSQL_TYPE_NEWDATE)
+  {
+    printf("date");
+  }
+  else if (ftype == MYSQL_TYPE_DATETIME || ftype == MYSQL_TYPE_DATETIME2)
+  {
+    uint scale= ffd->columns[c_id].length - MAX_DATETIME_WIDTH - 1;
+    if (scale > 0)
+      printf("datetime(%d)", scale);
+    else
+      printf("datetime");
+  }
+  else if (ftype == MYSQL_TYPE_GEOMETRY)
+  {
+    switch (ffd->columns[c_id].subtype)
+    {
+    case GEOM_GEOMETRY:
+      printf("geometry");
+      break;
+    case GEOM_POINT:
+      printf("point");
+      break;
+    case GEOM_LINESTRING:
+      printf("linestring");
+      break;
+    case GEOM_POLYGON:
+      printf("polygon");
+      break;
+    case GEOM_MULTIPOINT:
+      printf("multipoint");
+      break;
+    case GEOM_MULTILINESTRING:
+      printf("multilinestring");
+      break;
+    case GEOM_MULTIPOLYGON:
+      printf("multipolygon");
+      break;
+    case GEOM_GEOMETRYCOLLECTION:
+      printf("geometrycollection");
+      break;
+    }
+  }
   else if (ftype == MYSQL_TYPE_ENUM || ftype == MYSQL_TYPE_SET)
   {
     printf("%s(", type_name.ptr());
@@ -422,7 +660,7 @@ void print_column(frm_file_data *ffd, int c_id)
     printf("'%s')", ts.str);
   }
   else
-    printf("%s(%d)", type_name.ptr(), length);
+    printf("%s(%d)", type_name.ptr(), length); //remove it
   if(!f_maybe_null(ffd->columns[c_id].flags))
     printf(" NOT NULL");
   if (ffd->columns[c_id].unireg_check == 15)
@@ -433,32 +671,66 @@ void print_column(frm_file_data *ffd, int c_id)
 
 void print_keys(frm_file_data *ffd, uint k_id) 
 {
-  if (ffd->keys[k_id].flags & HA_INVISIBLE_KEY)
+  key key= ffd->keys[k_id];
+  if (key.flags & HA_INVISIBLE_KEY)
     return;
   bool is_primary=false;
-  if (!strcmp("PRIMARY", ffd->keys[k_id].name.str))
+  if (!strcmp("PRIMARY", key.name.str))
   {
     is_primary= true;
     printf("PRIMARY KEY");
   }
-  else if (ffd->keys[k_id].is_unique)
+  else if (key.is_unique)
     printf("UNIQUE KEY");
-  else if (ffd->keys[k_id].flags & HA_FULLTEXT)
+  else if (key.flags & HA_FULLTEXT)
     printf("FULLTEXT KEY");
-  else if (ffd->keys[k_id].flags & HA_SPATIAL)
+  else if (key.flags & HA_SPATIAL)
     printf("SPATIAL KEY");
   else
     printf("KEY");
-  if (ffd->keys[k_id].name.length!=0 && !is_primary)
-    printf(" `%s`", ffd->keys[k_id].name.str);
-  printf(" (`%s`)", 
-      ffd->columns[ffd->keys[k_id].field_number].name.str);
-}
+  if (key.name.length!=0 && !is_primary)
+    printf(" `%s`", key.name.str);
+  printf(" (");
+  for (uint i= 0; i < key.parts_count;i++)
+  {
+    if (i)
+      printf(",");
+    column colmn= ffd->columns[ffd->keys[k_id].key_parts[i].fieldnr - 1];
+    enum_field_types ftype= colmn.type;
+    printf("`%s`", colmn.name.str);
+    if (key.flags & (HA_FULLTEXT | HA_SPATIAL))
+      continue;
+    if ((key.key_parts[i].length != colmn.length &&
+        (ftype == MYSQL_TYPE_VARCHAR ||
+         ftype == MYSQL_TYPE_VAR_STRING ||
+         ftype == MYSQL_TYPE_STRING)) ||
+        ftype == MYSQL_TYPE_TINY_BLOB ||
+        ftype == MYSQL_TYPE_MEDIUM_BLOB ||
+        ftype == MYSQL_TYPE_LONG_BLOB ||
+        ftype == MYSQL_TYPE_BLOB ||
+        ftype == MYSQL_TYPE_GEOMETRY)
+    {
+      CHARSET_INFO *c= get_charset(colmn.charset_id, MYF(0));
+      long len= (long) (key.key_parts[i].length / c->mbmaxlen);
+      printf("(%ld)", len);
+    }
+  }
+  printf(")");
+  if (key.algorithm == HA_KEY_ALG_BTREE)
+    printf(" USING BTREE");
+  if (key.algorithm == HA_KEY_ALG_HASH ||
+      key.algorithm == HA_KEY_ALG_LONG_HASH)
+    printf(" USING HASH");
+  if (key.algorithm == HA_KEY_ALG_RTREE &&
+      key.flags & HA_SPATIAL)
+    printf(" USING RTREE");
+  if ((key.flags & HA_USES_BLOCK_SIZE) &&
+      ffd->key_block_size != key.key_block_size)
+    printf(" KEY_BLOCK_SIZE=%u", key.key_block_size);
+  if (key.flags & HA_USES_COMMENT)
+    printf(" COMMENT '%s'", key.comment.str);
 
-static std::unordered_set<uint> default_cs{
-    1,  3,  4,  6,  7,  8,  9,  10, 11, 12, 13, 16, 18, 19,
-    22, 24, 25, 26, 28, 30, 32, 33, 35, 36, 37, 38, 39, 40,
-    41, 45, 51, 54, 56, 57, 59, 60, 63, 92, 95, 97, 98};
+}
 
 void print_table_options(frm_file_data *ffd)
 {

@@ -19,32 +19,47 @@ CREATE TABLE departments (
     UNIQUE  KEY (dept_name)
 );
 
---echo 
---echo # Table t1
+CREATE TABLE index_table(
+    roll_number INT 	    NOT NULL PRIMARY KEY,
+    name 		VARCHAR(40) NOT NULL,
+    mark 		text 		NOT NULL,
+    img 		blob 		NOT NULL,
+    INDEX (roll_number, name(20)),
+    INDEX (img(80))
+);
+
 --echo 
 
+--echo # Table t1
+--echo 
 SHOW CREATE TABLE t1;
 --echo
 -- exec $MARIAFRM $datadir/test/t1.frm
-
---echo 
+--echo
+ 
 --echo # Table employees
 --echo 
-
 SHOW CREATE TABLE employees;
 --echo
 -- exec $MARIAFRM $datadir/test/employees.frm
-
---echo 
+--echo
+ 
 --echo # Table departments
 --echo 
-
 SHOW CREATE TABLE departments;
 --echo
 -- exec $MARIAFRM $datadir/test/departments.frm
-
 --echo
+ 
+--echo # Table index_table
+--echo 
+SHOW CREATE TABLE index_table;
+--echo
+-- exec $MARIAFRM $datadir/test/index_table.frm
+--echo
+
 
 DROP TABLE t1;
 DROP TABLE employees;
 DROP TABLE departments;
+DROP TABLE index_table;

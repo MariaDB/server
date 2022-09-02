@@ -14,6 +14,14 @@ dept_name   VARCHAR(40)     NOT NULL,
 PRIMARY KEY (dept_no),
 UNIQUE  KEY (dept_name)
 );
+CREATE TABLE index_table(
+roll_number INT 	    NOT NULL PRIMARY KEY,
+name 		VARCHAR(40) NOT NULL,
+mark 		text 		NOT NULL,
+img 		blob 		NOT NULL,
+INDEX (roll_number, name(20)),
+INDEX (img(80))
+);
 
 # Table t1
 
@@ -71,6 +79,31 @@ CREATE TABLE `departments` (
   UNIQUE KEY `dept_name` (`dept_name`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 
+# Table index_table
+
+SHOW CREATE TABLE index_table;
+Table	Create Table
+index_table	CREATE TABLE `index_table` (
+  `roll_number` int(11) NOT NULL,
+  `name` varchar(40) NOT NULL,
+  `mark` text NOT NULL,
+  `img` blob NOT NULL,
+  PRIMARY KEY (`roll_number`),
+  KEY `roll_number` (`roll_number`,`name`(20)),
+  KEY `img` (`img`(80))
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+
+CREATE TABLE `index_table` (
+  `roll_number` int(11) NOT NULL,
+  `name` varchar(40) NOT NULL,
+  `mark` text NOT NULL,
+  `img` blob NOT NULL,
+  PRIMARY KEY (`roll_number`),
+  KEY `roll_number` (`roll_number`,`name`(20)),
+  KEY `img` (`img`(80))
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+
 DROP TABLE t1;
 DROP TABLE employees;
 DROP TABLE departments;
+DROP TABLE index_table;
