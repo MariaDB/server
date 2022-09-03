@@ -169,6 +169,8 @@ int parse(frm_file_data *ffd, const uchar *frm, size_t len)
 {
   size_t current_pos, end;
   size_t t, comment_pos; //, extra_info_pos;
+  size_t parser_offset;
+  size_t column_comment_pos;
   ffd->connect_string= {NULL, 0};
   ffd->engine_name= {NULL, 0};
   ffd->magic_number= uint2korr(frm);
@@ -210,6 +212,7 @@ int parse(frm_file_data *ffd, const uchar *frm, size_t len)
   ffd->key_block_size= uint2korr(frm + 62);
   ffd->handler_option= uint2korr(frm + 30);
 
+  parser_offset= ffd->extrainfo_length;
   if (ffd->extrainfo_length)
   {
     current_pos= ffd->extrainfo_offset;
@@ -236,7 +239,10 @@ int parse(frm_file_data *ffd, const uchar *frm, size_t len)
              ffd->partition_info_str_len + 1);
       current_pos+= (ffd->partition_info_str_len + 1);
     }
+    if (ffd->mysql_version >= 50110 && current_pos < end)
+      current_pos++;
     //extra_info_pos= current_pos;
+    parser_offset= current_pos;
   }
   ffd->legacy_db_type_1= (enum legacy_db_type)(uint) frm[3];
   ffd->legacy_db_type_2= (enum legacy_db_type)(uint) frm[61];
@@ -279,6 +285,7 @@ int parse(frm_file_data *ffd, const uchar *frm, size_t len)
       current_pos+= 2;
     } 
   }
+  column_comment_pos= end;
   //---READ MORE COLUMN INFO---
   current_pos= ffd->metadata_offset;
   end= current_pos + ffd->metadata_length;
@@ -289,6 +296,14 @@ int parse(frm_file_data *ffd, const uchar *frm, size_t len)
     ffd->columns[i].unireg_check= (uint) frm[current_pos + 10];
     ffd->columns[i].type= (enum enum_field_types)(uint) frm[current_pos + 13];
     ffd->columns[i].comment.length= uint2korr(frm + current_pos + 15);
+    if (ffd->columns[i].comment.length)
+    {
+      char *ts= c_malloc(ffd->columns[i].comment.length + 1);
+      memcpy(ts, frm + column_comment_pos, ffd->columns[i].comment.length);
+      ts[ffd->columns[i].comment.length]= '\0';
+      ffd->columns[i].comment.str= ts;
+      column_comment_pos+= ffd->columns[i].comment.length;
+    }
     ffd->columns[i].charset_id=
         (frm[current_pos + 11] << 8) + frm[current_pos + 14];
     if (ffd->columns[i].type == MYSQL_TYPE_GEOMETRY)
@@ -362,7 +377,7 @@ int parse(frm_file_data *ffd, const uchar *frm, size_t len)
   }
   ffd->key_comment_offset= (uint)current_pos;
   current_pos= t;
-  comment_pos= ffd->key_comment_offset;
+  comment_pos= ffd->key_comment_offset + 1;
   for (uint i= 0; i < ffd->key_count; i++)
   {
     ffd->keys[i].flags= uint2korr(frm + current_pos) ^ HA_NOSAME;
@@ -377,14 +392,18 @@ int parse(frm_file_data *ffd, const uchar *frm, size_t len)
     {
       ffd->keys[i].comment.length= uint2korr(frm + comment_pos);
       comment_pos+= 2;
-      char *ts= c_malloc(ffd->keys[i].comment.length);
+      char *ts= c_malloc(ffd->keys[i].comment.length + 1);
       memcpy(ts, frm + comment_pos, ffd->keys[i].comment.length);
+      ts[ffd->keys[i].comment.length]= '\0';
       ffd->keys[i].comment.str= ts;
       comment_pos+= ffd->keys[i].comment.length;
     }
     if (ffd->keys[i].flags & HA_USES_PARSER)
     {
       // read parser information
+      ffd->keys[i].parser= {(char *) (frm + parser_offset),
+                            strlen((char *) (frm + parser_offset))};
+      parser_offset= ffd->keys[i].parser.length + 1;
     }
     ffd->keys[i].key_parts= new key_part[ffd->keys[i].parts_count];
     for (uint j = 0; j < ffd->keys[i].parts_count; j++)
@@ -456,7 +475,22 @@ int parse(frm_file_data *ffd, const uchar *frm, size_t len)
       current_pos+= tlen;
     }
   }
-extra2_end:;
+  if (frm[ffd->forminfo_offset+46] == (uchar) 255) //table comment
+  {
+    if (parser_offset + 2 > ffd->extrainfo_offset + ffd->extrainfo_length)
+      goto err;
+    ffd->table_comment.length= uint2korr(frm + parser_offset);
+    parser_offset+= 2;
+    char *ts c_malloc(ffd->table_comment.length);
+    memcpy(ts, frm + parser_offset, ffd->table_comment.length);
+    ffd->table_comment.str= ts;
+  }
+  else
+  {
+    ffd->table_comment= {(char *) frm + ffd->forminfo_offset + 47,
+                         frm[ffd->forminfo_offset + 46]};
+  }
+  extra2_end:;
   return 0;
 err:
   printf("Corrupt frm file...\n");
@@ -667,6 +701,8 @@ void print_column(frm_file_data *ffd, int c_id)
     printf(" AUTO INCREMENT");
   if (ffd->columns[c_id].default_value.length != 0)
     printf(" DEFAULT %s", ffd->columns[c_id].default_value.str);
+  if (ffd->columns[c_id].comment.length != 0)
+    printf(" COMMENT '%s'", ffd->columns[c_id].comment.str);
 }
 
 void print_keys(frm_file_data *ffd, uint k_id) 
@@ -734,6 +770,8 @@ void print_keys(frm_file_data *ffd, uint k_id)
 
 void print_table_options(frm_file_data *ffd)
 {
+  if (ffd->connect_string.length)
+    printf("CONNECTION='%s'", ffd->connect_string.str);
   if (ffd->engine_name.length != 0)
     printf(" ENGINE=%s", ffd->engine_name.str);
   if (ffd->table_cs_name.length != 0)
@@ -742,6 +780,16 @@ void print_table_options(frm_file_data *ffd)
     if (!default_cs.count(ffd->table_charset))
       printf(" COLLATE=%s", ffd->table_coll_name.str);
   }
+  if (ffd->min_rows)
+    printf(" MIN_ROWS=%u", ffd->min_rows);
+  if (ffd->max_rows)
+    printf(" MAX_ROWS=%u", ffd->max_rows);
+  if (ffd->avg_row_length)
+    printf(" AVG_ROW_LENGTH=%u", ffd->avg_row_length);
+  if (ffd->key_block_size)
+    printf(" KEY_BLOCK_SIZE=%u", ffd->key_block_size);
+  if (ffd->table_comment.length)
+    printf(" COMMENT='%s'", ffd->table_comment.str);
 }
 
 int show_create_table(LEX_CSTRING table_name, frm_file_data *ffd)

@@ -15,13 +15,23 @@ PRIMARY KEY (dept_no),
 UNIQUE  KEY (dept_name)
 );
 CREATE TABLE index_table(
-roll_number INT 	    NOT NULL PRIMARY KEY,
-name 		VARCHAR(40) NOT NULL,
-mark 		text 		NOT NULL,
-img 		blob 		NOT NULL,
+roll_number INT         NOT NULL PRIMARY KEY,
+name        VARCHAR(40) NOT NULL,
+mark        text        NOT NULL,
+img         blob        NOT NULL,
 INDEX (roll_number, name(20)),
 INDEX (img(80))
 );
+CREATE TABLE student (
+id          VARCHAR(20) NOT NULL,
+first_name  VARCHAR(40) NOT NULL,
+last_name   VARCHAR(40) COMMENT "Last name is optional",
+age         INT         NOT NULL,
+phone_no    VARCHAR(13),
+address     VARCHAR(95) NOT NULL  COMMENT "The full address",
+PRIMARY KEY (id)  COMMENT "Id is unique for each student",
+UNIQUE KEY (phone_no)
+) COMMENT="Student table with minimum required details";
 
 # Table t1
 
@@ -103,7 +113,34 @@ CREATE TABLE `index_table` (
   KEY `img` (`img`(80))
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 
+# Table student
+
+SHOW CREATE TABLE student;
+Table	Create Table
+student	CREATE TABLE `student` (
+  `id` varchar(20) NOT NULL,
+  `first_name` varchar(40) NOT NULL,
+  `last_name` varchar(40) DEFAULT NULL COMMENT 'Last name is optional',
+  `age` int(11) NOT NULL,
+  `phone_no` varchar(13) DEFAULT NULL,
+  `address` varchar(95) NOT NULL COMMENT 'The full address',
+  PRIMARY KEY (`id`) COMMENT 'Id is unique for each student',
+  UNIQUE KEY `phone_no` (`phone_no`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COMMENT='Student table with minimum required details'
+
+CREATE TABLE `student` (
+  `id` varchar(20) NOT NULL,
+  `first_name` varchar(40) NOT NULL,
+  `last_name` varchar(40) DEFAULT NULL COMMENT 'Last name is optional',
+  `age` int(11) NOT NULL,
+  `phone_no` varchar(13) DEFAULT NULL,
+  `address` varchar(95) NOT NULL COMMENT 'The full address',
+  PRIMARY KEY (`id`) COMMENT 'Id is unique for each student',
+  UNIQUE KEY `phone_no` (`phone_no`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COMMENT='Student table with minimum required details'
+
 DROP TABLE t1;
 DROP TABLE employees;
 DROP TABLE departments;
 DROP TABLE index_table;
+DROP TABLE student;

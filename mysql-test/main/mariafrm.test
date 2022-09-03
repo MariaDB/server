@@ -20,13 +20,24 @@ CREATE TABLE departments (
 );
 
 CREATE TABLE index_table(
-    roll_number INT 	    NOT NULL PRIMARY KEY,
-    name 		VARCHAR(40) NOT NULL,
-    mark 		text 		NOT NULL,
-    img 		blob 		NOT NULL,
+    roll_number INT         NOT NULL PRIMARY KEY,
+    name        VARCHAR(40) NOT NULL,
+    mark        text        NOT NULL,
+    img         blob        NOT NULL,
     INDEX (roll_number, name(20)),
     INDEX (img(80))
 );
+
+CREATE TABLE student (
+    id          VARCHAR(20) NOT NULL,
+    first_name  VARCHAR(40) NOT NULL,
+    last_name   VARCHAR(40) COMMENT "Last name is optional",
+    age         INT         NOT NULL,
+    phone_no    VARCHAR(13),
+    address     VARCHAR(95) NOT NULL  COMMENT "The full address",
+    PRIMARY KEY (id)  COMMENT "Id is unique for each student",
+    UNIQUE KEY (phone_no)
+) COMMENT="Student table with minimum required details";
 
 --echo 
 
@@ -57,9 +68,17 @@ SHOW CREATE TABLE index_table;
 --echo
 -- exec $MARIAFRM $datadir/test/index_table.frm
 --echo
+ 
+--echo # Table student
+--echo 
+SHOW CREATE TABLE student;
+--echo
+-- exec $MARIAFRM $datadir/test/student.frm
+--echo
 
 
 DROP TABLE t1;
 DROP TABLE employees;
 DROP TABLE departments;
 DROP TABLE index_table;
+DROP TABLE student;

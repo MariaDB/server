@@ -73,6 +73,7 @@ struct key
   uint parts_count;
   enum ha_key_alg algorithm;
   uint key_block_size;
+  LEX_CSTRING parser;
 };
 
 struct frm_file_data
@@ -122,6 +123,8 @@ struct frm_file_data
   LEX_CUSTRING field_data_type_info;
   LEX_CUSTRING without_overlaps;
   LEX_CUSTRING index_flags;
+
+  LEX_CSTRING table_comment;
 };
 
 #define BYTES_PER_KEY 8
@@ -151,8 +154,6 @@ static inline bool is_binary_frm_header(uchar *head)
 #define f_no_default(x) ((x) &FIELDFLAG_NO_DEFAULT)
 #define f_decimals(x)                                                         \
   ((uint8) (((x) >> FIELDFLAG_DEC_SHIFT) & FIELDFLAG_MAX_DEC))
-
-#define NOT_FIXED_DEC 31
 
 inline bool is_temporal_type_with_date(enum_field_types type)
 {
