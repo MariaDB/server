@@ -95,9 +95,8 @@ struct frm_file_data
   uint key_block_size, handler_option;
   LEX_CSTRING connect_string;
   LEX_CSTRING engine_name;
-  enum legacy_db_type legacy_db_type_1, legacy_db_type_2;
-  uint partition_info_str_len;
-  char *partition_info_str;
+  uint legacy_db_type_1, legacy_db_type_2;
+  LEX_CSTRING partition_info;
 
   char *connection;
   uint null_bit;
@@ -212,3 +211,33 @@ enum geometry_types
   GEOM_MULTIPOLYGON= 6,
   GEOM_GEOMETRYCOLLECTION= 7
 };
+
+const char *legacy_db_types[29]= {"UNKNOWN",
+                                  "DIAB_ISAM",
+                                  "HASH",
+                                  "MISAM",
+                                  "PISAM",
+                                  "RMS_ISAM",
+                                  "HEAP",
+                                  "ISAM",
+                                  "MRG_ISAM",
+                                  "MyISAM",
+                                  "MRG_MYISAM",
+                                  "BERKELEYDB",
+                                  "InnoDB",
+                                  "GEMINI",
+                                  "NDBCLUSTER",
+                                  "EXAMPLE_DB",
+                                  "ARCHIVE_DB",
+                                  "CSV",
+                                  "FEDERATED",
+                                  "BLACKHOLE",
+                                  "PARTITION_DB",
+                                  "BINLOG",
+                                  "SOLID",
+                                  "PBXT",
+                                  "TABLE_FUNCTION",
+                                  "MEMCACHE",
+                                  "FALCON",
+                                  "MARIA",
+                                  "PERFORMANCE_SCHEMA"};

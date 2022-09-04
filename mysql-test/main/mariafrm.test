@@ -1,3 +1,6 @@
+--source include/have_innodb.inc
+set default_storage_engine=innodb;
+--source include/have_partition.inc
 let $datadir=`select @@datadir`;
 
 CREATE TABLE t1 (a int, b varchar(100)) engine=MyISAM;
@@ -39,6 +42,21 @@ CREATE TABLE student (
     UNIQUE KEY (phone_no)
 ) COMMENT="Student table with minimum required details";
 
+CREATE TABLE sales (
+    cust_id   INT          NOT NULL,
+    name      VARCHAR(40),
+    store_id  VARCHAR(20)  NOT NULL,
+    bill_no   INT          NOT NULL,
+    bill_date DATE         NOT NULL PRIMARY KEY,
+    amount    DECIMAL(8,2) NOT NULL
+)
+PARTITION BY RANGE (year(bill_date)) (
+    PARTITION p0 VALUES LESS THAN (2016),
+    PARTITION p1 VALUES LESS THAN (2017),
+    PARTITION p2 VALUES LESS THAN (2018),
+    PARTITION p3 VALUES LESS THAN (2020)
+);
+
 --echo 
 
 --echo # Table t1
@@ -75,6 +93,13 @@ SHOW CREATE TABLE student;
 --echo
 -- exec $MARIAFRM $datadir/test/student.frm
 --echo
+ 
+--echo # Table sales
+--echo 
+SHOW CREATE TABLE sales;
+--echo
+-- exec $MARIAFRM $datadir/test/sales.frm
+--echo
 
 
 DROP TABLE t1;
@@ -82,3 +107,4 @@ DROP TABLE employees;
 DROP TABLE departments;
 DROP TABLE index_table;
 DROP TABLE student;
+DROP TABLE sales;

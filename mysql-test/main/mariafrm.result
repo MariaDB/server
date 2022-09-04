@@ -1,3 +1,4 @@
+set default_storage_engine=innodb;
 CREATE TABLE t1 (a int, b varchar(100)) engine=MyISAM;
 CREATE TABLE employees (
 emp_no      INT             NOT NULL,
@@ -32,6 +33,20 @@ address     VARCHAR(95) NOT NULL  COMMENT "The full address",
 PRIMARY KEY (id)  COMMENT "Id is unique for each student",
 UNIQUE KEY (phone_no)
 ) COMMENT="Student table with minimum required details";
+CREATE TABLE sales (
+cust_id   INT          NOT NULL,
+name      VARCHAR(40),
+store_id  VARCHAR(20)  NOT NULL,
+bill_no   INT          NOT NULL,
+bill_date DATE         NOT NULL PRIMARY KEY,
+amount    DECIMAL(8,2) NOT NULL
+)
+PARTITION BY RANGE (year(bill_date)) (
+PARTITION p0 VALUES LESS THAN (2016),
+PARTITION p1 VALUES LESS THAN (2017),
+PARTITION p2 VALUES LESS THAN (2018),
+PARTITION p3 VALUES LESS THAN (2020)
+);
 
 # Table t1
 
@@ -59,7 +74,7 @@ employees	CREATE TABLE `employees` (
   `gender` enum('M','F') NOT NULL,
   `hire_date` date NOT NULL,
   PRIMARY KEY (`emp_no`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
 
 CREATE TABLE `employees` (
   `emp_no` int(11) NOT NULL,
@@ -69,7 +84,7 @@ CREATE TABLE `employees` (
   `gender` enum('M','F') NOT NULL,
   `hire_date` date NOT NULL,
   PRIMARY KEY (`emp_no`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
 
 # Table departments
 
@@ -80,14 +95,14 @@ departments	CREATE TABLE `departments` (
   `dept_name` varchar(40) NOT NULL,
   PRIMARY KEY (`dept_no`),
   UNIQUE KEY `dept_name` (`dept_name`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
 
 CREATE TABLE `departments` (
   `dept_no` char(4) NOT NULL,
   `dept_name` varchar(40) NOT NULL,
   PRIMARY KEY (`dept_no`),
   UNIQUE KEY `dept_name` (`dept_name`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
 
 # Table index_table
 
@@ -101,7 +116,7 @@ index_table	CREATE TABLE `index_table` (
   PRIMARY KEY (`roll_number`),
   KEY `roll_number` (`roll_number`,`name`(20)),
   KEY `img` (`img`(80))
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
 
 CREATE TABLE `index_table` (
   `roll_number` int(11) NOT NULL,
@@ -111,7 +126,7 @@ CREATE TABLE `index_table` (
   PRIMARY KEY (`roll_number`),
   KEY `roll_number` (`roll_number`,`name`(20)),
   KEY `img` (`img`(80))
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
 
 # Table student
 
@@ -126,7 +141,7 @@ student	CREATE TABLE `student` (
   `address` varchar(95) NOT NULL COMMENT 'The full address',
   PRIMARY KEY (`id`) COMMENT 'Id is unique for each student',
   UNIQUE KEY `phone_no` (`phone_no`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COMMENT='Student table with minimum required details'
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COMMENT='Student table with minimum required details'
 
 CREATE TABLE `student` (
   `id` varchar(20) NOT NULL,
@@ -137,10 +152,45 @@ CREATE TABLE `student` (
   `address` varchar(95) NOT NULL COMMENT 'The full address',
   PRIMARY KEY (`id`) COMMENT 'Id is unique for each student',
   UNIQUE KEY `phone_no` (`phone_no`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COMMENT='Student table with minimum required details'
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COMMENT='Student table with minimum required details'
+
+# Table sales
+
+SHOW CREATE TABLE sales;
+Table	Create Table
+sales	CREATE TABLE `sales` (
+  `cust_id` int(11) NOT NULL,
+  `name` varchar(40) DEFAULT NULL,
+  `store_id` varchar(20) NOT NULL,
+  `bill_no` int(11) NOT NULL,
+  `bill_date` date NOT NULL,
+  `amount` decimal(8,2) NOT NULL,
+  PRIMARY KEY (`bill_date`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+ PARTITION BY RANGE (year(`bill_date`))
+(PARTITION `p0` VALUES LESS THAN (2016) ENGINE = InnoDB,
+ PARTITION `p1` VALUES LESS THAN (2017) ENGINE = InnoDB,
+ PARTITION `p2` VALUES LESS THAN (2018) ENGINE = InnoDB,
+ PARTITION `p3` VALUES LESS THAN (2020) ENGINE = InnoDB)
+
+CREATE TABLE `sales` (
+  `cust_id` int(11) NOT NULL,
+  `name` varchar(40) DEFAULT NULL,
+  `store_id` varchar(20) NOT NULL,
+  `bill_no` int(11) NOT NULL,
+  `bill_date` date NOT NULL,
+  `amount` decimal(8,2) NOT NULL,
+  PRIMARY KEY (`bill_date`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+ PARTITION BY RANGE (year(`bill_date`))
+(PARTITION `p0` VALUES LESS THAN (2016) ENGINE = InnoDB,
+ PARTITION `p1` VALUES LESS THAN (2017) ENGINE = InnoDB,
+ PARTITION `p2` VALUES LESS THAN (2018) ENGINE = InnoDB,
+ PARTITION `p3` VALUES LESS THAN (2020) ENGINE = InnoDB)
 
 DROP TABLE t1;
 DROP TABLE employees;
 DROP TABLE departments;
 DROP TABLE index_table;
 DROP TABLE student;
+DROP TABLE sales;

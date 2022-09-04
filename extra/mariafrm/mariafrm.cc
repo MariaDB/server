@@ -227,25 +227,29 @@ int parse(frm_file_data *ffd, const uchar *frm, size_t len)
     {
       ffd->engine_name.length= uint2korr(frm + current_pos);
       current_pos+= 2;
-      ffd->engine_name.str= (char *) (frm + current_pos);
+      char *ts= c_malloc(ffd->engine_name.length + 1);
+      memcpy(ts, frm + current_pos, ffd->engine_name.length);
+      ts[ffd->engine_name.length]= '\0';
+      ffd->engine_name.str= ts;
       current_pos+= ffd->engine_name.length;
     }
     if (current_pos + 5 < end)
     {
-      ffd->partition_info_str_len= uint4korr(frm + current_pos);
+      ffd->partition_info.length= uint4korr(frm + current_pos);
       current_pos+= 4;
-      ffd->partition_info_str= c_malloc(ffd->partition_info_str_len + 1);
-      memcpy(ffd->partition_info_str, frm + current_pos,
-             ffd->partition_info_str_len + 1);
-      current_pos+= (ffd->partition_info_str_len + 1);
+      char *ts= c_malloc(ffd->partition_info.length + 1);
+      memcpy(ts, frm + current_pos, ffd->partition_info.length + 1);
+      //ts[ffd->partition_info.length + 1]= '\0';
+      ffd->partition_info.str= ts;
+      current_pos+= (ffd->partition_info.length + 1);
     }
     if (ffd->mysql_version >= 50110 && current_pos < end)
       current_pos++;
     //extra_info_pos= current_pos;
     parser_offset= current_pos;
   }
-  ffd->legacy_db_type_1= (enum legacy_db_type)(uint) frm[3];
-  ffd->legacy_db_type_2= (enum legacy_db_type)(uint) frm[61];
+  ffd->legacy_db_type_1= frm[3];
+  ffd->legacy_db_type_2= frm[61];
   //---READ COLUMN NAMES---
   ffd->columns= new column[ffd->column_count];
   current_pos= ffd->metadata_offset + ffd->metadata_length;
@@ -768,12 +772,34 @@ void print_keys(frm_file_data *ffd, uint k_id)
 
 }
 
+void print_engine(frm_file_data *ffd) 
+{
+  printf(" ENGINE=");
+  uint engine = 0;
+  if (ffd->engine_name.length == 0)
+    engine= ffd->legacy_db_type_1;
+  else if (ffd->engine_name.length != 0)
+  {
+    if (strcmp("partition", ffd->engine_name.str))
+    {
+      printf("%s", ffd->engine_name.str);
+      return;
+    }
+    engine= ffd->legacy_db_type_2;
+  }
+  if (engine <= 28)
+    printf("%s", legacy_db_types[engine]);
+  else if (engine == 42)
+    printf("FIRST_DYNAMIC");
+  else if (engine == 127)
+    printf("DEFAULT");
+}
+
 void print_table_options(frm_file_data *ffd)
 {
   if (ffd->connect_string.length)
-    printf("CONNECTION='%s'", ffd->connect_string.str);
-  if (ffd->engine_name.length != 0)
-    printf(" ENGINE=%s", ffd->engine_name.str);
+    printf(" CONNECTION='%s'", ffd->connect_string.str);
+  print_engine(ffd);
   if (ffd->table_cs_name.length != 0)
   {
     printf(" DEFAULT CHARSET=%s", ffd->table_cs_name.str);
@@ -790,6 +816,8 @@ void print_table_options(frm_file_data *ffd)
     printf(" KEY_BLOCK_SIZE=%u", ffd->key_block_size);
   if (ffd->table_comment.length)
     printf(" COMMENT='%s'", ffd->table_comment.str);
+  if (ffd->partition_info.length)
+    printf("\n%s", ffd->partition_info.str);
 }
 
 int show_create_table(LEX_CSTRING table_name, frm_file_data *ffd)
