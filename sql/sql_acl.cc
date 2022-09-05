@@ -8299,6 +8299,7 @@ static int count_subgraph_nodes(ACL_ROLE *role, ACL_ROLE *grantee, void *context
 }
 
 static int merge_role_privileges(ACL_ROLE *, ACL_ROLE *, void *);
+static bool merge_one_role_privileges(ACL_ROLE *grantee, PRIVS_TO_MERGE what);
 
 /**
   rebuild privileges of all affected roles
@@ -8317,6 +8318,11 @@ static void propagate_role_grants(ACL_ROLE *role,
   mysql_mutex_assert_owner(&acl_cache->lock);
   PRIVS_TO_MERGE data= { what, db, name };
 
+  /*
+     Before updating grants to roles that inherit from this role, ensure that
+     the effective grants on this role are up-to-date from *its* granted roles.
+  */
+  merge_one_role_privileges(role, data);
   /*
      Changing privileges of a role causes all other roles that had
      this role granted to them to have their rights invalidated.
@@ -8765,7 +8771,6 @@ static int table_name_sort(GRANT_TABLE * const *tbl1, GRANT_TABLE * const *tbl2)
 */
 static int update_role_columns(GRANT_TABLE *merged,
                                GRANT_TABLE **cur, GRANT_TABLE **last)
-
 {
   privilege_t rights __attribute__((unused)) (NO_ACL);
   int changed= 0;
@@ -9135,11 +9140,12 @@ static int merge_role_privileges(ACL_ROLE *role __attribute__((unused)),
   return !changed; // don't recurse into the subgraph if privs didn't change
 }
 
-static bool merge_one_role_privileges(ACL_ROLE *grantee)
+static
+bool merge_one_role_privileges(ACL_ROLE *grantee,
+                               PRIVS_TO_MERGE what)
 {
-  PRIVS_TO_MERGE data= { PRIVS_TO_MERGE::ALL, 0, 0 };
   grantee->counter= 1;
-  return merge_role_privileges(0, grantee, &data);
+  return merge_role_privileges(0, grantee, &what);
 }
 
 /*****************************************************************
@@ -9329,15 +9335,15 @@ static int mysql_table_grant(THD *thd, TABLE_LIST *table_list,
 
     /* Find/create cached table grant */
     grant_table= table_hash_search(Str->host.str, NullS, db_name,
-				   Str->user.str, table_name, 1);
+                                   Str->user.str, table_name, 1);
     if (!grant_table)
     {
       if (revoke_grant)
       {
-	my_error(ER_NONEXISTING_TABLE_GRANT, MYF(0),
+        my_error(ER_NONEXISTING_TABLE_GRANT, MYF(0),
                  Str->user.str, Str->host.str, table_list->table_name.str);
-	result= TRUE;
-	continue;
+        result= TRUE;
+        continue;
       }
       grant_table= new (&grant_memroot) GRANT_TABLE(Str->host.str, db_name,
                                                     Str->user.str, table_name,
@@ -9346,8 +9352,8 @@ static int mysql_table_grant(THD *thd, TABLE_LIST *table_list,
       if (!grant_table ||
           column_priv_insert(grant_table))
       {
-	result= TRUE;				/* purecov: deadcode */
-	continue;				/* purecov: deadcode */
+        result= TRUE;				/* purecov: deadcode */
+        continue;				/* purecov: deadcode */
       }
     }
 
@@ -9849,7 +9855,7 @@ bool mysql_grant_role(THD *thd, List <LEX_USER> &list, bool revoke)
        Only need to propagate grants when granting/revoking a role to/from
        a role
     */
-    if (role_as_user && merge_one_role_privileges(role_as_user) == 0)
+    if (role_as_user)
       propagate_role_grants(role_as_user, PRIVS_TO_MERGE::ALL);
   }
 
@@ -12893,9 +12899,6 @@ static int handle_grant_struct(enum enum_acl_lists struct_no, bool drop,
     size_t old_key_length= acl_role->user.length;
     if (drop)
     {
-      /* all grants must be revoked from this role by now. propagate this */
-      propagate_role_grants(acl_role, PRIVS_TO_MERGE::ALL);
-
       // delete the role from cross-reference arrays
       for (size_t i=0; i < acl_role->role_grants.elements; i++)
       {
@@ -12910,6 +12913,14 @@ static int handle_grant_struct(enum enum_acl_lists struct_no, bool drop,
                                                  i, ACL_USER_BASE**);
         remove_ptr_from_dynarray(&grantee->role_grants, acl_role);
       }
+
+      /* Remove all of the role_grants from this user. */
+      while (acl_role->role_grants.elements)
+        delete_dynamic_element(&acl_role->role_grants,
+                               acl_role->role_grants.elements - 1);
+
+      /* all grants must be revoked from this role by now. propagate this */
+      propagate_role_grants(acl_role, PRIVS_TO_MERGE::ALL);
 
       my_hash_delete(&acl_roles, (uchar*) acl_role);
       DBUG_RETURN(1);
