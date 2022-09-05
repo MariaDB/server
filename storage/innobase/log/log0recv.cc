@@ -187,7 +187,9 @@ public:
     /** The page was modified, affecting the encryption parameters */
     APPLIED_TO_ENCRYPTION,
     /** The page was modified, affecting the tablespace header */
-    APPLIED_TO_FSP_HEADER
+    APPLIED_TO_FSP_HEADER,
+    /** The page was found to be corrupted */
+    APPLIED_CORRUPTED,
   };
 
   /** Apply log to a page frame.
@@ -308,8 +310,7 @@ public:
           {
 page_corrupted:
             ib::error() << "Set innodb_force_recovery=1 to ignore corruption.";
-            recv_sys.found_corrupt_log= true;
-            return applied;
+            return APPLIED_CORRUPTED;
           }
           break;
         case INSERT_HEAP_REDUNDANT:
@@ -2338,6 +2339,7 @@ static void recv_recover_page(buf_block_t* block, mtr_t& mtr,
 			start_lsn = 0;
 			continue;
 		case log_phys_t::APPLIED_YES:
+		case log_phys_t::APPLIED_CORRUPTED:
 			goto set_start_lsn;
 		case log_phys_t::APPLIED_TO_FSP_HEADER:
 		case log_phys_t::APPLIED_TO_ENCRYPTION:
@@ -2391,7 +2393,8 @@ static void recv_recover_page(buf_block_t* block, mtr_t& mtr,
 		}
 
 set_start_lsn:
-		if (recv_sys.found_corrupt_log && !srv_force_recovery) {
+		if ((a == log_phys_t::APPLIED_CORRUPTED
+		     || recv_sys.found_corrupt_log) && !srv_force_recovery) {
 			break;
 		}
 
