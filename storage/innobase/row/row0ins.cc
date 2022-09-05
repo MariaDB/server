@@ -47,7 +47,8 @@ Created 4/20/1996 Heikki Tuuri
 # include "btr0sea.h"
 #endif
 #ifdef WITH_WSREP
-#include "wsrep_mysqld.h"
+#include <wsrep.h>
+#include <mysql/service_wsrep.h>
 #endif /* WITH_WSREP */
 
 /*************************************************************************

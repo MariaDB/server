@@ -5701,8 +5701,8 @@ bool Item_func_natural_sort_key::check_vcol_func_processor(void *arg)
 }
 
 #ifdef WITH_WSREP
-
 #include "wsrep_mysqld.h"
+#include "wsrep_server_state.h"
 /* Format is %d-%d-%llu */
 #define WSREP_MAX_WSREP_SERVER_GTID_STR_LEN 10+1+10+1+20
 

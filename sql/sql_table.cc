@@ -58,6 +58,7 @@
 #include "ddl_log.h"
 #include "debug.h"                     // debug_crash_here()
 #include <algorithm>
+#include "wsrep_mysqld.h"
 
 #ifdef _WIN32
 #include <io.h>

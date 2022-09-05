@@ -17,4 +17,8 @@ pk	c
 1	sql
 SELECT * FROM t1 WHERE pk = 12;
 ERROR HY000: Index for table 't1' is corrupt; try to repair it
+CHECK TABLE t1;
+Table	Op	Msg_type	Msg_text
+test.t1	check	Warning	InnoDB: The B-tree of index PRIMARY is corrupted.
+test.t1	check	error	Corrupt
 DROP TABLE t1;

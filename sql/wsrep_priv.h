@@ -19,13 +19,8 @@
 #ifndef WSREP_PRIV_H
 #define WSREP_PRIV_H
 
-#include <my_global.h>
-#include "wsrep_mysqld.h"
-#include "wsrep_schema.h"
-
-#include <log.h>
-#include <pthread.h>
-#include <cstdio>
+#include "wsrep_api.h"
+#include "wsrep/server_state.hpp"
 
 my_bool wsrep_ready_set (my_bool x);
 
@@ -39,7 +34,6 @@ wsrep_cb_status wsrep_sst_donate_cb (void* app_ctx,
 
 extern wsrep_uuid_t  local_uuid;
 extern wsrep_seqno_t local_seqno;
-extern Wsrep_schema* wsrep_schema;
 
 // a helper function
 bool wsrep_sst_received(THD*, const wsrep_uuid_t&, wsrep_seqno_t,

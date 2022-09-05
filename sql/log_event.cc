@@ -43,6 +43,9 @@
 #include <strfunc.h>
 #include "compat56.h"
 #include "sql_insert.h"
+#ifdef WITH_WSREP
+#include "wsrep_mysqld.h"
+#endif /* WITH_WSREP */
 #else
 #include "mysqld_error.h"
 #endif /* MYSQL_CLIENT */
