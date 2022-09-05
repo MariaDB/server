@@ -57,6 +57,7 @@
 #include "tztime.h"
 #include "sql_insert.h"                        // binlog_drop_table
 #include <algorithm>
+#include "wsrep_mysqld.h"
 
 #ifdef __WIN__
 #include <io.h>

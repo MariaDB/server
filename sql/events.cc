@@ -35,6 +35,7 @@
 #include "set_var.h"
 #include "lock.h"   // lock_object_name
 #include "mysql/psi/mysql_sp.h"
+#include "wsrep_mysqld.h"
 
 /**
   @addtogroup Event_Scheduler

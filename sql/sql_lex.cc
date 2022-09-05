@@ -37,6 +37,9 @@
 #include "sql_partition.h"
 #include "sql_partition_admin.h"               // Sql_cmd_alter_table_*_part
 #include "event_parse_data.h"
+#ifdef WITH_WSREP
+#include "mysql/service_wsrep.h"
+#endif
 
 void LEX::parse_error(uint err_number)
 {

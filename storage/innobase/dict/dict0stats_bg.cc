@@ -36,7 +36,6 @@ Created Apr 25, 2012 Vasil Dimov
 # include "mysql/service_wsrep.h"
 # include "wsrep.h"
 # include "log.h"
-# include "wsrep_mysqld.h"
 #endif
 
 #include <vector>

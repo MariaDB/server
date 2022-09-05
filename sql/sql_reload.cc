@@ -32,6 +32,9 @@
 #include "debug_sync.h"
 #include "des_key_file.h"
 #include "transaction.h"
+#ifdef WITH_WSREP
+#include "wsrep_mysqld.h"
+#endif
 
 static void disable_checkpoints(THD *thd);
 

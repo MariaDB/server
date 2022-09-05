@@ -29,7 +29,8 @@
 #include "sql_trigger.h"
 #include "sql_base.h"   // tdc_remove_table, lock_table_names,
 #include "sql_handler.h"                        // mysql_ha_rm_tables
-#include "sql_statistics.h" 
+#include "sql_statistics.h"
+#include "wsrep_mysqld.h"
 
 static TABLE_LIST *rename_tables(THD *thd, TABLE_LIST *table_list,
                                  bool skip_error, bool if_exits,

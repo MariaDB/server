@@ -1,5 +1,4 @@
-/* Copyright 2008-2021 Codership Oy <http://www.codership.com>
-   Copyright (c) 2020, 2021, MariaDB
+/* Copyright 2008-2022 Codership Oy <http://www.codership.com>
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -20,8 +19,6 @@
 #include <wsrep.h>
 
 #ifdef WITH_WSREP
-extern bool WSREP_ON_;
-extern bool WSREP_PROVIDER_EXISTS_;
 
 #include <mysql/plugin.h>
 #include "mysql/service_wsrep.h"
@@ -40,20 +37,11 @@ typedef struct st_mysql_show_var SHOW_VAR;
 #include "wsrep/provider.hpp"
 #include "wsrep/streaming_context.hpp"
 #include "wsrep_api.h"
-#include <vector>
 #include <map>
-#include "wsrep_server_state.h"
 
 #define WSREP_UNDEFINED_TRX_ID ULONGLONG_MAX
 
-class set_var;
 class THD;
-
-enum wsrep_consistency_check_mode {
-    NO_CONSISTENCY_CHECK,
-    CONSISTENCY_CHECK_DECLARED,
-    CONSISTENCY_CHECK_RUNNING,
-};
 
 // Global wsrep parameters
 
@@ -81,7 +69,6 @@ extern ulong       wsrep_max_ws_rows;
 extern const char* wsrep_notify_cmd;
 extern my_bool     wsrep_certify_nonPK;
 extern long int    wsrep_protocol_version;
-extern ulong       wsrep_forced_binlog_format;
 extern my_bool     wsrep_desync;
 extern ulong       wsrep_reject_queries;
 extern my_bool     wsrep_recovery;
@@ -102,7 +89,7 @@ extern ulong       wsrep_running_rollbacker_threads;
 extern bool        wsrep_new_cluster;
 extern bool        wsrep_gtid_mode;
 extern my_bool     wsrep_strict_ddl;
-extern uint        wsrep_gtid_domain_id;
+extern uint32      wsrep_gtid_domain_id;
 
 enum enum_wsrep_reject_types {
   WSREP_REJECT_NONE,    /* nothing rejected */
@@ -113,7 +100,7 @@ enum enum_wsrep_reject_types {
 enum enum_wsrep_OSU_method {
     WSREP_OSU_TOI,
     WSREP_OSU_RSU,
-    WSREP_OSU_NONE
+    WSREP_OSU_NONE,
 };
 
 enum enum_wsrep_sync_wait {
@@ -222,68 +209,46 @@ extern bool wsrep_reload_ssl();
 
 /* Other global variables */
 extern wsrep_seqno_t wsrep_locked_seqno;
-#define WSREP_ON unlikely(WSREP_ON_)
-
-/* use xxxxxx_NNULL macros when thd pointer is guaranteed to be non-null to
- * avoid compiler warnings (GCC 6 and later) */
-
-#define WSREP_NNULL(thd) \
-  (WSREP_PROVIDER_EXISTS_ && thd->variables.wsrep_on)
-
-#define WSREP(thd) \
-  (thd && WSREP_NNULL(thd))
-
-#define WSREP_CLIENT_NNULL(thd) \
-  (WSREP_NNULL(thd) && thd->wsrep_client_thread)
-
-#define WSREP_CLIENT(thd) \
-    (WSREP(thd) && thd->wsrep_client_thread)
-
-#define WSREP_EMULATE_BINLOG_NNULL(thd) \
-  (WSREP_NNULL(thd) && wsrep_emulate_bin_log)
-
-#define WSREP_EMULATE_BINLOG(thd) \
-  (WSREP(thd) && wsrep_emulate_bin_log)
-
-#define WSREP_BINLOG_FORMAT(my_format)                         \
-   ((wsrep_forced_binlog_format != BINLOG_FORMAT_UNSPEC) ?     \
-   wsrep_forced_binlog_format : my_format)
 
 /* A wrapper function for MySQL log functions. The call will prefix
    the log message with WSREP and forward the result buffer to fun. */
 void WSREP_LOG(void (*fun)(const char* fmt, ...), const char* fmt, ...);
 
-#define WSREP_DEBUG(...)                                                \
-    if (wsrep_debug)     sql_print_information( "WSREP: " __VA_ARGS__)
-#define WSREP_INFO(...)  sql_print_information( "WSREP: " __VA_ARGS__)
-#define WSREP_WARN(...)  sql_print_warning(     "WSREP: " __VA_ARGS__)
-#define WSREP_ERROR(...) sql_print_error(       "WSREP: " __VA_ARGS__)
-#define WSREP_UNKNOWN(fmt, ...) WSREP_ERROR("UNKNOWN: " fmt, ##__VA_ARGS__)
+#define WSREP_SYNC_WAIT(thd_, before_)                                  \
+    { if (WSREP_CLIENT(thd_) &&                                         \
+          wsrep_sync_wait(thd_, before_)) goto wsrep_error_label; }
 
-#define WSREP_LOG_CONFLICT_THD(thd, role)                               \
-  WSREP_INFO(                                                \
-            "%s: \n "                                            \
-            "  THD: %lu, mode: %s, state: %s, conflict: %s, seqno: %lld\n " \
-            "  SQL: %s",                                                \
-            role,                                                       \
-            thd_get_thread_id(thd),                                     \
-            wsrep_thd_client_mode_str(thd),                             \
-            wsrep_thd_client_state_str(thd),                            \
-            wsrep_thd_transaction_state_str(thd),                       \
-            wsrep_thd_trx_seqno(thd),                                   \
-            wsrep_thd_query(thd)                                        \
-            );
+#define WSREP_MYSQL_DB (char *)"mysql"
 
-#define WSREP_LOG_CONFLICT(bf_thd, victim_thd, bf_abort)                \
-  if (wsrep_debug || wsrep_log_conflicts)                               \
-  {                                                                     \
-    WSREP_INFO("cluster conflict due to %s for threads:",               \
-               (bf_abort) ? "high priority abort" : "certification failure" \
-              );                                                        \
-    if (bf_thd)     WSREP_LOG_CONFLICT_THD(bf_thd, "Winning thread");   \
-    if (victim_thd) WSREP_LOG_CONFLICT_THD(victim_thd, "Victim thread"); \
-    WSREP_INFO("context: %s:%d", __FILE__, __LINE__); \
-  }
+#define WSREP_TO_ISOLATION_BEGIN(db_, table_, table_list_)              \
+  if (WSREP_ON && WSREP(thd) && wsrep_to_isolation_begin(thd, db_, table_, table_list_)) \
+    goto wsrep_error_label;
+
+#define WSREP_TO_ISOLATION_BEGIN_CREATE(db_, table_, table_list_, create_info_)	\
+  if (WSREP_ON && WSREP(thd) &&                                         \
+      wsrep_to_isolation_begin(thd, db_, table_,                        \
+                               table_list_, nullptr, nullptr, create_info_))\
+    goto wsrep_error_label;
+
+#define WSREP_TO_ISOLATION_BEGIN_ALTER(db_, table_, table_list_, alter_info_, fk_tables_, create_info_) \
+  if (WSREP(thd) && wsrep_thd_is_local(thd) &&                          \
+      wsrep_to_isolation_begin(thd, db_, table_,                        \
+                               table_list_, alter_info_, fk_tables_, create_info_))
+
+#define WSREP_TO_ISOLATION_END                                          \
+  if ((WSREP(thd) && wsrep_thd_is_local_toi(thd)) ||                    \
+      wsrep_thd_is_in_rsu(thd))                                         \
+    wsrep_to_isolation_end(thd);
+
+/*
+  Checks if lex->no_write_to_binlog is set for statements that use LOCAL or
+  NO_WRITE_TO_BINLOG.
+*/
+#define WSREP_TO_ISOLATION_BEGIN_WRTCHK(db_, table_, table_list_)       \
+  if (WSREP(thd) && !thd->lex->no_write_to_binlog                       \
+      && wsrep_to_isolation_begin(thd, db_, table_, table_list_))       \
+    goto wsrep_error_label;
+
 
 #define WSREP_PROVIDER_EXISTS (WSREP_PROVIDER_EXISTS_)
 
@@ -296,9 +261,6 @@ static inline bool wsrep_cluster_address_exists()
 
 extern my_bool wsrep_ready_get();
 extern void wsrep_ready_wait();
-
-class Ha_trx_info;
-struct THD_TRANS;
 
 extern mysql_mutex_t LOCK_wsrep_ready;
 extern mysql_cond_t  COND_wsrep_ready;
@@ -323,8 +285,10 @@ extern mysql_mutex_t LOCK_wsrep_donor_monitor;
 extern mysql_cond_t  COND_wsrep_joiner_monitor;
 extern mysql_cond_t  COND_wsrep_donor_monitor;
 
-extern my_bool       wsrep_emulate_bin_log;
 extern int           wsrep_to_isolation;
+#ifdef GTID_SUPPORT
+extern rpl_sidno     wsrep_sidno;
+#endif /* GTID_SUPPORT */
 extern my_bool       wsrep_preordered_opt;
 
 #ifdef HAVE_PSI_INTERFACE
@@ -368,8 +332,6 @@ extern PSI_thread_key key_wsrep_sst_donor_monitor;
 
 struct TABLE_LIST;
 class Alter_info;
-struct HA_CREATE_INFO;
-
 int wsrep_to_isolation_begin(THD *thd, const char *db_, const char *table_,
                              const TABLE_LIST* table_list,
                              const Alter_info* alter_info= nullptr,
@@ -623,12 +585,6 @@ wsrep::key wsrep_prepare_key_for_toi(const char* db, const char* table,
 /* These macros are needed to compile MariaDB without WSREP support
  * (e.g. embedded) */
 
-#define WSREP_ON false
-#define WSREP(T)  (0)
-#define WSREP_NNULL(T) (0)
-#define WSREP_EMULATE_BINLOG(thd) (0)
-#define WSREP_EMULATE_BINLOG_NNULL(thd) (0)
-#define WSREP_BINLOG_FORMAT(my_format) ((ulong)my_format)
 #define WSREP_PROVIDER_EXISTS (0)
 #define wsrep_emulate_bin_log (0)
 #define wsrep_to_isolation (0)
@@ -641,6 +597,12 @@ wsrep::key wsrep_prepare_key_for_toi(const char* db, const char* table,
 #define wsrep_create_appliers(X) do {} while(0)
 #define wsrep_should_replicate_ddl(X,Y) (1)
 #define wsrep_cluster_address_exists() (false)
+#define WSREP_MYSQL_DB (0)
+#define WSREP_TO_ISOLATION_BEGIN(db_, table_, table_list_) do { } while(0)
+#define WSREP_TO_ISOLATION_BEGIN_ALTER(db_, table_, table_list_, alter_info_, fk_tables_)
+#define WSREP_TO_ISOLATION_END
+#define WSREP_TO_ISOLATION_BEGIN_WRTCHK(db_, table_, table_list_)
+#define WSREP_SYNC_WAIT(thd_, before_)
 
 #endif /* WITH_WSREP */
 

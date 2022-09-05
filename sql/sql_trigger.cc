@@ -35,6 +35,7 @@
 #include <mysys_err.h>
 #include "debug_sync.h"
 #include "mysql/psi/mysql_sp.h"
+#include "wsrep_mysqld.h"
 
 /*************************************************************************/
 
