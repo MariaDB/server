@@ -1266,8 +1266,8 @@ without checking for deadlocks or conflicts.
 @return created lock */
 lock_t*
 lock_rec_create_low(
-#ifdef WITH_WSREP
 	lock_t*		c_lock,	/*!< conflicting lock */
+#ifdef WITH_WSREP
 	que_thr_t*	thr,	/*!< thread owning trx */
 #endif
 	unsigned	type_mode,
@@ -1385,7 +1385,7 @@ lock_rec_create_low(
 			}
 
 			trx->lock.que_state = TRX_QUE_LOCK_WAIT;
-			lock_set_lock_and_trx_wait(lock, trx);
+			lock_set_lock_and_trx_wait(lock, trx, c_lock);
 			UT_LIST_ADD_LAST(trx->lock.trx_locks, lock);
 
 			trx->lock.wait_thr = thr;
@@ -1429,7 +1429,7 @@ lock_rec_create_low(
 	}
 	ut_ad(trx_mutex_own(trx));
 	if (type_mode & LOCK_WAIT) {
-		lock_set_lock_and_trx_wait(lock, trx);
+		lock_set_lock_and_trx_wait(lock, trx, c_lock);
 	}
 	UT_LIST_ADD_LAST(trx->lock.trx_locks, lock);
 	if (!holds_trx_mutex) {
@@ -1594,9 +1594,7 @@ Check for deadlocks.
 				(or it happened to commit) */
 dberr_t
 lock_rec_enqueue_waiting(
-#ifdef WITH_WSREP
 	lock_t*			c_lock,	/*!< conflicting lock */
-#endif
 	unsigned		type_mode,
 	const buf_block_t*	block,
 	ulint			heap_no,
@@ -1634,9 +1632,9 @@ lock_rec_enqueue_waiting(
 
 	/* Enqueue the lock request that will wait to be granted, note that
 	we already own the trx mutex. */
-	lock_t* lock = lock_rec_create(
+	lock_t* lock = lock_rec_create(c_lock,
 #ifdef WITH_WSREP
-		c_lock, thr,
+		thr,
 #endif
 		type_mode | LOCK_WAIT, block, heap_no, index, trx, TRUE);
 
@@ -1834,9 +1832,13 @@ lock_rec_add_to_queue(
 		}
 	}
 
-	lock_rec_create(
+	/* Note: We will not pass any conflicting lock to lock_rec_create(),
+	because we should be moving an existing waiting lock request. */
+	ut_ad(!(type_mode & LOCK_WAIT) || trx->lock.wait_trx);
+
+	lock_rec_create(NULL,
 #ifdef WITH_WSREP
-		NULL, NULL,
+		NULL,
 #endif
 		type_mode, block, heap_no, index, trx, caller_owns_trx_mutex);
 }
@@ -1897,9 +1899,7 @@ lock_rec_lock(
       if (!lock_rec_has_expl(mode, block, heap_no, trx))
       {
         if (
-#ifdef WITH_WSREP
 	    lock_t *c_lock=
-#endif
 	    lock_rec_other_has_conflicting(mode, block, heap_no, trx))
         {
           /*
@@ -1908,9 +1908,7 @@ lock_rec_lock(
             have a lock strong enough already granted on the
 	    record, we have to wait. */
 	    err = lock_rec_enqueue_waiting(
-#ifdef WITH_WSREP
 			c_lock,
-#endif /* WITH_WSREP */
 			mode, block, heap_no, index, thr, NULL);
         }
         else if (!impl)
@@ -1943,9 +1941,9 @@ lock_rec_lock(
       Note that we don't own the trx mutex.
     */
     if (!impl)
-      lock_rec_create(
+      lock_rec_create(NULL,
 #ifdef WITH_WSREP
-         NULL, NULL,
+         NULL,
 #endif
         mode, block, heap_no, index, trx, false);
 
@@ -2168,8 +2166,17 @@ static void lock_rec_dequeue_from_page(lock_t* in_lock)
 			if (!lock_get_wait(lock)) {
 				continue;
 			}
-			const lock_t* c = lock_rec_has_to_wait_in_queue(lock);
-			if (!c) {
+
+			ut_ad(lock->trx->lock.wait_trx);
+			ut_ad(lock->trx->lock.wait_lock);
+
+			if (const lock_t* c = lock_rec_has_to_wait_in_queue(
+				    lock)) {
+				trx_mutex_enter(lock->trx);
+				lock->trx->lock.wait_trx = c->trx;
+				trx_mutex_exit(lock->trx);
+			}
+			else {
 				/* Grant the lock */
 				ut_ad(lock->trx != in_lock->trx);
 				lock_grant(lock);
@@ -2417,7 +2424,8 @@ lock_rec_move_low(
 		lock_rec_reset_nth_bit(lock, donator_heap_no);
 
 		if (type_mode & LOCK_WAIT) {
-			lock_reset_lock_and_trx_wait(lock);
+			ut_ad(lock->trx->lock.wait_lock == lock);
+			lock->type_mode &= ~LOCK_WAIT;
 		}
 
 		/* Note that we FIRST reset the bit, and then set the lock:
@@ -2534,8 +2542,8 @@ lock_move_reorganize_page(
 		lock_rec_bitmap_reset(lock);
 
 		if (lock_get_wait(lock)) {
-
-			lock_reset_lock_and_trx_wait(lock);
+			ut_ad(lock->trx->lock.wait_lock == lock);
+			lock->type_mode&= ~LOCK_WAIT;
 		}
 
 		lock = lock_rec_get_next_on_page(lock);
@@ -2711,7 +2719,9 @@ lock_move_rec_list_end(
 				ut_ad(!page_rec_is_metadata(orec));
 
 				if (type_mode & LOCK_WAIT) {
-					lock_reset_lock_and_trx_wait(lock);
+					ut_ad(lock->trx->lock.wait_lock ==
+					    lock);
+					lock->type_mode&= ~LOCK_WAIT;
 				}
 
 				lock_rec_add_to_queue(
@@ -2809,7 +2819,9 @@ lock_move_rec_list_start(
 				ut_ad(!page_rec_is_metadata(prev));
 
 				if (type_mode & LOCK_WAIT) {
-					lock_reset_lock_and_trx_wait(lock);
+					ut_ad(lock->trx->lock.wait_lock
+					    == lock);
+					lock->type_mode&= ~LOCK_WAIT;
 				}
 
 				lock_rec_add_to_queue(
@@ -2905,7 +2917,9 @@ lock_rtr_move_rec_list(
 			if (rec1_heap_no < lock->un_member.rec_lock.n_bits
 			    && lock_rec_reset_nth_bit(lock, rec1_heap_no)) {
 				if (type_mode & LOCK_WAIT) {
-					lock_reset_lock_and_trx_wait(lock);
+					ut_ad(lock->trx->lock.wait_lock
+					    == lock);
+					lock->type_mode&= ~LOCK_WAIT;
 				}
 
 				lock_rec_add_to_queue(
@@ -3362,10 +3376,8 @@ lock_table_create(
 				in dictionary cache */
 	unsigned	type_mode,/*!< in: lock mode possibly ORed with
 				LOCK_WAIT */
-	trx_t*		trx	/*!< in: trx */
-#ifdef WITH_WSREP
-	, lock_t*	c_lock = NULL	/*!< in: conflicting lock */
-#endif
+	trx_t*		trx,	/*!< in: trx */
+	lock_t*	c_lock = NULL	/*!< in: conflicting lock */
 	)
 {
 	lock_t*		lock;
@@ -3449,7 +3461,7 @@ lock_table_create(
 
 	if (type_mode & LOCK_WAIT) {
 
-		lock_set_lock_and_trx_wait(lock, trx);
+		lock_set_lock_and_trx_wait(lock, trx, c_lock);
 	}
 
 	lock->trx->lock.table_locks.push_back(lock);
@@ -3604,10 +3616,8 @@ lock_table_enqueue_waiting(
 	unsigned	mode,	/*!< in: lock mode this transaction is
 				requesting */
 	dict_table_t*	table,	/*!< in/out: table */
-	que_thr_t*	thr	/*!< in: query thread */
-#ifdef WITH_WSREP
-	, lock_t*	c_lock	/*!< in: conflicting lock or NULL */
-#endif
+	que_thr_t*	thr,	/*!< in: query thread */
+	lock_t*	c_lock	/*!< in: conflicting lock or NULL */
 )
 {
 	trx_t*		trx;
@@ -3638,11 +3648,7 @@ lock_table_enqueue_waiting(
 #endif /* WITH_WSREP */
 
 	/* Enqueue the lock request that will wait to be granted */
-	lock = lock_table_create(table, mode | LOCK_WAIT, trx
-#ifdef WITH_WSREP
-				 , c_lock
-#endif
-				 );
+	lock = lock_table_create(table, mode | LOCK_WAIT, trx, c_lock);
 
 	const trx_t*	victim_trx =
 		DeadlockChecker::check_and_resolve(lock, trx);
@@ -3798,11 +3804,7 @@ lock_table(
 
 	if (wait_for != NULL) {
 		err = lock_table_enqueue_waiting(flags | mode, table,
-						 thr
-#ifdef WITH_WSREP
-						 , wait_for
-#endif
-						 );
+						 thr, wait_for);
 	} else {
 		lock_table_create(table, flags | mode, trx);
 
@@ -3850,7 +3852,7 @@ lock_table_ix_resurrect(
 Checks if a waiting table lock request still has to wait in a queue.
 @return TRUE if still has to wait */
 static
-bool
+const lock_t*
 lock_table_has_to_wait_in_queue(
 /*============================*/
 	const lock_t*	wait_lock)	/*!< in: waiting table lock */
@@ -3869,11 +3871,11 @@ lock_table_has_to_wait_in_queue(
 
 		if (lock_has_to_wait(wait_lock, lock)) {
 
-			return(true);
+			return(lock);
 		}
 	}
 
-	return(false);
+	return(nullptr);
 }
 
 /*************************************************************//**
@@ -3902,9 +3904,17 @@ lock_table_dequeue(
 	     lock != NULL;
 	     lock = UT_LIST_GET_NEXT(un_member.tab_lock.locks, lock)) {
 
-		if (lock_get_wait(lock)
-		    && !lock_table_has_to_wait_in_queue(lock)) {
+		if (!lock_get_wait(lock))
+			continue;
 
+		ut_ad(lock->trx->lock.wait_trx);
+		ut_ad(lock->trx->lock.wait_lock);
+
+		if (const lock_t *c = lock_table_has_to_wait_in_queue(lock)) {
+			trx_mutex_enter(lock->trx);
+			lock->trx->lock.wait_trx = c->trx;
+			trx_mutex_exit(lock->trx);
+		} else {
 			/* Grant the lock */
 			ut_ad(in_lock->trx != lock->trx);
 			lock_grant(lock);
@@ -4092,8 +4102,16 @@ released:
 			if (!lock_get_wait(lock)) {
 				continue;
 			}
-			const lock_t* c = lock_rec_has_to_wait_in_queue(lock);
-			if (!c) {
+			ut_ad(lock->trx->lock.wait_trx);
+			ut_ad(lock->trx->lock.wait_lock);
+			if (const lock_t* c = lock_rec_has_to_wait_in_queue(
+			      lock)) {
+				if (lock->trx != trx)
+					trx_mutex_enter(lock->trx);
+				lock->trx->lock.wait_trx = c->trx;
+				if (lock->trx != trx)
+					trx_mutex_exit(lock->trx);
+			} else {
 				/* Grant the lock */
 				ut_ad(trx != lock->trx);
 				lock_grant(lock);
@@ -5252,17 +5270,13 @@ lock_rec_insert_check_and_lock(
 	const unsigned	type_mode = LOCK_X | LOCK_GAP | LOCK_INSERT_INTENTION;
 
 	if (
-#ifdef WITH_WSREP
 	    lock_t* c_lock =
-#endif /* WITH_WSREP */
 	    lock_rec_other_has_conflicting(type_mode, block, heap_no, trx)) {
 		/* Note that we may get DB_SUCCESS also here! */
 		trx_mutex_enter(trx);
 
 		err = lock_rec_enqueue_waiting(
-#ifdef WITH_WSREP
 			c_lock,
-#endif /* WITH_WSREP */
 			type_mode, block, heap_no, index, thr, NULL);
 
 		trx_mutex_exit(trx);

@@ -871,8 +871,8 @@ UNIV_INLINE
 lock_t*
 lock_rec_create(
 /*============*/
-#ifdef WITH_WSREP
 	lock_t*			c_lock,	/*!< conflicting lock */
+#ifdef WITH_WSREP
 	que_thr_t*		thr,	/*!< thread owning trx */
 #endif
 	unsigned		type_mode,/*!< in: lock mode and wait
@@ -909,8 +909,8 @@ without checking for deadlocks or conflicts.
 @return created lock */
 lock_t*
 lock_rec_create_low(
-#ifdef WITH_WSREP
 	lock_t*		c_lock,	/*!< conflicting lock */
+#ifdef WITH_WSREP
 	que_thr_t*	thr,	/*!< thread owning trx */
 #endif
 	unsigned	type_mode,
@@ -940,9 +940,7 @@ Check for deadlocks.
 				(or it happened to commit) */
 dberr_t
 lock_rec_enqueue_waiting(
-#ifdef WITH_WSREP
 	lock_t*			c_lock,	/*!< conflicting lock */
-#endif
 	unsigned		type_mode,
 	const buf_block_t*	block,
 	ulint			heap_no,

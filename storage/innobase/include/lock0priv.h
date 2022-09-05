@@ -623,14 +623,25 @@ lock_table_has(
 
 /** Set the wait status of a lock.
 @param[in,out]	lock	lock that will be waited for
-@param[in,out]	trx	transaction that will wait for the lock */
-inline void lock_set_lock_and_trx_wait(lock_t* lock, trx_t* trx)
+@param[in,out]	trx	transaction that will wait for the lock
+@param[in]      c_lock   conflicting lock */
+inline void lock_set_lock_and_trx_wait(lock_t* lock, trx_t* trx,
+	const lock_t *c_lock)
 {
 	ut_ad(lock);
 	ut_ad(lock->trx == trx);
-	ut_ad(trx->lock.wait_lock == NULL);
 	ut_ad(lock_mutex_own());
 	ut_ad(trx_mutex_own(trx));
+
+	if (trx->lock.wait_trx) {
+		ut_ad(!c_lock || trx->lock.wait_trx == c_lock->trx);
+		ut_ad(trx->lock.wait_lock);
+		ut_ad((*trx->lock.wait_lock).trx == trx);
+	} else {
+		ut_ad(c_lock);
+		trx->lock.wait_trx = c_lock->trx;
+		ut_ad(!trx->lock.wait_lock);
+	}
 
 	trx->lock.wait_lock = lock;
 	lock->type_mode |= LOCK_WAIT;
@@ -644,6 +655,7 @@ inline void lock_reset_lock_and_trx_wait(lock_t* lock)
 	ut_ad(lock_mutex_own());
 	ut_ad(lock->trx->lock.wait_lock == NULL
 	      || lock->trx->lock.wait_lock == lock);
+	lock->trx->lock.wait_trx= nullptr;
 	lock->trx->lock.wait_lock = NULL;
 	lock->type_mode &= ~LOCK_WAIT;
 }

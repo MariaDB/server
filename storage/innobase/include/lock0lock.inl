@@ -77,8 +77,8 @@ UNIV_INLINE
 lock_t*
 lock_rec_create(
 /*============*/
-#ifdef WITH_WSREP
 	lock_t*			c_lock,	/*!< conflicting lock */
+#ifdef WITH_WSREP
 	que_thr_t*		thr,	/*!< thread owning trx */
 #endif
 	unsigned		type_mode,/*!< in: lock mode and wait
@@ -94,9 +94,9 @@ lock_rec_create(
 					trx mutex */
 {
 	btr_assert_not_corrupted(block, index);
-	return lock_rec_create_low(
+	return lock_rec_create_low(c_lock,
 #ifdef WITH_WSREP
-		c_lock, thr,
+		thr,
 #endif
 		type_mode, block->page.id(), block->frame, heap_no,
 		index, trx, caller_owns_trx_mutex);

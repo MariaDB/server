@@ -489,9 +489,9 @@ lock_prdt_add_to_queue(
 		}
 	}
 
-	lock = lock_rec_create(
+	lock = lock_rec_create(NULL,
 #ifdef WITH_WSREP
-		NULL, NULL, /* FIXME: replicate SPATIAL INDEX locks */
+		NULL, /* FIXME: replicate SPATIAL INDEX locks */
 #endif
 		type_mode, block, PRDT_HEAPNO, index, trx,
 		caller_owns_trx_mutex);
@@ -581,9 +581,7 @@ lock_prdt_insert_check_and_lock(
 		trx_mutex_enter(trx);
 
 		err = lock_rec_enqueue_waiting(
-#ifdef WITH_WSREP
 			NULL, /* FIXME: replicate SPATIAL INDEX locks */
-#endif
 			LOCK_X | LOCK_PREDICATE | LOCK_INSERT_INTENTION,
 			block, PRDT_HEAPNO, index, thr, prdt);
 
@@ -822,9 +820,9 @@ lock_prdt_lock(
 	lock_t*		lock = lock_sys.get_first(hash, block->page.id());
 
 	if (lock == NULL) {
-		lock = lock_rec_create(
+		lock = lock_rec_create(NULL,
 #ifdef WITH_WSREP
-			NULL, NULL, /* FIXME: replicate SPATIAL INDEX locks */
+			NULL, /* FIXME: replicate SPATIAL INDEX locks */
 #endif
 			prdt_mode, block, PRDT_HEAPNO,
 			index, trx, FALSE);
@@ -854,10 +852,8 @@ lock_prdt_lock(
 				if (wait_for != NULL) {
 
 					err = lock_rec_enqueue_waiting(
-#ifdef WITH_WSREP
 						NULL, /* FIXME: replicate
 						      SPATIAL INDEX locks */
-#endif
 						prdt_mode,
 						block, PRDT_HEAPNO,
 						index, thr, prdt);
@@ -937,9 +933,9 @@ lock_place_prdt_page_lock(
 	}
 
 	if (lock == NULL) {
-		lock = lock_rec_create_low(
+		lock = lock_rec_create_low(NULL,
 #ifdef WITH_WSREP
-			NULL, NULL, /* FIXME: replicate SPATIAL INDEX locks */
+			NULL, /* FIXME: replicate SPATIAL INDEX locks */
 #endif
 			mode, page_id, NULL, PRDT_HEAPNO,
 			index, trx, FALSE);
