@@ -8,10 +8,12 @@ grant r_active_column to foo;
 grant select(a) on some_db.t1 to r_select_column;
 select * from mysql.tables_priv order by user;
 Host	Db	User	Table_name	Grantor	Timestamp	Table_priv	Column_priv
+localhost	mysql	mariadb.sys	global_priv	root@localhost	0000-00-00 00:00:00	Select,Delete	
 	some_db	r_select_column	t1	root@localhost	0000-00-00 00:00:00		Select
 grant insert(a) on some_db.t1 to r_active_column;
 select * from mysql.tables_priv order by user;
 Host	Db	User	Table_name	Grantor	Timestamp	Table_priv	Column_priv
+localhost	mysql	mariadb.sys	global_priv	root@localhost	0000-00-00 00:00:00	Select,Delete	
 	some_db	r_active_column	t1	root@localhost	0000-00-00 00:00:00		Insert
 	some_db	r_select_column	t1	root@localhost	0000-00-00 00:00:00		Select
 connect  con1, localhost, foo,,;
