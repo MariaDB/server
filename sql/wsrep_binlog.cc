@@ -16,11 +16,11 @@
 #include "mariadb.h"
 #include "mysql/service_wsrep.h"
 #include "wsrep_binlog.h"
-#include "wsrep_priv.h"
 #include "log.h"
 #include "slave.h"
 #include "log_event.h"
 #include "wsrep_applier.h"
+#include "wsrep_mysqld.h"
 
 #include "transaction.h"
 

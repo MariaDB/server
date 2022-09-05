@@ -30,6 +30,7 @@
 #include "wsrep_high_priority_service.h"
 #include "wsrep_storage_service.h"
 #include "wsrep_thd.h"
+#include "wsrep_server_state.h"
 
 #include <string>
 #include <sstream>

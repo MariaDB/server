@@ -26,6 +26,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include "wsrep_trans_observer.h"
+#include "wsrep_server_state.h"
 
 ulong   wsrep_reject_queries;
 
