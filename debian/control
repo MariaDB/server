@@ -70,8 +70,8 @@ Breaks: libmariadb-client-lgpl-dev,
 Replaces: libmariadb-client-lgpl-dev,
           libmariadb-dev-compat (<< 3.0.0),
           libmariadbclient-dev,
-          libmysqlclient-dev (<< ${source:Version}),
-          libmysqld-dev (<< ${source:Version})
+          libmysqlclient-dev,
+          libmysqld-dev
 Description: MariaDB database development files
  MariaDB is a fast, stable and true multi-user, multi-threaded SQL database
  server. SQL (Structured Query Language) is the most popular database query
@@ -224,7 +224,7 @@ Breaks: libmariadb-dev (<< ${source:Version}),
         libmariadbclient-dev (<< ${source:Version}),
         libmysqld-dev
 Replaces: libmariadb-dev (<< ${source:Version}),
-          libmariadbclient-dev (<< ${source:Version}),
+          libmariadbclient-dev,
           libmysqld-dev
 Description: MariaDB embedded database, development files
  MariaDB is a fast, stable and true multi-user, multi-threaded SQL database
