@@ -15,16 +15,50 @@ grant all on some_db.v1 to foo;
 grant r2 to r1;
 grant r1 to foo;
 
+grant select on *.* to r2;
+grant insert on *.* to r1;
+
+show grants for r1;
+
 deny select on *.* to r2;
+deny insert on *.* to r1;
 
 --connect (con1, localhost, foo,,)
+
+--echo #
+--echo # All grants are allowed, nothing should be denied at this point.
+--echo #
 select * from some_db.t1;
+insert into some_db.t1 values (1, 1, 1);
+update some_db.t1 set secret=30;
+update some_db.t1 set secret=40 where secret=30;
+select * from some_db.t1;
+
 set role r1;
+show grants;
 
 --error ER_TABLEACCESS_DENIED_ERROR
 select * from some_db.t1;
+--error ER_TABLEACCESS_DENIED_ERROR
+insert into some_db.t1 values (1, 1, 1);
+--echo #
+--echo # Updating without a where clause should work.
+--echo #
+update some_db.t1 set secret=20;
+--echo #
+--echo # But updating with a WHERE clause requires SELECT, which we don't have.
+--echo #
+--error ER_COLUMNACCESS_DENIED_ERROR
+update some_db.t1 set secret=30 where secret=20;
 
+--echo #
+--echo # Now let's eliminate all denies and make sure we have access accordingly
+--echo #
 set role none;
+select * from some_db.t1;
+insert into some_db.t1 values (1, 1, 1);
+update some_db.t1 set secret=30;
+update some_db.t1 set secret=40 where secret=30;
 select * from some_db.t1;
 
 show grants;
