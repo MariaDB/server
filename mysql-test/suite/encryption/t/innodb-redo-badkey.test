@@ -17,6 +17,7 @@ call mtr.add_suppression("InnoDB: Database page corruption on disk or a failed r
 call mtr.add_suppression("InnoDB: Failed to read page .* from file '.*'");
 call mtr.add_suppression("InnoDB: OPT_PAGE_CHECKSUM mismatch");
 call mtr.add_suppression("InnoDB: Set innodb_force_recovery=1 to ignore corruption");
+call mtr.add_suppression("InnoDB: (Unable to apply log to|Discarding log for) corrupted page ");
 call mtr.add_suppression("InnoDB: Plugin initialization aborted");
 call mtr.add_suppression("Plugin 'InnoDB' registration as a STORAGE ENGINE failed");
 # for innodb_checksum_algorithm=full_crc32 only

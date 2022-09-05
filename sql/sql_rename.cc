@@ -29,8 +29,9 @@
 #include "sql_trigger.h"
 #include "sql_base.h"   // tdc_remove_table, lock_table_names,
 #include "sql_handler.h"                        // mysql_ha_rm_tables
-#include "sql_statistics.h" 
+#include "sql_statistics.h"
 #include "ddl_log.h"
+#include "wsrep_mysqld.h"
 #include "debug.h"
 
 /* used to hold table entries for as part of list of renamed temporary tables */

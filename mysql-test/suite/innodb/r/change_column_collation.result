@@ -51,25 +51,39 @@ id	msg
 DROP TABLE t1;
 CREATE TABLE t1 (
 id INT PRIMARY KEY,
+f1 INT NOT NULL,
+f2 INT NOT NULL,
+f3 INT NOT NULL,
 msg VARCHAR(100) CHARACTER SET utf8 COLLATE utf8_bin,
-unique index(msg)
+msg_1 VARCHAR(100) CHARACTER SET utf8 COLLATE utf8_bin,
+unique index(f1, msg, f2, msg_1, f3),
+unique index(f1, msg_1, f2, msg, f3),
+unique index(f1, msg, f3, msg_1, f2),
+unique index(f1, msg_1, f3, msg, f2),
+unique index(f2, msg_1, f1, msg, f3),
+unique index(f2, msg, f3, msg_1, f1),
+unique index(f3, f2, msg, msg_1, f1),
+unique index(f3, msg, msg_1, f1, f2)
 ) ENGINE=INNODB;
-INSERT INTO t1 VALUES (1, 'aaa');
+INSERT INTO t1 VALUES (1, 1, 1, 1, 'aaa', 'aaa');
 SET DEBUG_DBUG="+d,create_index_fail";
 SET DEBUG_SYNC="innodb_inplace_alter_table_enter SIGNAL con1_go WAIT_FOR alter_signal";
-ALTER TABLE t1 MODIFY msg VARCHAR(100) CHARACTER SET utf8 COLLATE utf8_unicode_ci, ALGORITHM=NOCOPY;
+ALTER TABLE t1 MODIFY msg VARCHAR(100) CHARACTER SET utf8 COLLATE utf8_unicode_ci, MODIFY msg_1 VARCHAR(100) CHARACTER SET utf8 COLLATE utf8_unicode_ci, ALGORITHM=NOCOPY;
 connection con1;
 SET DEBUG_SYNC="now WAIT_FOR con1_go";
 BEGIN;
 SELECT * FROM t1;
-id	msg
-1	aaa
+id	f1	f2	f3	msg	msg_1
+1	1	1	1	aaa	aaa
 SET DEBUG_SYNC="now SIGNAL alter_signal";
 connection default;
 ERROR 23000: Duplicate entry '' for key '*UNKNOWN*'
+CHECK TABLE t1;
+Table	Op	Msg_type	Msg_text
+test.t1	check	status	OK
 connection con1;
 rollback;
-INSERT INTO t1 VALUES(2, 'bbb');
+INSERT INTO t1 VALUES(2, 2, 2, 2, 'bbb', 'bbb');
 disconnect con1;
 connection default;
 SET DEBUG_SYNC=reset;
@@ -77,11 +91,22 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `id` int(11) NOT NULL,
+  `f1` int(11) NOT NULL,
+  `f2` int(11) NOT NULL,
+  `f3` int(11) NOT NULL,
   `msg` varchar(100) CHARACTER SET utf8mb3 COLLATE utf8mb3_bin DEFAULT NULL,
+  `msg_1` varchar(100) CHARACTER SET utf8mb3 COLLATE utf8mb3_bin DEFAULT NULL,
   PRIMARY KEY (`id`),
-  UNIQUE KEY `msg` (`msg`)
+  UNIQUE KEY `f1` (`f1`,`msg`,`f2`,`msg_1`,`f3`),
+  UNIQUE KEY `f1_2` (`f1`,`msg_1`,`f2`,`msg`,`f3`),
+  UNIQUE KEY `f1_3` (`f1`,`msg`,`f3`,`msg_1`,`f2`),
+  UNIQUE KEY `f1_4` (`f1`,`msg_1`,`f3`,`msg`,`f2`),
+  UNIQUE KEY `f2` (`f2`,`msg_1`,`f1`,`msg`,`f3`),
+  UNIQUE KEY `f2_2` (`f2`,`msg`,`f3`,`msg_1`,`f1`),
+  UNIQUE KEY `f3` (`f3`,`f2`,`msg`,`msg_1`,`f1`),
+  UNIQUE KEY `f3_2` (`f3`,`msg`,`msg_1`,`f1`,`f2`)
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1
-INSERT INTO t1 VALUES(3, 'ccc');
+INSERT INTO t1 VALUES(3, 3, 3, 3, 'ccc', 'ccc');
 DROP TABLE t1;
 CREATE TABLE t1(id INT PRIMARY KEY, msg VARCHAR(100),
 msg_1 VARCHAR(100) AS (msg) VIRTUAL,

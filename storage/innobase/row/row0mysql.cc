@@ -66,11 +66,6 @@ Created 9/17/2000 Heikki Tuuri
 #include <vector>
 #include <thread>
 
-#ifdef WITH_WSREP
-#include "mysql/service_wsrep.h"
-#include "wsrep.h"
-#include "wsrep_mysqld.h"
-#endif
 
 /*******************************************************************//**
 Delays an INSERT, DELETE or UPDATE operation if the purge is lagging. */
