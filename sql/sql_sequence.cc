@@ -26,6 +26,9 @@
 #include "transaction.h"
 #include "lock.h"
 #include "sql_acl.h"
+#ifdef WITH_WSREP
+#include "wsrep_mysqld.h"
+#endif
 
 struct Field_definition
 {

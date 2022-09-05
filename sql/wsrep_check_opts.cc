@@ -19,6 +19,7 @@
 #include "sys_vars_shared.h"
 #include "wsrep.h"
 #include "wsrep_sst.h"
+#include "wsrep_mysqld.h"
 
 extern char *my_bind_addr_str;
 
