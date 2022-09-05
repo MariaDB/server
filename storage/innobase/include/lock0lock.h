@@ -583,6 +583,8 @@ void
 lock_print_info_all_transactions(
 /*=============================*/
 	FILE*	file);	/*!< in: file where to print */
+
+void lock_print_info_for_trx_no_lock(const trx_t *trx);
 /*********************************************************************//**
 Return approximate number or record locks (bits set in the bitmap) for
 this transaction. Since delete-marked records may be removed, the

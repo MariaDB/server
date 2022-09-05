@@ -4642,10 +4642,10 @@ lock_trx_print_locks(
 			lock_table_print(file, lock);
 		}
 
-		if (++i == 10) {
+		if (++i == 1000) {
 
 			fprintf(file,
-				"10 LOCKS PRINTED FOR THIS TRX:"
+				"1000 LOCKS PRINTED FOR THIS TRX:"
 				" SUPPRESSING FURTHER PRINTS\n");
 
 			break;
@@ -4693,6 +4693,17 @@ lock_print_info_all_transactions(
 	lock_mutex_exit();
 
 	ut_ad(lock_validate());
+}
+
+void lock_print_info_for_trx_no_lock(const trx_t *trx)
+{
+  ut_ad(lock_mutex_own());
+  if (UNIV_UNLIKELY(trx == (purge_sys.query ? purge_sys.query->trx : NULL)))
+    return;
+
+  lock_trx_print_wait_and_mvcc_state(stderr, trx, time(nullptr));
+
+  lock_trx_print_locks(stderr, trx);
 }
 
 #ifdef UNIV_DEBUG

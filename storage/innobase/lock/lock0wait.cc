@@ -460,6 +460,21 @@ lock_wait_check_and_cancel(
 #ifdef WITH_WSREP
                         if (!wsrep_is_BF_lock_timeout(trx)) {
 #endif /* WITH_WSREP */
+		trx_t *waited_trx=trx->lock.wait_trx;
+		if (thd_is_replication_slave_thread(trx->mysql_thd)
+		    && waited_trx
+		    && trx_state_eq(waited_trx, TRX_STATE_PREPARED)) {
+		  fprintf(stderr,
+		      "==============> Waiting transaction: "
+		      "id - " IB_ID_FMT " isolation level - %u, "
+		      "waited transaction: "
+		      "id - " IB_ID_FMT " isolation level - %u\n",
+		      trx->id, trx->isolation_level,
+		      waited_trx->id, waited_trx->isolation_level);
+		  lock_print_info_for_trx_no_lock(trx);
+		  lock_print_info_for_trx_no_lock(waited_trx);
+		}
+
 				lock_cancel_waiting_and_release(trx->lock.wait_lock);
 #ifdef WITH_WSREP
                         }
