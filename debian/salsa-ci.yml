@@ -689,45 +689,6 @@ mariadb.org-10.3 to mariadb-10.6 upgrade:
     variables:
       - $CI_COMMIT_TAG != null && $SALSA_CI_ENABLE_PIPELINE_ON_TAGS !~ /^(1|yes|true)$/
 
-mariadb.org-10.2 to mariadb-10.6 upgrade:
-  stage: upgrade extras
-  needs:
-    - job: build
-  image: debian:${RELEASE}
-  artifacts:
-    when: always
-    name: "$CI_BUILD_NAME"
-    paths:
-      - ${WORKING_DIR}/debug
-  script:
-    - *test-prepare-container
-    - apt install -y curl
-    - curl -sS https://mariadb.org/mariadb_release_signing_key.asc -o /etc/apt/trusted.gpg.d/mariadb.asc
-    - echo "deb https://deb.mariadb.org/10.2/debian ${RELEASE} main" > /etc/apt/sources.list.d/mariadb.list
-    - apt-get update
-    - *test-install-readline-in-sid-for-backwards-compat
-    - apt-get install -y mariadb-server-10.2
-    # Verify initial state before upgrade
-    - dpkg -l | grep -iE 'maria|mysql|galera' || true # List installed
-    - service mysql status
-    # prepending with --defaults-file=/etc/mysql/debian.cnf is needed in upstream 5.5–10.3
-    - |
-      mysql --defaults-file=/etc/mysql/debian.cnf --skip-column-names -e "SELECT @@version, @@version_comment"
-      mysql --defaults-file=/etc/mysql/debian.cnf --table -e "SHOW DATABASES;"
-      mysql --defaults-file=/etc/mysql/debian.cnf --table -e "SELECT * FROM mysql.user; SHOW CREATE USER root@localhost;"
-      mysql --defaults-file=/etc/mysql/debian.cnf --table -e "SELECT * FROM mysql.plugin; SHOW PLUGINS;"
-    - *test-install
-    - service mysql status
-    # Give the mariadb-upgrade plenty of time to complete, otherwise next commands
-    # fail on non-existing mariadb.sys user
-    - sleep 15
-    - *test-verify-final
-  variables:
-    GIT_STRATEGY: none
-  except:
-    variables:
-      - $CI_COMMIT_TAG != null && $SALSA_CI_ENABLE_PIPELINE_ON_TAGS !~ /^(1|yes|true)$/
-
 mysql.com-5.7 to mariadb-10.6 upgrade:
   stage: upgrade extras
   needs:
