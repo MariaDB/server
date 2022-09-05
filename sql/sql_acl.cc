@@ -7507,7 +7507,7 @@ GRANT_NAME::GRANT_NAME(const char *h, const char *d,const char *u,
 
 GRANT_TABLE::GRANT_TABLE(const char *h, const char *d,const char *u,
                          const char *t, privilege_t p, privilege_t c)
-  :GRANT_NAME(h,d,u,t,p, FALSE), cols(c), init_cols(NO_ACL)
+  :GRANT_NAME(h,d,u,t,p, FALSE), cols(c), init_cols(c)
 {
   init_hash();
 }
@@ -9361,11 +9361,15 @@ static int mysql_table_grant(THD *thd, TABLE_LIST *table_list,
       /* Fix old grants */
       while ((column = column_iter++))
       {
-	grant_column = column_hash_search(grant_table,
-					  column->column.ptr(),
-					  column->column.length());
-	if (grant_column)
-	  grant_column->rights&= ~(column->rights | rights);
+        grant_column = column_hash_search(grant_table,
+                                          column->column.ptr(),
+                                          column->column.length());
+        if (grant_column)
+        {
+          grant_column->init_rights&= ~(column->rights | rights);
+          // If this is a role, rights will need to be reconstructed.
+          grant_column->rights= grant_column->init_rights;
+        }
       }
       /* scan trough all columns to get new column grant */
       column_priv= NO_ACL;
@@ -9373,13 +9377,14 @@ static int mysql_table_grant(THD *thd, TABLE_LIST *table_list,
       {
         grant_column= (GRANT_COLUMN*)
           my_hash_element(&grant_table->hash_columns, idx);
-	grant_column->rights&= ~rights;		// Fix other columns
-	column_priv|= grant_column->rights;
+        grant_column->init_rights&= ~rights;  // Fix other columns
+        grant_column->rights= grant_column->init_rights;
+        column_priv|= grant_column->init_rights;
       }
     }
     else
     {
-      column_priv|= grant_table->cols;
+      column_priv|= grant_table->init_cols;
     }
 
 
