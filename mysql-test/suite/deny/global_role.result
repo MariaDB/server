@@ -9,16 +9,67 @@ grant all on some_db.t1 to foo;
 grant all on some_db.v1 to foo;
 grant r2 to r1;
 grant r1 to foo;
+grant select on *.* to r2;
+grant insert on *.* to r1;
+show grants for r1;
+Grants for r1
+GRANT `r2` TO `r1`
+GRANT INSERT ON *.* TO `r1`
+GRANT SELECT ON *.* TO `r2`
 deny select on *.* to r2;
+deny insert on *.* to r1;
 connect  con1, localhost, foo,,;
+#
+# All grants are allowed, nothing should be denied at this point.
+#
 select * from some_db.t1;
 a	b	secret
+insert into some_db.t1 values (1, 1, 1);
+update some_db.t1 set secret=30;
+update some_db.t1 set secret=40 where secret=30;
+select * from some_db.t1;
+a	b	secret
+1	1	40
 set role r1;
+show grants;
+Grants for foo@%
+GRANT `r1` TO `foo`@`%`
+GRANT ALL PRIVILEGES ON *.* TO `foo`@`%`
+GRANT ALL PRIVILEGES ON `some_db`.* TO `foo`@`%`
+GRANT ALL PRIVILEGES ON `some_db`.`v1` TO `foo`@`%`
+GRANT ALL PRIVILEGES ON `some_db`.`t1` TO `foo`@`%`
+GRANT `r2` TO `r1`
+GRANT INSERT ON *.* TO `r1`
+DENY INSERT ON *.* TO `r1`
+GRANT SELECT ON *.* TO `r2`
+DENY SELECT ON *.* TO `r2`
 select * from some_db.t1;
 ERROR 42000: SELECT command denied to user 'foo'@'localhost' for table 't1'
+insert into some_db.t1 values (1, 1, 1);
+ERROR 42000: INSERT command denied to user 'foo'@'localhost' for table 't1'
+#
+# Updating without a where clause should work.
+#
+update some_db.t1 set secret=20;
+#
+# But updating with a WHERE clause requires SELECT, which we don't have.
+#
+update some_db.t1 set secret=30 where secret=20;
+ERROR 42000: SELECT command denied to user 'foo'@'localhost' for column 'secret' in table 't1'
+#
+# Now let's eliminate all denies and make sure we have access accordingly
+#
 set role none;
 select * from some_db.t1;
 a	b	secret
+1	1	20
+insert into some_db.t1 values (1, 1, 1);
+update some_db.t1 set secret=30;
+update some_db.t1 set secret=40 where secret=30;
+select * from some_db.t1;
+a	b	secret
+1	1	40
+1	1	40
 show grants;
 Grants for foo@%
 GRANT `r1` TO `foo`@`%`
