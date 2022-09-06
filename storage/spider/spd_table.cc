@@ -5804,11 +5804,23 @@ int spider_free_share(
   SPIDER_SHARE *share
 ) {
   DBUG_ENTER("spider_free_share");
-  pthread_mutex_lock(&spider_tbl_mutex);
   bool do_delete_thd = false;
   THD *thd = current_thd;
-  if (!--share->use_count)
+  pthread_mutex_lock(&spider_tbl_mutex);
+  if (--share->use_count)
   {
+    pthread_mutex_unlock(&spider_tbl_mutex);
+  }
+  else
+  {
+#ifdef HASH_UPDATE_WITH_HASH_VALUE
+    my_hash_delete_with_hash_value(&spider_open_tables,
+      share->table_name_hash_value, (uchar*) share);
+#else
+    my_hash_delete(&spider_open_tables, (uchar*) share);
+#endif
+    pthread_mutex_unlock(&spider_tbl_mutex);
+
 #ifndef WITHOUT_SPIDER_BG_SEARCH
     spider_free_sts_thread(share);
     spider_free_crd_thread(share);
@@ -5866,12 +5878,6 @@ int spider_free_share(
       );
     }
     spider_free_share_alloc(share);
-#ifdef HASH_UPDATE_WITH_HASH_VALUE
-    my_hash_delete_with_hash_value(&spider_open_tables,
-      share->table_name_hash_value, (uchar*) share);
-#else
-    my_hash_delete(&spider_open_tables, (uchar*) share);
-#endif
     thr_lock_delete(&share->lock);
     pthread_mutex_destroy(&share->crd_mutex);
     pthread_mutex_destroy(&share->sts_mutex);
@@ -5881,7 +5887,6 @@ int spider_free_share(
   }
   if (do_delete_thd)
     spider_destroy_thd(thd);
-  pthread_mutex_unlock(&spider_tbl_mutex);
   DBUG_RETURN(0);
 }
 
