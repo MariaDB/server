@@ -3254,18 +3254,6 @@ bool acl_getroot(Security_context *sctx, const char *user, const char *host,
     }
   }
 
-  /*
-    PUBLIC magic:
-
-    Note: for usual user privileges of 3 component merged together:
-      1) user privileges
-      2) set role privileges
-      3) public privileges
-    But for this routine (used in Security_context::change_security_context)
-    only 2 component merged:
-      1) user OR role privileges we are switching to
-      2) public privileges
-  */
   if (acl_public)
   {
     if (ACL_DB *acl_db= acl_db_find(db, public_name.str, "", "", FALSE))
