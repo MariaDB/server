@@ -336,6 +336,19 @@ select x, check_row_ts(row_start, row_end) from t3 for system_time all order by 
 select row_start = '1980-01-01 00:00:00', row_end = '1980-01-01 00:00:01' from t3 for system_time all where x = 3;
 --remove_file $DATAFILE
 
+--echo # why a slave cannot have system_versioning_insert_history always on
+connection master;
+set @@system_versioning_insert_history= 0;
+set sql_mode='';
+create or replace table t1 (a int,
+  rs timestamp(6) as row start, re timestamp(6) as row end,
+  period for system_time (rs,re)) with system versioning;
+insert t1 values (1, '2000-01-01 02:03:04', '2001-01-01 02:03.04');
+select a,check_row_ts(rs,re) from t1 for system_time all;
+sync_slave_with_master;
+select a,check_row_ts(rs,re) from t1 for system_time all;
+set sql_mode=default;
+
 connection master;
 drop tables t1, t2, t3;
 

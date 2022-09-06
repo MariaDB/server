@@ -108,6 +108,8 @@ show create table t1;
 insert into t1(x, row_start, row_end) values (3, '1980-01-01 00:00:00', '1980-01-01 00:00:01');
 insert into t2(y, row_start, row_end) values (4, '1980-01-01 00:00:00', '1980-01-01 00:00:01');
 insert into t3 values (5, '1980-01-01 00:00:00', '1980-01-01 00:00:01');
+--error ER_WRONG_VALUE
+insert into t3 values (5, '1980-01-02 00:00:00', '1980-01-01 00:00:01');
 
 select x, row_start, row_end from t1 for system_time all;
 select y, row_start, row_end from t2 for system_time all;
@@ -215,22 +217,25 @@ select row_start = '1980-01-01 00:00:00', row_end = '1980-01-01 00:00:01' from t
 --let $restart_parameters= --secure-timestamp=YES
 --source include/restart_mysqld.inc
 set @@system_versioning_insert_history= 1;
---error ER_BAD_FIELD_ERROR
+--error ER_OPTION_PREVENTS_STATEMENT
 insert into t1(x, row_start, row_end) values (8, '1980-01-01 00:00:00', '1980-01-01 00:00:01');
 --let $restart_parameters= --secure-timestamp=REPLICATION
 --source include/restart_mysqld.inc
+create user nobody;
+grant all privileges on test.* to nobody;
+change_user nobody;
 set @@system_versioning_insert_history= 1;
---error ER_BAD_FIELD_ERROR
-insert into t1(x, row_start, row_end) values (9, '1980-01-01 00:00:00', '1980-01-01 00:00:01');
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+insert into test.t1(x, row_start, row_end) values (9, '1980-01-01 00:00:00', '1980-01-01 00:00:01');
+change_user root;
 --let $restart_parameters= --secure-timestamp=SUPER
 --source include/restart_mysqld.inc
 set @@system_versioning_insert_history= 1;
-insert into t1(x, row_start, row_end) values (10, '1980-01-01 00:00:00', '1980-01-01 00:00:01');
-create user nobody;
+insert into test.t1(x, row_start, row_end) values (10, '1980-01-01 00:00:00', '1980-01-01 00:00:01');
 change_user nobody;
-use test;
---error ER_BAD_FIELD_ERROR
-insert into t1(x, row_start, row_end) values (7, '1980-01-01 00:00:00', '1980-01-01 00:00:01');
+set @@system_versioning_insert_history= 1;
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+insert into test.t1(x, row_start, row_end) values (7, '1980-01-01 00:00:00', '1980-01-01 00:00:01');
 change_user root;
 use test;
 --let $restart_parameters= --secure-timestamp=NO

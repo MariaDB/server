@@ -5575,7 +5575,7 @@ public:
     lex= backup_lex;
   }
 
-  bool vers_insert_history(const Field *field) const
+  bool vers_insert_history(const Field *field)
   {
     if (!field->vers_sys_field())
       return false;
@@ -5590,22 +5590,7 @@ public:
         lex->sql_command != SQLCOM_REPLACE_SELECT &&
         lex->sql_command != SQLCOM_LOAD)
       return false;
-    switch (opt_secure_timestamp)
-    {
-      case SECTIME_NO:
-        return true;
-      case SECTIME_SUPER:
-        if (security_ctx->master_access & SUPER_ACL)
-          return true;
-        return false;
-      case SECTIME_REPL:
-        if (slave_thread)
-          return true;
-        return false;
-      case SECTIME_YES:
-        return false;
-    }
-    return false;
+    return !is_set_timestamp_forbidden(this);
   }
 };
 

@@ -1386,6 +1386,7 @@ The following specify which files/extra groups are read (specified before remain
  to ALTER
  --system-versioning-insert-history 
  Allows direct inserts into ROW_START and ROW_END columns
+ if secure_timestamp allows changing @@timestamp
  --table-cache=#     Deprecated; use --table-open-cache instead.
  --table-definition-cache=# 
  The number of cached table definitions

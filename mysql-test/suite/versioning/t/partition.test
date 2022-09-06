@@ -2494,8 +2494,8 @@ lock tables t write;
 --error ER_UNKNOWN_PARTITION
 delete from t partition (px);
 unlock tables;
-# cleanup
 drop table t;
+set timestamp= default;
 
 --echo #
 --echo # MDEV-28978 Assertion failure in THD::binlog_query or unexpected
@@ -2507,6 +2507,23 @@ update t set a = 1;
 update t set a = 2 limit 0;
 # cleanup
 drop table t;
+
+--echo #
+--echo # MDEV-16546 System versioning setting to allow history modification
+--echo #
+create table t1 (a varchar(100)) with system versioning
+partition by system_time interval 1 day
+starts '2021-09-30 00:00:00' partitions 3;
+set system_versioning_insert_history=1;
+insert into t1 (a,row_start,row_end) values
+('p0',                   '2021-09-30', '2021-09-30 10:00:00'),
+('p1',                   '2021-09-30', '2021-10-01 10:00:00'),
+('overflows, so also p1','2021-09-30', '2021-10-10 10:00:00'),
+('pn, current',          '2021-09-30', '2038-01-19 03:14:07.999999');
+select table_name,partition_name,partition_ordinal_position,partition_method,partition_description,table_rows
+from information_schema.partitions where table_schema='test';
+drop table t1;
+set system_versioning_insert_history=0;
 
 --disable_prepare_warnings
 set global innodb_stats_persistent= @save_persistent;
