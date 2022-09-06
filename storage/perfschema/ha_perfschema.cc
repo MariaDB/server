@@ -466,7 +466,7 @@ int ha_perfschema::delete_table(const char *name)
   ptr = strend(table_path) - 1;
 
   /* Find path separator */
-  while ((ptr >= table_path) && (*ptr != '\\') && (*ptr != '/')) {
+  while ((ptr > table_path) && (*ptr != '\\') && (*ptr != '/')) {
     ptr--;
   }
 
