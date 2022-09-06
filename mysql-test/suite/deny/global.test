@@ -269,6 +269,7 @@ create view v1 as (select a from t1);
 create view v2 as (select secret from t1);
 
 --connect (con1,localhost,foo,,)
+--sorted_result
 select table_name, table_type from information_schema.tables where table_schema like 'some_db';
 disconnect con1;
 
@@ -283,6 +284,7 @@ grant select(a) on some_db.t1 to foo;
 --echo # See what foo sees before denies.
 --echo #
 --connect (con1,localhost,foo,,)
+--sorted_result
 select table_name, table_type from information_schema.tables where table_schema like 'some_db';
 disconnect con1;
 connection default;
@@ -304,7 +306,9 @@ select * from some_db.v1;
 --error ER_TABLEACCESS_DENIED_ERROR
 select * from some_db.v2;
 
+--sorted_result
 select table_name, table_type from information_schema.tables where table_schema like "some_db";
+--sorted_result
 select table_name, column_name from information_schema.columns where table_schema like "some_db";
 
 disconnect con1;
@@ -313,9 +317,11 @@ grant insert(a) on some_db.t1 to bar;
 grant insert(a) on some_db.t1 to foo;
 
 --connect (con1,localhost,foo,,)
+--sorted_result
 select table_name, column_name from information_schema.columns where table_schema like "some_db";
 disconnect con1;
 --connect (con2,localhost,bar,,)
+--sorted_result
 select table_name, column_name from information_schema.columns where table_schema like "some_db";
 disconnect con2;
 
@@ -324,10 +330,12 @@ deny insert on *.* to foo;
 deny insert on *.* to bar;
 
 --connect (con1,localhost,foo,,)
+--sorted_result
 select table_name, column_name from information_schema.columns where table_schema like "some_db";
 disconnect con1;
 
 --connect (con2,localhost,bar,,)
+--sorted_result
 select table_name, column_name from information_schema.columns where table_schema like "some_db";
 disconnect con2;
 
