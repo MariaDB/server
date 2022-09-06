@@ -66,7 +66,8 @@ void set_thd_stage_info(void *thd,
 #include "my_apc.h"
 #include "rpl_gtid.h"
 
-#include "wsrep_mysqld.h"
+#include "wsrep.h"
+#include "wsrep_on.h"
 #ifdef WITH_WSREP
 #include <inttypes.h>
 /* wsrep-lib */
@@ -76,6 +77,11 @@ void set_thd_stage_info(void *thd,
 #include "wsrep_condition_variable.h"
 
 class Wsrep_applier_service;
+enum wsrep_consistency_check_mode {
+    NO_CONSISTENCY_CHECK,
+    CONSISTENCY_CHECK_DECLARED,
+    CONSISTENCY_CHECK_RUNNING,
+};
 #endif /* WITH_WSREP */
 
 class Reprepare_observer;
@@ -7861,7 +7867,9 @@ extern THD_list server_threads;
 
 void setup_tmp_table_column_bitmaps(TABLE *table, uchar *bitmaps,
                                     uint field_count);
-
+#ifdef WITH_WSREP
+extern void wsrep_to_isolation_end(THD*);
+#endif
 /*
   RAII utility class to ease binlogging with temporary setting
   THD etc context and restoring the original one upon logger execution.

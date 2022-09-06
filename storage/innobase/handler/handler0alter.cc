@@ -1445,9 +1445,13 @@ struct ha_innobase_inplace_ctx : public inplace_alter_handler_ctx
       for (unsigned i= 0, j= 0; i < index->n_fields; i++)
       {
         const dict_col_t *col= index->fields[i].col;
-        if (change_col_collate.find(col->ind) == collate_end)
+        auto it= change_col_collate.find(col->ind);
+        if (it != collate_end)
+        {
+          ut_ad(it->second == col);
           index->fields[i].col=
             index->change_col_info->add(index->heap, *col, j++);
+        }
       }
     }
   }

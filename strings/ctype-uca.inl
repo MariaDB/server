@@ -93,6 +93,7 @@ MY_FUNCTION_NAME(strnncoll_onelevel)(CHARSET_INFO *cs,
 {
   my_uca_scanner sscanner;
   my_uca_scanner tscanner;
+  my_uca_scanner_param param;
   int s_res;
   int t_res;
 
@@ -104,14 +105,15 @@ MY_FUNCTION_NAME(strnncoll_onelevel)(CHARSET_INFO *cs,
   t+= prefix, tlen-= prefix;
 }
 #endif
-  
-  my_uca_scanner_init_any(&sscanner, cs, level, s, slen);
-  my_uca_scanner_init_any(&tscanner, cs, level, t, tlen);
+
+  my_uca_scanner_param_init(&param, cs, level);
+  my_uca_scanner_init_any(&sscanner, s, slen);
+  my_uca_scanner_init_any(&tscanner, t, tlen);
   
   do
   {
-    s_res= MY_FUNCTION_NAME(scanner_next)(&sscanner);
-    t_res= MY_FUNCTION_NAME(scanner_next)(&tscanner);
+    s_res= MY_FUNCTION_NAME(scanner_next)(&sscanner, &param);
+    t_res= MY_FUNCTION_NAME(scanner_next)(&tscanner, &param);
   } while ( s_res == t_res && s_res >0);
   
   return  (t_is_prefix && t_res < 0) ? 0 : (s_res - t_res);
@@ -211,6 +213,7 @@ MY_FUNCTION_NAME(strnncollsp_onelevel)(CHARSET_INFO *cs,
                                        const uchar *t, size_t tlen)
 {
   my_uca_scanner sscanner, tscanner;
+  my_uca_scanner_param param;
   int s_res, t_res;
 
 #if MY_UCA_ASCII_OPTIMIZE
@@ -222,13 +225,14 @@ MY_FUNCTION_NAME(strnncollsp_onelevel)(CHARSET_INFO *cs,
 }
 #endif
 
-  my_uca_scanner_init_any(&sscanner, cs, level, s, slen);
-  my_uca_scanner_init_any(&tscanner, cs, level, t, tlen);
+  my_uca_scanner_param_init(&param, cs, level);
+  my_uca_scanner_init_any(&sscanner, s, slen);
+  my_uca_scanner_init_any(&tscanner, t, tlen);
 
   do
   {
-    s_res= MY_FUNCTION_NAME(scanner_next)(&sscanner);
-    t_res= MY_FUNCTION_NAME(scanner_next)(&tscanner);
+    s_res= MY_FUNCTION_NAME(scanner_next)(&sscanner, &param);
+    t_res= MY_FUNCTION_NAME(scanner_next)(&tscanner, &param);
   } while ( s_res == t_res && s_res >0);
 
   if (s_res > 0 && t_res < 0)
@@ -241,7 +245,7 @@ MY_FUNCTION_NAME(strnncollsp_onelevel)(CHARSET_INFO *cs,
     {
       if (s_res != t_res)
         return (s_res - t_res);
-      s_res= MY_FUNCTION_NAME(scanner_next)(&sscanner);
+      s_res= MY_FUNCTION_NAME(scanner_next)(&sscanner, &param);
     } while (s_res > 0);
     return 0;
   }
@@ -256,7 +260,7 @@ MY_FUNCTION_NAME(strnncollsp_onelevel)(CHARSET_INFO *cs,
     {
       if (s_res != t_res)
         return (s_res - t_res);
-      t_res= MY_FUNCTION_NAME(scanner_next)(&tscanner);
+      t_res= MY_FUNCTION_NAME(scanner_next)(&tscanner, &param);
     } while (t_res > 0);
     return 0;
   }
@@ -392,6 +396,7 @@ MY_FUNCTION_NAME(strnncollsp_nopad_multilevel)(CHARSET_INFO *cs,
 */
 static inline weight_and_nchars_t
 MY_FUNCTION_NAME(scanner_next_pad_trim)(my_uca_scanner *scanner,
+                                        my_uca_scanner_param *param,
                                         size_t nchars,
                                         uint *generated)
 {
@@ -399,14 +404,14 @@ MY_FUNCTION_NAME(scanner_next_pad_trim)(my_uca_scanner *scanner,
   if (nchars > 0 ||
       scanner->wbeg[0] /* Some weights from a previous expansion left */)
   {
-    if ((res= MY_FUNCTION_NAME(scanner_next_with_nchars)(scanner,
+    if ((res= MY_FUNCTION_NAME(scanner_next_with_nchars)(scanner, param,
                                                          nchars)).weight < 0)
     {
       /*
         We reached the end of the string, but the caller wants more weights.
         Perform space padding.
       */
-      res.weight= my_space_weight(scanner->level);
+      res.weight= my_space_weight(param->level);
       res.nchars= 1;
       (*generated)++;
     }
@@ -420,8 +425,8 @@ MY_FUNCTION_NAME(scanner_next_pad_trim)(my_uca_scanner *scanner,
           e.g. CONCAT(x'00','a') with nchars=1.
         Perform trimming.
       */
-      res.weight= scanner->cs->state & MY_CS_NOPAD ?
-                  0 : my_space_weight(scanner->level);
+      res.weight= param->cs->state & MY_CS_NOPAD ?
+                  0 : my_space_weight(param->level);
       res.nchars= (uint) nchars;
       (*generated)++;
     }
@@ -429,8 +434,8 @@ MY_FUNCTION_NAME(scanner_next_pad_trim)(my_uca_scanner *scanner,
   else
   {
     /* The caller wants nchars==0. Perform trimming. */
-    res.weight= scanner->cs->state & MY_CS_NOPAD ?
-                0 : my_space_weight(scanner->level);
+    res.weight= param->cs->state & MY_CS_NOPAD ?
+                0 : my_space_weight(param->level);
     res.nchars= 0;
     (*generated)++;
   }
@@ -447,6 +452,7 @@ MY_FUNCTION_NAME(strnncollsp_nchars_onelevel)(CHARSET_INFO *cs,
 {
   my_uca_scanner sscanner;
   my_uca_scanner tscanner;
+  my_uca_scanner_param param;
   size_t s_nchars_left= nchars;
   size_t t_nchars_left= nchars;
 
@@ -462,8 +468,9 @@ TODO: strnncollsp_nchars_onelevel
 #endif
 */
 
-  my_uca_scanner_init_any(&sscanner, cs, level, s, slen);
-  my_uca_scanner_init_any(&tscanner, cs, level, t, tlen);
+  my_uca_scanner_param_init(&param, cs, level);
+  my_uca_scanner_init_any(&sscanner, s, slen);
+  my_uca_scanner_init_any(&tscanner, t, tlen);
 
   for ( ; ; )
   {
@@ -472,9 +479,11 @@ TODO: strnncollsp_nchars_onelevel
     uint generated= 0;
     int diff;
 
-    s_res= MY_FUNCTION_NAME(scanner_next_pad_trim)(&sscanner, s_nchars_left,
+    s_res= MY_FUNCTION_NAME(scanner_next_pad_trim)(&sscanner, &param,
+                                                   s_nchars_left,
                                                    &generated);
-    t_res= MY_FUNCTION_NAME(scanner_next_pad_trim)(&tscanner, t_nchars_left,
+    t_res= MY_FUNCTION_NAME(scanner_next_pad_trim)(&tscanner, &param,
+                                                   t_nchars_left,
                                                    &generated);
     if ((diff= (s_res.weight - t_res.weight)))
       return diff;
@@ -604,12 +613,14 @@ MY_FUNCTION_NAME(hash_sort)(CHARSET_INFO *cs,
 {
   int   s_res;
   my_uca_scanner scanner;
+  my_uca_scanner_param param;
   int space_weight= my_space_weight(&cs->uca->level[0]);
   register ulong m1= *nr1, m2= *nr2;
 
-  my_uca_scanner_init_any(&scanner, cs, &cs->uca->level[0], s, slen);
+  my_uca_scanner_param_init(&param, cs, &cs->uca->level[0]);
+  my_uca_scanner_init_any(&scanner, s, slen);
 
-  while ((s_res= MY_FUNCTION_NAME(scanner_next)(&scanner)) >0)
+  while ((s_res= MY_FUNCTION_NAME(scanner_next)(&scanner, &param)) >0)
   {
     if (s_res == space_weight)
     {
@@ -618,7 +629,7 @@ MY_FUNCTION_NAME(hash_sort)(CHARSET_INFO *cs,
       do
       {
         count++;
-        if ((s_res= MY_FUNCTION_NAME(scanner_next)(&scanner)) <= 0)
+        if ((s_res= MY_FUNCTION_NAME(scanner_next)(&scanner, &param)) <= 0)
         {
           /* Skip strings at end of string */
           goto end;
@@ -658,11 +669,13 @@ MY_FUNCTION_NAME(hash_sort_nopad)(CHARSET_INFO *cs,
 {
   int   s_res;
   my_uca_scanner scanner;
+  my_uca_scanner_param param;
   register ulong m1= *nr1, m2= *nr2;
 
-  my_uca_scanner_init_any(&scanner, cs, &cs->uca->level[0], s, slen);
+  my_uca_scanner_param_init(&param, cs, &cs->uca->level[0]);
+  my_uca_scanner_init_any(&scanner, s, slen);
 
-  while ((s_res= MY_FUNCTION_NAME(scanner_next)(&scanner)) >0)
+  while ((s_res= MY_FUNCTION_NAME(scanner_next)(&scanner, &param)) >0)
   {
     /* See comment above why we can't use MY_HASH_ADD_16() */
     MY_HASH_ADD(m1, m2, s_res >> 8);
@@ -713,6 +726,7 @@ MY_FUNCTION_NAME(strnxfrm_onelevel_internal)(CHARSET_INFO *cs,
                                              const uchar *src, size_t srclen)
 {
   my_uca_scanner scanner;
+  my_uca_scanner_param param;
   int s_res;
 
   DBUG_ASSERT(src || !srclen);
@@ -756,9 +770,12 @@ MY_FUNCTION_NAME(strnxfrm_onelevel_internal)(CHARSET_INFO *cs,
   }
 #endif
 
-  my_uca_scanner_init_any(&scanner, cs, level, src, srclen);
+  my_uca_scanner_param_init(&param, cs, level);
+  my_uca_scanner_init_any(&scanner, src, srclen);
+
   for (; dst < de && *nweights &&
-         (s_res= MY_FUNCTION_NAME(scanner_next)(&scanner)) > 0 ; (*nweights)--)
+         (s_res= MY_FUNCTION_NAME(scanner_next)(&scanner, &param)) > 0 ;
+       (*nweights)--)
   {
     *dst++= s_res >> 8;
     if (dst < de)

@@ -18,6 +18,7 @@
 #include "wsrep_trans_observer.h"
 #include "wsrep_high_priority_service.h"
 #include "wsrep_storage_service.h"
+#include "wsrep_server_state.h"
 #include "transaction.h"
 #include "rpl_rli.h"
 #include "log_event.h"

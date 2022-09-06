@@ -1,4 +1,4 @@
-/* Copyright 2021 Codership Oy <info@codership.com>
+/* Copyright 2021-2022 Codership Oy <info@codership.com>
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -18,6 +18,7 @@
 #include "my_global.h"
 #include "wsrep_mysqld.h"
 #include "wsrep_priv.h"
+#include "wsrep_schema.h"
 
 #include <algorithm>
 #include <memory>

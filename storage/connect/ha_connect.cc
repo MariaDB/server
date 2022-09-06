@@ -540,11 +540,7 @@ extern "C" const char *msglang(void)
 #else   // !XMSG && !NEWMSG
 extern "C" const char *msglang(void)
 {
-#if defined(FRENCH)
-  return "french";
-#else  // DEFAULT
   return "english";
-#endif // DEFAULT
 } // end of msglang
 #endif  // !XMSG && !NEWMSG
 

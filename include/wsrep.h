@@ -17,44 +17,46 @@
 #define WSREP_INCLUDED
 
 #include <my_config.h>
+#include "log.h"
 
 #ifdef WITH_WSREP
-
 #define IF_WSREP(A,B) A
-
 #define DBUG_ASSERT_IF_WSREP(A) DBUG_ASSERT(A)
 
-#define WSREP_MYSQL_DB (char *)"mysql"
+extern ulong wsrep_debug; // wsrep_mysqld.cc
+extern void WSREP_LOG(void (*fun)(const char* fmt, ...), const char* fmt, ...);
 
-#define WSREP_TO_ISOLATION_BEGIN(db_, table_, table_list_)              \
-  if (WSREP_ON && WSREP(thd) &&                                         \
-      wsrep_to_isolation_begin(thd, db_, table_, table_list_))          \
-    goto wsrep_error_label;
+#define WSREP_DEBUG(...)                                                \
+    if (wsrep_debug)     WSREP_LOG(sql_print_information, ##__VA_ARGS__)
+#define WSREP_INFO(...)  WSREP_LOG(sql_print_information, ##__VA_ARGS__)
+#define WSREP_WARN(...)  WSREP_LOG(sql_print_warning,     ##__VA_ARGS__)
+#define WSREP_ERROR(...) WSREP_LOG(sql_print_error,       ##__VA_ARGS__)
+#define WSREP_UNKNOWN(fmt, ...) WSREP_ERROR("UNKNOWN: " fmt, ##__VA_ARGS__)
 
-#define WSREP_TO_ISOLATION_BEGIN_CREATE(db_, table_, table_list_, create_info_)	\
-  if (WSREP_ON && WSREP(thd) &&                                                 \
-      wsrep_to_isolation_begin(thd, db_, table_,                                \
-                               table_list_, nullptr, nullptr, create_info_))    \
-    goto wsrep_error_label;
+#define WSREP_LOG_CONFLICT_THD(thd, role)                               \
+  WSREP_INFO("%s: \n "                                                  \
+             "  THD: %lu, mode: %s, state: %s, conflict: %s, seqno: %lld\n " \
+             "  SQL: %s",                                               \
+             role,                                                      \
+             thd_get_thread_id(thd),                                    \
+             wsrep_thd_client_mode_str(thd),                            \
+             wsrep_thd_client_state_str(thd),                           \
+             wsrep_thd_transaction_state_str(thd),                      \
+             wsrep_thd_trx_seqno(thd),                                  \
+             wsrep_thd_query(thd)                                       \
+            );
 
-#define WSREP_TO_ISOLATION_BEGIN_ALTER(db_, table_, table_list_, alter_info_, fk_tables_, create_info_)	\
-  if (WSREP(thd) &&                                                     \
-      wsrep_to_isolation_begin(thd, db_, table_,                        \
-                               table_list_, alter_info_,                \
-                               fk_tables_, create_info_))
+#define WSREP_LOG_CONFLICT(bf_thd, victim_thd, bf_abort)                \
+  if (wsrep_debug || wsrep_log_conflicts)                               \
+  {                                                                     \
+    WSREP_INFO("cluster conflict due to %s for threads:",               \
+               (bf_abort) ? "high priority abort" : "certification failure" \
+              );                                                        \
+    if (bf_thd)     WSREP_LOG_CONFLICT_THD(bf_thd, "Winning thread");   \
+    if (victim_thd) WSREP_LOG_CONFLICT_THD(victim_thd, "Victim thread"); \
+    WSREP_INFO("context: %s:%d", __FILE__, __LINE__); \
+  }
 
-/*
-  Checks if lex->no_write_to_binlog is set for statements that use LOCAL or
-  NO_WRITE_TO_BINLOG.
-*/
-#define WSREP_TO_ISOLATION_BEGIN_WRTCHK(db_, table_, table_list_)       \
-  if (WSREP(thd) && !thd->lex->no_write_to_binlog &&                    \
-    wsrep_to_isolation_begin(thd, db_, table_, table_list_))            \
-    goto wsrep_error_label;
-
-#define WSREP_SYNC_WAIT(thd_, before_)                                  \
-    { if (WSREP_CLIENT(thd_) &&                                         \
-          wsrep_sync_wait(thd_, before_)) goto wsrep_error_label; }
 
 #else /* !WITH_WSREP */
 
@@ -62,13 +64,11 @@
  * (e.g. embedded) */
 
 #define IF_WSREP(A,B) B
+//#define DBUG_ASSERT_IF_WSREP(A)
 #define WSREP_DEBUG(...)
+//#define WSREP_INFO(...)
+//#define WSREP_WARN(...)
 #define WSREP_ERROR(...)
-#define WSREP_TO_ISOLATION_BEGIN(db_, table_, table_list_) do { } while(0)
-#define WSREP_TO_ISOLATION_BEGIN_ALTER(db_, table_, table_list_, alter_info_, fk_tables_, create_info_)
-#define WSREP_TO_ISOLATION_BEGIN_CREATE(db_, table_, table_list_, create_info_)
-#define WSREP_TO_ISOLATION_BEGIN_WRTCHK(db_, table_, table_list_)
-#define WSREP_SYNC_WAIT(thd_, before_)
 #endif /* WITH_WSREP */
 
 #endif /* WSREP_INCLUDED */

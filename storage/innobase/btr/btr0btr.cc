@@ -4882,6 +4882,7 @@ corrupted:
 loop:
 	if (!block) {
 invalid_page:
+		mtr.commit();
 func_exit:
 		mem_heap_free(heap);
 		return err;
