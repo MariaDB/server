@@ -156,7 +156,7 @@ connection default;
 #
 select user, host, JSON_EXTRACT(priv, '$.deny') from mysql.global_priv where user = 'foo';
 user	host	JSON_EXTRACT(priv, '$.deny')
-foo	%	{"global": 1, "version_id": 101000}
+foo	%	{"global": 1, "version_id": 101100}
 show grants for foo;
 Grants for foo@%
 GRANT SELECT ON *.* TO `foo`@`%`
@@ -260,9 +260,9 @@ grant select(a) on some_db.t1 to foo;
 connect  con1,localhost,foo,,;
 select table_name, table_type from information_schema.tables where table_schema like 'some_db';
 table_name	table_type
-v2	VIEW
-v1	VIEW
 t1	BASE TABLE
+v1	VIEW
+v2	VIEW
 disconnect con1;
 connection default;
 show grants for foo;
