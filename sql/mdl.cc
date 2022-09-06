@@ -30,6 +30,9 @@
 #include <mysql/psi/mysql_mdl.h>
 #include <algorithm>
 #include <array>
+#ifdef WITH_WSREP
+#include "wsrep_mysqld.h"
+#endif
 
 static PSI_memory_key key_memory_MDL_context_acquire_locks;
 

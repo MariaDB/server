@@ -30,7 +30,7 @@
 #include "wsrep_utils.h"
 #include "wsrep_xid.h"
 #include "wsrep_thd.h"
-#include "wsrep_mysqld.h"
+#include "wsrep_server_state.h"
 
 #include <cstdio>
 #include <cstdlib>

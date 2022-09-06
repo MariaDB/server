@@ -59,6 +59,7 @@
 #include "ddl_log.h"
 #include "debug.h"                     // debug_crash_here()
 #include <algorithm>
+#include "wsrep_mysqld.h"
 #include "rpl_mi.h"
 #include "rpl_rli.h"
 #include "log.h"
