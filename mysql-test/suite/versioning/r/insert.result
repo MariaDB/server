@@ -286,18 +286,18 @@ row_start = '1980-01-01 00:00:00'	row_end = '1980-01-01 00:00:01'
 # restart: --secure-timestamp=YES
 set @@system_versioning_insert_history= 1;
 insert into t1(x, row_start, row_end) values (8, '1980-01-01 00:00:00', '1980-01-01 00:00:01');
-ERROR 42S22: Unknown column 'row_start' in 'field list'
+ERROR HY000: The MariaDB server is running with the --secure-timestamp=YES option so it cannot execute this statement
 # restart: --secure-timestamp=REPLICATION
+create user nobody;
 set @@system_versioning_insert_history= 1;
-insert into t1(x, row_start, row_end) values (9, '1980-01-01 00:00:00', '1980-01-01 00:00:01');
-ERROR 42S22: Unknown column 'row_start' in 'field list'
+insert into test.t1(x, row_start, row_end) values (9, '1980-01-01 00:00:00', '1980-01-01 00:00:01');
+ERROR 42000: Access denied; you need (at least one of) the BINLOG REPLAY privilege(s) for this operation
 # restart: --secure-timestamp=SUPER
 set @@system_versioning_insert_history= 1;
-insert into t1(x, row_start, row_end) values (10, '1980-01-01 00:00:00', '1980-01-01 00:00:01');
-create user nobody;
-use test;
-insert into t1(x, row_start, row_end) values (7, '1980-01-01 00:00:00', '1980-01-01 00:00:01');
-ERROR 42S22: Unknown column 'row_start' in 'field list'
+insert into test.t1(x, row_start, row_end) values (10, '1980-01-01 00:00:00', '1980-01-01 00:00:01');
+set @@system_versioning_insert_history= 1;
+insert into test.t1(x, row_start, row_end) values (7, '1980-01-01 00:00:00', '1980-01-01 00:00:01');
+ERROR 42000: Access denied; you need (at least one of) the SUPER, BINLOG REPLAY privilege(s) for this operation
 use test;
 # restart: --secure-timestamp=NO
 drop tables t1, t2, t3;

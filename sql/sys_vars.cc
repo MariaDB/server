@@ -4761,7 +4761,8 @@ static Sys_var_harows Sys_select_limit(
        VALID_RANGE(0, HA_POS_ERROR), DEFAULT(HA_POS_ERROR), BLOCK_SIZE(1));
 
 static const char *secure_timestamp_levels[]= {"NO", "SUPER", "REPLICATION", "YES", 0};
-bool Sys_var_timestamp::on_check_access_session(THD *thd) const
+
+bool is_set_timestamp_vorbidden(THD *thd)
 {
   switch (opt_secure_timestamp) {
   case SECTIME_NO:
@@ -4778,6 +4779,11 @@ bool Sys_var_timestamp::on_check_access_session(THD *thd) const
            secure_timestamp_levels[opt_secure_timestamp], NULL);
   my_error(ER_OPTION_PREVENTS_STATEMENT, MYF(0), buf);
   return true;
+}
+
+bool Sys_var_timestamp::on_check_access_session(THD *thd) const
+{
+  return is_set_timestamp_vorbidden(thd);
 }
 static Sys_var_timestamp Sys_timestamp(
        "timestamp", "Set the time for this client",
@@ -6905,7 +6911,8 @@ static Sys_var_ulonglong Sys_max_rowid_filter_size(
 
 static Sys_var_bit Sys_system_versioning_insert_history(
        "system_versioning_insert_history",
-       "Allows direct inserts into ROW_START and ROW_END columns",
+       "Allows direct inserts into ROW_START and ROW_END columns if "
+       "secure_timestamp allows changing @@timestamp",
        SESSION_VAR(option_bits), CMD_LINE(OPT_ARG),
        OPTION_INSERT_HISTORY, DEFAULT(FALSE),
        NO_MUTEX_GUARD, IN_BINLOG);

@@ -309,6 +309,7 @@ extern uint default_password_lifetime;
 extern my_bool disconnect_on_expired_password;
 
 enum secure_timestamp { SECTIME_NO, SECTIME_SUPER, SECTIME_REPL, SECTIME_YES };
+bool is_set_timestamp_vorbidden(THD *thd);
 
 #ifdef HAVE_MMAP
 extern PSI_mutex_key key_PAGE_lock, key_LOCK_sync, key_LOCK_active,

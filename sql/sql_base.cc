@@ -6307,11 +6307,17 @@ find_field_in_table(THD *thd, TABLE *table, const char *name, size_t length,
         !DBUG_IF("test_completely_invisible"))
       DBUG_RETURN((Field*)0);
 
-    if (field->invisible == INVISIBLE_SYSTEM &&
-        thd->column_usage != MARK_COLUMNS_READ &&
-        thd->column_usage != COLUMNS_READ &&
-        !thd->vers_insert_history(field))
-      DBUG_RETURN((Field*)0);
+    if (thd->column_usage != MARK_COLUMNS_READ &&
+        thd->column_usage != COLUMNS_READ)
+    {
+      if (thd->vers_insert_history(field))
+      {
+        DBUG_ASSERT(table->versioned());
+        table->vers_write= false;
+      }
+      else if (field->invisible == INVISIBLE_SYSTEM)
+        DBUG_RETURN((Field*)0);
+    }
   }
   else
   {
@@ -8827,6 +8833,37 @@ err_no_arena:
 }
 
 
+static bool vers_update_or_validate_fields(TABLE *table)
+{
+  if (!table->versioned())
+    return 0;
+
+  if (table->vers_write)
+  {
+    table->vers_update_fields();
+    return 0;
+  }
+
+  Field *row_start= table->vers_start_field();
+  Field *row_end= table->vers_end_field();
+  MYSQL_TIME ltime;
+
+  /*
+     Inserting the history row directly, check ROW_START < ROW_END and
+     ROW_START is non-zero.
+  */
+  if ((row_start->cmp(row_start->ptr, row_end->ptr) < 0) &&
+      !row_start->get_date(&ltime, Datetime::Options(
+         TIME_NO_ZERO_DATE, time_round_mode_t(time_round_mode_t::FRAC_NONE))))
+    return 0;
+
+  StringBuffer<MAX_DATETIME_FULL_WIDTH+1> val;
+  row_start->val_str(&val);
+  my_error(ER_WRONG_VALUE, MYF(0), row_start->field_name.str, val.c_ptr());
+  return 1;
+}
+
+
 /******************************************************************************
 ** Fill a record with data (for INSERT or UPDATE)
 ** Returns : 1 if some field has wrong type
@@ -8892,7 +8929,7 @@ fill_record(THD *thd, TABLE *table_arg, List<Item> &fields, List<Item> &values,
         rfield->field_index ==  table->next_number_field->field_index)
       table->auto_increment_field_not_null= TRUE;
     const bool skip_sys_field= rfield->vers_sys_field() &&
-      (update || !thd->vers_insert_history(rfield));
+      (update || table->vers_write);
     if ((rfield->vcol_info || skip_sys_field) &&
         !value->vcol_assignment_allowed_value() &&
         table->s->table_category != TABLE_CATEGORY_TEMPORARY)
@@ -8948,8 +8985,9 @@ fill_record(THD *thd, TABLE *table_arg, List<Item> &fields, List<Item> &values,
         table_arg->update_default_fields(ignore_errors))
       goto err;
 
-  if (table_arg->versioned() && !only_unvers_fields)
-    table_arg->vers_update_fields();
+  if (!only_unvers_fields && vers_update_or_validate_fields(table_arg))
+      goto err;
+
   /* Update virtual fields */
   if (table_arg->vfield &&
       table_arg->update_virtual_fields(table_arg->file, VCOL_UPDATE_FOR_WRITE))
@@ -9173,14 +9211,12 @@ fill_record(THD *thd, TABLE *table, Field **ptr, List<Item> &values,
     /* Ensure the end of the list of values is not reached */
     DBUG_ASSERT(value);
 
-    bool vers_sys_field= table->versioned() && field->vers_sys_field();
+    const bool skip_sys_field= field->vers_sys_field() &&
+                               table->vers_write;
 
     if (field->field_index == autoinc_index)
       table->auto_increment_field_not_null= TRUE;
-    if ((unlikely(field->vcol_info) ||
-         (vers_sys_field &&
-          !ignore_errors &&
-          !thd->vers_insert_history(field))) &&
+    if ((unlikely(field->vcol_info) || (skip_sys_field && !ignore_errors)) &&
         !value->vcol_assignment_allowed_value() &&
         table->s->table_category != TABLE_CATEGORY_TEMPORARY)
     {
@@ -9188,7 +9224,7 @@ fill_record(THD *thd, TABLE *table, Field **ptr, List<Item> &values,
                           ER_WARNING_NON_DEFAULT_VALUE_FOR_GENERATED_COLUMN,
                           ER_THD(thd, ER_WARNING_NON_DEFAULT_VALUE_FOR_GENERATED_COLUMN),
                           field->field_name.str, table->s->table_name.str);
-      if (vers_sys_field)
+      if (skip_sys_field)
         continue;
     }
 
@@ -9205,8 +9241,8 @@ fill_record(THD *thd, TABLE *table, Field **ptr, List<Item> &values,
     thd->abort_on_warning= FALSE;
     if (table->default_field && table->update_default_fields(ignore_errors))
       goto err;
-    if (table->versioned())
-      table->vers_update_fields();
+    if (vers_update_or_validate_fields(table))
+      goto err;
     if (table->vfield &&
         table->update_virtual_fields(table->file, VCOL_UPDATE_FOR_WRITE))
       goto err;

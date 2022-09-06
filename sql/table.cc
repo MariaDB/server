@@ -9132,9 +9132,6 @@ bool TABLE::check_period_overlaps(const KEY &key,
 
 void TABLE::vers_update_fields()
 {
-  if (!vers_write)
-    return;
-
   if (versioned(VERS_TIMESTAMP))
   {
     if (vers_start_field()->store_timestamp(in_use->query_start(),
