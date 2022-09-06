@@ -319,6 +319,7 @@ int parse(frm_file_data *ffd, const uchar *frm, size_t len)
     ffd->columns[i].defaults_offset= uint3korr(frm + current_pos + 5);
     ffd->columns[i].label_id= (uint) frm[current_pos + 12] - 1;
     current_pos+= 17;
+    ffd->columns[i].extra_data_type_info= {"", 0};
   }
   //---READ DEFAULTS---
   ffd->null_bit= 1;
@@ -494,7 +495,25 @@ int parse(frm_file_data *ffd, const uchar *frm, size_t len)
     ffd->table_comment= {(char *) frm + ffd->forminfo_offset + 47,
                          frm[ffd->forminfo_offset + 46]};
   }
-  extra2_end:;
+  if (ffd->field_data_type_info.length != 0)
+  {
+    current_pos= 0;
+    end= current_pos + ffd->field_data_type_info.length;
+    while (current_pos < end)
+    {
+      uint fieldnr= (uint) ffd->field_data_type_info.str[current_pos++];
+      size_t tlen= (uint) ffd->field_data_type_info.str[current_pos++];
+      char *ts= c_malloc(tlen + 1);
+      memcpy(ts, ffd->field_data_type_info.str + current_pos, tlen);
+      ts[tlen]= '\0';
+      ffd->columns[fieldnr].extra_data_type_info.length= tlen;
+      ffd->columns[fieldnr].extra_data_type_info.str= ts;
+      current_pos+= tlen;
+    }
+  }
+  return 0;
+extra2_end:
+  printf("Unknown important extra2 value...\n");
   return 0;
 err:
   printf("Corrupt frm file...\n");
@@ -533,7 +552,11 @@ void print_column(frm_file_data *ffd, int c_id)
   int label_id= ffd->columns[c_id].label_id;
   const Type_handler *handler= Type_handler::get_handler_by_real_type(ftype);
   Name type_name= handler->name();
-  if (ftype == MYSQL_TYPE_TINY || ftype == MYSQL_TYPE_SHORT ||
+  if (ffd->columns[c_id].extra_data_type_info.length)
+  {
+    printf("%s", ffd->columns[c_id].extra_data_type_info.str);
+  }
+  else if (ftype == MYSQL_TYPE_TINY || ftype == MYSQL_TYPE_SHORT ||
       ftype == MYSQL_TYPE_INT24 || ftype == MYSQL_TYPE_LONG ||
       ftype == MYSQL_TYPE_LONGLONG)
   {
@@ -626,17 +649,17 @@ void print_column(frm_file_data *ffd, int c_id)
   }
   else if (ftype == MYSQL_TYPE_TIME || ftype == MYSQL_TYPE_TIME2)
   {
-    uint scale= ffd->columns[c_id].length - MAX_TIME_WIDTH - 1;
+    long scale= (long)ffd->columns[c_id].length - MAX_TIME_WIDTH - 1;
     if (scale > 0)
-      printf("time(%d)", scale);
+      printf("time(%ld)", scale);
     else
       printf("time");
   }
   else if (ftype == MYSQL_TYPE_TIMESTAMP || ftype == MYSQL_TYPE_TIMESTAMP2)
   {
-    uint scale= ffd->columns[c_id].length - MAX_DATETIME_WIDTH - 1;
+    long scale= (long)ffd->columns[c_id].length - MAX_DATETIME_WIDTH - 1;
     if (scale > 0)
-      printf("timestamp(%d)", scale);
+      printf("timestamp(%ld)", scale);
     else printf("timestamp");
   }
   else if (ftype == MYSQL_TYPE_YEAR)
@@ -649,9 +672,9 @@ void print_column(frm_file_data *ffd, int c_id)
   }
   else if (ftype == MYSQL_TYPE_DATETIME || ftype == MYSQL_TYPE_DATETIME2)
   {
-    uint scale= ffd->columns[c_id].length - MAX_DATETIME_WIDTH - 1;
+    long scale= (long)ffd->columns[c_id].length - MAX_DATETIME_WIDTH - 1;
     if (scale > 0)
-      printf("datetime(%d)", scale);
+      printf("datetime(%ld)", scale);
     else
       printf("datetime");
   }
@@ -708,7 +731,7 @@ void print_column(frm_file_data *ffd, int c_id)
   if (ffd->columns[c_id].comment.length != 0)
     printf(" COMMENT '%s'", ffd->columns[c_id].comment.str);
 }
-
+    
 void print_keys(frm_file_data *ffd, uint k_id) 
 {
   key key= ffd->keys[k_id];
@@ -740,7 +763,8 @@ void print_keys(frm_file_data *ffd, uint k_id)
     printf("`%s`", colmn.name.str);
     if (key.flags & (HA_FULLTEXT | HA_SPATIAL))
       continue;
-    if ((key.key_parts[i].length != colmn.length &&
+    if (!colmn.extra_data_type_info.length &&
+        ((key.key_parts[i].length != colmn.length &&
         (ftype == MYSQL_TYPE_VARCHAR ||
          ftype == MYSQL_TYPE_VAR_STRING ||
          ftype == MYSQL_TYPE_STRING)) ||
@@ -748,7 +772,7 @@ void print_keys(frm_file_data *ffd, uint k_id)
         ftype == MYSQL_TYPE_MEDIUM_BLOB ||
         ftype == MYSQL_TYPE_LONG_BLOB ||
         ftype == MYSQL_TYPE_BLOB ||
-        ftype == MYSQL_TYPE_GEOMETRY)
+        ftype == MYSQL_TYPE_GEOMETRY))
     {
       CHARSET_INFO *c= get_charset(colmn.charset_id, MYF(0));
       long len= (long) (key.key_parts[i].length / c->mbmaxlen);
@@ -769,7 +793,6 @@ void print_keys(frm_file_data *ffd, uint k_id)
     printf(" KEY_BLOCK_SIZE=%u", key.key_block_size);
   if (key.flags & HA_USES_COMMENT)
     printf(" COMMENT '%s'", key.comment.str);
-
 }
 
 void print_engine(frm_file_data *ffd) 
