@@ -92,6 +92,38 @@ ERROR OP000: Invalid role specification `XXXXXX`
 # following should fail with the same error as above
 SET DEFAULT ROLE PUBLIC;
 ERROR OP000: Invalid role specification `PUBLIC`
+#
+# check prohibition of change security context to PUBLIC
+#
+# be sure that we have PUBLIC
+GRANT SELECT on test.* to PUBLIC;
+# try with a view
+create table t1( a int);
+create definer = PUBLIC view v1 as select * from t1;
+Warnings:
+Note	1449	The user specified as a definer ('PUBLIC'@'') does not exist
+show create view v1;
+View	Create View	character_set_client	collation_connection
+v1	CREATE ALGORITHM=UNDEFINED DEFINER=`PUBLIC` SQL SECURITY DEFINER VIEW `v1` AS select `t1`.`a` AS `a` from `t1`	latin1	latin1_swedish_ci
+Warnings:
+Note	1449	The user specified as a definer ('PUBLIC'@'') does not exist
+select * from v1;
+ERROR HY000: The user specified as a definer ('PUBLIC'@'') does not exist
+drop view v1;
+drop table t1;
+# try with a view
+create definer='PUBLIC' PROCEDURE p1() SELECT 1;
+Warnings:
+Note	1449	The user specified as a definer ('PUBLIC'@'') does not exist
+show create procedure p1;
+Procedure	sql_mode	Create Procedure	character_set_client	collation_connection	Database Collation
+p1	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	CREATE DEFINER=`PUBLIC` PROCEDURE `p1`()
+SELECT 1	latin1	latin1_swedish_ci	latin1_swedish_ci
+call p1();
+ERROR HY000: The user specified as a definer ('PUBLIC'@'') does not exist
+drop procedure p1;
+# this test cleanup
+REVOKE SELECT on test.* from PUBLIC;
 # clean up
 delete from mysql.global_priv where user="PUBLIC";
 flush privileges;

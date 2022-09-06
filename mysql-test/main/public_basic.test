@@ -92,6 +92,28 @@ SET DEFAULT ROLE XXXXXX;
 --error ER_INVALID_ROLE
 SET DEFAULT ROLE PUBLIC;
 
+--echo #
+--echo # check prohibition of change security context to PUBLIC
+--echo #
+--echo # be sure that we have PUBLIC
+GRANT SELECT on test.* to PUBLIC;
+--echo # try with a view
+create table t1( a int);
+create definer = PUBLIC view v1 as select * from t1;
+show create view v1;
+--error ER_NO_SUCH_USER
+select * from v1;
+drop view v1;
+drop table t1;
+--echo # try with a view
+create definer='PUBLIC' PROCEDURE p1() SELECT 1;
+show create procedure p1;
+--error ER_NO_SUCH_USER
+call p1();
+drop procedure p1;
+--echo # this test cleanup
+REVOKE SELECT on test.* from PUBLIC;
+
 -- echo # clean up
 delete from mysql.global_priv where user="PUBLIC";
 flush privileges;
