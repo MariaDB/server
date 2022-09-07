@@ -1,4 +1,4 @@
-etc/mysql/conf.d/rocksdb.cnf etc/mysql/mariadb.conf.d
+etc/mysql/conf.d/rocksdb.cnf
 usr/bin/myrocks_hotbackup
 usr/bin/mysql_ldb
 usr/bin/sst_dump
