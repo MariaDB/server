@@ -1649,7 +1649,9 @@ inc_dir:
   {
     const byte *r= rec;
     const byte *c= cur->rec;
-    const byte *c_end= c + (page_rec_is_infimum(c) ? 8 : data_size);
+    const byte *c_end= c + data_size;
+    if (page_rec_is_infimum(c) && data_size > 8)
+      c_end= c + 8;
     static_assert(REC_N_OLD_EXTRA_BYTES == REC_N_NEW_EXTRA_BYTES + 1, "");
     if (c <= insert_buf && c_end > insert_buf)
       c_end= insert_buf;
