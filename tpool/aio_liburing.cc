@@ -63,6 +63,12 @@ public:
       }
       throw std::runtime_error("aio_uring()");
     }
+    if (io_uring_ring_dontfork(&uring_) != 0)
+    {
+      my_printf_error(ER_UNKNOWN_ERROR,
+                      "io_uring_dontfork() failed with errno %d (continuing)",
+                      ME_ERROR_LOG | ME_WARNING, errno);
+    }
 
     thread_= std::thread(thread_routine, this);
   }

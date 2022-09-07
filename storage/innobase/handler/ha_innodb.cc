@@ -13478,11 +13478,12 @@ int ha_innobase::delete_table(const char *name)
 
   if (table->is_temporary())
   {
-    dict_sys.remove(table, false, true);
     dict_sys.unlock();
     parent_trx->mod_tables.erase(table); /* CREATE...SELECT error handling */
     btr_drop_temporary_table(*table);
-    dict_mem_table_free(table);
+    dict_sys.lock(SRW_LOCK_CALL);
+    dict_sys.remove(table);
+    dict_sys.unlock();
     DBUG_RETURN(0);
   }
 
