@@ -97,18 +97,21 @@ MY_FUNCTION_NAME(strnncoll_onelevel)(CHARSET_INFO *cs,
   int s_res;
   int t_res;
 
+  my_uca_scanner_init_any(&sscanner, s, slen);
+  my_uca_scanner_init_any(&tscanner, t, tlen);
+
 #if MY_UCA_ASCII_OPTIMIZE
 {
-  size_t prefix= my_uca_level_booster_equal_prefix_length(level->booster,
-                                                          s, slen, t, tlen);
-  s+= prefix, slen-= prefix;
-  t+= prefix, tlen-= prefix;
+  int cmp= my_uca_level_booster_simple_prefix_cmp(&sscanner, &tscanner,
+                                                  level->booster);
+  if (cmp)
+    return cmp;
+  if (my_uca_scanner_eof2(&sscanner, &tscanner))
+    return 0;
 }
 #endif
 
   my_uca_scanner_param_init(&param, cs, level);
-  my_uca_scanner_init_any(&sscanner, s, slen);
-  my_uca_scanner_init_any(&tscanner, t, tlen);
   
   do
   {
@@ -216,18 +219,21 @@ MY_FUNCTION_NAME(strnncollsp_onelevel)(CHARSET_INFO *cs,
   my_uca_scanner_param param;
   int s_res, t_res;
 
+  my_uca_scanner_init_any(&sscanner, s, slen);
+  my_uca_scanner_init_any(&tscanner, t, tlen);
+
 #if MY_UCA_ASCII_OPTIMIZE
 {
-  size_t prefix= my_uca_level_booster_equal_prefix_length(level->booster,
-                                                          s, slen, t, tlen);
-  s+= prefix, slen-= prefix;
-  t+= prefix, tlen-= prefix;
+  int cmp= my_uca_level_booster_simple_prefix_cmp(&sscanner, &tscanner,
+                                                  level->booster);
+  if (cmp)
+    return cmp;
+  if (my_uca_scanner_eof2(&sscanner, &tscanner))
+    return 0;
 }
 #endif
 
   my_uca_scanner_param_init(&param, cs, level);
-  my_uca_scanner_init_any(&sscanner, s, slen);
-  my_uca_scanner_init_any(&tscanner, t, tlen);
 
   do
   {
@@ -473,21 +479,24 @@ MY_FUNCTION_NAME(strnncollsp_nchars_onelevel)(CHARSET_INFO *cs,
   size_t s_nchars_left= nchars;
   size_t t_nchars_left= nchars;
 
+  my_uca_scanner_init_any(&sscanner, s, slen);
+  my_uca_scanner_init_any(&tscanner, t, tlen);
+
 /*
 TODO: strnncollsp_nchars_onelevel
 #if MY_UCA_ASCII_OPTIMIZE
 {
-  size_t prefix= my_uca_level_booster_equal_prefix_length(level->booster,
-                                                          s, slen, t, tlen);
-  s+= prefix, slen-= prefix;
-  t+= prefix, tlen-= prefix;
+  int cmp= my_uca_level_booster_simple_prefix_cmp(&sscanner, &tscanner,
+                                                  level->booster);
+  if (cmp)
+    return cmp;
+  if (my_uca_scanner_eof2(&sscanner, &tscanner))
+    return 0;
 }
 #endif
 */
 
   my_uca_scanner_param_init(&param, cs, level);
-  my_uca_scanner_init_any(&sscanner, s, slen);
-  my_uca_scanner_init_any(&tscanner, t, tlen);
 
   for ( ; ; )
   {

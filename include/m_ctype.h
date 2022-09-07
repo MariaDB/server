@@ -186,6 +186,15 @@ typedef struct my_uca_level_booster_t
     This array is used for prefix optimization.
   */
   MY_UCA_WEIGHT2 weight_strings_2bytes_to_1_or_2_weights[0x10000];
+
+  /*
+    A helper array to process one-character ASCII strings.
+    Suitable only for stand-alone characters,
+    which are known not to be contraction parts,
+    e.g. the very last character of a string.
+  */
+  uint16 weight_1byte_to_1weight_standalone[0x100];
+
 } MY_UCA_LEVEL_BOOSTER;
 
 
