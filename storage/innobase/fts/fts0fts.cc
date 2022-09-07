@@ -2605,7 +2605,7 @@ retry:
 	}
 	mysql_mutex_unlock(&cache->doc_id_lock);
 
-	if (cmp_doc_id > *doc_id) {
+	if (cmp_doc_id && cmp_doc_id >= *doc_id) {
 		error = fts_update_sync_doc_id(
 			table, cache->synced_doc_id, trx);
 	}

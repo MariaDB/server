@@ -3648,6 +3648,8 @@ public:
   /*
     In case of a slave, set to the error code the master got when executing
     the query. 0 if no error on the master.
+    The stored into variable master error code may get reset inside
+    execution stack when the event turns out to be ignored.
   */
   int	     slave_expected_error;
   enum_sql_command last_sql_command;  // Last sql_command exceuted in mysql_execute_command()
