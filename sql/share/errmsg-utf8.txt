@@ -7144,8 +7144,9 @@ ER_BINLOG_UNSAFE_NONTRANS_AFTER_TRANS
         chi "语句不安全，因为它在访问同一事务中访问事务表后访问非事务性表"
         eng "Statement is unsafe because it accesses a non-transactional table after accessing a transactional table within the same transaction"
 ER_MESSAGE_AND_STATEMENT
-        chi "%s语句：%s"
-        eng "%s Statement: %s"
+  chi "%s．语句：%s"
+  eng "%s. Statement: %s"
+
 ER_SLAVE_CONVERSION_FAILED
         chi "列%d表'%-.192s.%-.192s'无法从'%-.50s'类型为'%-.50s'"
         eng "Column %d of table '%-.192s.%-.192s' cannot be converted from type '%-.50s' to type '%-.50s'"

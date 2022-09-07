@@ -318,9 +318,7 @@ connection con1;
 # Accumulate and apply some modification log.
 SET DEBUG_SYNC = 'row_log_apply_before SIGNAL c2f_created WAIT_FOR dml3_done';
 --send
-# FIXME: MDEV-13668
-#ALTER TABLE t1 ADD INDEX c2f(c22f), CHANGE c2 c22f INT;
-ALTER TABLE t1 ADD INDEX c2f(c2);
+ALTER TABLE t1 ADD INDEX c2f(c22f), CHANGE c2 c22f INT;
 
 connection default;
 SET DEBUG_SYNC = 'now WAIT_FOR c2f_created';
@@ -345,8 +343,6 @@ SET DEBUG_SYNC = 'now SIGNAL dml3_done';
 
 connection con1;
 reap;
-# FIXME: MDEV-13668
-ALTER TABLE t1 CHANGE c2 c22f INT;
 
 eval $innodb_metrics_select;
 
