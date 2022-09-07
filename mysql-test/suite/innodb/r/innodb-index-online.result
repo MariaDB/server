@@ -358,7 +358,7 @@ SET @rowlog_decrypt_1=
 WHERE variable_name = 'innodb_encryption_n_rowlog_blocks_decrypted');
 connection con1;
 SET DEBUG_SYNC = 'row_log_apply_before SIGNAL c2f_created WAIT_FOR dml3_done';
-ALTER TABLE t1 ADD INDEX c2f(c2);
+ALTER TABLE t1 ADD INDEX c2f(c22f), CHANGE c2 c22f INT;
 connection default;
 SET DEBUG_SYNC = 'now WAIT_FOR c2f_created';
 SELECT name, count FROM INFORMATION_SCHEMA.INNODB_METRICS WHERE subsystem = 'ddl';
@@ -397,7 +397,6 @@ SET DEBUG_SYNC = 'now SIGNAL dml3_done';
 connection con1;
 Warnings:
 Note	1831	Duplicate index `c2f`. This is deprecated and will be disallowed in a future release
-ALTER TABLE t1 CHANGE c2 c22f INT;
 SELECT name, count FROM INFORMATION_SCHEMA.INNODB_METRICS WHERE subsystem = 'ddl';
 name	count
 ddl_background_drop_indexes	0

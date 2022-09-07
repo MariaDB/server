@@ -22,37 +22,33 @@ public:
     spider_string *str,
     const char *name,
     uint name_length
-  );
+  ) override;
   int append_name_with_charset(
     spider_string *str,
     const char *name,
     uint name_length,
     CHARSET_INFO *name_charset
-  );
+  ) override;
   int append_escaped_name(
     spider_string *str,
     const char *name,
     uint name_length
-  );
+  ) override;
   int append_escaped_name_with_charset(
     spider_string *str,
     const char *name,
     uint name_length,
     CHARSET_INFO *name_charset
-  );
+  ) override;
   bool is_name_quote(
     const char head_code
-  );
+  ) override;
   int append_escaped_name_quote(
     spider_string *str
-  );
-  int append_column_value(
-    ha_spider *spider,
-    spider_string *str,
-    Field *field,
-    const uchar *new_ptr,
-    CHARSET_INFO *access_charset
-  );
+  ) override;
+  int append_column_value(ha_spider *spider, spider_string *str, Field *field,
+                          const uchar *new_ptr, bool is_like,
+                          CHARSET_INFO *access_charset) override;
   int append_from_with_alias(
     spider_string *str,
     const char **table_names,
@@ -66,19 +62,19 @@ public:
   int append_trx_isolation(
     spider_string *str,
     int trx_isolation
-  );
+  ) override;
   int append_autocommit(
     spider_string *str,
     bool autocommit
-  );
+  ) override;
   int append_sql_log_off(
     spider_string *str,
     bool sql_log_off
-  );
+  ) override;
   int append_wait_timeout(
     spider_string *str,
     int wait_timeout
-  );
+  ) override;
   virtual int append_sql_mode_internal(
     spider_string *str,
     sql_mode_t sql_mode
@@ -86,21 +82,21 @@ public:
   int append_sql_mode(
     spider_string *str,
     sql_mode_t sql_mode
-  );
+  ) override;
   int append_time_zone(
     spider_string *str,
     Time_zone *time_zone
-  );
+  ) override;
   int append_start_transaction(
     spider_string *str
-  );
+  ) override;
   int append_xa_start(
     spider_string *str,
     XID *xid
-  );
+  ) override;
   int append_lock_table_head(
     spider_string *str
-  );
+  ) override;
   int append_lock_table_body(
     spider_string *str,
     const char *db_name,
@@ -110,13 +106,13 @@ public:
     uint table_name_length,
     CHARSET_INFO *table_name_charset,
     int lock_type
-  );
+  ) override;
   int append_lock_table_tail(
     spider_string *str
-  );
+  ) override;
   int append_unlock_table(
     spider_string *str
-  );
+  ) override;
   int open_item_func(
     Item_func *item_func,
     ha_spider *spider,
@@ -125,7 +121,7 @@ public:
     uint alias_length,
     bool use_fields,
     spider_fields *fields
-  );
+  ) override;
 #ifdef HANDLER_HAS_DIRECT_AGGREGATE
   int open_item_sum_func(
     Item_sum *item_sum,
@@ -135,12 +131,12 @@ public:
     uint alias_length,
     bool use_fields,
     spider_fields *fields
-  );
+  ) override;
 #endif
   int append_escaped_util(
     spider_string *to,
     String *from
-  );
+  ) override;
 #ifdef SPIDER_HAS_GROUP_BY_HANDLER
   int append_table(
     ha_spider *spider,
@@ -182,18 +178,18 @@ public:
     spider_string *str,
     TABLE_LIST *table_list,
     uint table_count
-  );
+  ) override;
   int reappend_tables(
     spider_fields *fields,
     SPIDER_LINK_IDX_CHAIN *link_idx_chain,
     spider_string *str
-  );
+  ) override;
   int append_where(
     spider_string *str
-  );
+  ) override;
   int append_having(
     spider_string *str
-  );
+  ) override;
 #endif
 };
 
@@ -207,8 +203,9 @@ public:
     spider_string *str,
     Field *field,
     const uchar *new_ptr,
+    bool is_like,
     CHARSET_INFO *access_charset
-  );
+  ) override;
 };
 
 class spider_db_mariadb_util: public spider_db_mbase_util
@@ -219,14 +216,15 @@ public:
   int append_sql_mode_internal(
     spider_string *str,
     sql_mode_t sql_mode
-  );
+  ) override;
   int append_column_value(
     ha_spider *spider,
     spider_string *str,
     Field *field,
     const uchar *new_ptr,
+    bool is_like,
     CHARSET_INFO *access_charset
-  );
+  ) override;
 };
 
 class spider_db_mbase_row: public spider_db_row

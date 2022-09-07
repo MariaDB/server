@@ -106,7 +106,7 @@ static int disks_table_add_row_stat(
 #else
     if (info.f_flags & MNT_RDONLY)
 #endif
-	return 0;
+       return 0;
 
     pTable->field[0]->store(zDisk, strlen(zDisk), system_charset_info);
     pTable->field[1]->store(zPath, strlen(zPath), system_charset_info);
@@ -212,15 +212,15 @@ static int disks_fill_table(THD* pThd, TABLE_LIST* pTables, Item* pCond)
         )
     {
         struct stat f;
-	const char *path, *point;
+        const char *path, *point;
 #ifdef HAVE_SETMNTENT
-	path= pEnt->mnt_dir;
-	point= pEnt->mnt_fsname;
+        path= pEnt->mnt_dir;
+        point= pEnt->mnt_fsname;
 #else
-	path= pEnt->mnt_mountp;
-	point= pEnt->mnt_special;
+        path= pEnt->mnt_mountp;
+        point= pEnt->mnt_special;
 #endif
-	// Try to keep to real storage by excluding
+        // Try to keep to real storage by excluding
         // read only mounts, and mount points that aren't directories
         if (hasmntopt(pEnt, MNTOPT_RO) != NULL)
             continue;

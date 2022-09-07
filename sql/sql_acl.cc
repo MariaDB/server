@@ -1969,9 +1969,11 @@ class Grant_tables
         some kind of updates to the mysql.% tables.
       */
       Rpl_filter *rpl_filter= thd->system_thread_info.rpl_sql_info->rpl_filter;
-
       if (rpl_filter->is_on() && !rpl_filter->tables_ok(0, tables))
+      {
+        thd->slave_expected_error= 0;
         DBUG_RETURN(1);
+      }
     }
     DBUG_RETURN(0);
   }
