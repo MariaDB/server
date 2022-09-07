@@ -1,3 +1,5 @@
+--source include/have_innodb.inc
+set default_storage_engine=innodb;
 --source include/have_partition.inc
 let $datadir=`select @@datadir`;
 
@@ -68,6 +70,7 @@ CREATE TABLE custom_types (
     ip4 INET4 UNIQUE,
     ip6 INET6
 );
+
 
 --echo 
 

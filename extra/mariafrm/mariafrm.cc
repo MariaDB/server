@@ -167,6 +167,8 @@ int get_charset(frm_file_data *ffd, uint cs_number)
 
 int parse(frm_file_data *ffd, const uchar *frm, size_t len)
 {
+  if (len < FRM_HEADER_SIZE + FRM_FORMINFO_SIZE)
+    goto err;
   size_t current_pos, end;
   size_t t, comment_pos; //, extra_info_pos;
   size_t parser_offset;
@@ -319,7 +321,7 @@ int parse(frm_file_data *ffd, const uchar *frm, size_t len)
     ffd->columns[i].defaults_offset= uint3korr(frm + current_pos + 5);
     ffd->columns[i].label_id= (uint) frm[current_pos + 12] - 1;
     current_pos+= 17;
-    ffd->columns[i].extra_data_type_info= {"", 0};
+    ffd->columns[i].extra_data_type_info= {(uchar*)"",0};
   }
   //---READ DEFAULTS---
   ffd->null_bit= 1;
@@ -426,6 +428,7 @@ int parse(frm_file_data *ffd, const uchar *frm, size_t len)
   ffd->extra2_len= uint2korr(frm + 4);
   current_pos= 64;
   end= current_pos + ffd->extra2_len;
+  ffd->field_data_type_info= {(uchar *) "", 0};
   if ((uchar)frm[64] !='/')
   {
     while (current_pos + 3 <= end)
@@ -495,7 +498,7 @@ int parse(frm_file_data *ffd, const uchar *frm, size_t len)
     ffd->table_comment= {(char *) frm + ffd->forminfo_offset + 47,
                          frm[ffd->forminfo_offset + 46]};
   }
-  if (ffd->field_data_type_info.length != 0)
+  if (ffd->field_data_type_info.length)
   {
     current_pos= 0;
     end= current_pos + ffd->field_data_type_info.length;
@@ -503,7 +506,7 @@ int parse(frm_file_data *ffd, const uchar *frm, size_t len)
     {
       uint fieldnr= (uint) ffd->field_data_type_info.str[current_pos++];
       size_t tlen= (uint) ffd->field_data_type_info.str[current_pos++];
-      char *ts= c_malloc(tlen + 1);
+      uchar *ts= (uchar *) my_malloc(PSI_NOT_INSTRUMENTED, (tlen + 1), MYF(MY_WME));
       memcpy(ts, ffd->field_data_type_info.str + current_pos, tlen);
       ts[tlen]= '\0';
       ffd->columns[fieldnr].extra_data_type_info.length= tlen;
@@ -517,9 +520,7 @@ extra2_end:
   return 0;
 err:
   printf("Corrupt frm file...\n");
-  printf("Do nothing...\n");
-  exit(0);
-  return -1;
+  return 1;
 }
 
 static std::unordered_set<uint> default_cs{
@@ -891,7 +892,9 @@ int main(int argc, char **argv)
     uchar *frm;
     size_t len;
     frm_file_data *ffd= new frm_file_data();
-    read_file(path, (const uchar **) &frm, &len);
+    int error=read_file(path, (const uchar **) &frm, &len);
+    if (error)
+      continue;
     if (!is_binary_frm_header(frm))
     {
       printf("The .frm file is not a table...\n");

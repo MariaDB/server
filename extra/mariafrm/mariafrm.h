@@ -47,7 +47,7 @@ struct column
   uint null_byte;
   LEX_CSTRING default_value;
   int label_id;
-  LEX_CSTRING extra_data_type_info;
+  LEX_CUSTRING extra_data_type_info;
 };
 
 struct key_part

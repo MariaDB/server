@@ -1,3 +1,4 @@
+set default_storage_engine=innodb;
 CREATE TABLE t1 (a int, b varchar(100)) engine=MyISAM;
 CREATE TABLE employees (
 emp_no      INT             NOT NULL,
@@ -85,7 +86,7 @@ employees	CREATE TABLE `employees` (
   `gender` enum('M','F') NOT NULL,
   `hire_date` date NOT NULL,
   PRIMARY KEY (`emp_no`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
 
 CREATE TABLE `employees` (
   `emp_no` int(11) NOT NULL,
@@ -95,7 +96,7 @@ CREATE TABLE `employees` (
   `gender` enum('M','F') NOT NULL,
   `hire_date` date NOT NULL,
   PRIMARY KEY (`emp_no`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
 
 # Table departments
 
@@ -106,14 +107,14 @@ departments	CREATE TABLE `departments` (
   `dept_name` varchar(40) NOT NULL,
   PRIMARY KEY (`dept_no`),
   UNIQUE KEY `dept_name` (`dept_name`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
 
 CREATE TABLE `departments` (
   `dept_no` char(4) NOT NULL,
   `dept_name` varchar(40) NOT NULL,
   PRIMARY KEY (`dept_no`),
   UNIQUE KEY `dept_name` (`dept_name`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
 
 # Table index_table
 
@@ -127,7 +128,7 @@ index_table	CREATE TABLE `index_table` (
   PRIMARY KEY (`roll_number`),
   KEY `roll_number` (`roll_number`,`name`(20)),
   KEY `img` (`img`(80))
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
 
 CREATE TABLE `index_table` (
   `roll_number` int(11) NOT NULL,
@@ -137,7 +138,7 @@ CREATE TABLE `index_table` (
   PRIMARY KEY (`roll_number`),
   KEY `roll_number` (`roll_number`,`name`(20)),
   KEY `img` (`img`(80))
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
 
 # Table student
 
@@ -152,7 +153,7 @@ student	CREATE TABLE `student` (
   `address` varchar(95) NOT NULL COMMENT 'The full address',
   PRIMARY KEY (`id`) COMMENT 'Id is unique for each student',
   UNIQUE KEY `phone_no` (`phone_no`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COMMENT='Student table with minimum required details'
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COMMENT='Student table with minimum required details'
 
 CREATE TABLE `student` (
   `id` varchar(20) NOT NULL,
@@ -163,7 +164,7 @@ CREATE TABLE `student` (
   `address` varchar(95) NOT NULL COMMENT 'The full address',
   PRIMARY KEY (`id`) COMMENT 'Id is unique for each student',
   UNIQUE KEY `phone_no` (`phone_no`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COMMENT='Student table with minimum required details'
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COMMENT='Student table with minimum required details'
 
 # Table sales
 
@@ -177,12 +178,12 @@ sales	CREATE TABLE `sales` (
   `bill_date` date NOT NULL,
   `amount` decimal(8,2) NOT NULL,
   PRIMARY KEY (`bill_date`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
  PARTITION BY RANGE (year(`bill_date`))
-(PARTITION `p0` VALUES LESS THAN (2016) ENGINE = MyISAM,
- PARTITION `p1` VALUES LESS THAN (2017) ENGINE = MyISAM,
- PARTITION `p2` VALUES LESS THAN (2018) ENGINE = MyISAM,
- PARTITION `p3` VALUES LESS THAN (2020) ENGINE = MyISAM)
+(PARTITION `p0` VALUES LESS THAN (2016) ENGINE = InnoDB,
+ PARTITION `p1` VALUES LESS THAN (2017) ENGINE = InnoDB,
+ PARTITION `p2` VALUES LESS THAN (2018) ENGINE = InnoDB,
+ PARTITION `p3` VALUES LESS THAN (2020) ENGINE = InnoDB)
 
 CREATE TABLE `sales` (
   `cust_id` int(11) NOT NULL,
@@ -192,12 +193,12 @@ CREATE TABLE `sales` (
   `bill_date` date NOT NULL,
   `amount` decimal(8,2) NOT NULL,
   PRIMARY KEY (`bill_date`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
  PARTITION BY RANGE (year(`bill_date`))
-(PARTITION `p0` VALUES LESS THAN (2016) ENGINE = MyISAM,
- PARTITION `p1` VALUES LESS THAN (2017) ENGINE = MyISAM,
- PARTITION `p2` VALUES LESS THAN (2018) ENGINE = MyISAM,
- PARTITION `p3` VALUES LESS THAN (2020) ENGINE = MyISAM)
+(PARTITION `p0` VALUES LESS THAN (2016) ENGINE = InnoDB,
+ PARTITION `p1` VALUES LESS THAN (2017) ENGINE = InnoDB,
+ PARTITION `p2` VALUES LESS THAN (2018) ENGINE = InnoDB,
+ PARTITION `p3` VALUES LESS THAN (2020) ENGINE = InnoDB)
 
 # Table serverlogs
 
@@ -207,7 +208,7 @@ serverlogs	CREATE TABLE `serverlogs` (
   `serverid` int(11) NOT NULL,
   `logdata` blob NOT NULL,
   `created` datetime NOT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
  PARTITION BY HASH (`serverid`)
 PARTITIONS 10
 
@@ -215,7 +216,7 @@ CREATE TABLE `serverlogs` (
   `serverid` int(11) NOT NULL,
   `logdata` blob NOT NULL,
   `created` datetime NOT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
  PARTITION BY HASH (`serverid`)
 PARTITIONS 10
 
@@ -229,7 +230,7 @@ custom_types	CREATE TABLE `custom_types` (
   `ip6` inet6 DEFAULT NULL,
   PRIMARY KEY (`id`),
   UNIQUE KEY `ip4` (`ip4`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
 
 CREATE TABLE `custom_types` (
   `id` uuid NOT NULL,
@@ -237,7 +238,7 @@ CREATE TABLE `custom_types` (
   `ip6` inet6 DEFAULT NULL,
   PRIMARY KEY (`id`),
   UNIQUE KEY `ip4` (`ip4`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
 
 DROP TABLE t1;
 DROP TABLE employees;
