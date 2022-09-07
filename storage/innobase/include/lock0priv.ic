@@ -145,18 +145,22 @@ lock_rec_get_first_on_page_addr(
 	return(NULL);
 }
 
-/** Gets the first record lock on a page, where the page is identified by a
+/*********************************************************************//**
+Gets the first record lock on a page, where the page is identified by a
 pointer to it.
-@param[in] lock_hash lock hash table
-@param[in] space page's space id
-@param[in] page_no page number
-@param[in] hash page's hash value in records hash table
 @return	first lock, NULL if none exists */
 UNIV_INLINE
-lock_t *lock_rec_get_first_on_page(hash_table_t *lock_hash, ulint space,
-                                   ulint page_no, ulint hash)
+lock_t*
+lock_rec_get_first_on_page(
+/*=======================*/
+	hash_table_t*		lock_hash,	/*!< in: lock hash table */
+	const buf_block_t*	block)		/*!< in: buffer block */
 {
 	ut_ad(lock_mutex_own());
+
+	ulint	space	= block->page.id.space();
+	ulint	page_no	= block->page.id.page_no();
+	ulint	hash = buf_block_get_lock_hash_val(block);
 
 	for (lock_t* lock = static_cast<lock_t*>(
 			HASH_GET_FIRST(lock_hash, hash));
@@ -171,20 +175,6 @@ lock_t *lock_rec_get_first_on_page(hash_table_t *lock_hash, ulint space,
 	}
 
 	return(NULL);
-}
-
-/** Gets the first record lock on a page, where the page is identified by a
-pointer to it.
-@param[in] lock_hash lock hash table
-@param[in] block buffer block
-@return	first lock, NULL if none exists */
-UNIV_INLINE
-lock_t *lock_rec_get_first_on_page(hash_table_t *lock_hash,
-                                   const buf_block_t *block)
-{
-  return lock_rec_get_first_on_page(lock_hash, block->page.id.space(),
-                                    block->page.id.page_no(),
-                                    buf_block_get_lock_hash_val(block));
 }
 
 /*********************************************************************//**
@@ -220,41 +210,27 @@ lock_rec_get_next_const(
 	return(lock_rec_get_next(heap_no, (lock_t*) lock));
 }
 
-/** Gets the first explicit lock request on a record.
-@param[in] hash hash chain the lock on
-@param[in] space record's space id
-@param[in] page_no record's page number
-@param[in] lock_hash_val page's hash value in records hash table
-@param[in] heap_no heap number of the record
+/*********************************************************************//**
+Gets the first explicit lock request on a record.
 @return	first lock, NULL if none exists */
 UNIV_INLINE
-lock_t *lock_rec_get_first(hash_table_t *hash, ulint space, ulint page_no,
-                           uint32_t lock_hash_val, ulint heap_no)
+lock_t*
+lock_rec_get_first(
+/*===============*/
+	hash_table_t*		hash,	/*!< in: hash chain the lock on */
+	const buf_block_t*	block,	/*!< in: block containing the record */
+	ulint			heap_no)/*!< in: heap number of the record */
 {
 	ut_ad(lock_mutex_own());
 
-	for (lock_t* lock = lock_rec_get_first_on_page(hash, space, page_no,
-	      lock_hash_val); lock; lock = lock_rec_get_next_on_page(lock)) {
+	for (lock_t* lock = lock_rec_get_first_on_page(hash, block); lock;
+	     lock = lock_rec_get_next_on_page(lock)) {
 		if (lock_rec_get_nth_bit(lock, heap_no)) {
 			return(lock);
 		}
 	}
 
 	return(NULL);
-}
-
-/** Gets the first explicit lock request on a record.
-@param[in] hash hash chain the lock on
-@param[in] block block containing the record
-@param[in] heap_no heap number of the record
-@return	first lock, NULL if none exists */
-UNIV_INLINE
-lock_t *lock_rec_get_first(hash_table_t *hash, const buf_block_t *block,
-                           ulint heap_no)
-{
-  return lock_rec_get_first(hash, block->page.id.space(),
-                            block->page.id.page_no(),
-                            buf_block_get_lock_hash_val(block), heap_no);
 }
 
 /*********************************************************************//**
