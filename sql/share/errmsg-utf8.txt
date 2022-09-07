@@ -7535,9 +7535,10 @@ ER_BINLOG_UNSAFE_NONTRANS_AFTER_TRANS
         eng "Statement is unsafe because it accesses a non-transactional table after accessing a transactional table within the same transaction"
         spa "La sentencia no es segura porque accede a una tabla no transaccional tras acceder a una transaccional dentro de la misma transacción"
 ER_MESSAGE_AND_STATEMENT
-        chi "%s语句：%s"
-        eng "%s Statement: %s"
-        spa "%s Sentencia: %s"
+  chi "%s．语句：%s"
+  eng "%s. Statement: %s"
+  spa "%s. Sentencia: %s"
+
 ER_SLAVE_CONVERSION_FAILED
         chi "列%d表'%-.192s.%-.192s'无法从'%-.50s'类型为'%-.50s'"
         eng "Column %d of table '%-.192s.%-.192s' cannot be converted from type '%-.50s' to type '%-.50s'"
