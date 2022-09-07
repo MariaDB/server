@@ -32091,6 +32091,19 @@ my_uca_scanner_init_any(my_uca_scanner *scanner,
 }
 
 
+/*
+  Test if both scanners have reached the end of their strings,
+  so there is no data left to compare.
+*/
+static inline my_bool
+my_uca_scanner_eof2(const my_uca_scanner *scanner0,
+                    const my_uca_scanner *scanner1)
+{
+  return scanner0->sbeg >= scanner0->send &&
+         scanner1->sbeg >= scanner1->send;
+}
+
+
 static inline int
 my_space_weight(const MY_UCA_WEIGHT_LEVEL *level)
 {
@@ -34420,10 +34433,34 @@ my_uca_level_booster_weight2_populate(MY_UCA_LEVEL_BOOSTER *booster)
 
 
 static void
+my_uca_level_booster_1byte_to_1weight_standalone_populate(
+                                            MY_UCA_LEVEL_BOOSTER *dst,
+                                            const MY_UCA_WEIGHT_LEVEL *src)
+{
+  size_t i;
+  for (i= 0; i <= 0x7F; i++)
+  {
+    const uint16 *w= src->weights[0] + i * src->lengths[0];
+    dst->weight_1byte_to_1weight_standalone[i]= w[1] ? 0 : w[0];
+  }
+  for (i= 0x80; i <= 0xFF; i++)
+  {
+    /*
+      Invalid utf8 one-byte character.
+      Set weight to near-biggest possible uint16 value.
+      This makes a broken string greater than a non-broken string.
+    */
+    dst->weight_1byte_to_1weight_standalone[i]= 0xFF00 + i;
+  }
+}
+
+
+static void
 my_uca_level_booster_populate(MY_UCA_LEVEL_BOOSTER *dst,
                               const MY_UCA_WEIGHT_LEVEL *src,
                               CHARSET_INFO *cs)
 {
+  my_uca_level_booster_1byte_to_1weight_standalone_populate(dst, src);
   my_uca_level_booster_2bytes_populate_pairs(dst, src, cs);
   my_uca_level_booster_2bytes_pupulate_ascii2_contractions(dst,
                                                            &src->contractions);
@@ -34460,29 +34497,67 @@ my_uca_level_booster_new(MY_CHARSET_LOADER *loader,
 
 
 /*
-  Skip the simple equal prefix of two string using
+  Compare a simple prefix of two string using
   "One or two bytes produce one or two weights" optimization.
-  Return the prefix length.
+  Return the comparison result.
 */
-static size_t
-my_uca_level_booster_equal_prefix_length(const MY_UCA_LEVEL_BOOSTER *booster,
-                                         const uchar *s, size_t slen,
-                                         const uchar *t, size_t tlen)
+static int
+my_uca_level_booster_simple_prefix_cmp(my_uca_scanner *sscanner,
+                                       my_uca_scanner *tscanner,
+                                       const MY_UCA_LEVEL_BOOSTER *booster)
 {
-  const uchar *s0= s;
-  size_t simple_count= MY_MIN(slen, tlen) >> 1;
-  for ( ; simple_count; s+= 2, t+= 2, simple_count--)
+  size_t slen= sscanner->send - sscanner->sbeg;
+  size_t tlen= tscanner->send - tscanner->sbeg;
+  size_t length= MY_MIN(slen, tlen);
+  for ( ; length >= 2; sscanner->sbeg+= 2, tscanner->sbeg+= 2, length-= 2)
   {
+    int cmp;
     const MY_UCA_WEIGHT2 *ws, *wt;
-    ws= my_uca_level_booster_simple_weight2_addr_const(booster, s[0], s[1]);
-    wt= my_uca_level_booster_simple_weight2_addr_const(booster, t[0], t[1]);
-    if (ws->weight[0] &&
-        ws->weight[0] == wt->weight[0] &&
-        ws->weight[1] == wt->weight[1])
-      continue;
-    break;
+    ws= my_uca_level_booster_simple_weight2_addr_const(booster,
+                                                       sscanner->sbeg[0],
+                                                       sscanner->sbeg[1]);
+    wt= my_uca_level_booster_simple_weight2_addr_const(booster,
+                                                       tscanner->sbeg[0],
+                                                       tscanner->sbeg[1]);
+    if (!ws->weight[0] || !wt->weight[0])
+      return 0; /* Can't optimize this */
+
+    if ((cmp= (int) ws->weight[0] - (int) wt->weight[0]))
+      return cmp; /* A difference on the first weight found */
+
+    if ((cmp= (int) ws->weight[1] - (int) wt->weight[1]))
+    {
+      /*
+        A difference on the second weight found.
+        If either of the second weights is zero then the two sides have
+        different number of weights: one weight vs two weights.
+        Evaluate two_second_weights to:
+        - 1 if both sides have two weights
+        - 0 otherwise (i.e. one weight vs two weights)
+      */
+      int two_second_weights= ws->weight[1] != 0 && wt->weight[1] != 0;
+      return cmp * two_second_weights;
+    }
   }
-  return s - s0;
+  if (length == 1 &&
+      sscanner->send - sscanner->sbeg == 1 &&
+      tscanner->send - tscanner->sbeg == 1) /* One byte left on both sides */
+  {
+    uint16 ws, wt;
+    if ((ws= booster->weight_1byte_to_1weight_standalone[sscanner->sbeg[0]]) &&
+        (wt= booster->weight_1byte_to_1weight_standalone[tscanner->sbeg[0]]))
+    {
+      /*
+        The increment is important only if the two weights are equal.
+        But it's not harmful even of the weights are different.
+        So let's always increment, to avoid a conditional jump.
+      */
+      sscanner->sbeg++;
+      tscanner->sbeg++;
+      return (int) ws - (int) wt;
+    }
+  }
+  return 0;
 }
 
 
