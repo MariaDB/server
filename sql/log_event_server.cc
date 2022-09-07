@@ -2158,23 +2158,30 @@ int Query_log_event::do_apply_event(rpl_group_info *rgi,
           if (thd->m_digest != NULL)
             thd->m_digest->reset(thd->m_token_array, max_digest_length);
 
-           if (thd->slave_thread)
-           {
-             /*
-               To be compatible with previous releases, the slave thread uses the global
-               log_slow_disabled_statements value, wich can be changed dynamically, so we
-               have to set the sql_log_slow respectively.
-             */
-             thd->variables.sql_log_slow= !MY_TEST(global_system_variables.log_slow_disabled_statements & LOG_SLOW_DISABLE_SLAVE);
-           }
+          if (thd->slave_thread)
+          {
+            /*
+              To be compatible with previous releases, the slave thread uses the global
+              log_slow_disabled_statements value, wich can be changed dynamically, so we
+              have to set the sql_log_slow respectively.
+            */
+            thd->variables.sql_log_slow= !MY_TEST(global_system_variables.log_slow_disabled_statements & LOG_SLOW_DISABLE_SLAVE);
+          }
           mysql_parse(thd, thd->query(), thd->query_length(), &parser_state);
           /* Finalize server status flags after executing a statement. */
           thd->update_server_status();
           log_slow_statement(thd);
           thd->lex->restore_set_statement_var();
+
+          /*
+            When THD::slave_expected_error gets reset inside execution stack
+            that is the case of to be ignored event. In this case the expected
+            error must change to the reset value as well.
+          */
+          expected_error= thd->slave_expected_error;
         }
       }
-      else if(sa_result == -1)
+      else if (sa_result == -1)
       {
         rli->report(ERROR_LEVEL, expected_error, rgi->gtid_info(),
                           "TODO start alter error");

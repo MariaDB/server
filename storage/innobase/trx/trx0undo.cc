@@ -996,8 +996,8 @@ static void trx_undo_seg_free(const trx_undo_t *undo)
       else if (buf_block_t* rseg_header = rseg->get(&mtr, nullptr))
       {
         static_assert(FIL_NULL == 0xffffffff, "compatibility");
-        memset(TRX_RSEG + TRX_RSEG_UNDO_SLOTS + undo->id * TRX_RSEG_SLOT_SIZE +
-               rseg_header->page.frame, 0xff, 4);
+        mtr.memset(rseg_header, TRX_RSEG + TRX_RSEG_UNDO_SLOTS +
+                   undo->id * TRX_RSEG_SLOT_SIZE, 4, 0xff);
         MONITOR_DEC(MONITOR_NUM_UNDO_SLOT_USED);
       }
     }
