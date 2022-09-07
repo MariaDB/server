@@ -95,14 +95,19 @@ row_undo_mod_clust_low(
 	btr_pcur_t*	pcur;
 	btr_cur_t*	btr_cur;
 	dberr_t		err;
+#ifdef UNIV_DEBUG
+	ibool		success;
+#endif /* UNIV_DEBUG */
 
 	pcur = &node->pcur;
 	btr_cur = btr_pcur_get_btr_cur(pcur);
 
-	ut_d(auto pcur_restore_result =)
+#ifdef UNIV_DEBUG
+	success =
+#endif /* UNIV_DEBUG */
 	btr_pcur_restore_position(mode, pcur, mtr);
 
-	ut_ad(pcur_restore_result == btr_pcur_t::SAME_ALL);
+	ut_ad(success);
 	ut_ad(rec_get_trx_id(btr_cur_get_rec(btr_cur),
 			     btr_cur_get_index(btr_cur))
 	      == thr_get_trx(thr)->id
@@ -383,8 +388,7 @@ row_undo_mod_clust(
 		ut_ad(node->new_trx_id);
 
 		mtr.start();
-		if (btr_pcur_restore_position(BTR_MODIFY_LEAF, pcur, &mtr) !=
-		    btr_pcur_t::SAME_ALL) {
+		if (!btr_pcur_restore_position(BTR_MODIFY_LEAF, pcur, &mtr)) {
 			goto mtr_commit_exit;
 		}
 
@@ -406,9 +410,9 @@ row_undo_mod_clust(
 		btr_pcur_commit_specify_mtr(pcur, &mtr);
 
 		mtr.start();
-		if (btr_pcur_restore_position(
+		if (!btr_pcur_restore_position(
 			    BTR_MODIFY_TREE | BTR_LATCH_FOR_DELETE,
-			    pcur, &mtr) != btr_pcur_t::SAME_ALL) {
+			    pcur, &mtr)) {
 			goto mtr_commit_exit;
 		}
 
@@ -440,8 +444,7 @@ row_undo_mod_clust(
 		longer accessible by any active read view. */
 
 		mtr.start();
-		if (btr_pcur_restore_position(BTR_MODIFY_LEAF, pcur, &mtr)
-		    != btr_pcur_t::SAME_ALL) {
+		if (!btr_pcur_restore_position(BTR_MODIFY_LEAF, pcur, &mtr)) {
 			goto mtr_commit_exit;
 		}
 		rec_t* rec = btr_pcur_get_rec(pcur);
@@ -538,6 +541,7 @@ row_undo_mod_del_mark_or_remove_sec_low(
 {
 	btr_pcur_t		pcur;
 	btr_cur_t*		btr_cur;
+	ibool			success;
 	dberr_t			err	= DB_SUCCESS;
 	mtr_t			mtr;
 	mtr_t			mtr_vers;
@@ -609,8 +613,9 @@ row_undo_mod_del_mark_or_remove_sec_low(
 
 	mtr_vers.start();
 
-	ut_a(btr_pcur_restore_position(BTR_SEARCH_LEAF, &node->pcur, &mtr_vers)
-	    == btr_pcur_t::SAME_ALL);
+	success = btr_pcur_restore_position(BTR_SEARCH_LEAF, &(node->pcur),
+					    &mtr_vers);
+	ut_a(success);
 
 	/* For temporary table, we can skip to check older version of
 	clustered index entry, because there is no MVCC or purge. */

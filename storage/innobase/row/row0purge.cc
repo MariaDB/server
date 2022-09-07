@@ -73,9 +73,7 @@ row_purge_reposition_pcur(
 	if (node->found_clust) {
 		ut_ad(node->validate_pcur());
 
-		node->found_clust =
-		  btr_pcur_restore_position(mode, &node->pcur, mtr) ==
-		    btr_pcur_t::SAME_ALL;
+		node->found_clust = btr_pcur_restore_position(mode, &node->pcur, mtr);
 
 	} else {
 		node->found_clust = row_search_on_row_ref(

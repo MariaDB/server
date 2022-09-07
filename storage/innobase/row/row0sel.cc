@@ -1428,9 +1428,8 @@ row_sel_restore_pcur_pos(
 
 	relative_position = btr_pcur_get_rel_pos(&(plan->pcur));
 
-	equal_position =
-	  btr_pcur_restore_position(BTR_SEARCH_LEAF, &plan->pcur, mtr) ==
-	  btr_pcur_t::SAME_ALL;
+	equal_position = btr_pcur_restore_position(BTR_SEARCH_LEAF,
+						   &(plan->pcur), mtr);
 
 	/* If the cursor is traveling upwards, and relative_position is
 
@@ -3574,28 +3573,36 @@ err_exit:
 	return(err);
 }
 
-/** Restores cursor position after it has been stored. We have to take into
+/********************************************************************//**
+Restores cursor position after it has been stored. We have to take into
 account that the record cursor was positioned on may have been deleted.
 Then we may have to move the cursor one step up or down.
-@param[out] same_user_rec true if we were able to restore the cursor on a user
-record with the same ordering prefix in in the B-tree index
-@param[in] latch_mode latch mode wished in restoration
-@param[in] pcur cursor whose position has been stored
-@param[in] moves_up true if the cursor moves up in the index
-@param[in] mtr mtr; CAUTION: may commit mtr temporarily!
-@param[in] select_lock_type select lock type
 @return true if we may need to process the record the cursor is now
 positioned on (i.e. we should not go to the next record yet) */
-static bool sel_restore_position_for_mysql(bool *same_user_rec,
-                                           ulint latch_mode, btr_pcur_t *pcur,
-                                           bool moves_up, mtr_t *mtr,
-                                           lock_mode select_lock_type)
+static
+bool
+sel_restore_position_for_mysql(
+/*===========================*/
+	ibool*		same_user_rec,	/*!< out: TRUE if we were able to restore
+					the cursor on a user record with the
+					same ordering prefix in in the
+					B-tree index */
+	ulint		latch_mode,	/*!< in: latch mode wished in
+					restoration */
+	btr_pcur_t*	pcur,		/*!< in: cursor whose position
+					has been stored */
+	ibool		moves_up,	/*!< in: TRUE if the cursor moves up
+					in the index */
+	mtr_t*		mtr)		/*!< in: mtr; CAUTION: may commit
+					mtr temporarily! */
 {
-	auto status = btr_pcur_restore_position(latch_mode, pcur, mtr);
+	ibool		success;
 
-	*same_user_rec = status == btr_pcur_t::SAME_ALL;
+	success = btr_pcur_restore_position(latch_mode, pcur, mtr);
 
-	ut_ad(!*same_user_rec || pcur->rel_pos == BTR_PCUR_ON);
+	*same_user_rec = success;
+
+	ut_ad(!success || pcur->rel_pos == BTR_PCUR_ON);
 #ifdef UNIV_DEBUG
 	if (pcur->pos_state == BTR_PCUR_IS_POSITIONED_OPTIMISTIC) {
 		ut_ad(pcur->rel_pos == BTR_PCUR_BEFORE
@@ -3611,10 +3618,7 @@ static bool sel_restore_position_for_mysql(bool *same_user_rec,
 
 	switch (pcur->rel_pos) {
 	case BTR_PCUR_ON:
-		if (!*same_user_rec && moves_up) {
-			if (status == btr_pcur_t::SAME_UNIQ
-			    && select_lock_type != LOCK_NONE)
-			  return true;
+		if (!success && moves_up) {
 next:
 			if (btr_pcur_move_to_next(pcur, mtr)
 			    && rec_is_metadata(btr_pcur_get_rec(pcur),
@@ -3624,7 +3628,7 @@ next:
 
 			return true;
 		}
-		return(!*same_user_rec);
+		return(!success);
 	case BTR_PCUR_AFTER_LAST_IN_TREE:
 	case BTR_PCUR_BEFORE_FIRST_IN_TREE:
 		return true;
@@ -4293,7 +4297,7 @@ row_search_mvcc(
 	dberr_t		err				= DB_SUCCESS;
 	ibool		unique_search			= FALSE;
 	ibool		mtr_has_extra_clust_latch	= FALSE;
-	bool		moves_up			= false;
+	ibool		moves_up			= FALSE;
 	ibool		set_also_gap_locks		= TRUE;
 	/* if the query is a plain locking SELECT, and the isolation level
 	is <= TRX_ISO_READ_COMMITTED, then this is set to FALSE */
@@ -4302,7 +4306,7 @@ row_search_mvcc(
 	read (fetch the newest committed version), then this is set to
 	TRUE */
 	ulint		next_offs;
-	bool		same_user_rec;
+	ibool		same_user_rec;
 	mtr_t		mtr;
 	mem_heap_t*	heap				= NULL;
 	rec_offs	offsets_[REC_OFFS_NORMAL_SIZE];
@@ -4613,10 +4617,10 @@ row_search_mvcc(
 	if (UNIV_UNLIKELY(direction == 0)) {
 		if (mode == PAGE_CUR_GE || mode == PAGE_CUR_G
 		    || mode >= PAGE_CUR_CONTAIN) {
-			moves_up = true;
+			moves_up = TRUE;
 		}
 	} else if (direction == ROW_SEL_NEXT) {
-		moves_up = true;
+		moves_up = TRUE;
 	}
 
 	thr = que_fork_get_first_thr(prebuilt->sel_graph);
@@ -4666,7 +4670,7 @@ wait_table_again:
 
 		bool	need_to_process = sel_restore_position_for_mysql(
 			&same_user_rec, BTR_SEARCH_LEAF,
-			pcur, moves_up, &mtr, static_cast<lock_mode>(prebuilt->select_lock_type));
+			pcur, moves_up, &mtr);
 
 		if (UNIV_UNLIKELY(need_to_process)) {
 			if (UNIV_UNLIKELY(prebuilt->row_read_type
@@ -4888,7 +4892,7 @@ rec_loop:
 	if (UNIV_UNLIKELY(next_offs >= srv_page_size - PAGE_DIR)) {
 
 wrong_offs:
-		if (srv_force_recovery == 0 || moves_up == false) {
+		if (srv_force_recovery == 0 || moves_up == FALSE) {
 			ib::error() << "Rec address "
 				<< static_cast<const void*>(rec)
 				<< ", buf block fix count "
@@ -5686,14 +5690,12 @@ next_rec:
 		btr_pcur_store_position(pcur, &mtr);
 		mtr.commit();
 		mtr_has_extra_clust_latch = FALSE;
-		DEBUG_SYNC_C("row_search_clust_unlatched");
+
 		mtr.start();
 
 		if (sel_restore_position_for_mysql(&same_user_rec,
 						   BTR_SEARCH_LEAF,
-						   pcur, moves_up, &mtr,
-						   static_cast<lock_mode>(prebuilt->select_lock_type))
-		    ) {
+						   pcur, moves_up, &mtr)) {
 			goto rec_loop;
 		}
 	}
@@ -5784,7 +5786,7 @@ lock_table_wait:
 		if (!dict_index_is_spatial(index)) {
 			sel_restore_position_for_mysql(
 				&same_user_rec, BTR_SEARCH_LEAF, pcur,
-				moves_up, &mtr, static_cast<lock_mode>(prebuilt->select_lock_type));
+				moves_up, &mtr);
 		}
 
 		if ((srv_locks_unsafe_for_binlog

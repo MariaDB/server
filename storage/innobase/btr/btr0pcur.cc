@@ -253,32 +253,29 @@ struct optimistic_latch_leaves
   }
 };
 
-/** Restores the stored position of a persistent cursor bufferfixing
-the page and obtaining the specified latches. If the cursor position
-was saved when the
-(1) cursor was positioned on a user record: this function restores the
-position to the last record LESS OR EQUAL to the stored record;
-(2) cursor was positioned on a page infimum record: restores the
-position to the last record LESS than the user record which was the
-successor of the page infimum;
-(3) cursor was positioned on the page supremum: restores to the first
-record GREATER than the user record which was the predecessor of the
-supremum.
-(4) cursor was positioned before the first or after the last in an
-empty tree: restores to before first or after the last in the tree.
-@param latch_mode BTR_SEARCH_LEAF, ...
-@param file file name
-@param line line where called
-@param mtr mtr
-@return btr_pcur_t::SAME_ALL cursor position on user rec and points on
-the record with the same field values as in the stored record,
-btr_pcur_t::SAME_UNIQ cursor position is on user rec and points on the
-record with the same unique field values as in the stored record,
-btr_pcur_t::NOT_SAME cursor position is not on user rec or points on
-the record with not the samebuniq field values as in the stored */
-btr_pcur_t::restore_status
-btr_pcur_t::restore_position(ulint restore_latch_mode, const char *file,
-                             unsigned line, mtr_t *mtr)
+/**************************************************************//**
+Restores the stored position of a persistent cursor bufferfixing the page and
+obtaining the specified latches. If the cursor position was saved when the
+(1) cursor was positioned on a user record: this function restores the position
+to the last record LESS OR EQUAL to the stored record;
+(2) cursor was positioned on a page infimum record: restores the position to
+the last record LESS than the user record which was the successor of the page
+infimum;
+(3) cursor was positioned on the page supremum: restores to the first record
+GREATER than the user record which was the predecessor of the supremum.
+(4) cursor was positioned before the first or after the last in an empty tree:
+restores to before first or after the last in the tree.
+@return TRUE if the cursor position was stored when it was on a user
+record and it can be restored on a user record whose ordering fields
+are identical to the ones of the original user record */
+ibool
+btr_pcur_restore_position_func(
+/*===========================*/
+	ulint		latch_mode,	/*!< in: BTR_SEARCH_LEAF, ... */
+	btr_pcur_t*	cursor,		/*!< in: detached persistent cursor */
+	const char*	file,		/*!< in: file name */
+	unsigned	line,		/*!< in: line where called */
+	mtr_t*		mtr)		/*!< in: mtr */
 {
 	dict_index_t*	index;
 	dtuple_t*	tuple;
@@ -288,104 +285,104 @@ btr_pcur_t::restore_position(ulint restore_latch_mode, const char *file,
 
 	ut_ad(mtr->is_active());
 	//ut_ad(cursor->old_stored);
-	ut_ad(pos_state == BTR_PCUR_WAS_POSITIONED
-	      || pos_state == BTR_PCUR_IS_POSITIONED);
+	ut_ad(cursor->pos_state == BTR_PCUR_WAS_POSITIONED
+	      || cursor->pos_state == BTR_PCUR_IS_POSITIONED);
 
-	index = btr_cur_get_index(&btr_cur);
+	index = btr_cur_get_index(btr_pcur_get_btr_cur(cursor));
 
 	if (UNIV_UNLIKELY
-	    (rel_pos == BTR_PCUR_AFTER_LAST_IN_TREE
-	     || rel_pos == BTR_PCUR_BEFORE_FIRST_IN_TREE)) {
+	    (cursor->rel_pos == BTR_PCUR_AFTER_LAST_IN_TREE
+	     || cursor->rel_pos == BTR_PCUR_BEFORE_FIRST_IN_TREE)) {
 		dberr_t err = DB_SUCCESS;
 
 		/* In these cases we do not try an optimistic restoration,
 		but always do a search */
 
 		err = btr_cur_open_at_index_side(
-			rel_pos == BTR_PCUR_BEFORE_FIRST_IN_TREE,
-			index, restore_latch_mode,
-			&btr_cur, 0, mtr);
+			cursor->rel_pos == BTR_PCUR_BEFORE_FIRST_IN_TREE,
+			index, latch_mode,
+			btr_pcur_get_btr_cur(cursor), 0, mtr);
 
 		if (err != DB_SUCCESS) {
 			ib::warn() << " Error code: " << err
-				   << " btr_pcur_t::restore_position "
+				   << " btr_pcur_restore_position_func "
 				   << " called from file: "
 				   << file << " line: " << line
 				   << " table: " << index->table->name
 				   << " index: " << index->name;
 		}
 
-		latch_mode =
-			BTR_LATCH_MODE_WITHOUT_INTENTION(restore_latch_mode);
-		pos_state = BTR_PCUR_IS_POSITIONED;
-		block_when_stored.clear();
+		cursor->latch_mode =
+			BTR_LATCH_MODE_WITHOUT_INTENTION(latch_mode);
+		cursor->pos_state = BTR_PCUR_IS_POSITIONED;
+		cursor->block_when_stored.clear();
 
-		return restore_status::NOT_SAME;
+		return(FALSE);
 	}
 
-	ut_a(old_rec);
-	ut_a(old_n_core_fields);
-	ut_a(old_n_core_fields <= index->n_core_fields);
-	ut_a(old_n_fields);
+	ut_a(cursor->old_rec);
+	ut_a(cursor->old_n_core_fields);
+	ut_a(cursor->old_n_core_fields <= index->n_core_fields);
+	ut_a(cursor->old_n_fields);
 
-	switch (restore_latch_mode) {
+	switch (latch_mode) {
 	case BTR_SEARCH_LEAF:
 	case BTR_MODIFY_LEAF:
 	case BTR_SEARCH_PREV:
 	case BTR_MODIFY_PREV:
 		/* Try optimistic restoration. */
 
-		if (block_when_stored.run_with_hint(
-			optimistic_latch_leaves(this, &restore_latch_mode,
+		if (cursor->block_when_stored.run_with_hint(
+			optimistic_latch_leaves(cursor, &latch_mode,
 						mtr))) {
-			pos_state = BTR_PCUR_IS_POSITIONED;
-			latch_mode = restore_latch_mode;
+			cursor->pos_state = BTR_PCUR_IS_POSITIONED;
+			cursor->latch_mode = latch_mode;
 
 			buf_block_dbg_add_level(
-				btr_pcur_get_block(this),
+				btr_pcur_get_block(cursor),
 				dict_index_is_ibuf(index)
 				? SYNC_IBUF_TREE_NODE : SYNC_TREE_NODE);
 
-			if (rel_pos == BTR_PCUR_ON) {
+			if (cursor->rel_pos == BTR_PCUR_ON) {
 #ifdef UNIV_DEBUG
 				const rec_t*	rec;
 				rec_offs	offsets1_[REC_OFFS_NORMAL_SIZE];
 				rec_offs	offsets2_[REC_OFFS_NORMAL_SIZE];
 				rec_offs*	offsets1 = offsets1_;
 				rec_offs*	offsets2 = offsets2_;
-				rec = btr_pcur_get_rec(this);
+				rec = btr_pcur_get_rec(cursor);
 
 				rec_offs_init(offsets1_);
 				rec_offs_init(offsets2_);
 
 				heap = mem_heap_create(256);
-				ut_ad(old_n_core_fields
+				ut_ad(cursor->old_n_core_fields
 				      == index->n_core_fields);
 
 				offsets1 = rec_get_offsets(
-					old_rec, index, offsets1,
-					old_n_core_fields,
-					old_n_fields, &heap);
+					cursor->old_rec, index, offsets1,
+					cursor->old_n_core_fields,
+					cursor->old_n_fields, &heap);
 				offsets2 = rec_get_offsets(
 					rec, index, offsets2,
 					index->n_core_fields,
-					old_n_fields, &heap);
+					cursor->old_n_fields, &heap);
 
-				ut_ad(!cmp_rec_rec(old_rec,
+				ut_ad(!cmp_rec_rec(cursor->old_rec,
 						   rec, offsets1, offsets2,
 						   index));
 				mem_heap_free(heap);
 #endif /* UNIV_DEBUG */
-				return restore_status::SAME_ALL;
+				return(TRUE);
 			}
 			/* This is the same record as stored,
 			may need to be adjusted for BTR_PCUR_BEFORE/AFTER,
 			depending on search mode and direction. */
-			if (btr_pcur_is_on_user_rec(this)) {
-				pos_state
+			if (btr_pcur_is_on_user_rec(cursor)) {
+				cursor->pos_state
 					= BTR_PCUR_IS_POSITIONED_OPTIMISTIC;
 			}
-			return restore_status::NOT_SAME;
+			return(FALSE);
 		}
 	}
 
@@ -393,19 +390,19 @@ btr_pcur_t::restore_position(ulint restore_latch_mode, const char *file,
 
 	heap = mem_heap_create(256);
 
-	tuple = dtuple_create(heap, old_n_fields);
+	tuple = dtuple_create(heap, cursor->old_n_fields);
 
-	dict_index_copy_types(tuple, index, old_n_fields);
+	dict_index_copy_types(tuple, index, cursor->old_n_fields);
 
-	rec_copy_prefix_to_dtuple(tuple, old_rec, index,
-				  old_n_core_fields,
-				  old_n_fields, heap);
+	rec_copy_prefix_to_dtuple(tuple, cursor->old_rec, index,
+				  cursor->old_n_core_fields,
+				  cursor->old_n_fields, heap);
 	ut_ad(dtuple_check_typed(tuple));
 
 	/* Save the old search mode of the cursor */
-	old_mode = search_mode;
+	old_mode = cursor->search_mode;
 
-	switch (rel_pos) {
+	switch (cursor->rel_pos) {
 	case BTR_PCUR_ON:
 		mode = PAGE_CUR_LE;
 		break;
@@ -420,45 +417,41 @@ btr_pcur_t::restore_position(ulint restore_latch_mode, const char *file,
 		mode = PAGE_CUR_UNSUPP;
 	}
 
-	btr_pcur_open_with_no_init_func(index, tuple, mode, restore_latch_mode,
-					this,
+	btr_pcur_open_with_no_init_func(index, tuple, mode, latch_mode,
+					cursor,
 #ifdef BTR_CUR_HASH_ADAPT
 					NULL,
 #endif /* BTR_CUR_HASH_ADAPT */
 					file, line, mtr);
 
 	/* Restore the old search mode */
-	search_mode = old_mode;
+	cursor->search_mode = old_mode;
 
-	ut_ad(rel_pos == BTR_PCUR_ON
-	      || rel_pos == BTR_PCUR_BEFORE
-	      || rel_pos == BTR_PCUR_AFTER);
+	ut_ad(cursor->rel_pos == BTR_PCUR_ON
+	      || cursor->rel_pos == BTR_PCUR_BEFORE
+	      || cursor->rel_pos == BTR_PCUR_AFTER);
 	rec_offs offsets[REC_OFFS_NORMAL_SIZE];
 	rec_offs_init(offsets);
-	restore_status ret_val= restore_status::NOT_SAME;
-	if (rel_pos == BTR_PCUR_ON && btr_pcur_is_on_user_rec(this)) {
-		ulint n_matched_fields= 0;
-		if (!cmp_dtuple_rec_with_match(
-		      tuple, btr_pcur_get_rec(this),
-		      rec_get_offsets(btr_pcur_get_rec(this), index, offsets,
-			index->n_core_fields, ULINT_UNDEFINED, &heap),
-		      &n_matched_fields)) {
+	if (cursor->rel_pos == BTR_PCUR_ON
+	    && btr_pcur_is_on_user_rec(cursor)
+	    && !cmp_dtuple_rec(tuple, btr_pcur_get_rec(cursor),
+			       rec_get_offsets(btr_pcur_get_rec(cursor),
+					       index, offsets,
+					       index->n_core_fields,
+					       ULINT_UNDEFINED, &heap))) {
 
-			/* We have to store the NEW value for the modify clock,
-			since the cursor can now be on a different page!
-			But we can retain the value of old_rec */
+		/* We have to store the NEW value for the modify clock,
+		since the cursor can now be on a different page!
+		But we can retain the value of old_rec */
 
-			block_when_stored.store(btr_pcur_get_block(this));
-			modify_clock= buf_block_get_modify_clock(
-			    block_when_stored.block());
-			old_stored= true;
+		cursor->block_when_stored.store(btr_pcur_get_block(cursor));
+		cursor->modify_clock = buf_block_get_modify_clock(
+					cursor->block_when_stored.block());
+		cursor->old_stored = true;
 
-			mem_heap_free(heap);
+		mem_heap_free(heap);
 
-			return restore_status::SAME_ALL;
-		}
-		if (n_matched_fields >= index->n_uniq)
-			ret_val= restore_status::SAME_UNIQ;
+		return(TRUE);
 	}
 
 	mem_heap_free(heap);
@@ -467,9 +460,9 @@ btr_pcur_t::restore_position(ulint restore_latch_mode, const char *file,
 	to the cursor because it can now be on a different page, the record
 	under it may have been removed, etc. */
 
-	btr_pcur_store_position(this, mtr);
+	btr_pcur_store_position(cursor, mtr);
 
-	return ret_val;
+	return(FALSE);
 }
 
 /*********************************************************//**
