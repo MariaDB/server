@@ -9900,7 +9900,7 @@ innobase_update_foreign_cache(
 	dict_names_t	fk_tables;
 
 	err = dict_load_foreigns(user_table->name.m_name,
-				 ctx->col_names, 1, true,
+				 ctx->col_names, false, 1, true,
 				 DICT_ERR_IGNORE_NONE,
 				 fk_tables);
 
@@ -9911,7 +9911,7 @@ innobase_update_foreign_cache(
 		loaded with "foreign_key checks" off,
 		so let's retry the loading with charset_check is off */
 		err = dict_load_foreigns(user_table->name.m_name,
-					 ctx->col_names, 1, false,
+					 ctx->col_names, false, 1, false,
 					 DICT_ERR_IGNORE_NONE,
 					 fk_tables);
 
