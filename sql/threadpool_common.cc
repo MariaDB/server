@@ -250,14 +250,6 @@ static THD *threadpool_add_connection(CONNECT *connect, TP_connection *c)
 {
   THD *thd= NULL;
 
-  DBUG_EXECUTE_IF("CONNECT_wait",
-  {
-    extern Dynamic_array<MYSQL_SOCKET> listen_sockets;
-    DBUG_ASSERT(listen_sockets.size());
-    while (listen_sockets.size())
-      my_sleep(1000);
-  });
-
   /*
     Create a new connection context: mysys_thread_var and PSI thread
     Store them in THD.

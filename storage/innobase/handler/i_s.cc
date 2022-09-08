@@ -4772,7 +4772,7 @@ static const char *i_s_sys_tables_rec(const btr_pcur_t &pcur, mtr_t *mtr,
   }
 
   if (rec)
-    return dict_load_table_low(mtr, rec, table);
+    return dict_load_table_low(mtr, false, rec, table);
 
   *table= dict_sys.load_table
     (span<const char>{reinterpret_cast<const char*>(pcur.old_rec), len});
