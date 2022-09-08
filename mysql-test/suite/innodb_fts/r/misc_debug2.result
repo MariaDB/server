@@ -11,12 +11,12 @@ DROP TABLE mdev21563;
 #
 CREATE TABLE t1(f1 CHAR(100), FULLTEXT idx(f1))ENGINE=InnoDB;
 INSERT INTO t1 VALUES('mysql'), ('innodb');
-set debug_dbug="+d,fts_instrument_sync_debug";
+set debug_dbug="+d,fts_instrument_sync_request";
 INSERT INTO t1 VALUES('test');
-set debug_dbug="-d,fts_instrument_sync_debug";
+set debug_dbug="-d,fts_instrument_sync_request";
 INSERT INTO t1 VALUES('This is a fts issue');
 # restart
-set debug_dbug="+d,fts_instrument_sync_debug";
+set debug_dbug="+d,fts_instrument_sync_request";
 UPDATE t1 SET f1="mariadb";
-set debug_dbug="-d,fts_instrument_sync_debug";
+set debug_dbug="-d,fts_instrument_sync_request";
 DROP TABLE t1;
