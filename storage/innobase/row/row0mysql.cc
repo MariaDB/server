@@ -2847,7 +2847,7 @@ row_rename_table_for_mysql(
 		dict_names_t	fk_tables;
 
 		err = dict_load_foreigns(
-			new_name, nullptr, trx->id,
+			new_name, nullptr, false, trx->id,
 			!old_is_tmp || trx->check_foreigns,
 			use_fk
 			? DICT_ERR_IGNORE_NONE
