@@ -202,14 +202,7 @@ base_configs="$base_configs --with-extra-charsets=complex "
 base_configs="$base_configs --enable-thread-safe-client "
 base_configs="$base_configs --with-big-tables $maintainer_mode"
 base_configs="$base_configs --with-plugin-aria --with-aria-tmp-tables --with-plugin-s3=STATIC"
-
-if test -d "$path/../cmd-line-utils/readline"
-then
-    base_configs="$base_configs --with-readline"
-elif test -d "$path/../cmd-line-utils/libedit"
-then
-    base_configs="$base_configs --with-libedit"
-fi
+base_configs="$base_configs --with-readline"
 
 max_plugins="--with-plugins=max"
 max_no_embedded_configs="$SSL_LIBRARY $max_plugins"
