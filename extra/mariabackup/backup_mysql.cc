@@ -554,7 +554,7 @@ select_incremental_lsn_from_history(lsn_t *incremental_lsn)
 				(unsigned long)strlen(opt_incremental_history_name));
 		snprintf(query, sizeof(query),
 			"SELECT innodb_to_lsn "
-			"FROM PERCONA_SCHEMA.xtrabackup_history "
+			"FROM " XB_HISTORY_TABLE " "
 			"WHERE name = '%s' "
 			"AND innodb_to_lsn IS NOT NULL "
 			"ORDER BY innodb_to_lsn DESC LIMIT 1",
@@ -567,7 +567,7 @@ select_incremental_lsn_from_history(lsn_t *incremental_lsn)
 				(unsigned long)strlen(opt_incremental_history_uuid));
 		snprintf(query, sizeof(query),
 			"SELECT innodb_to_lsn "
-			"FROM PERCONA_SCHEMA.xtrabackup_history "
+			"FROM " XB_HISTORY_TABLE " "
 			"WHERE uuid = '%s' "
 			"AND innodb_to_lsn IS NOT NULL "
 			"ORDER BY innodb_to_lsn DESC LIMIT 1",
@@ -1568,7 +1568,7 @@ operator<<(std::ostream& s, const escape_and_quote& eq)
 
 /*********************************************************************//**
 Writes xtrabackup_info file and if backup_history is enable creates
-PERCONA_SCHEMA.xtrabackup_history and writes a new history record to the
+mysql.mariabackup_history and writes a new history record to the
 table containing all the history info particular to the just completed
 backup. */
 bool
@@ -1668,9 +1668,7 @@ write_xtrabackup_info(MYSQL *connection, const char * filename, bool history,
 	}
 
 	xb_mysql_query(connection,
-		"CREATE DATABASE IF NOT EXISTS PERCONA_SCHEMA", false);
-	xb_mysql_query(connection,
-		"CREATE TABLE IF NOT EXISTS PERCONA_SCHEMA.xtrabackup_history("
+		"CREATE TABLE IF NOT EXISTS " XB_HISTORY_TABLE "("
 		"uuid VARCHAR(40) NOT NULL PRIMARY KEY,"
 		"name VARCHAR(255) DEFAULT NULL,"
 		"tool_name VARCHAR(255) DEFAULT NULL,"
@@ -1693,7 +1691,7 @@ write_xtrabackup_info(MYSQL *connection, const char * filename, bool history,
 
 #define ESCAPE_BOOL(expr) ((expr)?"'Y'":"'N'")
 
-	oss << "insert into PERCONA_SCHEMA.xtrabackup_history("
+	oss << "insert into " XB_HISTORY_TABLE "("
 		<< "uuid, name, tool_name, tool_command, tool_version,"
 		<< "ibbackup_version, server_version, start_time, end_time,"
 		<< "lock_time, binlog_pos, innodb_from_lsn, innodb_to_lsn,"

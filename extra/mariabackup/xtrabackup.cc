@@ -1352,7 +1352,7 @@ struct my_option xb_client_options[]= {
 
     {"incremental-history-name", OPT_INCREMENTAL_HISTORY_NAME,
      "This option specifies the name of the backup series stored in the "
-     "PERCONA_SCHEMA.xtrabackup_history history record to base an "
+     XB_HISTORY_TABLE " history record to base an "
      "incremental backup on. Xtrabackup will search the history table "
      "looking for the most recent (highest innodb_to_lsn), successful "
      "backup in the series and take the to_lsn value to use as the "
@@ -1367,7 +1367,7 @@ struct my_option xb_client_options[]= {
 
     {"incremental-history-uuid", OPT_INCREMENTAL_HISTORY_UUID,
      "This option specifies the UUID of the specific history record "
-     "stored in the PERCONA_SCHEMA.xtrabackup_history to base an "
+     "stored in the " XB_HISTORY_TABLE " table to base an "
      "incremental backup on. --incremental-history-name, "
      "--incremental-basedir and --incremental-lsn. If no valid lsn can be "
      "found (no success record with that uuid), an error will be returned."
@@ -1396,7 +1396,7 @@ struct my_option xb_client_options[]= {
 
     {"history", OPT_HISTORY,
      "This option enables the tracking of backup history in the "
-     "PERCONA_SCHEMA.xtrabackup_history table. An optional history "
+     XB_HISTORY_TABLE " table. An optional history "
      "series name may be specified that will be placed with the history "
      "record for the current backup being taken.",
      NULL, NULL, 0, GET_STR, OPT_ARG, 0, 0, 0, 0, 0, 0},
