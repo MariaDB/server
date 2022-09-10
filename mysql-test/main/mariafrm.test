@@ -71,6 +71,25 @@ CREATE TABLE custom_types (
     ip6 INET6
 );
 
+CREATE TABLE contacts (
+    id                INT          AUTO_INCREMENT PRIMARY KEY,
+    first_name        VARCHAR(50)  NOT NULL,
+    last_name         VARCHAR(50)  NOT NULL,
+    email             VARCHAR(100) NOT NULL,
+    phone             VARCHAR(20)  NOT NULL,
+    fullname          VARCHAR(101) GENERATED ALWAYS AS (CONCAT(first_name,' ',last_name)) VIRTUAL,
+    full_contact_info VARCHAR(150) GENERATED ALWAYS AS (CONCAT(email,' ',phone)) STORED
+);
+
+CREATE TABLE triangle (
+    sno        INT     PRIMARY KEY,
+    side_a     DOUBLE,
+    side_b     DOUBLE,
+    side_c     DOUBLE  AS (SQRT(side_a * side_a + side_b * side_b)) CHECK(side_c > side_a),
+    all_sides  JSON,
+    CONSTRAINT chk     CHECK (side_a > 0)
+);
+
 
 --echo 
 
@@ -129,6 +148,20 @@ SHOW CREATE TABLE custom_types;
 --echo
 -- exec $MARIAFRM $datadir/test/custom_types.frm
 --echo
+ 
+--echo # Table contacts
+--echo 
+SHOW CREATE TABLE contacts;
+--echo
+-- exec $MARIAFRM $datadir/test/contacts.frm
+--echo
+ 
+--echo # Table triangle
+--echo 
+SHOW CREATE TABLE triangle;
+--echo
+-- exec $MARIAFRM $datadir/test/triangle.frm
+--echo
 
 
 DROP TABLE t1;
@@ -139,3 +172,5 @@ DROP TABLE student;
 DROP TABLE sales;
 DROP TABLE serverlogs;
 DROP TABLE custom_types;
+DROP TABLE contacts;
+DROP TABLE triangle;

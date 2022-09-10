@@ -48,6 +48,9 @@ struct column
   LEX_CSTRING default_value;
   int label_id;
   LEX_CUSTRING extra_data_type_info;
+  LEX_CSTRING vcol_exp;
+  bool isVirtual;
+  LEX_CSTRING check_constraint;
 };
 
 struct key_part
@@ -125,6 +128,12 @@ struct frm_file_data
   LEX_CUSTRING index_flags;
 
   LEX_CSTRING table_comment;
+
+  uint disk_buff;
+  uint vcol_screen_length;
+  uint vcol_offset;
+  std::vector<LEX_CSTRING> check_constraint_names;
+  std::vector<LEX_CSTRING> check_constraints;
 };
 
 #define BYTES_PER_KEY 8
@@ -242,3 +251,17 @@ const char *legacy_db_types[29]= {"UNKNOWN",
                                   "FALCON",
                                   "MARIA",
                                   "PERFORMANCE_SCHEMA"};
+
+#define FRM_VCOL_NEW_BASE_SIZE 16
+#define FRM_VCOL_NEW_HEADER_SIZE 6
+
+enum vcol_info_type
+{
+  VCOL_GENERATED_VIRTUAL,
+  VCOL_GENERATED_STORED,
+  VCOL_DEFAULT,
+  VCOL_CHECK_FIELD,
+  VCOL_CHECK_TABLE,
+  VCOL_USING_HASH,
+  VCOL_TYPE_NONE= 127
+};

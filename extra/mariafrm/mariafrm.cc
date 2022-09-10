@@ -322,13 +322,14 @@ int parse(frm_file_data *ffd, const uchar *frm, size_t len)
     ffd->columns[i].label_id= (uint) frm[current_pos + 12] - 1;
     current_pos+= 17;
     ffd->columns[i].extra_data_type_info= {(uchar*)"",0};
+    ffd->columns[i].vcol_exp= {"", 0};
+    ffd->columns[i].isVirtual= false;
+    ffd->columns[i].check_constraint= {"", 0};
   }
   //---READ DEFAULTS---
   ffd->null_bit= 1;
   if (ffd->handler_option & HA_PACK_RECORD)
     ffd->null_bit= 0;
-  current_pos= ffd->defaults_offset;
-  end= current_pos + ffd->defaults_length;
   for (uint i=0;i< ffd->column_count;i++)
   {
     bool auto_increment= ffd->columns[i].unireg_check == 15;
@@ -346,6 +347,9 @@ int parse(frm_file_data *ffd, const uchar *frm, size_t len)
       if (null_byte & (1 << null_bit) && ffd->columns[i].unireg_check != 20)
         ffd->columns[i].default_value= {"NULL", 4};
     }
+    if (ffd->columns[i].unireg_check == 20)
+      ffd->columns[i].default_value= {NULL, 0};
+
   }
   //---READ KEY INFORMATION---
   current_pos= ffd->keyinfo_offset;
@@ -514,6 +518,52 @@ int parse(frm_file_data *ffd, const uchar *frm, size_t len)
       current_pos+= tlen;
     }
   }
+  ffd->disk_buff= uint4korr(frm + FRM_HEADER_SIZE + ffd->extra2_len) + FRM_FORMINFO_SIZE;
+  ffd->vcol_screen_length= uint2korr(frm + ffd->forminfo_offset + 286);
+  ffd->vcol_offset= ffd->disk_buff + ffd->metadata_length +
+                    ffd->screens_length + ffd->names_length +
+                    ffd->labels_length + ffd->comments_length;
+  current_pos= ffd->vcol_offset;
+  end= current_pos + ffd->vcol_screen_length;
+  current_pos+= FRM_VCOL_NEW_BASE_SIZE;
+  while (current_pos < end)
+  {
+    uint type= frm[current_pos++];
+    uint field_nr= uint2korr(frm + current_pos);
+    current_pos+= 2;
+    uint expr_length= uint2korr(frm + current_pos);
+    current_pos+= 2;
+    uint name_length= frm[current_pos++];
+    char *nts= c_malloc(name_length + 1);
+    memcpy(nts, frm + current_pos, name_length);
+    nts[name_length]= '\0';
+    current_pos+= name_length;
+    char *ets= c_malloc(expr_length + 1);
+    memcpy(ets, frm + current_pos, expr_length);
+    ets[expr_length]= '\0';
+    current_pos+= expr_length;
+    switch (type){
+    case VCOL_GENERATED_VIRTUAL:
+      ffd->columns[field_nr].isVirtual= true;
+      ffd->columns[field_nr].vcol_exp.length= expr_length;
+      ffd->columns[field_nr].vcol_exp.str= ets;
+      break;
+    case VCOL_GENERATED_STORED:
+      ffd->columns[field_nr].vcol_exp.length= expr_length;
+      ffd->columns[field_nr].vcol_exp.str= ets;
+      break;
+    case VCOL_DEFAULT:
+      break;
+    case VCOL_CHECK_FIELD:
+      ffd->columns[field_nr].check_constraint.length= expr_length;
+      ffd->columns[field_nr].check_constraint.str= ets;
+      break;
+    case VCOL_CHECK_TABLE:
+      ffd->check_constraint_names.push_back({nts, name_length});
+      ffd->check_constraints.push_back({ets, expr_length});
+      break;
+    }
+  }
   return 0;
 extra2_end:
   printf("Unknown important extra2 value...\n");
@@ -586,11 +636,13 @@ void print_column(frm_file_data *ffd, int c_id)
       uint scale= decimals;
       if (scale < NOT_FIXED_DEC)
         printf("%s(%d,%d)", type_name.ptr(), precision, scale);
-      if (!f_is_dec(ffd->columns[c_id].flags))
-        printf(" unsigned");
-      if (f_is_zerofill(ffd->columns[c_id].flags))
-        printf(" zerofill");
     }
+    else
+      printf("%s", type_name.ptr());
+    if (!f_is_dec(ffd->columns[c_id].flags))
+      printf(" unsigned");
+    if (f_is_zerofill(ffd->columns[c_id].flags))
+      printf(" zerofill");
   }
   else if (ftype == MYSQL_TYPE_STRING)
   {
@@ -726,13 +778,29 @@ void print_column(frm_file_data *ffd, int c_id)
   if(!f_maybe_null(ffd->columns[c_id].flags))
     printf(" NOT NULL");
   if (ffd->columns[c_id].unireg_check == 15)
-    printf(" AUTO INCREMENT");
-  if (ffd->columns[c_id].default_value.length != 0)
+    printf(" AUTO_INCREMENT");
+  if (ffd->columns[c_id].default_value.length != 0 &&
+      !ffd->columns[c_id].vcol_exp.length)
     printf(" DEFAULT %s", ffd->columns[c_id].default_value.str);
+  if(ffd->columns[c_id].vcol_exp.length)
+  {
+    printf(" GENERATED ALWAYS AS (");
+    printf("%s", ffd->columns[c_id].vcol_exp.str);
+    printf(")");
+    if (ffd->columns[c_id].isVirtual)
+      printf(" VIRTUAL");
+    else
+      printf(" STORED");
+  }
+  if (ffd->columns[c_id].check_constraint.length)
+  {
+    printf(" CHECK");
+    printf(" (%s)", ffd->columns[c_id].check_constraint.str);
+  }
   if (ffd->columns[c_id].comment.length != 0)
     printf(" COMMENT '%s'", ffd->columns[c_id].comment.str);
 }
-    
+
 void print_keys(frm_file_data *ffd, uint k_id) 
 {
   key key= ffd->keys[k_id];
@@ -844,6 +912,20 @@ void print_table_options(frm_file_data *ffd)
     printf("\n%s", ffd->partition_info.str);
 }
 
+void print_table_check_constraints(frm_file_data *ffd) 
+{
+  uint size= (uint)ffd->check_constraints.size();
+  for (uint i = 0; i < size; i++)
+  {
+    printf("  CONSTRAINT");
+    printf(" `%s`", ffd->check_constraint_names.at(i).str);
+    printf(" CHECK (");
+    printf("%s)\n", ffd->check_constraints.at(i).str);
+    if (i != size - 1)
+      printf(",");
+  }
+}
+
 int show_create_table(LEX_CSTRING table_name, frm_file_data *ffd)
 {
   printf("CREATE TABLE `%s` (\n", table_name.str);
@@ -861,8 +943,11 @@ int show_create_table(LEX_CSTRING table_name, frm_file_data *ffd)
     print_keys(ffd, i);
     if (i != ffd->key_count - 1)
       printf(",");
+    if (i == ffd->key_count - 1 && ffd->check_constraints.size())
+      printf(",");
     printf("\n");
   }
+  print_table_check_constraints(ffd);
   printf(")");
   print_table_options(ffd);
   printf("\n");

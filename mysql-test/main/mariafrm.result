@@ -59,6 +59,23 @@ id  UUID  PRIMARY KEY,
 ip4 INET4 UNIQUE,
 ip6 INET6
 );
+CREATE TABLE contacts (
+id                INT          AUTO_INCREMENT PRIMARY KEY,
+first_name        VARCHAR(50)  NOT NULL,
+last_name         VARCHAR(50)  NOT NULL,
+email             VARCHAR(100) NOT NULL,
+phone             VARCHAR(20)  NOT NULL,
+fullname          VARCHAR(101) GENERATED ALWAYS AS (CONCAT(first_name,' ',last_name)) VIRTUAL,
+full_contact_info VARCHAR(150) GENERATED ALWAYS AS (CONCAT(email,' ',phone)) STORED
+);
+CREATE TABLE triangle (
+sno        INT     PRIMARY KEY,
+side_a     DOUBLE,
+side_b     DOUBLE,
+side_c     DOUBLE  AS (SQRT(side_a * side_a + side_b * side_b)) CHECK(side_c > side_a),
+all_sides  JSON,
+CONSTRAINT chk     CHECK (side_a > 0)
+);
 
 # Table t1
 
@@ -240,6 +257,56 @@ CREATE TABLE `custom_types` (
   UNIQUE KEY `ip4` (`ip4`)
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1
 
+# Table contacts
+
+SHOW CREATE TABLE contacts;
+Table	Create Table
+contacts	CREATE TABLE `contacts` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `first_name` varchar(50) NOT NULL,
+  `last_name` varchar(50) NOT NULL,
+  `email` varchar(100) NOT NULL,
+  `phone` varchar(20) NOT NULL,
+  `fullname` varchar(101) GENERATED ALWAYS AS (concat(`first_name`,' ',`last_name`)) VIRTUAL,
+  `full_contact_info` varchar(150) GENERATED ALWAYS AS (concat(`email`,' ',`phone`)) STORED,
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+
+CREATE TABLE `contacts` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `first_name` varchar(50) NOT NULL,
+  `last_name` varchar(50) NOT NULL,
+  `email` varchar(100) NOT NULL,
+  `phone` varchar(20) NOT NULL,
+  `fullname` varchar(101) GENERATED ALWAYS AS (concat(`first_name`,' ',`last_name`)) VIRTUAL,
+  `full_contact_info` varchar(150) GENERATED ALWAYS AS (concat(`email`,' ',`phone`)) STORED,
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+
+# Table triangle
+
+SHOW CREATE TABLE triangle;
+Table	Create Table
+triangle	CREATE TABLE `triangle` (
+  `sno` int(11) NOT NULL,
+  `side_a` double DEFAULT NULL,
+  `side_b` double DEFAULT NULL,
+  `side_c` double GENERATED ALWAYS AS (sqrt(`side_a` * `side_a` + `side_b` * `side_b`)) VIRTUAL CHECK (`side_c` > `side_a`),
+  `all_sides` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL CHECK (json_valid(`all_sides`)),
+  PRIMARY KEY (`sno`),
+  CONSTRAINT `chk` CHECK (`side_a` > 0)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+
+CREATE TABLE `triangle` (
+  `sno` int(11) NOT NULL,
+  `side_a` double DEFAULT NULL,
+  `side_b` double DEFAULT NULL,
+  `side_c` double GENERATED ALWAYS AS (sqrt(`side_a` * `side_a` + `side_b` * `side_b`)) VIRTUAL CHECK (`side_c` > `side_a`),
+  `all_sides` longtext CHARACTER SET utf8mb4 COLLATE=utf8mb4_bin DEFAULT NULL CHECK (json_valid(`all_sides`)),
+  PRIMARY KEY (`sno`),
+  CONSTRAINT `chk` CHECK (`side_a` > 0)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+
 DROP TABLE t1;
 DROP TABLE employees;
 DROP TABLE departments;
@@ -248,3 +315,5 @@ DROP TABLE student;
 DROP TABLE sales;
 DROP TABLE serverlogs;
 DROP TABLE custom_types;
+DROP TABLE contacts;
+DROP TABLE triangle;
