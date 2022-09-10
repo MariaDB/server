@@ -62,7 +62,7 @@ public:
     @retval FALSE OK. The value either was inserted or existed
                   in the hash.
   */
-  bool insert(T *value)
+  bool insert(const T *value)
   {
     return my_hash_insert(&m_hash, reinterpret_cast<const uchar*>(value));
   }
