@@ -3031,7 +3031,7 @@ bool acl_reload(THD *thd)
   old_acl_public= acl_public;
   old_acl_roles_mappings= acl_roles_mappings;
   old_acl_proxy_users= acl_proxy_users;
-  old_acl_dbs= acl_dbs;
+  old_acl_dbs= std::move(acl_dbs);
   my_init_dynamic_array(key_memory_acl_mem, &acl_hosts, sizeof(ACL_HOST), 20, 50, MYF(0));
   my_init_dynamic_array(key_memory_acl_mem, &acl_users, sizeof(ACL_USER), 50, 100, MYF(0));
   acl_dbs.init(key_memory_acl_mem, 50, 100);
@@ -3056,8 +3056,7 @@ bool acl_reload(THD *thd)
     acl_public= old_acl_public;
     acl_roles_mappings= old_acl_roles_mappings;
     acl_proxy_users= old_acl_proxy_users;
-    acl_dbs= old_acl_dbs;
-    old_acl_dbs.init(0,0);
+    acl_dbs= std::move(old_acl_dbs);
     acl_memroot= old_mem;
     init_check_host();
   }
