@@ -75,6 +75,14 @@ public:
   {
     return my_hash_delete(&m_hash, reinterpret_cast<uchar*>(value));
   }
+
+  T *find(const T *other) const
+  {
+    size_t klen;
+    uchar *key= my_hash_get_key(other, &klen, false);
+    return (T*)my_hash_search(&m_hash, reinterpret_cast<uchar *>(key), klen);
+  }
+
   T *find(const void *key, size_t klen) const
   {
     return (T*)my_hash_search(&m_hash, reinterpret_cast<const uchar *>(key), klen);
