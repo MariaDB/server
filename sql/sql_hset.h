@@ -15,6 +15,7 @@
    along with this program; if not, write to the Free Software
    Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1335  USA */
 
+#include "my_global.h"
 #include "hash.h"
 
 
@@ -75,6 +76,14 @@ public:
   {
     return my_hash_delete(&m_hash, reinterpret_cast<uchar*>(value));
   }
+
+  T *find(const T *other) const
+  {
+    size_t klen;
+    uchar *key= m_hash.get_key(other, &klen, false);
+    return (T*)my_hash_search(&m_hash, reinterpret_cast<uchar *>(key), klen);
+  }
+
   T *find(const void *key, size_t klen) const
   {
     return (T*)my_hash_search(&m_hash, reinterpret_cast<const uchar *>(key), klen);
