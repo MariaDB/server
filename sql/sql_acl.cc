@@ -210,6 +210,17 @@ class Deny_spec
 {
 public:
   typedef std::pair<LEX_CSTRING, privilege_t> deny_entry;
+
+  template <typename T>
+  static uchar *pair_first_key(const T *elem,
+                               size_t *elem_size,
+                               my_bool unused __attribute__((unused)))
+  {
+    *elem_size= elem->first.length;
+    return (uchar *)(elem->first.str);
+  }
+
+
 private:
 
   PRIV_TYPE specified_denies;
@@ -222,14 +233,6 @@ private:
   Hash_set<deny_entry> *package_spec_denies;
   Hash_set<deny_entry> *package_body_denies;
   //Dynamic_array<std::pair<LEX_CSTRING, privilege_t>> db_denies_wild;
-
-  static uchar *pair_first_key(const deny_entry *elem,
-                               size_t *elem_size,
-                               my_bool unused __attribute__((unused)))
-  {
-    *elem_size= elem->first.length;
-    return (uchar *)(elem->first.str);
-  }
 
   static void free_deny_entry(void *ptr)
   {
@@ -250,6 +253,7 @@ private:
     return hash.find(key.c_ptr(), key.length());
   }
 
+public:
   static void construct_identifier(String *s,
                                    const LEX_CSTRING &db,
                                    const LEX_CSTRING &table={nullptr, 0},
@@ -271,6 +275,7 @@ private:
     }
   }
 
+private:
   /*
     Map a json (on disk representation of a deny name) to the in-memory
     representation that we use for faster lookups.
@@ -399,7 +404,7 @@ private:
     {
       *hash= new Hash_set<deny_entry>(
             PSI_INSTRUMENT_MEM, &my_charset_bin, 10, 0, 0,
-            (my_hash_get_key)pair_first_key,
+            (my_hash_get_key)pair_first_key<deny_entry>,
             free_deny_entry, HASH_UNIQUE);
       if (!*hash)
         return true;
@@ -498,6 +503,19 @@ public:
     refs[ref_index]->length= identifier.length - (pos - identifier.str);
   }
 
+  privilege_t get_deny_by_key(PRIV_TYPE hash_type, const LEX_CSTRING &key) const
+  {
+    auto *hash= priv_to_hash(hash_type);
+    if (!hash)
+      return NO_ACL;
+
+    auto *entry= hash->find(key.str, key.length);
+    if (!entry)
+      return NO_ACL;
+    return entry->second;
+  }
+
+
   privilege_t get_global() const { return global_denies; }
   PRIV_TYPE get_specified_denies() const { return specified_denies; }
 
@@ -543,32 +561,47 @@ public:
     return get_hash_value(package_body_denies, db, package_body);
   }
 
-  size_t get_hash_size(PRIV_TYPE hash_type) const
+private:
+  Hash_set<deny_entry> *priv_to_hash(PRIV_TYPE hash_type) const
   {
     switch (hash_type)
     {
       case DATABASE_PRIV:
-        return db_denies ? db_denies->size() : 0;
-      default:
-        DBUG_ASSERT(0);
-        return 0;
-    }
-  }
-
-  const deny_entry *get_hash_entry(PRIV_TYPE hash_type, size_t idx) const
-  {
-    const Hash_set<deny_entry> *hash= nullptr;
-    switch (hash_type)
-    {
-      case DATABASE_PRIV:
-        hash= db_denies;
-        break;
+        return db_denies;
+      case TABLE_PRIV:
+        return table_denies;
+      case COLUMN_PRIV:
+        return column_denies;
+      case PROCEDURE_PRIV:
+        return procedure_denies;
+      case FUNCTION_PRIV:
+        return function_denies;
+      case PACKAGE_SPEC_PRIV:
+        return package_spec_denies;
+      case PACKAGE_BODY_PRIV:
+        return package_body_denies;
       default:
         DBUG_ASSERT(0);
         return nullptr;
     }
-    DBUG_ASSERT(hash->size() > idx);
-    return hash->at(idx);
+  }
+
+public:
+
+  size_t get_hash_size(PRIV_TYPE hash_type) const
+  {
+    auto *hash= priv_to_hash(hash_type);
+    if (hash)
+      return hash->size();
+    return 0;
+  }
+
+  const deny_entry *get_hash_entry(PRIV_TYPE hash_type, size_t idx) const
+  {
+    auto *hash= priv_to_hash(hash_type);
+    if (hash)
+      return hash->at(idx);
+    return nullptr;
   }
 
     /*
@@ -815,7 +848,7 @@ public:
     DBUG_ASSERT(!*hash);
     *hash= new Hash_set<deny_entry>(
           PSI_INSTRUMENT_MEM, &my_charset_bin, 10, 0, 0,
-          (my_hash_get_key)pair_first_key,
+          (my_hash_get_key)pair_first_key<deny_entry>,
           free_deny_entry, HASH_UNIQUE);
 
     while (true)
@@ -934,7 +967,7 @@ public:
     {
       *sink= new Hash_set<deny_entry>(
             PSI_INSTRUMENT_MEM, &my_charset_bin, 10, 0, 0,
-            (my_hash_get_key)pair_first_key,
+            (my_hash_get_key)pair_first_key<deny_entry>,
             free_deny_entry, HASH_UNIQUE);
       if (!*sink)
         return true;
