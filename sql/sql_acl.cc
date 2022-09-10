@@ -1223,6 +1223,8 @@ static bool show_database_privileges(THD *, ACL_USER_BASE *,
                                      char *, size_t, bool);
 static bool show_table_and_column_privileges(THD *, const char *, const char *,
                                              char *, size_t);
+static bool show_table_and_column_denies(THD *, const Deny_spec &,
+                                         const char *, const char *);
 static int show_routine_grants(THD *, const char *, const char *,
                                const Sp_handler *sph, char *, int);
 
@@ -11711,6 +11713,10 @@ static bool print_grants_for_role(THD *thd, ACL_ROLE * role)
   if (show_table_and_column_privileges(thd, role->user.str, "", buff, sizeof(buff)))
     return TRUE;
 
+  if (role->denies)
+    if (show_table_and_column_denies(thd, *role->denies, role->user.str, ""))
+      return TRUE;
+
   if (show_routine_grants(thd, role->user.str, "", &sp_handler_procedure,
                           buff, sizeof(buff)))
     return TRUE;
@@ -11992,6 +11998,10 @@ bool mysql_show_grants(THD *thd, LEX_USER *lex_user)
     /* Add table & column access */
     if (show_table_and_column_privileges(thd, username, hostname, buff, sizeof(buff)))
       goto end;
+
+    if (acl_user->denies)
+      if (show_table_and_column_denies(thd, *acl_user->denies, username, hostname))
+        return TRUE;
 
     if (show_routine_grants(thd, username, hostname, &sp_handler_procedure,
                             buff, sizeof(buff)))
@@ -12329,6 +12339,229 @@ static bool show_database_privileges(THD *thd,
           return true;
       }
     }
+  }
+  return false;
+}
+
+
+static int print_col_list_matching_priv(
+    String *str, const Dynamic_array<std::pair<LEX_CSTRING, privilege_t>>& arr,
+    privilege_t priv)
+{
+  bool paren_printed= false, err= false;
+  for (size_t i= 0; i < arr.size(); i++)
+  {
+    const auto &entry= arr.at(i);
+    if (entry.second & priv)
+    {
+      str->append(!paren_printed ? '(' : ',');
+      err|= str->append(entry.first);
+      paren_printed= true;
+    }
+  }
+  if (paren_printed)
+    err|= str->append(')');
+  return err ? -1 : paren_printed;
+}
+
+static bool col_list_has_priv(
+    const Dynamic_array<std::pair<LEX_CSTRING, privilege_t>>& arr,
+    privilege_t priv)
+{
+  if (!(priv & COL_ACLS))
+    return false;
+
+  for (size_t i= 0; i < arr.size(); i++)
+  {
+    if (arr.at(i).second & priv)
+      return true;
+  }
+  return false;
+}
+
+
+static bool show_table_and_column_denies(THD *thd,
+                                         const Deny_spec &denies,
+                                         const char *username,
+                                         const char *hostname)
+{
+  char buff[1024];
+  String result(buff, sizeof(buff), system_charset_info);
+  Protocol *protocol= thd->protocol;
+
+  typedef
+    std::pair<LEX_CSTRING,
+              Dynamic_array<std::pair<LEX_CSTRING, privilege_t>>*> tb_col_list;
+
+  if (!(denies.get_specified_denies() & (TABLE_PRIV | COLUMN_PRIV)))
+    return false;
+
+  /*
+    In order to print table and column grants we first create a hash set of
+    the form:
+    {
+      "db"."table" : [("col_deny1", priv_bits),
+                      ("col_deny2", priv_bits), ...]
+    }
+
+    This will then be used to actually print the DENY statements.
+    An empty array in this set means that we only have table level denies
+    for this particular table.
+
+    Note that this hash table never allocates the actual string bytes, only
+    std::pairs and the encompasing structures holding the pointers.
+  */
+  Hash_set<tb_col_list> table_col_assoc{
+          PSI_INSTRUMENT_MEM, &my_charset_bin, 10, 0, 0,
+          (my_hash_get_key)Deny_spec::pair_first_key<tb_col_list>,
+          [](void *ptr) {
+            delete static_cast<tb_col_list *>(ptr)->second;
+            delete static_cast<tb_col_list *>(ptr);
+          }, HASH_UNIQUE};
+
+  /* First collect all tables and create empty column denies arrays. */
+  for (size_t i= 0; i < denies.get_hash_size(TABLE_PRIV); i++)
+  {
+    const Deny_spec::deny_entry *entry= denies.get_hash_entry(TABLE_PRIV, i);
+
+    uchar *key;
+    size_t klen;
+    key= Deny_spec::pair_first_key(entry, &klen, false);
+
+    tb_col_list *col_list= table_col_assoc.find(key, klen);
+    if (!col_list)
+    {
+      auto *arr= new Dynamic_array<std::pair<LEX_CSTRING, privilege_t>>{
+                                      (PSI_memory_key)PSI_NOT_INSTRUMENTED};
+
+      if (!arr)
+        return true;
+
+      col_list= new tb_col_list{entry->first, arr};
+      if (!col_list)
+      {
+        delete arr;
+        return true;
+      }
+      table_col_assoc.insert(col_list);
+    }
+  }
+
+  /* Now collect all column level denies. */
+  for (size_t i= 0; i < denies.get_hash_size(COLUMN_PRIV); i++)
+  {
+    const Deny_spec::deny_entry *entry= denies.get_hash_entry(COLUMN_PRIV, i);
+
+    LEX_CSTRING db, table, col;
+    /* Extract db, table, col key from the column deny hash. */
+    Deny_spec::deconstruct_identifier(entry->first, &db, &table, &col);
+
+    result.length(0);
+    /* Create a new key for the table definition. */
+    Deny_spec::construct_identifier(&result, db, table);
+    tb_col_list *col_list= table_col_assoc.find(result.c_ptr(),
+                                                result.length());
+    /* If there are column denies for this table, save the col list. */
+    if (col_list)
+      if (col_list->second->append(std::make_pair(col, entry->second)))
+        return true;
+  }
+
+  /* Finally start printing the actual denies. */
+  for (size_t i= 0; i < table_col_assoc.size(); i++)
+  {
+    const tb_col_list *col_list= table_col_assoc.at(i);
+
+    LEX_CSTRING db, table;
+    /* Extract db, table, col key from the column deny hash. */
+    Deny_spec::deconstruct_identifier(col_list->first, &db, &table);
+
+    privilege_t table_priv= denies.get_deny_by_key(TABLE_PRIV, col_list->first);
+
+    /* Prepare for generating the string. */
+    result.length(0);
+    result.append(STRING_WITH_LEN("DENY "));
+
+    bool priv_printed= false;
+    const privilege_t all_acls_without_grant = TABLE_ACLS & ~GRANT_ACL;
+
+    /*
+       If we have every bit set we print "ALL PRIVILEGES" instead of
+       each individual privilege.
+    */
+    bool print_individual_privileges=
+      (table_priv & all_acls_without_grant) != all_acls_without_grant;
+
+    if (!print_individual_privileges)
+    {
+      result.append(STRING_WITH_LEN("ALL PRIVILEGES"));
+      priv_printed= true;
+    }
+
+    for (ulonglong count= 0, priv= SELECT_ACL; priv <= TABLE_ACLS;
+         count++, priv<<= 1)
+    {
+      /*
+         If table priv is present, we must print the privilege separately.
+         GRANT_ACL is printed at the end of the statement as
+         "WITH GRANT OPTION"
+      */
+      if (print_individual_privileges && ((table_priv & ~GRANT_ACL) & priv))
+      {
+        if (priv_printed)
+          result.append(STRING_WITH_LEN(", "));
+        result.append(privilege_str_repr[count]);
+        priv_printed= true;
+      }
+      if (col_list &&
+          col_list_has_priv(*col_list->second, static_cast<privilege_t>(priv)))
+      {
+        if (priv_printed)
+          result.append(STRING_WITH_LEN(", "));
+        result.append(privilege_str_repr[count]);
+
+        /*
+           TODO(cvicentiu) perhaps it make sense to sort the col_list
+           lexicographically
+           TODO(cvicentiu) Error checking.
+        */
+        if (col_list)
+        {
+          int p_res;
+          p_res= print_col_list_matching_priv(&result, *col_list->second,
+                                              static_cast<privilege_t>(priv));
+          if (p_res < 0)
+            return true;
+
+          if (p_res > 0)
+            priv_printed= true;
+        }
+      }
+    }
+
+    /*
+      TODO(cvicentiu) What happens when printing inherited denies from roles?
+      Which should be the appropriate username for the TO part
+      of the grant clause?
+
+      TODO(cvicentiu) eliminate code duplication from
+      show_table_and_column_privileges
+    */
+    result.append(STRING_WITH_LEN(" ON "));
+    append_identifier(thd, &result, db.str, db.length);
+    result.append('.');
+    append_identifier(thd, &result, table.str, table.length);
+    // TODO(cvicentiu) See show_table_and_column_privileges, hostname should
+    // be case insensitive?
+    add_to_user(thd, &result, username, (*hostname), hostname);
+    if (table_priv & GRANT_ACL)
+      result.append(STRING_WITH_LEN(" WITH GRANT OPTION"));
+
+
+    protocol->prepare_for_resend();
+    protocol->store(&result);
+    if (protocol->write())
+      return true;
   }
   return false;
 }

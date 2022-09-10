@@ -40,6 +40,13 @@ deny select on *.* to bar;
 deny insert on one_db.* to bar;
 deny update on one_db.t1 to bar;
 deny update (c1) on one_db.t1 to bar;
+deny insert (c1) on one_db.t1 to bar;
+deny insert (c2) on one_db.t1 to bar;
+deny insert (c3, c4) on one_db.t1 to bar;
+
+deny all privileges on one_db.t2 to bar;
+deny select (c_b, c_a) on one_db.t2 to bar;
+deny usage on one_db.t2 to bar with grant option;
 
 grant bar to foo;
 --connect (con1, localhost, foo,,)
