@@ -35,6 +35,12 @@ deny select on *.* to bar;
 deny insert on one_db.* to bar;
 deny update on one_db.t1 to bar;
 deny update (c1) on one_db.t1 to bar;
+deny insert (c1) on one_db.t1 to bar;
+deny insert (c2) on one_db.t1 to bar;
+deny insert (c3, c4) on one_db.t1 to bar;
+deny all privileges on one_db.t2 to bar;
+deny select (c_b, c_a) on one_db.t2 to bar;
+deny usage on one_db.t2 to bar with grant option;
 grant bar to foo;
 connect  con1, localhost, foo,,;
 set role bar;
@@ -49,6 +55,8 @@ DENY INSERT, UPDATE ON `some_db`.* TO `foo`@`%`
 GRANT USAGE ON *.* TO `bar`
 DENY SELECT ON *.* TO `bar`
 DENY INSERT ON `one_db`.* TO `bar`
+DENY INSERT(c1,c4,c3,c2), UPDATE, UPDATE(c1) ON `one_db`.`t1` TO `bar`
+DENY ALL PRIVILEGES, SELECT(c_a,c_b) ON `one_db`.`t2` TO `bar` WITH GRANT OPTION
 disconnect con1;
 connection default;
 drop database some_db;
