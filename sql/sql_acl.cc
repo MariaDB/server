@@ -489,7 +489,8 @@ public:
       {
         DBUG_ASSERT(refs[ref_index] != nullptr);
         refs[ref_index]->str= pos;
-        pos= identifier.str + i;
+        refs[ref_index]->length= (identifier.str + i) - pos;
+        pos= identifier.str + i + 1;
         ref_index++;
       }
     }
