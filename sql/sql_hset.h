@@ -65,7 +65,7 @@ public:
     @retval FALSE OK. The value either was inserted or existed
                   in the hash.
   */
-  bool insert(T *value)
+  bool insert(const T *value)
   {
     my_hash_init_opt(m_hash.array.m_psi_key, &m_hash, m_hash.charset,
                      START_SIZE, 0, 0, m_hash.get_key, 0, HASH_UNIQUE);
