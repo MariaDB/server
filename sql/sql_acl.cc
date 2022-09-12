@@ -12471,6 +12471,12 @@ static bool show_table_and_column_denies(THD *thd,
   for (size_t i= 0; i < table_col_assoc.size(); i++)
   {
     const tb_col_list *col_list= table_col_assoc.at(i);
+    col_list->second->sort(
+      [] (const std::pair<LEX_CSTRING, privilege_t> *a,
+          const std::pair<LEX_CSTRING, privilege_t> *b)
+      {
+        return strcmp(a->first.str, b->first.str);
+      });
 
     LEX_CSTRING db, table;
     /* Extract db, table, col key from the column deny hash. */
