@@ -41,6 +41,13 @@ deny insert (c3, c4) on one_db.t1 to bar;
 deny all privileges on one_db.t2 to bar;
 deny select (c_b, c_a) on one_db.t2 to bar;
 deny usage on one_db.t2 to bar with grant option;
+deny execute on procedure some_other_db.p1 to bar;
+deny execute on function some_other_db.p1 to bar;
+set @old_sql_mode=@@sql_mode;
+set sql_mode=ORACLE;
+deny execute on package some_other_db.p1 to bar;
+deny all on package body some_other_db.p1 to bar;
+set sql_mode=@old_sql_mode;
 grant bar to foo;
 connect  con1, localhost, foo,,;
 set role bar;
@@ -57,6 +64,10 @@ DENY SELECT ON *.* TO `bar`
 DENY INSERT ON `one_db`.* TO `bar`
 DENY INSERT(c1,c2,c3,c4), UPDATE, UPDATE(c1) ON `one_db`.`t1` TO `bar`
 DENY ALL PRIVILEGES, SELECT(c_a,c_b) ON `one_db`.`t2` TO `bar` WITH GRANT OPTION
+DENY EXECUTE ON PROCEDURE `some_other_db`.`p1` TO `bar`
+DENY EXECUTE ON FUNCTION `some_other_db`.`p1` TO `bar`
+DENY EXECUTE ON PACKAGE `some_other_db`.`p1` TO `bar`
+DENY EXECUTE, ALTER ROUTINE ON PACKAGE BODY `some_other_db`.`p1` TO `bar`
 disconnect con1;
 connection default;
 drop database some_db;
