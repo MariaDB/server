@@ -1,0 +1,238 @@
+#
+# MDEV-29322 ASAN use-after-free options_written_to_bin_log
+#
+include/master-slave.inc
+[connection master]
+# A. set the master and slave explicit_defaults_for_timestamp values crisscross to (1,0)
+connection master;
+set @sav.explicit_defaults_for_timestamp      = @@session.explicit_defaults_for_timestamp;
+set @@session.explicit_defaults_for_timestamp = 1;
+connection slave;
+set @sav.explicit_defaults_for_timestamp   = @@global.explicit_defaults_for_timestamp;
+set global explicit_defaults_for_timestamp = 0;
+set @sav.slave_parallel_workers     = @@global.slave_parallel_workers;
+include/stop_slave.inc
+set @@global.slave_parallel_workers = 1;
+include/start_slave.inc
+connection slave;
+include/stop_slave.inc
+reset slave;
+connection master;
+reset master;
+create table t2 (a timestamp, b int);
+show create table t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `a` timestamp NULL DEFAULT NULL,
+  `b` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+connection slave;
+include/start_slave.inc
+include/stop_slave.inc
+connection master;
+insert into t2 values (null, 1);
+flush binary logs;
+flush binary logs;
+insert into t2 values (null, 2);
+/*!50530 SET @@SESSION.PSEUDO_SLAVE_MODE=1*/;
+/*!40019 SET @@session.max_insert_delayed_threads=0*/;
+/*!50003 SET @OLD_COMPLETION_TYPE=@@COMPLETION_TYPE,COMPLETION_TYPE=0*/;
+DELIMITER /*!*/;
+ROLLBACK/*!*/;
+use `test`/*!*/;
+SET TIMESTAMP=1658586280/*!*/;
+SET @@session.pseudo_thread_id=999999999/*!*/;
+SET @@session.foreign_key_checks=1, @@session.sql_auto_is_null=0, @@session.unique_checks=1, @@session.autocommit=1, @@session.check_constraint_checks=1/*!*/;
+SET @@session.sql_mode=1411383296/*!*/;
+SET @@session.auto_increment_increment=1, @@session.auto_increment_offset=1/*!*/;
+/*!\C utf8mb3 *//*!*/;
+SET @@session.character_set_client=33,@@session.collation_connection=33,@@session.collation_server=8/*!*/;
+SET @@session.lc_time_names=0/*!*/;
+SET @@session.collation_database=DEFAULT/*!*/;
+create table t1 (f1 timestamp, f2 timestamp)
+/*!*/;
+START TRANSACTION
+/*!*/;
+SET TIMESTAMP=1658586288/*!*/;
+insert t1 values (NULL, NULL)
+/*!*/;
+SET TIMESTAMP=1658586288/*!*/;
+COMMIT
+/*!*/;
+START TRANSACTION
+/*!*/;
+SET TIMESTAMP=1658586335/*!*/;
+insert t1 () values ()
+/*!*/;
+SET TIMESTAMP=1658586335/*!*/;
+COMMIT
+/*!*/;
+DELIMITER ;
+# End of log file
+ROLLBACK /* added by mysqlbinlog */;
+/*!50003 SET COMPLETION_TYPE=@OLD_COMPLETION_TYPE*/;
+/*!50530 SET @@SESSION.PSEUDO_SLAVE_MODE=0*/;
+connection slave1;
+lock table t2 write;
+connection slave;
+include/start_slave.inc
+connection slave1;
+unlock tables;
+connection slave;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `f1` timestamp NULL DEFAULT NULL,
+  `f2` timestamp NULL DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+set statement time_zone='+2:00' for select * from t1;
+f1	f2
+NULL	NULL
+NULL	NULL
+drop table t1;
+connection master;
+connection slave;
+show create table t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `a` timestamp NULL DEFAULT NULL,
+  `b` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+include/diff_tables.inc [master:t2,slave:t2]
+connection master;
+drop table t2;
+connection slave;
+# B. alternate the master and slave vars' values to (0,1)
+connection master;
+set @@session.explicit_defaults_for_timestamp = 0;
+connection slave;
+set @@global.explicit_defaults_for_timestamp = 1;
+connection slave;
+include/stop_slave.inc
+reset slave;
+connection master;
+reset master;
+create table t2 (a timestamp, b int);
+show create table t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `a` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  `b` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+connection slave;
+include/start_slave.inc
+include/stop_slave.inc
+connection master;
+insert into t2 values (null, 1);
+flush binary logs;
+flush binary logs;
+insert into t2 values (null, 2);
+/*!50530 SET @@SESSION.PSEUDO_SLAVE_MODE=1*/;
+/*!40019 SET @@session.max_insert_delayed_threads=0*/;
+/*!50003 SET @OLD_COMPLETION_TYPE=@@COMPLETION_TYPE,COMPLETION_TYPE=0*/;
+DELIMITER /*!*/;
+ROLLBACK/*!*/;
+use `test`/*!*/;
+SET TIMESTAMP=1658586280/*!*/;
+SET @@session.pseudo_thread_id=999999999/*!*/;
+SET @@session.foreign_key_checks=1, @@session.sql_auto_is_null=0, @@session.unique_checks=1, @@session.autocommit=1, @@session.check_constraint_checks=1/*!*/;
+SET @@session.sql_mode=1411383296/*!*/;
+SET @@session.auto_increment_increment=1, @@session.auto_increment_offset=1/*!*/;
+/*!\C utf8mb3 *//*!*/;
+SET @@session.character_set_client=33,@@session.collation_connection=33,@@session.collation_server=8/*!*/;
+SET @@session.lc_time_names=0/*!*/;
+SET @@session.collation_database=DEFAULT/*!*/;
+create table t1 (f1 timestamp, f2 timestamp)
+/*!*/;
+START TRANSACTION
+/*!*/;
+SET TIMESTAMP=1658586288/*!*/;
+insert t1 values (NULL, NULL)
+/*!*/;
+SET TIMESTAMP=1658586288/*!*/;
+COMMIT
+/*!*/;
+START TRANSACTION
+/*!*/;
+SET TIMESTAMP=1658586335/*!*/;
+insert t1 () values ()
+/*!*/;
+SET TIMESTAMP=1658586335/*!*/;
+COMMIT
+/*!*/;
+DELIMITER ;
+# End of log file
+ROLLBACK /* added by mysqlbinlog */;
+/*!50003 SET COMPLETION_TYPE=@OLD_COMPLETION_TYPE*/;
+/*!50530 SET @@SESSION.PSEUDO_SLAVE_MODE=0*/;
+connection slave1;
+lock table t2 write;
+connection slave;
+include/start_slave.inc
+connection slave1;
+unlock tables;
+connection slave;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `f1` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  `f2` timestamp NOT NULL DEFAULT '0000-00-00 00:00:00'
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+set statement time_zone='+2:00' for select * from t1;
+f1	f2
+2022-07-23 16:24:48	2022-07-23 16:24:48
+2022-07-23 16:25:35	0000-00-00 00:00:00
+drop table t1;
+connection master;
+connection slave;
+show create table t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `a` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  `b` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+include/diff_tables.inc [master:t2,slave:t2]
+connection master;
+drop table t2;
+connection slave;
+# C. the bug case on the same version binlogs also to demo on the patch's base
+include/stop_slave.inc
+set @@global.slave_parallel_workers = 4;
+include/start_slave.inc
+connection slave;
+include/stop_slave.inc
+reset slave;
+connection master;
+reset master;
+create table t2 (a timestamp, b int);
+show create table t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `a` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  `b` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+connection slave;
+include/start_slave.inc
+include/stop_slave.inc
+connection master;
+connection slave;
+include/start_slave.inc
+connection slave;
+show create table t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `a` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  `b` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+include/diff_tables.inc [master:t2,slave:t2]
+connection master;
+drop table t2;
+connection slave;
+connection master;
+set @@session.explicit_defaults_for_timestamp = @sav.explicit_defaults_for_timestamp;
+connection slave;
+set @@global.explicit_defaults_for_timestamp = @sav.explicit_defaults_for_timestamp;
+include/stop_slave.inc
+set @@global.slave_parallel_workers          = @sav.slave_parallel_workers;
+include/start_slave.inc
+include/rpl_end.inc
