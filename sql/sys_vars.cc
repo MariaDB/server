@@ -1501,14 +1501,6 @@ static Sys_var_charptr_fscs Sys_log_error(
 
 static Sys_var_bit Sys_log_queries_not_using_indexes(
        "log_queries_not_using_indexes",
-       "Alias for log_slow_queries_not_using_indexes. "
-       "Log queries that are executed without benefit of any index to the "
-       "slow log if it is open. Same as log_slow_filter='not_using_index'",
-       SESSION_VAR(log_slow_filter), CMD_LINE(OPT_ARG), QPLAN_NOT_USING_INDEX,
-       DEFAULT(FALSE));
-
-static Sys_var_bit Sys_log_slow_queries_not_using_indexes(
-       "log_slow_queries_not_using_indexes",
        "Log queries that are executed without benefit of any index to the "
        "slow log if it is open. Same as log_slow_filter='not_using_index'",
        SESSION_VAR(log_slow_filter), CMD_LINE(OPT_ARG), QPLAN_NOT_USING_INDEX,
@@ -5284,7 +5276,7 @@ static Sys_var_mybool Sys_general_log(
 
 static Sys_var_mybool Sys_slow_query_log(
        "slow_query_log",
-       "Alias for log_slow_query_enable. "
+       "Alias for log_slow_query. "
        "Log slow queries to a table or log file. Defaults logging to a file "
        "'hostname'-slow.log or a table mysql.slow_log if --log-output=TABLE is "
        "used. Must be enabled to activate other slow log options.",
@@ -5292,8 +5284,8 @@ static Sys_var_mybool Sys_slow_query_log(
        DEFAULT(FALSE), NO_MUTEX_GUARD, NOT_IN_BINLOG,
        ON_CHECK(0), ON_UPDATE(fix_log_state));
 
-static Sys_var_mybool Sys_log_slow_query_enable(
-       "log_slow_query_enable",
+static Sys_var_mybool Sys_log_slow_query(
+       "log_slow_query",
        "Log slow queries to a table or log file. Defaults logging to a file "
        "'hostname'-slow.log or a table mysql.slow_log if --log-output=TABLE is "
        "used. Must be enabled to activate other slow log options.",
