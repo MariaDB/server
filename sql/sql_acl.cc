@@ -1227,6 +1227,8 @@ static bool show_table_and_column_denies(THD *, const Deny_spec &,
                                          const char *, const char *);
 static int show_routine_grants(THD *, const char *, const char *,
                                const Sp_handler *sph, char *, int);
+static int show_routine_denies(THD *, const Deny_spec &, const char *,
+                               const char *, const Sp_handler *, char *, int );
 
 static const ACL_internal_schema_access *
 get_cached_schema_access(GRANT_INTERNAL_INFO *grant_internal_info,
@@ -11713,24 +11715,44 @@ static bool print_grants_for_role(THD *thd, ACL_ROLE * role)
   if (show_table_and_column_privileges(thd, role->user.str, "", buff, sizeof(buff)))
     return TRUE;
 
-  if (role->denies)
-    if (show_table_and_column_denies(thd, *role->denies, role->user.str, ""))
+  if (role->initial_denies)
+    if (show_table_and_column_denies(thd, *role->initial_denies, role->user.str, ""))
       return TRUE;
 
   if (show_routine_grants(thd, role->user.str, "", &sp_handler_procedure,
                           buff, sizeof(buff)))
     return TRUE;
 
+  if (role->initial_denies &&
+      show_routine_denies(thd, *role->initial_denies, role->user.str, "",
+                          &sp_handler_procedure, buff, sizeof(buff)))
+    return TRUE;
+
   if (show_routine_grants(thd, role->user.str, "", &sp_handler_function,
                           buff, sizeof(buff)))
+    return TRUE;
+
+  if (role->initial_denies &&
+      show_routine_denies(thd, *role->initial_denies, role->user.str, "",
+                          &sp_handler_function, buff, sizeof(buff)))
     return TRUE;
 
   if (show_routine_grants(thd, role->user.str, "", &sp_handler_package_spec,
                           buff, sizeof(buff)))
     return TRUE;
 
+  if (role->initial_denies &&
+      show_routine_denies(thd, *role->initial_denies, role->user.str, "",
+                          &sp_handler_package_spec, buff, sizeof(buff)))
+    return TRUE;
+
   if (show_routine_grants(thd, role->user.str, "", &sp_handler_package_body,
                           buff, sizeof(buff)))
+    return TRUE;
+
+  if (role->initial_denies &&
+      show_routine_denies(thd, *role->initial_denies, role->user.str, "",
+                          &sp_handler_package_body, buff, sizeof(buff)))
     return TRUE;
 
   return FALSE;
@@ -12007,16 +12029,36 @@ bool mysql_show_grants(THD *thd, LEX_USER *lex_user)
                             buff, sizeof(buff)))
       goto end;
 
+    if (acl_user->denies &&
+        show_routine_denies(thd, *acl_user->denies, username, hostname,
+                            &sp_handler_procedure, buff, sizeof(buff)))
+      goto end;
+
     if (show_routine_grants(thd, username, hostname, &sp_handler_function,
                             buff, sizeof(buff)))
+      goto end;
+
+    if (acl_user->denies &&
+        show_routine_denies(thd, *acl_user->denies, username, hostname,
+                            &sp_handler_function, buff, sizeof(buff)))
       goto end;
 
     if (show_routine_grants(thd, username, hostname, &sp_handler_package_spec,
                             buff, sizeof(buff)))
       goto end;
 
+
+    if (acl_user->denies &&
+        show_routine_denies(thd, *acl_user->denies, username, hostname,
+                            &sp_handler_package_spec, buff, sizeof(buff)))
+      goto end;
+
     if (show_routine_grants(thd, username, hostname, &sp_handler_package_body,
                             buff, sizeof(buff)))
+      goto end;
+    if (acl_user->denies &&
+        show_routine_denies(thd, *acl_user->denies, username, hostname,
+                            &sp_handler_package_body, buff, sizeof(buff)))
       goto end;
 
     if (show_proxy_grants(thd, username, hostname, buff, sizeof(buff)))
@@ -12364,6 +12406,7 @@ static int print_col_list_matching_priv(
   return err ? -1 : paren_printed;
 }
 
+
 static bool col_list_has_priv(
     const Dynamic_array<std::pair<LEX_CSTRING, privilege_t>>& arr,
     privilege_t priv)
@@ -12707,13 +12750,17 @@ static bool print_routine_grants(THD *thd, String *result,
                                  privilege_t routine_priv,
                                  const LEX_CSTRING &routine_type,
                                  const char *username, const char *hostname,
-                                 const char *db, const char *routine_name)
+                                 const char *db, const char *routine_name,
+                                 bool deny)
 {
   //TODO(cvicentiu) Error checking for this function.
   privilege_t test_access(routine_priv & ~GRANT_ACL);
 
   result->length(0);
-  result->append(STRING_WITH_LEN("GRANT "));
+  if (deny)
+    result->append(STRING_WITH_LEN("DENY "));
+  else
+    result->append(STRING_WITH_LEN("GRANT "));
 
   if (!test_access)
     result->append(STRING_WITH_LEN("USAGE"));
@@ -12743,6 +12790,66 @@ static bool print_routine_grants(THD *thd, String *result,
     result->append(STRING_WITH_LEN(" WITH GRANT OPTION"));
 
   return false;
+}
+
+
+static int show_routine_denies(THD *thd,
+                               const Deny_spec &denies,
+                               const char *username, const char *hostname,
+                               const Sp_handler *sph,
+                               char *buff, int buffsize)
+{
+  bool error= 0;
+  Protocol *protocol= thd->protocol;
+  String result(buff, buffsize, system_charset_info);
+
+  PRIV_TYPE priv_type= NO_PRIV;
+  enum_sp_type type= sph->type();
+
+  switch (type)
+  {
+    case SP_TYPE_FUNCTION:
+      priv_type= FUNCTION_PRIV;
+      break;
+    case SP_TYPE_PROCEDURE:
+      priv_type= PROCEDURE_PRIV;
+      break;
+    case SP_TYPE_PACKAGE:
+      priv_type= PACKAGE_SPEC_PRIV;
+      break;
+    case SP_TYPE_PACKAGE_BODY:
+      priv_type= PACKAGE_BODY_PRIV;
+      break;
+    /* No privileges attached to triggers or events. */
+    case SP_TYPE_TRIGGER:
+    case SP_TYPE_EVENT:
+      DBUG_ASSERT(0);
+      return 0;
+  }
+  for (size_t i= 0; i < denies.get_hash_size(priv_type); i++)
+  {
+    auto *entry= denies.get_hash_entry(priv_type, i);
+
+    LEX_CSTRING db, routine_name;
+    Deny_spec::deconstruct_identifier(entry->first, &db, &routine_name);
+
+    error= print_routine_grants(thd, &result,
+                                entry->second,
+                                sph->type_lex_cstring(),
+                                username, hostname,
+                                db.str, routine_name.str,
+                                true);
+
+    protocol->prepare_for_resend();
+    protocol->store(&result);
+    if (protocol->write())
+    {
+      error= true;
+      break;
+    }
+  }
+
+  return error;
 }
 
 
@@ -12785,9 +12892,9 @@ static int show_routine_grants(THD* thd,
       String global(buff, buffsize, system_charset_info);
       print_routine_grants(thd, &global, proc_access, sph->type_lex_cstring(),
                            username, hostname, grant_proc->db,
-                           grant_proc->tname);
+                           grant_proc->tname, false);
       protocol->prepare_for_resend();
-      protocol->store(global.ptr(),global.length(),global.charset());
+      protocol->store(global);
       if (protocol->write())
       {
         error= -1;
