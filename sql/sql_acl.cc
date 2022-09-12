@@ -12703,12 +12703,55 @@ static bool show_table_and_column_privileges(THD *thd, const char *username,
 }
 
 
+static bool print_routine_grants(THD *thd, String *result,
+                                 privilege_t routine_priv,
+                                 const LEX_CSTRING &routine_type,
+                                 const char *username, const char *hostname,
+                                 const char *db, const char *routine_name)
+{
+  //TODO(cvicentiu) Error checking for this function.
+  privilege_t test_access(routine_priv & ~GRANT_ACL);
+
+  result->length(0);
+  result->append(STRING_WITH_LEN("GRANT "));
+
+  if (!test_access)
+    result->append(STRING_WITH_LEN("USAGE"));
+  else
+  {
+    /* Add specific procedure access */
+    int found= 0;
+    for (ulonglong counter= 0, j= SELECT_ACL; j <= PROC_ACLS; counter++, j<<= 1)
+    {
+      if (test_access & j)
+      {
+        if (found)
+          result->append(STRING_WITH_LEN(", "));
+        found= 1;
+        result->append(privilege_str_repr[counter]);
+      }
+    }
+  }
+  result->append(STRING_WITH_LEN(" ON "));
+  result->append(routine_type);
+  result->append(' ');
+  append_identifier(thd, result, db, strlen(db));
+  result->append('.');
+  append_identifier(thd, result, routine_name, strlen(routine_name));
+  add_to_user(thd, result, username, *hostname, hostname);
+  if (routine_priv & GRANT_ACL)
+    result->append(STRING_WITH_LEN(" WITH GRANT OPTION"));
+
+  return false;
+}
+
+
 static int show_routine_grants(THD* thd,
                                const char *username, const char *hostname,
                                const Sp_handler *sph,
                                char *buff, int buffsize)
 {
-  uint counter, index;
+  uint index;
   int error= 0;
   Protocol *protocol= thd->protocol;
   HASH *hash= sph->get_priv_hash();
@@ -12737,52 +12780,18 @@ static int show_routine_grants(THD* thd,
       else // Role
         proc_access= grant_proc->init_privs;
 
-      if (proc_access != NO_ACL)
+      if (proc_access == NO_ACL)
+        continue;
+      String global(buff, buffsize, system_charset_info);
+      print_routine_grants(thd, &global, proc_access, sph->type_lex_cstring(),
+                           username, hostname, grant_proc->db,
+                           grant_proc->tname);
+      protocol->prepare_for_resend();
+      protocol->store(global.ptr(),global.length(),global.charset());
+      if (protocol->write())
       {
-	String global(buff, buffsize, system_charset_info);
-	privilege_t test_access(proc_access & ~GRANT_ACL);
-
-	global.length(0);
-	global.append(STRING_WITH_LEN("GRANT "));
-
-	if (!test_access)
- 	  global.append(STRING_WITH_LEN("USAGE"));
-	else
-	{
-          /* Add specific procedure access */
-	  int found= 0;
-	  ulonglong j;
-
-	  for (counter= 0, j= SELECT_ACL; j <= PROC_ACLS; counter++, j<<= 1)
-	  {
-	    if (test_access & j)
-	    {
-	      if (found)
-		global.append(STRING_WITH_LEN(", "));
-	      found= 1;
-	      global.append(privilege_str_repr[counter]);
-	    }
-	  }
-	}
-	global.append(STRING_WITH_LEN(" ON "));
-        LEX_CSTRING tmp= sph->type_lex_cstring();
-        global.append(&tmp);
-        global.append(' ');
-	append_identifier(thd, &global, grant_proc->db,
-			  strlen(grant_proc->db));
-	global.append('.');
-	append_identifier(thd, &global, grant_proc->tname,
-			  strlen(grant_proc->tname));
-        add_to_user(thd, &global, username, (*hostname), host);
-	if (proc_access & GRANT_ACL)
-	  global.append(STRING_WITH_LEN(" WITH GRANT OPTION"));
-	protocol->prepare_for_resend();
-	protocol->store(global.ptr(),global.length(),global.charset());
-	if (protocol->write())
-	{
-	  error= -1;
-	  break;
-	}
+        error= -1;
+        break;
       }
     }
   }
