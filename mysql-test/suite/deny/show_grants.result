@@ -55,7 +55,7 @@ DENY INSERT, UPDATE ON `some_db`.* TO `foo`@`%`
 GRANT USAGE ON *.* TO `bar`
 DENY SELECT ON *.* TO `bar`
 DENY INSERT ON `one_db`.* TO `bar`
-DENY INSERT(c1,c4,c3,c2), UPDATE, UPDATE(c1) ON `one_db`.`t1` TO `bar`
+DENY INSERT(c1,c2,c3,c4), UPDATE, UPDATE(c1) ON `one_db`.`t1` TO `bar`
 DENY ALL PRIVILEGES, SELECT(c_a,c_b) ON `one_db`.`t2` TO `bar` WITH GRANT OPTION
 disconnect con1;
 connection default;
