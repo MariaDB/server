@@ -78,59 +78,56 @@ connection slave;
 # Asserted this: Seconds_Behind_Master should be at least 2*T
 ==== STOP SLAVE / START SLAVE + DML ====
 include/stop_slave.inc
-# CHANGE MASTER TO MASTER_DELAY = 3*T
+# CHANGE MASTER TO MASTER_DELAY = a long time to test STOP/START REPLICA do not wait for the delay 
 include/start_slave.inc
 [on master]
 connection master;
 INSERT INTO t1 VALUES ('stop slave and start slave: DML', 7);
 [on slave]
 connection slave;
-# sleep 1*T
 include/stop_slave.inc
-# Asserted this: STOP SLAVE should finish quickly, not wait for the ongoing sleep to finish
 # Asserted this: SQL thread position should not increase after STOP SLAVE
 # Asserted this: Query should not be executed after STOP SLAVE
 # Asserted this: Status should be '' after STOP SLAVE
+# CHANGE MASTER TO MASTER_DELAY = a shorter time to test remaining functionality
 include/start_slave.inc
-# Asserted this: START SLAVE should finish quickly
 connection master;
 [on slave]
 include/sync_slave_io_with_master.inc
-# sleep 1*T
 # Asserted this: Query 7 should not be executed
 # Asserted this: Status should be 'Waiting until MASTER_DELAY...'
-# sleep 1*T
-# sync with master (with timeout 1*T)
+# sync with master
 include/wait_for_slave_param.inc [Relay_Master_Log_File]
 include/wait_for_slave_param.inc [Exec_Master_Log_Pos]
 # Asserted this: Query 7 should be executed
 # Asserted this: Status should be 'Has read all relay log...'
+# Asserted this: Query should have taken at least delay time 
 include/check_slave_is_running.inc
 ==== STOP SLAVE / START SLAVE + DDL ====
 This verifies BUG#56442
+# CHANGE MASTER TO MASTER_DELAY = a long time to test STOP/START REPLICA do not wait for the delay 
+include/stop_slave.inc
+include/start_slave.inc
 [on master]
 connection master;
 CREATE TABLE t_check_dml_not_executed_prematurely (a INT);
 include/save_master_pos.inc
 [on slave]
 connection slave;
-# sleep 1*T
 include/stop_slave.inc
-# Asserted this: STOP SLAVE should finish quickly, not wait for the ongoing sleep to finish
 # Asserted this: SQL thread position should not increase after STOP SLAVE
 # Asserted this: Query should not be executed after STOP SLAVE
 # Asserted this: Status should be '' after STOP SLAVE
+# CHANGE MASTER TO MASTER_DELAY = a shorter time to test remaining functionality
 include/start_slave.inc
-# Asserted this: START SLAVE should finish quickly
-# sleep 1*T
 # Asserted this: DDL Query should not be executed after START SLAVE
 # Asserted this: Status should be 'Waiting until MASTER_DELAY...'
-# sleep 1*T
 # sync with master (with timeout 1*T)
 include/wait_for_slave_param.inc [Relay_Master_Log_File]
 include/wait_for_slave_param.inc [Exec_Master_Log_Pos]
 # Asserted this: DDL Query should be executed
 # Asserted this: Status should be 'Has read all relay log...'
+# Asserted this: Query should have taken at least delay time
 include/check_slave_is_running.inc
 ==== Change back to no delay ====
 [on slave]

@@ -78,7 +78,6 @@ if (`SELECT '$max_query_execution_time' > 0`) {
   --let $time1= $max_query_execution_time
 }
 --let $time2= `SELECT 2 * $time1`
---let $time3= `SELECT 3 * $time1`
 
 
 --echo [on master]
@@ -216,9 +215,9 @@ INSERT INTO t1 VALUES (delay_on_slave(1), 6);
 # Set up a longer delay.
 --source include/stop_slave.inc
 
---echo # CHANGE MASTER TO MASTER_DELAY = 3*T
+--echo # CHANGE MASTER TO MASTER_DELAY = a long time to test STOP/START REPLICA do not wait for the delay
 --disable_query_log
-eval CHANGE MASTER TO MASTER_DELAY = $time3;
+eval CHANGE MASTER TO MASTER_DELAY = 1000;
 --enable_query_log
 
 --source include/start_slave.inc
@@ -229,15 +228,18 @@ INSERT INTO t1 VALUES ('stop slave and start slave: DML', 7);
 
 --echo [on slave]
 --connection slave
---echo # sleep 1*T
---sleep $time1
---let $timestamp_before_stop= `SELECT UNIX_TIMESTAMP()`
+let $wait_condition= SELECT COUNT(*)=1 FROM information_schema.processlist WHERE state = "Waiting until MASTER_DELAY seconds after master executed event";
+--source include/wait_condition.inc
+#--echo # sleep 1*T
+#--sleep $time1
+#--let $timestamp_before_stop= `SELECT UNIX_TIMESTAMP()`
 --let $relay_log_pos_before_stop= query_get_value(SHOW SLAVE STATUS, Relay_Log_Pos, 1)
 --source include/stop_slave.inc
 
---let $assert_text= STOP SLAVE should finish quickly, not wait for the ongoing sleep to finish
---let $assert_cond= UNIX_TIMESTAMP() - $timestamp_before_stop < $time1
---source include/rpl_assert.inc
+# This $time1 check for an "instant" slave stop/start is problematic on BB. For the stop/start to occur without the query being executed should suffice.
+#--let $assert_text= STOP SLAVE should finish quickly, not wait for the ongoing sleep to finish
+#--let $assert_cond= UNIX_TIMESTAMP() - $timestamp_before_stop < $time1
+#--source include/rpl_assert.inc
 
 --let $assert_text= SQL thread position should not increase after STOP SLAVE
 --let $assert_cond= [SHOW SLAVE STATUS, Relay_Log_Pos, 1] = $relay_log_pos_before_stop
@@ -251,19 +253,33 @@ INSERT INTO t1 VALUES ('stop slave and start slave: DML', 7);
 --let $assert_cond= "[SHOW SLAVE STATUS, Slave_SQL_Running_State, 1]" = ""
 --source include/rpl_assert.inc
 
+--echo # CHANGE MASTER TO MASTER_DELAY = a shorter time to test remaining functionality
+--let $time3= `SELECT 5`
+--disable_query_log
+eval CHANGE MASTER TO MASTER_DELAY = $time3;
+--enable_query_log
+# Get time at which slave starts to check that query execution takes >= MASTER_DELAY
+--let $timestamp_before_start= `SELECT UNIX_TIMESTAMP()`
 --source include/start_slave.inc
 
---let $assert_text= START SLAVE should finish quickly
---let $assert_cond= UNIX_TIMESTAMP() - $timestamp_before_stop < $time1
---source include/rpl_assert.inc
+#--let $assert_text= START SLAVE should finish quickly
+#--let $assert_cond= UNIX_TIMESTAMP() - $timestamp_before_stop < $time1
+#--source include/rpl_assert.inc
 
 --let $query_number= 7
---source include/delayed_slave_wait_on_query.inc
+--source include/delayed_slave_wait_on_query2.inc
 
 
 --echo ==== STOP SLAVE / START SLAVE + DDL ====
 
 --echo This verifies BUG#56442
+
+--echo # CHANGE MASTER TO MASTER_DELAY = a long time to test STOP/START REPLICA do not wait for the delay
+--source include/stop_slave.inc
+--disable_query_log
+eval CHANGE MASTER TO MASTER_DELAY = 1000;
+--enable_query_log
+--source include/start_slave.inc
 
 --echo [on master]
 --connection master
@@ -272,16 +288,18 @@ CREATE TABLE t_check_dml_not_executed_prematurely (a INT);
 
 --echo [on slave]
 --connection slave
---echo # sleep 1*T
---sleep $time1
+let $wait_condition= SELECT COUNT(*)=1 FROM information_schema.processlist WHERE state = "Waiting until MASTER_DELAY seconds after master executed event";
+--source include/wait_condition.inc
+#--echo # sleep 1*T
+#--sleep $time1
 
---let $timestamp_before_stop= `SELECT UNIX_TIMESTAMP()`
+#--let $timestamp_before_stop= `SELECT UNIX_TIMESTAMP()`
 --let $relay_log_pos_before_stop= query_get_value(SHOW SLAVE STATUS, Relay_Log_Pos, 1)
 --source include/stop_slave.inc
 
---let $assert_text= STOP SLAVE should finish quickly, not wait for the ongoing sleep to finish
---let $assert_cond= UNIX_TIMESTAMP() - $timestamp_before_stop < $time1
---source include/rpl_assert.inc
+#--let $assert_text= STOP SLAVE should finish quickly, not wait for the ongoing sleep to finish
+#--let $assert_cond= UNIX_TIMESTAMP() - $timestamp_before_stop < $time1
+#--source include/rpl_assert.inc
 
 --let $assert_text= SQL thread position should not increase after STOP SLAVE
 --let $assert_cond= [SHOW SLAVE STATUS, Relay_Log_Pos, 1] = $relay_log_pos_before_stop
@@ -295,14 +313,21 @@ CREATE TABLE t_check_dml_not_executed_prematurely (a INT);
 --let $assert_cond= "[SHOW SLAVE STATUS, Slave_SQL_Running_State, 1]" = ""
 --source include/rpl_assert.inc
 
+--echo # CHANGE MASTER TO MASTER_DELAY = a shorter time to test remaining functionality
+--let $time3= `SELECT 5`
+--disable_query_log
+eval CHANGE MASTER TO MASTER_DELAY = $time3;
+--enable_query_log
+# Get time at which slave starts to check that query execution takes >= MASTER_DELAY
+--let $timestamp_before_start= `SELECT UNIX_TIMESTAMP()`
 --source include/start_slave.inc
 
---let $assert_text= START SLAVE should finish quickly
---let $assert_cond= UNIX_TIMESTAMP() - $timestamp_before_stop < $time1
---source include/rpl_assert.inc
+#--let $assert_text= START SLAVE should finish quickly
+#--let $assert_cond= UNIX_TIMESTAMP() - $timestamp_before_stop < $time1
+#--source include/rpl_assert.inc
 
---echo # sleep 1*T
---sleep $time1
+#--echo # sleep 1*T
+#--sleep $time1
 
 --let $assert_text= DDL Query should not be executed after START SLAVE
 --let $assert_cond= COUNT(*) = 0 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = "t_check_dml_not_executed_prematurely"
@@ -312,11 +337,12 @@ CREATE TABLE t_check_dml_not_executed_prematurely (a INT);
 --let $assert_cond= "[SHOW SLAVE STATUS, Slave_SQL_Running_State, 1]" LIKE "Waiting until MASTER_DELAY%"
 --source include/rpl_assert.inc
 
---echo # sleep 1*T
---sleep $time1
+#--echo # sleep 1*T
+#--sleep $time1
 
 --echo # sync with master (with timeout 1*T)
 --source include/sync_with_master.inc
+--let $timestamp_after_sync= `SELECT UNIX_TIMESTAMP()`
 
 --let $assert_text= DDL Query should be executed
 --let $assert_cond= COUNT(*) = 1 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = "t_check_dml_not_executed_prematurely"
@@ -326,6 +352,9 @@ CREATE TABLE t_check_dml_not_executed_prematurely (a INT);
 --let $assert_cond= "[SHOW SLAVE STATUS, Slave_SQL_Running_State, 1]" LIKE "Slave has read all relay log%"
 --source include/rpl_assert.inc
 
+--let $assert_text= Query should have taken at least delay time
+--let $assert_cond= $timestamp_after_sync - $timestamp_before_start >= $time3
+--source include/rpl_assert.inc
 --source include/check_slave_is_running.inc
 
 
