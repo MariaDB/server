@@ -1842,6 +1842,14 @@ skip_monitors:
 			FULLTEXT search index subsystem. */
 			fts_optimize_init();
 		}
+#ifdef WITH_WSREP
+                if (wsrep_on_global())
+                {
+                    srv_start_periodic_timer(wsrep_BF_watchdog_timer,
+                                             wsrep_BF_watchdog_task,
+                                             WSREP_BF_WATCHDOG_INTERVAL);
+                }
+#endif /* WITH_WSREP */
 	}
 
 	err = dict_sys.create_or_check_sys_tables();

@@ -804,6 +804,11 @@ struct export_var_t{
 extern tpool::thread_pool *srv_thread_pool;
 extern std::unique_ptr<tpool::timer> srv_master_timer;
 extern std::unique_ptr<tpool::timer> srv_monitor_timer;
+#ifdef WITH_WSREP
+extern std::unique_ptr<tpool::timer> wsrep_BF_watchdog_timer;
+void wsrep_BF_watchdog_task(void*);
+constexpr unsigned WSREP_BF_WATCHDOG_INTERVAL = 1000;
+#endif /* WITH_WSREP */
 
 /** The interval at which srv_monitor_task is invoked, in milliseconds */
 constexpr unsigned SRV_MONITOR_INTERVAL= 15000; /* 4 times per minute */

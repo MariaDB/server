@@ -1264,6 +1264,16 @@ lock_rtr_move_rec_list(
 						moved */
 	ulint			num_move);	/*!< in: num of rec to move */
 
+#ifdef WITH_WSREP
+/* InnoDB wsrep applier timeout. */
+#define INNODB_WSREP_APPLIER_LOCK_WAIT_TIMEOUT_DEFAULT 5
+extern uint innodb_wsrep_applier_lock_wait_timeout;
+/** Checks if wsrep BF transactions have been waiting for lock for too
+long time and attempts to kill local transactions to release BF thread
+lock wait. */
+void wsrep_run_BF_lock_wait_watchdog();
+#endif /* WITH_WSREP */
+
 #include "lock0lock.inl"
 
 #endif

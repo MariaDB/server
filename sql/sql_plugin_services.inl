@@ -143,6 +143,7 @@ static struct thd_error_context_service_st thd_error_context_handler= {
 };
 
 static struct wsrep_service_st wsrep_handler = {
+  wsrep_on_global,
   get_wsrep_recovery,
   wsrep_consistency_check,
   wsrep_is_wsrep_xid,

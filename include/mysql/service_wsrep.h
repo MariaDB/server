@@ -49,6 +49,7 @@ typedef int64 query_id_t;
 
 
 extern struct wsrep_service_st {
+  my_bool                     (*wsrep_on_global)();
   my_bool                     (*get_wsrep_recovery_func)();
   bool                        (*wsrep_consistency_check_func)(MYSQL_THD thd);
   int                         (*wsrep_is_wsrep_xid_func)(const void *xid);
@@ -100,6 +101,7 @@ extern struct wsrep_service_st {
 #ifdef MYSQL_DYNAMIC_PLUGIN
 
 #define MYSQL_SERVICE_WSREP_DYNAMIC_INCLUDED
+#define wsrep_on_global() wsrep_service->wsrep_on_global()
 #define get_wsrep_recovery() wsrep_service->get_wsrep_recovery_func()
 #define wsrep_consistency_check(T) wsrep_service->wsrep_consistency_check_func(T)
 #define wsrep_is_wsrep_xid(X) wsrep_service->wsrep_is_wsrep_xid_func(X)
@@ -157,6 +159,7 @@ extern "C" int wsrep_is_wsrep_xid(const void* xid);
 extern "C" long long wsrep_xid_seqno(const struct xid_t* xid);
 const unsigned char* wsrep_xid_uuid(const struct xid_t* xid);
 extern "C" long long wsrep_thd_trx_seqno(const MYSQL_THD thd);
+extern "C" my_bool wsrep_on_global();
 my_bool get_wsrep_recovery();
 bool wsrep_thd_ignore_table(MYSQL_THD thd);
 void wsrep_set_data_home_dir(const char *data_dir);

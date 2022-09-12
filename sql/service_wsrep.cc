@@ -22,6 +22,11 @@
 #include "debug_sync.h"
 #include "log.h"
 
+extern "C" my_bool wsrep_on_global()
+{
+  return WSREP_ON;
+}
+
 extern "C" my_bool wsrep_on(const THD *thd)
 {
   return my_bool(WSREP(thd));
