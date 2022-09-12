@@ -1,0 +1,48 @@
+#
+# Verify that InnoDB watchdog can resume blocked applier operation.
+# For this, we start a transaction on node_1, instrument the InnoDB
+# lock manager to skip BF abort, and run conflicting write from node_2.
+# After this we poll wsrep_last_applied to verify that the applier
+# will eventually get unblocked.
+#
+
+--source include/have_innodb.inc
+--source include/galera_cluster.inc
+--source include/have_debug.inc
+
+CREATE TABLE t1 (f1 INT PRIMARY KEY) ENGINE=InnoDB;
+
+--connect node_1_ctrl, 127.0.0.1, root, , test, $NODE_MYPORT_1
+SET SESSION wsrep_sync_wait = 0;
+--let $wsrep_last_committed_orig = `SELECT VARIABLE_VALUE FROM information_schema.global_status WHERE VARIABLE_NAME = 'wsrep_last_committed'`
+SET GLOBAL debug_dbug = '+d,wsrep_innodb_skip_kill_victim';
+--connection node_1
+START TRANSACTION;
+INSERT INTO t1 VALUES (1);
+
+--connection node_2
+INSERT INTO t1 VALUES (1);
+
+--connection node_1_ctrl
+# Wait until the applier gets blocked in InnoDB lock wait
+--let $wait_condition = SELECT COUNT(*) > 0 FROM information_schema.innodb_lock_waits
+--source include/wait_condition.inc
+# Sleep some and verify that the lock wait does not resolve by itself.
+--sleep 1
+--source include/wait_condition.inc
+# The default value for wsrep-applier-lock-wait-timeout in MTR is 0, which
+# disables the background killing. We change the timeout temporarily to 1
+# to enable watchdog.
+SET GLOBAL debug_dbug = DEFAULT; # '-d,wsrep_innodb_skip_kill_victim';
+SET GLOBAL innodb_wsrep_applier_lock_wait_timeout = 1;
+
+# Wait until the applier finally manages to commit.
+--let $wait_condition = SELECT VARIABLE_VALUE = $wsrep_last_committed_orig + 1 FROM information_schema.global_status WHERE VARIABLE_NAME = 'wsrep_last_committed'
+--source include/wait_condition.inc
+SET GLOBAL innodb_wsrep_applier_lock_wait_timeout = 0;
+
+--connection node_1
+--error ER_LOCK_DEADLOCK
+COMMIT;
+
+DROP TABLE t1;

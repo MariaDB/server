@@ -1263,7 +1263,6 @@ struct commit_node_t{
 			state;	/*!< node execution state */
 };
 
-
 #include "trx0trx.inl"
 
 #endif
