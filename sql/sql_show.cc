@@ -65,7 +65,7 @@
 #include "transaction.h"
 #include "opt_trace.h"
 #include "my_cpu.h"
-
+#include "key.h"
 
 #include "lex_symbol.h"
 #define KEYWORD_SIZE 64
@@ -150,7 +150,8 @@ static int show_create_sequence(THD *thd, TABLE_LIST *table_list,
 
 static const LEX_CSTRING *view_algorithm(TABLE_LIST *table);
 
-bool get_lookup_field_values(THD *, COND *, TABLE_LIST *, LOOKUP_FIELD_VALUES *);
+bool get_lookup_field_values(THD *, COND *, bool, TABLE_LIST *,
+                             LOOKUP_FIELD_VALUES *);
 
 /**
   Try to lock a mutex, but give up after a short while to not cause deadlocks
@@ -340,7 +341,7 @@ int fill_all_plugins(THD *thd, TABLE_LIST *tables, COND *cond)
   TABLE *table= tables->table;
   LOOKUP_FIELD_VALUES lookup;
 
-  if (get_lookup_field_values(thd, cond, tables, &lookup))
+  if (get_lookup_field_values(thd, cond, true, tables, &lookup))
     DBUG_RETURN(0);
 
   if (lookup.db_value.str && !lookup.db_value.str[0])
@@ -4250,6 +4251,9 @@ COND *make_cond_for_info_schema(THD *thd, COND *cond, TABLE_LIST *table)
 
   @param[in]      thd                   thread handler
   @param[in]      cond                  WHERE condition
+  @param[in]      fix_table_name_case   Whether the
+                                        lookup_field_values->table_value
+                                        must be converted to lower case
   @param[in]      tables                I_S table
   @param[in, out] lookup_field_values   Struct which holds lookup values
 
@@ -4258,7 +4262,8 @@ COND *make_cond_for_info_schema(THD *thd, COND *cond, TABLE_LIST *table)
     1             error, there can be no matching records for the condition
 */
 
-bool get_lookup_field_values(THD *thd, COND *cond, TABLE_LIST *tables,
+bool get_lookup_field_values(THD *thd, COND *cond, bool fix_table_name_case,
+                             TABLE_LIST *tables,
                              LOOKUP_FIELD_VALUES *lookup_field_values)
 {
   LEX *lex= thd->lex;
@@ -4293,7 +4298,7 @@ bool get_lookup_field_values(THD *thd, COND *cond, TABLE_LIST *tables,
                          lex->first_select_lex()->db.length);
     if (wild)
     {
-      thd->make_lex_string(&lookup_field_values->table_value, 
+      thd->make_lex_string(&lookup_field_values->table_value,
                            wild->ptr(), wild->length());
       lookup_field_values->wild_table_value= 1;
     }
@@ -4316,7 +4321,8 @@ bool get_lookup_field_values(THD *thd, COND *cond, TABLE_LIST *tables,
     if (lookup_field_values->db_value.str && lookup_field_values->db_value.str[0])
       my_casedn_str(system_charset_info,
                     (char*) lookup_field_values->db_value.str);
-    if (lookup_field_values->table_value.str && 
+    if (fix_table_name_case &&
+        lookup_field_values->table_value.str &&
         lookup_field_values->table_value.str[0])
       my_casedn_str(system_charset_info,
                     (char*) lookup_field_values->table_value.str);
@@ -5471,7 +5477,7 @@ int fill_schema_schemata(THD *thd, TABLE_LIST *tables, COND *cond)
 #endif
   DBUG_ENTER("fill_schema_shemata");
 
-  if (get_lookup_field_values(thd, cond, tables, &lookup_field_vals))
+  if (get_lookup_field_values(thd, cond, true, tables, &lookup_field_vals))
     DBUG_RETURN(0);
   DBUG_PRINT("INDEX VALUES",("db_name: %s  table_name: %s",
                              lookup_field_vals.db_value.str,
@@ -6440,6 +6446,41 @@ static inline void copy_field_as_string(Field *to_field, Field *from_field)
   to_field->store(tmp_str.ptr(), tmp_str.length(), system_charset_info);
 }
 
+/**
+  @brief Determine whether mysql.proc table scanning should continue or finish
+
+  @param[in]      proc_table            'mysql.proc' table
+  @param[in]      lookup                values from the WHERE clause which are
+                                        used for the index lookup
+  @param[in]      db                    mysql.proc.db field value of
+                                        the current record
+  @param[in]      name                  mysql.proc.name field value of
+                                        the current record
+
+  @return         Result
+    @retval       true                  scanning must continue
+    @retval       false                 scanning must finish
+*/
+bool continue_proc_table_scanning(TABLE *proc_table,
+                                  LOOKUP_FIELD_VALUES *lookup,
+                                  const LEX_CSTRING &db,
+                                  const LEX_CSTRING &name)
+{
+  if (lookup->db_value.str)
+  {
+    if (cmp(lookup->db_value, db))
+      return false;
+    if (lookup->table_value.str)
+    {
+      auto cs= proc_table->field[MYSQL_PROC_FIELD_NAME]->charset();
+      if (my_ci_strnncoll(cs, (const uchar *) lookup->table_value.str,
+                          lookup->table_value.length, (const uchar *) name.str,
+                          name.length, 0))
+        return false;
+    }
+  }
+  return true;
+}
 
 /**
   @brief Store record into I_S.PARAMETERS table
@@ -6447,19 +6488,20 @@ static inline void copy_field_as_string(Field *to_field, Field *from_field)
   @param[in]      thd                   thread handler
   @param[in]      table                 I_S table
   @param[in]      proc_table            'mysql.proc' table
-  @param[in]      wild                  wild string, not used for now,
-                                        will be useful
-                                        if we add 'SHOW PARAMETERs'
+  @param[in]      lookup                values from the WHERE clause which can
+                                        be used for the index lookup
   @param[in]      full_access           if 1 user has privileges on the routine
   @param[in]      sp_user               user in 'user@host' format
 
   @return         Operation status
     @retval       0                     ok
-    @retval       1                     error
+    @retval       != 0                  error / HA_ERR_END_OF_FILE
+                                                (if there are no more
+                                                matching records)
 */
 
-bool store_schema_params(THD *thd, TABLE *table, TABLE *proc_table,
-                         const char *wild, bool full_access,
+int store_schema_params(THD *thd, TABLE *table, TABLE *proc_table,
+                         LOOKUP_FIELD_VALUES *lookup, bool full_access,
                          const char *sp_user)
 {
   TABLE_SHARE share;
@@ -6481,6 +6523,10 @@ bool store_schema_params(THD *thd, TABLE *table, TABLE *proc_table,
 
   proc_table->field[MYSQL_PROC_FIELD_DB]->val_str_nopad(thd->mem_root, &db);
   proc_table->field[MYSQL_PROC_FIELD_NAME]->val_str_nopad(thd->mem_root, &name);
+
+  if (!continue_proc_table_scanning(proc_table, lookup, db, name))
+    DBUG_RETURN(HA_ERR_END_OF_FILE);
+
   proc_table->field[MYSQL_PROC_FIELD_DEFINER]->val_str_nopad(thd->mem_root, &definer);
   sql_mode= (sql_mode_t) proc_table->field[MYSQL_PROC_FIELD_SQL_MODE]->val_int();
   sph= Sp_handler::handler_mysql_proc((enum_sp_type)
@@ -6584,16 +6630,22 @@ bool store_schema_params(THD *thd, TABLE *table, TABLE *proc_table,
 }
 
 
-bool store_schema_proc(THD *thd, TABLE *table, TABLE *proc_table,
-                       const char *wild, bool full_access, const char *sp_user)
+int store_schema_proc(THD *thd, TABLE *table, TABLE *proc_table,
+                       LOOKUP_FIELD_VALUES *lookup, bool full_access,
+                       const char *sp_user)
 {
   LEX *lex= thd->lex;
   CHARSET_INFO *cs= system_charset_info;
   const Sp_handler *sph;
   LEX_CSTRING db, name, definer, returns= empty_clex_str;
+  const char *wild= thd->lex->wild ? thd->lex->wild->ptr() : NullS;
 
   proc_table->field[MYSQL_PROC_FIELD_DB]->val_str_nopad(thd->mem_root, &db);
   proc_table->field[MYSQL_PROC_FIELD_NAME]->val_str_nopad(thd->mem_root, &name);
+
+  if (!continue_proc_table_scanning(proc_table, lookup, db, name))
+    return HA_ERR_END_OF_FILE;
+
   proc_table->field[MYSQL_PROC_FIELD_DEFINER]->val_str_nopad(thd->mem_root, &definer);
   sph= Sp_handler::handler_mysql_proc((enum_sp_type)
                                       proc_table->field[MYSQL_PROC_MYSQL_TYPE]->
@@ -6705,7 +6757,6 @@ int fill_schema_proc(THD *thd, TABLE_LIST *tables, COND *cond)
 {
   TABLE *proc_table;
   TABLE_LIST proc_tables;
-  const char *wild= thd->lex->wild ? thd->lex->wild->ptr() : NullS;
   int res= 0;
   TABLE *table= tables->table;
   bool full_access;
@@ -6725,6 +6776,13 @@ int fill_schema_proc(THD *thd, TABLE_LIST *tables, COND *cond)
   full_access= !check_table_access(thd, SELECT_ACL, &proc_tables, FALSE,
                                    1, TRUE);
 
+  LOOKUP_FIELD_VALUES lookup;
+  if (get_lookup_field_values(thd, cond, false, tables, &lookup))
+  {
+    // There can be no matching records for the condition
+    return 0;
+  }
+
   start_new_trans new_trans(thd);
 
   if (!(proc_table= open_proc_table_for_read(thd)))
@@ -6743,33 +6801,53 @@ int fill_schema_proc(THD *thd, TABLE_LIST *tables, COND *cond)
     goto err;
   }
 
-  if ((res= proc_table->file->ha_index_first(proc_table->record[0])))
+  if (lookup.db_value.str)
   {
-    res= (res == HA_ERR_END_OF_FILE) ? 0 : 1;
-    goto err;
-  }
-
-  if (schema_table_idx == SCH_PROCEDURES ?
-      store_schema_proc(thd, table, proc_table, wild, full_access, definer) :
-      store_schema_params(thd, table, proc_table, wild, full_access, definer))
-  {
-    res= 1;
-    goto err;
-  }
-  while (!proc_table->file->ha_index_next(proc_table->record[0]))
-  {
-    if (schema_table_idx == SCH_PROCEDURES ?
-        store_schema_proc(thd, table, proc_table, wild, full_access, definer): 
-        store_schema_params(thd, table, proc_table, wild, full_access, definer))
+    KEY *keyinfo= proc_table->key_info;
+    uint keylen= keyinfo->key_part[0].length;
+    key_part_map keypart_map= 1;
+    enum ha_rkey_function find_flag= HA_READ_PREFIX;
+    const auto sp_name_len= NAME_LEN * 2 + 1 /*for type*/;
+    StringBuffer<sp_name_len> keybuf;
+    keybuf.alloc(proc_table->key_info->key_length);
+    proc_table->field[0]->store(lookup.db_value.str, lookup.db_value.length,
+                                system_charset_info);
+    if (lookup.table_value.str)
     {
-      res= 1;
-      goto err;
+      proc_table->field[1]->store(lookup.table_value.str,
+                                  lookup.table_value.length,
+                                  system_charset_info);
+      keylen+= keyinfo->key_part[1].length;
+      keypart_map= 3;
+      find_flag= HA_READ_KEY_EXACT;
     }
+    key_copy((uchar*)keybuf.c_ptr(), proc_table->record[0], keyinfo, keylen, 0);
+    res= proc_table->file->ha_index_read_map(proc_table->record[0],
+                                             (const uchar*) keybuf.ptr(),
+                                             keypart_map, find_flag);
+  }
+  else
+    res= proc_table->file->ha_index_first(proc_table->record[0]);
+
+  if (res)
+    goto err;
+  
+  res= schema_table_idx == SCH_PROCEDURES ?
+    store_schema_proc(thd, table, proc_table, &lookup, full_access,definer) :
+    store_schema_params(thd, table, proc_table, &lookup, full_access, definer);
+  while (!res && !proc_table->file->ha_index_next(proc_table->record[0]))
+  {
+    res= schema_table_idx == SCH_PROCEDURES ?
+      store_schema_proc(thd, table, proc_table, &lookup, full_access, definer) :
+      store_schema_params(thd, table, proc_table, &lookup, full_access, definer);
   }
 
 err:
   if (proc_table->file->inited)
     (void) proc_table->file->ha_index_end();
+
+  if (res == HA_ERR_END_OF_FILE || res == HA_ERR_KEY_NOT_FOUND)
+    res= 0;
 
   thd->commit_whole_transaction_and_close_tables();
   new_trans.restore_old_transaction();
@@ -8667,7 +8745,8 @@ static bool optimize_for_get_all_tables(THD *thd, TABLE_LIST *tables, COND *cond
     goto end;
   }
 
-  if (get_lookup_field_values(thd, cond, tables, &plan->lookup_field_vals))
+  if (get_lookup_field_values(thd, cond, true, tables,
+                              &plan->lookup_field_vals))
   {
     plan->no_rows= true;
     goto end;
@@ -9859,7 +9938,7 @@ ST_SCHEMA_TABLE schema_tables[]=
   {"OPTIMIZER_TRACE", Show::optimizer_trace_info, 0,
      fill_optimizer_trace_info, NULL, NULL, -1, -1, false, 0},
   {"PARAMETERS", Show::parameters_fields_info, 0,
-   fill_schema_proc, 0, 0, -1, -1, 0, 0},
+   fill_schema_proc, 0, 0, 1, 2, 0, 0},
   {"PARTITIONS", Show::partitions_fields_info, 0,
    get_all_tables, 0, get_schema_partitions_record, 1, 2, 0,
    OPTIMIZE_I_S_TABLE|OPEN_TABLE_ONLY},
@@ -9874,7 +9953,7 @@ ST_SCHEMA_TABLE schema_tables[]=
    0, get_all_tables, 0, get_referential_constraints_record,
    1, 9, 0, OPTIMIZE_I_S_TABLE|OPEN_TABLE_ONLY},
   {"ROUTINES", Show::proc_fields_info, 0,
-   fill_schema_proc, make_proc_old_format, 0, -1, -1, 0, 0},
+   fill_schema_proc, make_proc_old_format, 0, 2, 3, 0, 0},
   {"SCHEMATA", Show::schema_fields_info, 0,
    fill_schema_schemata, make_schemata_old_format, 0, 1, -1, 0, 0},
   {"SCHEMA_PRIVILEGES", Show::schema_privileges_fields_info, 0,
