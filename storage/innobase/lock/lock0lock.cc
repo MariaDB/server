@@ -44,7 +44,6 @@ Created 5/7/1996 Heikki Tuuri
 #include "row0vers.h"
 #include "pars0pars.h"
 #include "srv0mon.h"
-#include "scope.h"
 
 #include <set>
 
@@ -1723,12 +1722,6 @@ dberr_t lock_wait(que_thr_t *thr)
 
   if (trx->mysql_thd)
     DEBUG_SYNC_C("lock_wait_start");
-
-  /* Create the sync point for any quit from the function. */
-  ut_d(SCOPE_EXIT([trx]() {
-    if (trx->mysql_thd)
-      DEBUG_SYNC_C("lock_wait_end");
-  }));
 
   /* InnoDB system transactions may use the global value of
   innodb_lock_wait_timeout, because trx->mysql_thd == NULL. */
