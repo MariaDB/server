@@ -73,6 +73,7 @@ typedef int my_socket;
 #endif /* my_socket_defined */
 #endif /* MY_GLOBAL_INCLUDED */
 
+#include "mariadb_capi_rename.h"
 #include "mysql_version.h"
 #include "mysql_com.h"
 #include "mysql_time.h"
