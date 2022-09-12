@@ -79,7 +79,6 @@ grant insert(a) on some_db.t1 to r_active_column;
 grant insert on *.* to middle_level;
 grant alter routine on procedure some_db.p1 to r_active_proc;
 grant alter routine on function some_db.f1 to r_active_func;
-flush privileges;
 connect  con1, localhost, foo,,;
 select * from some_db.t1;
 ERROR 42000: SELECT command denied to user 'foo'@'localhost' for table 't1'
