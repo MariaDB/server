@@ -25,7 +25,7 @@ SET timestamp=1000000000;
 # Delete all existing binary logs.
 RESET MASTER;
 
-# Whe'll call mysqlbinlog with two rewrite rules:
+# We'll call mysqlbinlog with two rewrite rules:
 # --rewrite-db="test1->new_test1"
 # --rewrite-db="test3->new_test3"
 
