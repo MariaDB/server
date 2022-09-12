@@ -6793,23 +6793,24 @@ bool mysql_routine_grant(THD *thd, TABLE_LIST *table_list,
     table_name= table_list->table_name.str;
     grant_name= routine_hash_search(Str->host.str, NullS, db_name,
                                     Str->user.str, table_name, sph, 1);
-    if (!grant_name || !grant_name->init_privs)
+    if (revoke_grant && (!grant_name || !grant_name->init_privs))
     {
-      if (revoke_grant)
-      {
-        my_error(ER_NONEXISTING_PROC_GRANT, MYF(0),
-	         Str->user.str, Str->host.str, table_name);
-	result= TRUE;
-	continue;
-      }
+      my_error(ER_NONEXISTING_PROC_GRANT, MYF(0),
+               Str->user.str, Str->host.str, table_name);
+      result= TRUE;
+      continue;
+    }
+    if (!grant_name)
+    {
+      DBUG_ASSERT(!revoke_grant);
       grant_name= new GRANT_NAME(Str->host.str, db_name,
-				 Str->user.str, table_name,
-				 rights, TRUE);
+                                 Str->user.str, table_name,
+                                 rights, TRUE);
       if (!grant_name ||
-        my_hash_insert(sph->get_priv_hash(), (uchar*) grant_name))
+          my_hash_insert(sph->get_priv_hash(), (uchar*) grant_name))
       {
         result= TRUE;
-	continue;
+        continue;
       }
     }
 
