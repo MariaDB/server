@@ -929,6 +929,8 @@ static void lock_wait_wsrep(trx_t *trx)
   if (!wsrep_thd_is_BF(trx->mysql_thd, false))
     return;
 
+  DBUG_EXECUTE_IF("wsrep_innodb_skip_kill_victim", return;);
+
   std::set<trx_t*> victims;
 
   lock_sys.wr_lock(SRW_LOCK_CALL);
@@ -1824,6 +1826,12 @@ dberr_t lock_wait(que_thr_t *thr)
   if (rpl)
     lock_wait_rpl_report(trx);
 #endif
+#ifdef WITH_WSREP
+  if (trx->is_wsrep() && wsrep_thd_is_BF(trx->mysql_thd, false))
+  {
+    ++wsrep_BF_waiting_count;
+  }
+#endif /* WITH_WSREP */
 
   while (trx->lock.wait_lock)
   {
@@ -1863,6 +1871,13 @@ dberr_t lock_wait(que_thr_t *thr)
     }
     break;
   }
+
+#ifdef WITH_WSREP
+  if (trx->is_wsrep() && wsrep_thd_is_BF(trx->mysql_thd, false))
+  {
+    --wsrep_BF_waiting_count;
+  }
+#endif /* WITH_WSREP */
 
   if (row_lock_wait)
     lock_sys.wait_resume(trx->mysql_thd, suspend_time, my_hrtime_coarse());
@@ -6428,3 +6443,95 @@ void lock_update_split_and_merge(
                           PAGE_HEAP_NO_SUPREMUM,
                           lock_get_min_heap_no(right_block));
 }
+#ifdef WITH_WSREP
+/*
+  Wsrep BF watchdog implementation:
+
+  We use InnoDB monitor thread to call wsrep_run_BF_lock_wait_watchdog()
+  periodically to check if there are applier threads hanging in
+  lock wait. If the lock wait has taken more than 5 seconds, the
+  potential local blocking transactions are killed until the
+  applier thread is released.
+ */
+
+std::atomic<uint> wsrep_BF_waiting_count;
+uint innodb_wsrep_applier_lock_wait_timeout =
+    INNODB_WSREP_APPLIER_LOCK_WAIT_TIMEOUT_DEFAULT;
+
+struct wsrep_BF_lock_waiters_t
+{
+  std::vector<trx_t *, ut_allocator<trx_t *> > bf_waiters{};
+  ulonglong max_wait_time{0};
+  my_hrtime_t now{my_hrtime_coarse()};
+};
+
+static my_bool wsrep_BF_lock_waiters_collect(rw_trx_hash_element_t *element,
+                                             wsrep_BF_lock_waiters_t *waiters)
+{
+  element->mutex.wr_lock();
+  auto *trx= element->trx;
+  if (wsrep_thd_is_BF(trx->mysql_thd, false) && trx->lock.wait_lock)
+  {
+    const auto timeout= innodb_wsrep_applier_lock_wait_timeout;
+    const auto wait_time=
+      (waiters->now.val - trx->lock.suspend_time.load().val)/HRTIME_RESOLUTION;
+    if (wait_time >= timeout)
+    {
+      try
+      {
+        waiters->bf_waiters.push_back(trx);
+        /* Grab reference to prevent trx going out of scope before
+           it is explicitly released in wsrep_run_BF_lock_wait_watchdog(). */
+        trx->reference();
+      }
+      catch (const std::bad_alloc &)
+      {
+        ib::warn() << "WSREP: Failed to alloc memory for bf_waiters";
+        return 1;
+      }
+    }
+    waiters->max_wait_time= std::max(waiters->max_wait_time, wait_time);
+  }
+
+  element->mutex.wr_unlock();
+  return 0;
+}
+
+void wsrep_run_BF_lock_wait_watchdog()
+{
+  if (!wsrep_BF_waiting_count.load(std::memory_order_relaxed))
+  {
+    /* No BF threads waiting. */
+    return;
+  }
+
+  my_hrtime_t start_time= my_hrtime_coarse();
+
+  mysql_mutex_lock(&lock_sys.wait_mutex);
+  wsrep_BF_lock_waiters_t waiters;
+  trx_sys.rw_trx_hash.iterate_no_dups(wsrep_BF_lock_waiters_collect, &waiters);
+  mysql_mutex_unlock(&lock_sys.wait_mutex);
+
+  for (auto *trx : waiters.bf_waiters)
+  {
+    lock_wait_wsrep(trx);
+    trx->release_reference();
+  }
+
+  if (waiters.max_wait_time >= 60)
+  {
+    ib::warn() << "WSREP: BF lock wait long " << waiters.max_wait_time
+               << " seconds";
+    srv_print_innodb_monitor= true;
+    srv_print_innodb_lock_monitor= true;
+    /* We are currently running in server monitor thread, no need to wake
+       up. */
+  }
+
+  auto elapsed= (my_hrtime_coarse().val - start_time.val) / HRTIME_RESOLUTION;
+  if (elapsed >= 1)
+  {
+    ib::warn() << "WSREP watchdog took " << elapsed << " seconds to execute";
+  }
+}
+#endif /* WITH_WSREP */

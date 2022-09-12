@@ -1074,6 +1074,9 @@ ATTRIBUTE_COLD void logs_empty_and_mark_files_at_shutdown()
 		srv_shutdown(srv_fast_shutdown == 0);
 	}
 
+#ifdef WITH_WSREP
+        wsrep_BF_watchdog_timer.reset();
+#endif /* WITH_WSREP */
 
 loop:
 	ut_ad(lock_sys.is_initialised() || !srv_was_started);

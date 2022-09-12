@@ -17,6 +17,9 @@ default-storage-engine=innodb
 # wsrep-causal-reads=ON
 wsrep-sync-wait=15
 
+# disable wsrep watchdog for testing
+innodb-wsrep-applier-lock-wait-timeout=0
+
 [mysqld.1]
 wsrep-on=1
 server-id=1

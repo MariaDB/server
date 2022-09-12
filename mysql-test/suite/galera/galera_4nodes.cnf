@@ -3,6 +3,8 @@
 
 [mysqld]
 loose-innodb
+# disable wsrep watchdog for testing
+innodb-wsrep-applier-lock-wait-timeout=0
 binlog-format=row
 innodb-autoinc-lock-mode=2
 default-storage-engine=innodb

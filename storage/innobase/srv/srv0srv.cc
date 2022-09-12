@@ -526,6 +526,9 @@ static purge_coordinator_state purge_state;
 /** threadpool timer for srv_monitor_task() */
 std::unique_ptr<tpool::timer> srv_monitor_timer;
 
+#ifdef WITH_WSREP
+std::unique_ptr<tpool::timer> wsrep_BF_watchdog_timer;
+#endif /* WITH_WSREP */
 
 /** The buffer pool dump/load file name */
 char*	srv_buf_dump_filename;
@@ -1167,6 +1170,15 @@ void srv_monitor_task(void*)
 
 	srv_monitor();
 }
+
+#ifdef WITH_WSREP
+void wsrep_BF_watchdog_task(void*)
+{
+	if (innodb_wsrep_applier_lock_wait_timeout) {
+		wsrep_run_BF_lock_wait_watchdog();
+	}
+}
+#endif /* WITH_WSREP */
 
 /******************************************************************//**
 Increment the server activity count. */
