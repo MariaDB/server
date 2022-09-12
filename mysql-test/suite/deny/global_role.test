@@ -8,6 +8,7 @@ create table some_db.t1 (a int, b int, secret int);
 create view some_db.v1 as (select a, b, secret from some_db.t1);
 
 grant all on *.* to foo;
+revoke ignore denies on *.* from foo;
 grant all on some_db.* to foo;
 grant all on some_db.t1 to foo;
 grant all on some_db.v1 to foo;

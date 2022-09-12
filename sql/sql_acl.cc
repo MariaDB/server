@@ -26,6 +26,7 @@
 */
 
 #include "mariadb.h"                          /* NO_EMBEDDED_ACCESS_CHECKS */
+#include "privilege.h"
 #include "sql_priv.h"
 #include "sql_acl.h"         // MYSQL_DB_FIELD_COUNT, ACL_ACCESS
 #include "sql_base.h"                           // close_mysql_tables
@@ -5016,15 +5017,25 @@ bool acl_getroot(Security_context *sctx, const char *user, const char *host,
     if (acl_user)
     {
       res= 0;
-      if (ACL_DB *acl_db= acl_db_find(db, user, host, ip, FALSE))
+      ACL_DB *acl_db;
+      if ((acl_db= acl_db_find(db, user, host, ip, FALSE)))
         sctx->db_access= acl_db->access;
 
       sctx->master_access= acl_user->access;
       sctx->set_user_denies(NO_PRIV);
       if (acl_user->denies)
       {
-        sctx->master_access&= ~acl_user->denies->get_global();
         sctx->set_user_denies(acl_user->denies->get_specified_denies());
+        if (!(sctx->master_access & IGNORE_DENIES_ACL))
+        {
+          sctx->master_access&= ~acl_user->denies->get_global();
+          if (acl_db)
+          {
+            LEX_CSTRING db{acl_db->db, strlen(acl_db->db)};
+            sctx->db_access&= ~(acl_user->denies->get_global() |
+                                acl_user->denies->get_db_deny(db));
+          }
+        }
       }
 
       strmake_buf(sctx->priv_user, user);
@@ -5038,18 +5049,29 @@ bool acl_getroot(Security_context *sctx, const char *user, const char *host,
     ACL_ROLE *acl_role= find_acl_role(user);
     if (acl_role)
     {
+      ACL_DB *acl_db;
       res= 0;
-      if (ACL_DB *acl_db= acl_db_find(db, user, "", "", FALSE))
+      if ((acl_db= acl_db_find(db, user, "", "", FALSE)))
         sctx->db_access = acl_db->access;
 
       sctx->master_access= acl_role->access;
       sctx->set_user_denies(NO_PRIV);
+
+      /* TODO(cvicentiu) Test this with denies. */
       if (acl_role->denies)
       {
-        sctx->master_access&= ~acl_role->denies->get_global();
         sctx->set_user_denies(acl_role->denies->get_specified_denies());
+        if (!(sctx->master_access & IGNORE_DENIES_ACL))
+        {
+          sctx->master_access&= ~acl_role->denies->get_global();
+          if (acl_db)
+          {
+            LEX_CSTRING db{acl_db->db, strlen(acl_db->db)};
+            sctx->db_access&= ~(acl_role->denies->get_global() |
+                                acl_role->denies->get_db_deny(db));
+          }
+        }
       }
-
       strmake_buf(sctx->priv_role, user);
     }
   }
@@ -5093,6 +5115,13 @@ static int check_user_can_set_role(THD *thd, const char *user,
   ACL_USER *UNINIT_VAR(acl_user);
   bool is_granted= FALSE;
   int result= 0;
+  /* Simplifies follow-up code, no need for ptr checking */
+  privilege_t dummy;
+  PRIV_TYPE dummy_role_denies_active;
+  if (!access)
+    access= &dummy;
+  if (!role_denies_active)
+    role_denies_active= &dummy_role_denies_active;
 
   /* clear role privileges */
   mysql_mutex_lock(&acl_cache->lock);
@@ -5108,9 +5137,8 @@ static int check_user_can_set_role(THD *thd, const char *user,
       result= ER_INVALID_CURRENT_USER;
     else
     {
-      if (access)
-        *access= acl_user->access;
-      if (acl_user->denies)
+      *access= acl_user->access;
+      if (acl_user->denies && !((*access) & IGNORE_DENIES_ACL))
         *access&= ~acl_user->denies->get_global();
     }
 
@@ -5147,24 +5175,17 @@ static int check_user_can_set_role(THD *thd, const char *user,
     goto end;
   }
 
-  if (access)
+  *access= acl_user->access | role->access;
+
+  if (acl_user->denies && !((*access) & IGNORE_DENIES_ACL))
+    *access&= ~acl_user->denies->get_global();
+
+  *role_denies_active= NO_PRIV;
+
+  if (role->denies && !((*access) & IGNORE_DENIES_ACL))
   {
-    *access= acl_user->access | role->access;
-
-  /* TODO(cvicentiu) IGNORE_DENIES_PRIV! */
-    if (acl_user->denies)
-      *access&= ~acl_user->denies->get_global();
-  }
-
-  if (role_denies_active)
-    *role_denies_active= NO_PRIV;
-
-  if (role->denies)
-  {
-    if (access)
-      *access&= ~role->denies->get_global();
-    if (role_denies_active)
-      *role_denies_active= role->denies->get_specified_denies();
+    *access&= ~role->denies->get_global();
+    *role_denies_active= role->denies->get_specified_denies();
   }
 
 end:
@@ -5662,6 +5683,9 @@ privilege_t acl_get_effective_deny_mask_impl(const Security_context *ctx,
      go down this branch.
   */
   if (likely(!ctx->denies_active()))
+    return NO_ACL;
+
+  if (ctx->master_access & IGNORE_DENIES_ACL)
     return NO_ACL;
 
   /*
