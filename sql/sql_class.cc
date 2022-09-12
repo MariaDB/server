@@ -4429,6 +4429,7 @@ void Security_context::init()
   priv_user[0]= priv_host[0]= proxy_user[0]= priv_role[0]= '\0';
   master_access= NO_ACL;
   password_expired= false;
+  sctx_can_ignore_denies= false;
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
   db_access= NO_ACL;
 #endif

@@ -76,7 +76,7 @@ bool hostname_requires_resolving(const char *hostname);
 bool  acl_init(bool dont_read_acl_tables);
 bool acl_reload(THD *thd);
 void acl_free(bool end=0);
-privilege_t acl_get_current_auth(Security_context *ctx, const char *db,
+privilege_t acl_get_current_auth(const Security_context *ctx, const char *db,
                                  bool db_is_pattern);
 privilege_t acl_get_effective_deny_mask(const Security_context *ctx,
                                         const LEX_CSTRING &db={nullptr, 0},
@@ -103,7 +103,7 @@ bool check_column_grant_in_table_ref(THD *thd, TABLE_LIST * table_ref,
                                      const char *name, size_t length, Field *fld);
 bool check_grant_all_columns(THD *thd, privilege_t want_access,
                              Field_iterator_table_ref *fields);
-bool check_grant_db(Security_context *sctx, const LEX_CSTRING &db, privilege_t db_deny_mask);
+bool check_grant_db(const Security_context *sctx, const LEX_CSTRING &db, privilege_t db_deny_mask);
 
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
 bool check_access(THD *thd, privilege_t want_access,
@@ -337,9 +337,9 @@ public:
 
 
 int acl_setrole(THD *thd, const char *rolename, privilege_t access,
-                PRIV_TYPE specified_denies);
+                PRIV_TYPE specified_denies, bool can_ignore_denies);
 int acl_check_setrole(THD *thd, const char *rolename, privilege_t *access,
-                      PRIV_TYPE *specified_denies);
+                      PRIV_TYPE *specified_denies, bool *can_ignore_denies);
 int acl_check_set_default_role(THD *thd, const char *host, const char *user,
                                const char *role);
 int acl_set_default_role(THD *thd, const char *host, const char *user,

@@ -1,0 +1,95 @@
+--source include/not_embedded.inc
+
+let $REGEX_VERSION_ID=/$mysql_get_server_version/VERSION_ID/;
+
+create user foo;
+create role bar;
+
+grant select, ignore denies on *.* to foo;
+
+deny select on *.* to foo;
+deny select on mysql.* to foo;
+deny select on mysql.global_priv to foo;
+deny select(user) on mysql.global_priv to foo;
+grant bar to foo;
+grant ignore denies on *.* to bar;
+
+--connect(con1,localhost,foo,,)
+
+--echo #
+--echo # The user should still be able to access mysql.global_priv due
+--echo # to the IGNORE DENIES privilege being active.
+--echo #
+--replace_regex $REGEX_VERSION_ID
+select JSON_EXTRACT(priv, '$.deny') from mysql.global_priv where user = 'foo';
+disconnect con1;
+
+connection default;
+
+--echo #
+--echo # Now test inheriting IGNORE DENIES from a role.
+--echo #
+revoke ignore denies on *.* from foo;
+
+--connect(con1,localhost,foo,,)
+--error ER_TABLEACCESS_DENIED_ERROR
+select JSON_EXTRACT(priv, '$.deny') from mysql.global_priv where user = 'foo';
+
+--echo #
+--echo # Bar provides foo with IGNORE DENIES privilege.
+--echo #
+set role bar;
+--replace_regex $REGEX_VERSION_ID
+select JSON_EXTRACT(priv, '$.deny') from mysql.global_priv where user = 'foo';
+disconnect con1;
+
+connection default;
+--echo #
+--echo # Denying IGNORE DENIES, overrides a user's ability to ignore denies.
+--echo #
+deny ignore denies on *.* to foo;
+grant ignore denies on *.* to foo;
+
+--connect(con1,localhost,foo,,)
+--echo #
+--echo # Foo can't ignore the SELECT priv deny.
+--echo #
+--error ER_TABLEACCESS_DENIED_ERROR
+select JSON_EXTRACT(priv, '$.deny') from mysql.global_priv where user = 'foo';
+
+--echo #
+--echo # And neither if bar role provides the ignore deny priv.
+--echo #
+set role bar;
+--error ER_TABLEACCESS_DENIED_ERROR
+select JSON_EXTRACT(priv, '$.deny') from mysql.global_priv where user = 'foo';
+
+disconnect con1;
+
+connection default;
+
+--echo #
+--echo # Now test what happens when IGNORE DENIES is denied from a role.
+--echo #
+revoke deny ignore denies on *.* from foo;
+deny ignore denies on *.* to bar;
+
+--connect(con1,localhost,foo,,)
+--echo #
+--echo # Foo can ignore the SELECT priv deny when Bar isn't activated
+--echo #
+--replace_regex $REGEX_VERSION_ID
+select JSON_EXTRACT(priv, '$.deny') from mysql.global_priv where user = 'foo';
+
+--echo #
+--echo # But when Bar is active, denies can not be ignored any more.
+--echo #
+set role bar;
+--error ER_TABLEACCESS_DENIED_ERROR
+select JSON_EXTRACT(priv, '$.deny') from mysql.global_priv where user = 'foo';
+
+disconnect con1;
+
+connection default;
+drop user foo;
+drop role bar;

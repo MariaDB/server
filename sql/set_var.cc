@@ -971,7 +971,8 @@ int set_var_password::update(THD *thd)
 int set_var_role::check(THD *thd)
 {
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
-  int status= acl_check_setrole(thd, role.str, &access, &specified_denies);
+  int status= acl_check_setrole(thd, role.str, &access, &specified_denies,
+                                &can_ignore_denies);
   return status;
 #else
   return 0;
@@ -981,7 +982,8 @@ int set_var_role::check(THD *thd)
 int set_var_role::update(THD *thd)
 {
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
-  int res= acl_setrole(thd, role.str, access, specified_denies);
+  int res= acl_setrole(thd, role.str, access, specified_denies,
+                       can_ignore_denies);
   if (!res)
     thd->session_tracker.state_change.mark_as_changed(thd);
   return res;

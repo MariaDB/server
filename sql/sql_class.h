@@ -1468,6 +1468,7 @@ public:
   Security_context()
    :master_access(NO_ACL),
     db_access(NO_ACL),
+    sctx_can_ignore_denies(false),
     user_denies_active(NO_PRIV),
     role_denies_active(NO_PRIV)
   {}                      /* Remove gcc warning */
@@ -1493,18 +1494,21 @@ public:
   privilege_t master_access;            /* Global privileges from mysql.global_priv */
   privilege_t db_access;                /* Privileges for current db */
 private:
+  bool sctx_can_ignore_denies;
   PRIV_TYPE user_denies_active;         /* Bitmap of what type of denies are active on the user level. */
   PRIV_TYPE role_denies_active;         /* Bitmap of what type of denies are active on the role level. */
 public:
-  PRIV_TYPE denies_active() const {
+  PRIV_TYPE denies_active() const
+  {
+    if (sctx_can_ignore_denies)
+      return NO_PRIV;
     return user_denies_active | role_denies_active;
   }
-  void set_role_denies(PRIV_TYPE denies) {
-    role_denies_active= denies;
-  }
-  void set_user_denies(PRIV_TYPE denies) {
-    user_denies_active= denies;
-  }
+  bool can_ignore_denies() const { return sctx_can_ignore_denies; }
+
+  void set_role_denies(PRIV_TYPE denies) { role_denies_active= denies; }
+  void set_user_denies(PRIV_TYPE denies) { user_denies_active= denies; }
+  void set_can_ignore_denies(bool value) { sctx_can_ignore_denies= value; }
 
 
   bool password_expired;

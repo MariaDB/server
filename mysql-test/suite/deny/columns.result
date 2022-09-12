@@ -4,6 +4,7 @@ create table deny_db.t1 (a int, b int, secret int);
 create table deny_db.t2 (a2 int, b2 int, secret2 int);
 insert into deny_db.t2 values (100, 200, 300);
 grant all on *.* to foo;
+revoke ignore denies on *.* from foo;
 grant all on deny_db.* to foo;
 grant all on deny_db.t1 to foo;
 grant all on deny_db.t2 to foo;

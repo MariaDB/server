@@ -1,0 +1,76 @@
+create user foo;
+create role bar;
+grant select, ignore denies on *.* to foo;
+deny select on *.* to foo;
+deny select on mysql.* to foo;
+deny select on mysql.global_priv to foo;
+deny select(user) on mysql.global_priv to foo;
+grant bar to foo;
+grant ignore denies on *.* to bar;
+connect con1,localhost,foo,,;
+#
+# The user should still be able to access mysql.global_priv due
+# to the IGNORE DENIES privilege being active.
+#
+select JSON_EXTRACT(priv, '$.deny') from mysql.global_priv where user = 'foo';
+JSON_EXTRACT(priv, '$.deny')
+{"global": 1, "db": [{"name": "`mysql`", "access": 1}], "table": [{"name": "`mysql`.`global_priv`", "access": 1}], "column": [{"name": "`mysql`.`global_priv`.`user`", "access": 1}], "version_id": VERSION_ID}
+disconnect con1;
+connection default;
+#
+# Now test inheriting IGNORE DENIES from a role.
+#
+revoke ignore denies on *.* from foo;
+connect con1,localhost,foo,,;
+select JSON_EXTRACT(priv, '$.deny') from mysql.global_priv where user = 'foo';
+ERROR 42000: SELECT command denied to user 'foo'@'localhost' for table 'global_priv'
+#
+# Bar provides foo with IGNORE DENIES privilege.
+#
+set role bar;
+select JSON_EXTRACT(priv, '$.deny') from mysql.global_priv where user = 'foo';
+JSON_EXTRACT(priv, '$.deny')
+{"global": 1, "db": [{"name": "`mysql`", "access": 1}], "table": [{"name": "`mysql`.`global_priv`", "access": 1}], "column": [{"name": "`mysql`.`global_priv`.`user`", "access": 1}], "version_id": VERSION_ID}
+disconnect con1;
+connection default;
+#
+# Denying IGNORE DENIES, overrides a user's ability to ignore denies.
+#
+deny ignore denies on *.* to foo;
+grant ignore denies on *.* to foo;
+connect con1,localhost,foo,,;
+#
+# Foo can't ignore the SELECT priv deny.
+#
+select JSON_EXTRACT(priv, '$.deny') from mysql.global_priv where user = 'foo';
+ERROR 42000: SELECT command denied to user 'foo'@'localhost' for table 'global_priv'
+#
+# And neither if bar role provides the ignore deny priv.
+#
+set role bar;
+select JSON_EXTRACT(priv, '$.deny') from mysql.global_priv where user = 'foo';
+ERROR 42000: SELECT command denied to user 'foo'@'localhost' for table 'global_priv'
+disconnect con1;
+connection default;
+#
+# Now test what happens when IGNORE DENIES is denied from a role.
+#
+revoke deny ignore denies on *.* from foo;
+deny ignore denies on *.* to bar;
+connect con1,localhost,foo,,;
+#
+# Foo can ignore the SELECT priv deny when Bar isn't activated
+#
+select JSON_EXTRACT(priv, '$.deny') from mysql.global_priv where user = 'foo';
+JSON_EXTRACT(priv, '$.deny')
+{"global": 1, "db": [{"name": "`mysql`", "access": 1}], "table": [{"name": "`mysql`.`global_priv`", "access": 1}], "column": [{"name": "`mysql`.`global_priv`.`user`", "access": 1}], "version_id": VERSION_ID}
+#
+# But when Bar is active, denies can not be ignored any more.
+#
+set role bar;
+select JSON_EXTRACT(priv, '$.deny') from mysql.global_priv where user = 'foo';
+ERROR 42000: SELECT command denied to user 'foo'@'localhost' for table 'global_priv'
+disconnect con1;
+connection default;
+drop user foo;
+drop role bar;
