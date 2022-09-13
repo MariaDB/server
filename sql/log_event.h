@@ -2149,7 +2149,7 @@ public:
     flags2==0 (5.0 master, we know this has a meaning of flags all down which
     must influence the query).
   */
-  bool flags2_inited;
+  uint32 flags2_inited;
   bool sql_mode_inited;
   bool charset_inited;
 
