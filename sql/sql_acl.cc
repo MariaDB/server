@@ -6050,7 +6050,6 @@ static int table_name_sort(GRANT_TABLE * const *tbl1, GRANT_TABLE * const *tbl2)
 */
 static int update_role_columns(GRANT_TABLE *merged,
                                GRANT_TABLE **cur, GRANT_TABLE **last)
-
 {
   ulong rights __attribute__((unused))= 0;
   int changed= 0;
@@ -6611,25 +6610,25 @@ int mysql_table_grant(THD *thd, TABLE_LIST *table_list,
 
     /* Find/create cached table grant */
     grant_table= table_hash_search(Str->host.str, NullS, db_name,
-				   Str->user.str, table_name, 1);
+                                   Str->user.str, table_name, 1);
     if (!grant_table)
     {
       if (revoke_grant)
       {
-	my_error(ER_NONEXISTING_TABLE_GRANT, MYF(0),
+        my_error(ER_NONEXISTING_TABLE_GRANT, MYF(0),
                  Str->user.str, Str->host.str, table_list->table_name.str);
-	result= TRUE;
-	continue;
+        result= TRUE;
+        continue;
       }
-      grant_table = new GRANT_TABLE (Str->host.str, db_name,
-				     Str->user.str, table_name,
-				     rights,
-				     column_priv);
+      grant_table = new GRANT_TABLE(Str->host.str, db_name,
+                                    Str->user.str, table_name,
+                                    rights,
+                                    column_priv);
       if (!grant_table ||
         my_hash_insert(&column_priv_hash,(uchar*) grant_table))
       {
-	result= TRUE;				/* purecov: deadcode */
-	continue;				/* purecov: deadcode */
+        result= TRUE;				/* purecov: deadcode */
+        continue;				/* purecov: deadcode */
       }
     }
 
@@ -6676,7 +6675,7 @@ int mysql_table_grant(THD *thd, TABLE_LIST *table_list,
        instead of TABLE directly. */
     if (replace_table_table(thd, grant_table, tables.tables_priv_table().table(),
                             *Str, db_name, table_name,
-			    rights, column_priv, revoke_grant))
+                            rights, column_priv, revoke_grant))
     {
       /* Should only happen if table is crashed */
       result= TRUE;			       /* purecov: deadcode */
