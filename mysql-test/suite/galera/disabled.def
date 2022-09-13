@@ -28,3 +28,4 @@ query_cache: MDEV-15805 Test failure on galera.query_cache
 versioning_trx_id: MDEV-18590: galera.versioning_trx_id: Test failure: mysqltest: Result content mismatch
 galera_wsrep_provider_unset_set: wsrep_provider is read-only for security reasons
 pxc-421: wsrep_provider is read-only for security reasons
+galera_sst_rsync_innodb_nest : debug

@@ -1,0 +1,1 @@
+--innodb_undo_tablespaces=2 --datadir=$MYSQLTEST_VARDIR/mysqld.2/datadir2
