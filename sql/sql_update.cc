@@ -45,6 +45,9 @@
 
 #include "sql_insert.h"  // For vers_insert_history_row() that may be
                          //   needed for System Versioning.
+#ifdef WITH_WSREP
+#include "wsrep_mysqld.h"
+#endif
 
 /**
    True if the table's input and output record buffers are comparable using
