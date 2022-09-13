@@ -1,11 +1,12 @@
 CREATE TABLE t(a INT PRIMARY KEY) ENGINE=InnoDB;
 INSERT INTO t VALUES (3);
 BEGIN;
-connection default;
 UPDATE t SET a = 2;
 connect con1,localhost,root;
+SET DEBUG_SYNC="lock_wait_suspend_thread_enter SIGNAL del_locked";
 DELETE FROM t;
 connection default;
+SET DEBUG_SYNC="now WAIT_FOR del_locked";
 UPDATE t SET a = 1;
 COMMIT;
 connection con1;
@@ -17,4 +18,5 @@ connection default;
 SELECT count(*) FROM t;
 count(*)
 1
+SET DEBUG_SYNC="reset";
 DROP TABLE t;

@@ -35,7 +35,7 @@ t1	CREATE TABLE `t1` (
   FULLTEXT KEY `b` (`b`),
   FULLTEXT KEY `c` (`c`),
   FULLTEXT KEY `b_2` (`b`,`c`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 ALTER TABLE t1 FORCE, ALGORITHM=COPY;
 connect  hang,localhost,root;
 SET DEBUG_SYNC='alter_table_copy_trans_commit SIGNAL hung WAIT_FOR ever';
@@ -91,7 +91,7 @@ t	CREATE TABLE `t` (
   `c` int(11) DEFAULT NULL,
   `d` int(11) DEFAULT NULL,
   UNIQUE KEY `a` (`a`)
-) ENGINE=InnoDB AUTO_INCREMENT=1000 DEFAULT CHARSET=latin1
+) ENGINE=InnoDB AUTO_INCREMENT=1000 DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 SELECT COUNT(*) FROM t;
 COUNT(*)
 999
@@ -117,7 +117,7 @@ t1	CREATE TABLE `t1` (
   FULLTEXT KEY `b` (`b`),
   FULLTEXT KEY `c` (`c`),
   FULLTEXT KEY `b_2` (`b`,`c`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 CHECK TABLE t1;
 Table	Op	Msg_type	Msg_text
 test.t1	check	status	OK
@@ -160,7 +160,7 @@ t	CREATE TABLE `t` (
   `c` int(11) DEFAULT NULL,
   `d` int(11) DEFAULT NULL,
   UNIQUE KEY `a` (`a`)
-) ENGINE=InnoDB AUTO_INCREMENT=1000 DEFAULT CHARSET=latin1
+) ENGINE=InnoDB AUTO_INCREMENT=1000 DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 SELECT COUNT(*) FROM t;
 COUNT(*)
 999
@@ -186,7 +186,7 @@ t1	CREATE TABLE `t1` (
   FULLTEXT KEY `b` (`b`),
   FULLTEXT KEY `c` (`c`),
   FULLTEXT KEY `b_2` (`b`,`c`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 CHECK TABLE t1;
 Table	Op	Msg_type	Msg_text
 test.t1	check	status	OK

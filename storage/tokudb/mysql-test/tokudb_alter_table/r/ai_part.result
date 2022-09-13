@@ -9,7 +9,7 @@ foo	CREATE TABLE `foo` (
   `a` int(11) NOT NULL,
   `b` int(11) DEFAULT NULL,
   PRIMARY KEY (`a`)
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
  PARTITION BY HASH (`a`)
 PARTITIONS 2
 ALTER TABLE foo ADD KEY(b);
@@ -20,7 +20,7 @@ foo	CREATE TABLE `foo` (
   `b` int(11) DEFAULT NULL,
   PRIMARY KEY (`a`),
   KEY `b` (`b`)
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
  PARTITION BY HASH (`a`)
 PARTITIONS 2
 DROP TABLE foo;

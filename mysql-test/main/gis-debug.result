@@ -370,7 +370,7 @@ t1	CREATE TABLE `t1` (
   `POINT(0,0)*POINT(0,0)` geometry DEFAULT NULL,
   `POINT(0,0)/POINT(0,0)` geometry DEFAULT NULL,
   `POINT(0,0) MOD POINT(0,0)` geometry DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t1;
 CREATE TABLE t1 AS SELECT
 POINT(0,0)+'0',
@@ -386,7 +386,7 @@ t1	CREATE TABLE `t1` (
   `POINT(0,0)*'0'` tinytext DEFAULT NULL,
   `POINT(0,0)/'0'` tinytext DEFAULT NULL,
   `POINT(0,0) MOD '0'` tinytext DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t1;
 CREATE TABLE t1 AS SELECT
 '0'+POINT(0,0),
@@ -396,7 +396,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `'0'+POINT(0,0)` tinytext DEFAULT NULL,
   `'0'*POINT(0,0)` tinytext DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t1;
 CREATE TABLE t1 AS SELECT '0'-POINT(0,0) LIMIT 0;
 ERROR HY000: Illegal parameter data types varchar and geometry for operation '-'

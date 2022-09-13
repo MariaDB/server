@@ -242,11 +242,11 @@ create table t1 (c varchar(30) character set utf8, t text character set utf8, un
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c` varchar(30) CHARACTER SET utf8 DEFAULT NULL,
-  `t` text CHARACTER SET utf8 DEFAULT NULL,
+  `c` varchar(30) CHARACTER SET utf8 COLLATE utf8_general_ci DEFAULT NULL,
+  `t` text CHARACTER SET utf8 COLLATE utf8_general_ci DEFAULT NULL,
   UNIQUE KEY `c` (`c`(2)),
   UNIQUE KEY `t` (`t`(3))
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 insert t1 values ('cccc', 'tttt'),
 (0xD0B1212223D0B1D0B1D0B1D0B1D0B1, 0xD0B1D0B1212223D0B1D0B1D0B1D0B1),
 (0xD0B1222123D0B1D0B1D0B1D0B1D0B1, 0xD0B1D0B1222123D0B1D0B1D0B1D0B1);
@@ -345,7 +345,7 @@ t1	CREATE TABLE `t1` (
   `i2` int(11) NOT NULL,
   UNIQUE KEY `i1idx` (`i1`),
   UNIQUE KEY `i2idx` (`i2`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 drop table t1;
 create table t1 (
 c1 int,
@@ -371,7 +371,7 @@ t1	CREATE TABLE `t1` (
   `a` varchar(10) DEFAULT NULL,
   `b` varchar(10) DEFAULT NULL,
   KEY `a` (`a`,`b`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 alter table t1 modify b varchar(20);
 show create table t1;
 Table	Create Table
@@ -379,7 +379,7 @@ t1	CREATE TABLE `t1` (
   `a` varchar(10) DEFAULT NULL,
   `b` varchar(20) DEFAULT NULL,
   KEY `a` (`a`,`b`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 alter table t1 modify a varchar(20);
 show create table t1;
 Table	Create Table
@@ -387,7 +387,7 @@ t1	CREATE TABLE `t1` (
   `a` varchar(20) DEFAULT NULL,
   `b` varchar(20) DEFAULT NULL,
   KEY `a` (`a`,`b`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 drop table t1;
 create table t1 (a int not null primary key, b varchar(20) not null unique);
 desc t1;
@@ -444,7 +444,7 @@ t1	CREATE TABLE `t1` (
   KEY `i3` (`c3`),
   KEY `i5` (`c1`,`c2`,`c3`,`c4`),
   KEY `c2` (`c2`,`c4`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 alter table t1 drop index c1;
 alter table t1 add index (c1);
 Warnings:
@@ -483,7 +483,7 @@ t1	CREATE TABLE `t1` (
   KEY `i2` (`c2`),
   KEY `i4` (`c4`),
   KEY `c2` (`c2`(4),`c3`(7))
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 insert into t1 values(1, 'a', 'a', NULL);
 insert into t1 values(1, 'b', 'b', NULL);
 alter table t1 drop index i3, drop index i2, drop index i1;
@@ -555,7 +555,7 @@ t1	CREATE TABLE `t1` (
   UNIQUE KEY `cc` (`c`),
   UNIQUE KEY `bb` (`b`(1)),
   KEY `aa` (`a`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 drop table t1;
 create table t1(a int not null, key aa(a), 
 b char(10) not null, unique key bb(b(1)),
@@ -580,7 +580,7 @@ t1	CREATE TABLE `t1` (
   UNIQUE KEY `cc` (`c`),
   UNIQUE KEY `bb` (`b`(1)),
   KEY `aa` (`a`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 drop table t1;
 End of 5.0 tests
 DROP TABLE IF EXISTS t1;

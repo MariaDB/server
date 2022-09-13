@@ -1053,11 +1053,8 @@ sp_returns_type(THD *thd, String &result, const sp_head *sp)
   {
     result.append(STRING_WITH_LEN(" CHARSET "));
     result.append(field->charset()->csname);
-    if (!(field->charset()->state & MY_CS_PRIMARY))
-    {
-      result.append(STRING_WITH_LEN(" COLLATE "));
-      result.append(field->charset()->name);
-    }
+    result.append(STRING_WITH_LEN(" COLLATE "));
+    result.append(field->charset()->name);
   }
 
   delete field;

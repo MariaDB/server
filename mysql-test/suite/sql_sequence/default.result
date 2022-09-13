@@ -16,7 +16,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT nextval(`test`.`s1`),
   `b` int(11) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 insert into t1 SET b=1;
 insert into t1 SET b=2;
 insert into t1 (b) values (3),(4);
@@ -97,7 +97,7 @@ t1	CREATE TABLE `t1` (
   `b` int(11) DEFAULT NULL,
   `c` int(11) DEFAULT nextval(`test`.`s2`),
   `d` int(11) DEFAULT lastval(`test`.`s2`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 select * from t1;
 a	b	c	d
 1	5	1	1
@@ -115,7 +115,7 @@ t1	CREATE TABLE `t1` (
   `b` int(11) DEFAULT NULL,
   `c` int(11) DEFAULT nextval(`test`.`s2`),
   `d` int(11) DEFAULT lastval(`test`.`s2`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 drop table t1;
 drop sequence s1;
 #

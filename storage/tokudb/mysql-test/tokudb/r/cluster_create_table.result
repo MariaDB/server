@@ -11,7 +11,7 @@ t1	CREATE TABLE `t1` (
   `d` int(11) DEFAULT NULL,
   PRIMARY KEY (`a`),
   KEY `b` (`b`) `clustering`=yes
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 create index foo on t1(c,d) clustering=yes;
 show create table t1;
 Table	Create Table
@@ -23,7 +23,7 @@ t1	CREATE TABLE `t1` (
   PRIMARY KEY (`a`),
   KEY `b` (`b`) `clustering`=yes,
   KEY `foo` (`c`,`d`) `clustering`=yes
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 alter table t1 drop primary key;
 alter table t1 add primary key (a,b,c,d);
 alter table t1 add key bar(d,c,b,a) clustering=yes;
@@ -38,7 +38,7 @@ t1	CREATE TABLE `t1` (
   KEY `b` (`b`) `clustering`=yes,
   KEY `foo` (`c`,`d`) `clustering`=yes,
   KEY `bar` (`d`,`c`,`b`,`a`) `clustering`=yes
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 insert into t1 value
 (1,1,1,1),(2,2,2,2),(3,3,3,3),(4,4,4,4),(5,5,5,5),(6,6,6,6),
 (32,54,12,56);

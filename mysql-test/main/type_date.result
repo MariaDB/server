@@ -885,7 +885,7 @@ SHOW CREATE TABLE t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `c1` date DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t2;
 DROP VIEW v1;
 DROP TABLE t1;
@@ -1112,7 +1112,7 @@ t2	CREATE TABLE `t2` (
   `CEIL(a)` int(8) unsigned DEFAULT NULL,
   `ROUND(a)` int(8) unsigned DEFAULT NULL,
   `TRUNCATE(a,0)` int(8) unsigned DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t2,t1;
 #
 # MDEV-23388 Assertion `args[0]->decimals == 0' failed in Item_func_round::fix_arg_int
@@ -1141,7 +1141,7 @@ t2	CREATE TABLE `t2` (
   `GREATEST(c_date,c_date)` date NOT NULL,
   `GREATEST(c_date,c_int)` date DEFAULT NULL,
   `GREATEST(c_int,c_date)` date DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t2;
 DROP TABLE t1;
 #

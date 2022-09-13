@@ -22,7 +22,7 @@ ROCKSDB_DEADLOCK	CREATE TEMPORARY TABLE `ROCKSDB_DEADLOCK` (
   `INDEX_NAME` varchar(193) NOT NULL,
   `TABLE_NAME` varchar(193) NOT NULL,
   `ROLLED_BACK` bigint(8) NOT NULL
-) ENGINE=MEMORY DEFAULT CHARSET=utf8
+) ENGINE=MEMORY DEFAULT CHARSET=utf8 COLLATE=utf8_general_ci
 create table t (i int primary key) engine=rocksdb;
 insert into t values (1), (2), (3);
 select * from information_schema.rocksdb_deadlock;

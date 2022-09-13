@@ -1924,8 +1924,6 @@ row_merge_read_clustered_index(
 		row_ext_t*	ext;
 		page_cur_t*	cur	= btr_pcur_get_page_cur(&pcur);
 
-		mem_heap_empty(row_heap);
-
 		page_cur_move_to_next(cur);
 
 		stage->n_pk_recs_inc();
@@ -1956,6 +1954,8 @@ row_merge_read_clustered_index(
 			if (err != DB_SUCCESS) {
 				goto func_exit;
 			}
+
+			mem_heap_empty(row_heap);
 
 			if (!mtr.is_active()) {
 				goto scan_next;
@@ -2030,6 +2030,8 @@ end_of_index:
 
 				ut_ad(!page_cur_is_after_last(cur));
 			}
+		} else {
+			mem_heap_empty(row_heap);
 		}
 
 		rec = page_cur_get_rec(cur);

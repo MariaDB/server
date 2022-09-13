@@ -33,7 +33,7 @@ foo	CREATE TABLE `foo` (
   `b` varchar(10) DEFAULT NULL,
   `c` blob DEFAULT NULL,
   KEY `b` (`b`)
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 select * from foo;
 a	b	c
 1	bb	cccc

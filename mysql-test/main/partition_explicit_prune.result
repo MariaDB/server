@@ -201,7 +201,7 @@ t1	CREATE TABLE `t1` (
   `b` varchar(64) DEFAULT NULL,
   PRIMARY KEY (`a`),
   KEY `b` (`b`,`a`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
  PARTITION BY RANGE (`a`)
 SUBPARTITION BY HASH (`a`)
 (PARTITION `pNeg` VALUES LESS THAN (0)
@@ -1133,7 +1133,7 @@ t1	CREATE TABLE `t1` (
   `b` varchar(64) DEFAULT NULL,
   PRIMARY KEY (`a`),
   KEY `b` (`b`,`a`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
  PARTITION BY RANGE (`a`)
 SUBPARTITION BY HASH (`a`)
 (PARTITION `pNeg` VALUES LESS THAN (0)
@@ -1165,7 +1165,7 @@ t2	CREATE TABLE `t2` (
   `b` varchar(64) DEFAULT NULL,
   PRIMARY KEY (`a`),
   KEY `b` (`b`,`a`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
  PARTITION BY RANGE (`a`)
 SUBPARTITION BY HASH (`a`)
 (PARTITION `pNeg` VALUES LESS THAN (0)
@@ -1192,7 +1192,7 @@ Table	Create Table
 t3	CREATE TABLE `t3` (
   `a` int(11) NOT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 SELECT * FROM t3;
 a	b
 -4	(pNeg-)subp0, Updated, Updated2, Updated from a = -2
@@ -1665,7 +1665,7 @@ t1	CREATE TABLE `t1` (
   `b` varchar(64) DEFAULT NULL,
   PRIMARY KEY (`a`),
   KEY `b` (`b`,`a`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
  PARTITION BY RANGE (`a`)
 SUBPARTITION BY HASH (`a`)
 (PARTITION `pNeg` VALUES LESS THAN (0)

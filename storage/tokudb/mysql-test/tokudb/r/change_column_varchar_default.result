@@ -6,21 +6,21 @@ Table	Create Table
 t	CREATE TABLE `t` (
   `a` varchar(100) NOT NULL DEFAULT '',
   `b` varchar(256) NOT NULL DEFAULT ''
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 ALTER TABLE t CHANGE COLUMN a a VARCHAR(255) NOT NULL DEFAULT 'a';
 SHOW CREATE TABLE t;
 Table	Create Table
 t	CREATE TABLE `t` (
   `a` varchar(255) NOT NULL DEFAULT 'a',
   `b` varchar(256) NOT NULL DEFAULT ''
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 ALTER TABLE t CHANGE COLUMN a a VARCHAR(256) NOT NULL DEFAULT 'b';
 SHOW CREATE TABLE t;
 Table	Create Table
 t	CREATE TABLE `t` (
   `a` varchar(256) NOT NULL DEFAULT 'b',
   `b` varchar(256) NOT NULL DEFAULT ''
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 ALTER TABLE t CHANGE COLUMN b b VARCHAR(255) NOT NULL DEFAULT 'c';
 ERROR 42000: Table 't' uses an extension that doesn't exist in this XYZ version
 ALTER TABLE t CHANGE COLUMN b b VARCHAR(1024) NOT NULL DEFAULT 'd';
@@ -29,7 +29,7 @@ Table	Create Table
 t	CREATE TABLE `t` (
   `a` varchar(256) NOT NULL DEFAULT 'b',
   `b` varchar(1024) NOT NULL DEFAULT 'd'
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 ALTER TABLE t CHANGE COLUMN b b VARCHAR(256) NOT NULL DEFAULT 'e';
 ERROR 42000: Table 't' uses an extension that doesn't exist in this XYZ version
 DROP TABLE t;

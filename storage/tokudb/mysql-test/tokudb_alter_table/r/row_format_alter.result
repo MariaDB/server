@@ -11,7 +11,7 @@ Table	Create Table
 foo	CREATE TABLE `foo` (
   `c1` int(11) NOT NULL,
   PRIMARY KEY (`c1`)
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 ALTER TABLE foo compression=tokudb_lzma, add column c2 int not null;
 SELECT CREATE_OPTIONS
 FROM INFORMATION_SCHEMA.TABLES  WHERE (table_name LIKE 'foo');
@@ -23,7 +23,7 @@ foo	CREATE TABLE `foo` (
   `c1` int(11) NOT NULL,
   `c2` int(11) NOT NULL,
   PRIMARY KEY (`c1`)
-) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`=tokudb_lzma
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci `compression`=tokudb_lzma
 ALTER TABLE foo compression=TOKUDB_QUICKLZ, add column c3 int not null;
 SELECT CREATE_OPTIONS
 FROM INFORMATION_SCHEMA.TABLES  WHERE (table_name LIKE 'foo');
@@ -36,7 +36,7 @@ foo	CREATE TABLE `foo` (
   `c2` int(11) NOT NULL,
   `c3` int(11) NOT NULL,
   PRIMARY KEY (`c1`)
-) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`=TOKUDB_QUICKLZ
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci `compression`=TOKUDB_QUICKLZ
 ALTER TABLE foo compression=TOKUDB_UNCOMPRESSED, add column c4 int not null;
 SELECT CREATE_OPTIONS
 FROM INFORMATION_SCHEMA.TABLES  WHERE (table_name LIKE 'foo');
@@ -50,7 +50,7 @@ foo	CREATE TABLE `foo` (
   `c3` int(11) NOT NULL,
   `c4` int(11) NOT NULL,
   PRIMARY KEY (`c1`)
-) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`=TOKUDB_UNCOMPRESSED
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci `compression`=TOKUDB_UNCOMPRESSED
 ALTER TABLE foo compression=TOKUDB_ZLIB, add column c5 int not null;
 SELECT CREATE_OPTIONS
 FROM INFORMATION_SCHEMA.TABLES  WHERE (table_name LIKE 'foo');
@@ -65,7 +65,7 @@ foo	CREATE TABLE `foo` (
   `c4` int(11) NOT NULL,
   `c5` int(11) NOT NULL,
   PRIMARY KEY (`c1`)
-) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`=TOKUDB_ZLIB
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci `compression`=TOKUDB_ZLIB
 ALTER TABLE foo compression=TOKUDB_FAST, add column c6 int not null;
 SELECT CREATE_OPTIONS
 FROM INFORMATION_SCHEMA.TABLES  WHERE (table_name LIKE 'foo');
@@ -81,7 +81,7 @@ foo	CREATE TABLE `foo` (
   `c5` int(11) NOT NULL,
   `c6` int(11) NOT NULL,
   PRIMARY KEY (`c1`)
-) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`=TOKUDB_FAST
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci `compression`=TOKUDB_FAST
 ALTER TABLE foo compression=TOKUDB_SMALL, add column c7 int not null;
 SELECT CREATE_OPTIONS
 FROM INFORMATION_SCHEMA.TABLES  WHERE (table_name LIKE 'foo');
@@ -98,5 +98,5 @@ foo	CREATE TABLE `foo` (
   `c6` int(11) NOT NULL,
   `c7` int(11) NOT NULL,
   PRIMARY KEY (`c1`)
-) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`=TOKUDB_SMALL
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci `compression`=TOKUDB_SMALL
 DROP TABLE foo;

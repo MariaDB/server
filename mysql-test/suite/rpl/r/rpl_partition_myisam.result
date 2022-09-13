@@ -61,7 +61,7 @@ byrange_tbl	CREATE TABLE `byrange_tbl` (
   `fkid` int(11) DEFAULT NULL,
   `filler` varchar(255) DEFAULT NULL,
   PRIMARY KEY (`id`)
-) ENGINE=MyISAM AUTO_INCREMENT=201 DEFAULT CHARSET=latin1
+) ENGINE=MyISAM AUTO_INCREMENT=201 DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
  PARTITION BY RANGE (`id`)
 (PARTITION `pa100` VALUES LESS THAN (100) ENGINE = MyISAM,
  PARTITION `paMax` VALUES LESS THAN MAXVALUE ENGINE = MyISAM)
@@ -75,7 +75,7 @@ regular_tbl	CREATE TABLE `regular_tbl` (
   `fkid` int(11) DEFAULT NULL,
   `filler` varchar(255) DEFAULT NULL,
   PRIMARY KEY (`id`)
-) ENGINE=MyISAM AUTO_INCREMENT=100 DEFAULT CHARSET=latin1
+) ENGINE=MyISAM AUTO_INCREMENT=100 DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 ALTER TABLE test.byrange_tbl EXCHANGE PARTITION pa100 WITH TABLE test.regular_tbl;
 SELECT * FROM test.byrange_tbl ORDER BY fkid LIMIT 2;
 id	dt	user	uuidf	fkid	filler
@@ -105,7 +105,7 @@ byrange_tbl	CREATE TABLE `byrange_tbl` (
   `fkid` int(11) DEFAULT NULL,
   `filler` varchar(255) DEFAULT NULL,
   PRIMARY KEY (`id`)
-) ENGINE=MyISAM AUTO_INCREMENT=201 DEFAULT CHARSET=latin1
+) ENGINE=MyISAM AUTO_INCREMENT=201 DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
  PARTITION BY RANGE (`id`)
 (PARTITION `pa100` VALUES LESS THAN (100) ENGINE = MyISAM,
  PARTITION `paMax` VALUES LESS THAN MAXVALUE ENGINE = MyISAM)
@@ -119,7 +119,7 @@ regular_tbl	CREATE TABLE `regular_tbl` (
   `fkid` int(11) DEFAULT NULL,
   `filler` varchar(255) DEFAULT NULL,
   PRIMARY KEY (`id`)
-) ENGINE=MyISAM AUTO_INCREMENT=100 DEFAULT CHARSET=latin1
+) ENGINE=MyISAM AUTO_INCREMENT=100 DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 SELECT count(*) "Slave norm" FROM test.regular_tbl;
 Slave norm
 99

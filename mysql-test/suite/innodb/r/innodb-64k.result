@@ -470,7 +470,7 @@ t1	CREATE TABLE `t1` (
   KEY `xtc1c5` (`cc`(767),`dc`(767)),
   KEY `xte1e5` (`ec`(767),`fc`(767)),
   KEY `xt5k1f6` (`lc`(767),`mc`(767))
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 ROW_FORMAT=DYNAMIC
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci ROW_FORMAT=DYNAMIC
 SHOW WARNINGS;
 Level	Code	Message
 CREATE TABLE t2(COL1 TEXT,
@@ -873,7 +873,7 @@ t1	CREATE TABLE `t1` (
   KEY `xtc1c5` (`cc`(767),`dc`(767)),
   KEY `xte1e5` (`ec`(767),`fc`(767)),
   KEY `xt5k1f6` (`lc`(767),`mc`(767))
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 ROW_FORMAT=DYNAMIC
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci ROW_FORMAT=DYNAMIC
 show create table t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
@@ -1074,7 +1074,7 @@ t2	CREATE TABLE `t2` (
   `COL195` text DEFAULT NULL,
   `COL196` text DEFAULT NULL,
   `COL197` text DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 ROW_FORMAT=DYNAMIC
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci ROW_FORMAT=DYNAMIC
 BEGIN;
 update t2 set col150=@a;
 update t2 set col145=@b;
