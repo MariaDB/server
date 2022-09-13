@@ -201,4 +201,36 @@ SELECT * FROM t1;
 c1	c2	c3
 1	0	10
 DROP TABLE t1;
+#
+# MDEV-23801 Assertion index->table->instant... failed
+#            in btr_pcur_store_position()
+#
+SET @save_frequency = @@GLOBAL.innodb_purge_rseg_truncate_frequency;
+SET GLOBAL innodb_purge_rseg_truncate_frequency = 1;
+CREATE TABLE t (
+pk int auto_increment,
+c01 char(255) not null default repeat('a',255),
+c02 char(255) default repeat('a',255),
+c03 char(255) default repeat('a',255),
+c04 char(255) default repeat('a',255),
+c05 char(255) not null default repeat('a',255),
+c06 char(255) default repeat('a',255),
+c07 char(255) default repeat('a',255),
+c08 char(255) not null default repeat('a',255),
+c09 char(255) default repeat('a',255),
+c10 char(255) default repeat('a',255),
+c11 char(255) default repeat('a',255),
+c12 char(255) not null default repeat('a',255),
+primary key (pk)
+) ENGINE=InnoDB CHARACTER SET ucs2;
+INSERT INTO t () VALUES ();
+ALTER TABLE t ADD c INT;
+BEGIN;
+INSERT INTO t () VALUES (),();
+ROLLBACK;
+DELETE FROM t;
+InnoDB		0 transactions not purged
+SET GLOBAL innodb_purge_rseg_truncate_frequency = @save_frequency;
+CREATE TABLE tt ENGINE=InnoDB AS SELECT c FROM t;
+DROP TABLE t, tt;
 # End of 10.3 tests
