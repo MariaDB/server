@@ -3314,7 +3314,7 @@ fts_add_doc_by_id(
 	dict_index_t*	fts_id_index;
 	ibool		is_id_cluster;
 	fts_cache_t*   	cache = ftt->table->fts->cache;
-
+	bool		need_sync= false;
 	ut_ad(cache->get_docs);
 
 	/* If Doc ID has been supplied by the user, then the table
@@ -3443,7 +3443,7 @@ fts_add_doc_by_id(
 				shouldn't hold the cache lock for
 				longer time. So cache should sync
 				whenever cache size exceeds 512 KB */
-				bool	need_sync =
+				need_sync =
 					cache->total_size > 512*1024;
 
 				mysql_mutex_unlock(&table->fts->cache->lock);
@@ -3463,10 +3463,6 @@ fts_add_doc_by_id(
 					"fts_instrument_sync_request",
 					need_sync= true;
 				);
-
-				if (need_sync) {
-					fts_sync_table(table);
-				}
 
 				mtr_start(&mtr);
 
@@ -3493,6 +3489,10 @@ func_exit:
 	ut_free(pcur.old_rec_buf);
 
 	mem_heap_free(heap);
+
+	if (need_sync) {
+		fts_sync_table(table);
+	}
 }
 
 
@@ -3898,6 +3898,7 @@ err_exit:
 			ib::error() << "(" << error << ") writing"
 				" word node to FTS auxiliary index table "
 				<< table->name;
+			break;
 		}
 	}
 
@@ -3999,6 +4000,7 @@ fts_sync_commit(
 		mysql_mutex_unlock(&cache->lock);
 		fts_sql_commit(trx);
 	} else {
+		mysql_mutex_unlock(&cache->lock);
 		fts_sql_rollback(trx);
 		ib::error() << "(" << error << ") during SYNC of "
 			"table " << sync->table->name;
