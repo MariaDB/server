@@ -44,6 +44,9 @@
                                                 // end_read_record
 #include "sql_insert.h"          // fix_rownum_pointers
 #include "sql_partition.h"       // make_used_partitions_str
+#ifdef WITH_WSREP
+#include "wsrep_mysqld.h"
+#endif
 
 #define MEM_STRIP_BUF_SIZE ((size_t) thd->variables.sortbuff_size)
 
