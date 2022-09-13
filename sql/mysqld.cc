@@ -1572,8 +1572,11 @@ static my_bool kill_thread_phase_1(THD *thd, int *n_threads_awaiting_ack)
        ++(*n_threads_awaiting_ack)))
     return 0;
 
-  if (DBUG_IF("only_kill_system_threads") ? !thd->system_thread : 0)
+  if (DBUG_IF("only_kill_system_threads") && !thd->system_thread)
     return 0;
+  if (DBUG_IF("only_kill_system_threads_no_loop") && !thd->system_thread)
+    return 0;
+
   thd->awake(KILL_SERVER_HARD);
   return 0;
 }
@@ -1783,7 +1786,6 @@ static void close_connections(void)
 
   Events::deinit();
   slave_prepare_for_shutdown();
-  mysql_bin_log.stop_background_thread();
   ack_receiver.stop();
 
   /*
@@ -1804,7 +1806,11 @@ static void close_connections(void)
 
   for (int i= 0; THD_count::connection_thd_count() - n_threads_awaiting_ack
                  && i < 1000; i++)
+  {
+    if (DBUG_IF("only_kill_system_threads_no_loop"))
+      break;
     my_sleep(20000);
+  }
 
   if (global_system_variables.log_warnings)
     server_threads.iterate(warn_threads_active_after_phase_1);
@@ -1821,7 +1827,11 @@ static void close_connections(void)
                   THD_count::connection_thd_count() - n_threads_awaiting_ack));
 
   while (THD_count::connection_thd_count() - n_threads_awaiting_ack)
+  {
+    if (DBUG_IF("only_kill_system_threads_no_loop"))
+      break;
     my_sleep(1000);
+  }
 
   /* Kill phase 2 */
   server_threads.iterate(kill_thread_phase_2);
