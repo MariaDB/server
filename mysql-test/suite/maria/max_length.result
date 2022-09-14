@@ -10,7 +10,7 @@ t1	CREATE TABLE `t1` (
   `v` varchar(2000) DEFAULT NULL,
   `b` blob DEFAULT NULL,
   PRIMARY KEY (`id`)
-) ENGINE=Aria DEFAULT CHARSET=latin1 MAX_ROWS=2 PAGE_CHECKSUM=1 ROW_FORMAT=PAGE
+) ENGINE=Aria DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci MAX_ROWS=2 PAGE_CHECKSUM=1 ROW_FORMAT=PAGE
 show create table t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
@@ -19,7 +19,7 @@ t2	CREATE TABLE `t2` (
   `b` blob DEFAULT NULL,
   PRIMARY KEY (`id`),
   KEY `v` (`v`)
-) ENGINE=Aria DEFAULT CHARSET=latin1 MAX_ROWS=20000000 PAGE_CHECKSUM=1 ROW_FORMAT=PAGE
+) ENGINE=Aria DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci MAX_ROWS=20000000 PAGE_CHECKSUM=1 ROW_FORMAT=PAGE
 lock tables t1 write,t2 write;
 show table status like "t_";
 Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
