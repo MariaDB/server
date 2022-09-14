@@ -55,7 +55,7 @@ SHOW CREATE TABLE TableA;
 Table	Create Table
 TableA	CREATE TABLE `TableA` (
   `a` int(11) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
  PARTITION BY KEY (`a`)
 (PARTITION `parta` ENGINE = TokuDB,
  PARTITION `partB` ENGINE = TokuDB,
@@ -83,7 +83,7 @@ SHOW CREATE TABLE TableA;
 Table	Create Table
 TableA	CREATE TABLE `TableA` (
   `a` int(11) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
  PARTITION BY KEY (`a`)
 (PARTITION `parta` ENGINE = TokuDB,
  PARTITION `partB` ENGINE = TokuDB,
@@ -120,7 +120,7 @@ SHOW CREATE TABLE TableA;
 Table	Create Table
 TableA	CREATE TABLE `TableA` (
   `a` int(11) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
  PARTITION BY KEY (`a`)
 (PARTITION `partB` COMMENT = 'Previusly named parta' ENGINE = TokuDB,
  PARTITION `parta` COMMENT = 'Previusly named partB' ENGINE = TokuDB,
@@ -199,7 +199,7 @@ SHOW CREATE TABLE tablea;
 Table	Create Table
 tablea	CREATE TABLE `tablea` (
   `a` int(11) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
  PARTITION BY KEY (`a`)
 (PARTITION `parta` ENGINE = TokuDB,
  PARTITION `partB` ENGINE = TokuDB,
@@ -226,7 +226,7 @@ SHOW CREATE TABLE TableA;
 Table	Create Table
 TableA	CREATE TABLE `TableA` (
   `a` int(11) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 # Cleaning up after KEY PARTITIONING test
 DROP TABLE TableA;
 # 2.0 HASH partitioning mgm
@@ -292,7 +292,7 @@ SHOW CREATE TABLE TableA;
 Table	Create Table
 TableA	CREATE TABLE `TableA` (
   `a` int(11) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
  PARTITION BY HASH (`a`)
 (PARTITION `parta` ENGINE = TokuDB,
  PARTITION `partB` ENGINE = TokuDB,
@@ -320,7 +320,7 @@ SHOW CREATE TABLE TableA;
 Table	Create Table
 TableA	CREATE TABLE `TableA` (
   `a` int(11) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
  PARTITION BY HASH (`a`)
 (PARTITION `parta` ENGINE = TokuDB,
  PARTITION `partB` ENGINE = TokuDB,
@@ -356,7 +356,7 @@ SHOW CREATE TABLE TableA;
 Table	Create Table
 TableA	CREATE TABLE `TableA` (
   `a` int(11) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
  PARTITION BY HASH (`a`)
 (PARTITION `partB` COMMENT = 'Previusly named parta' ENGINE = TokuDB,
  PARTITION `parta` COMMENT = 'Previusly named partB' ENGINE = TokuDB,
@@ -435,7 +435,7 @@ SHOW CREATE TABLE tablea;
 Table	Create Table
 tablea	CREATE TABLE `tablea` (
   `a` int(11) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
  PARTITION BY HASH (`a`)
 (PARTITION `parta` ENGINE = TokuDB,
  PARTITION `partB` ENGINE = TokuDB,
@@ -462,7 +462,7 @@ SHOW CREATE TABLE TableA;
 Table	Create Table
 TableA	CREATE TABLE `TableA` (
   `a` int(11) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 # Cleaning up after HASH PARTITIONING test
 DROP TABLE TableA;
 # 3.0 RANGE partitioning mgm
@@ -517,7 +517,7 @@ SHOW CREATE TABLE TableA;
 Table	Create Table
 TableA	CREATE TABLE `TableA` (
   `a` int(11) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
  PARTITION BY RANGE (`a`)
 (PARTITION `parta` VALUES LESS THAN (4) ENGINE = TokuDB,
  PARTITION `partB` VALUES LESS THAN (7) ENGINE = TokuDB,
@@ -548,7 +548,7 @@ SHOW CREATE TABLE TableA;
 Table	Create Table
 TableA	CREATE TABLE `TableA` (
   `a` int(11) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
  PARTITION BY RANGE (`a`)
 (PARTITION `parta` VALUES LESS THAN (4) ENGINE = TokuDB,
  PARTITION `partB` VALUES LESS THAN (7) ENGINE = TokuDB,
@@ -586,7 +586,7 @@ SHOW CREATE TABLE TableA;
 Table	Create Table
 TableA	CREATE TABLE `TableA` (
   `a` int(11) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
  PARTITION BY RANGE (`a`)
 (PARTITION `parta` VALUES LESS THAN (4) ENGINE = TokuDB,
  PARTITION `partD` VALUES LESS THAN (8) COMMENT = 'Previously partB and partly Partc' ENGINE = TokuDB,
@@ -666,7 +666,7 @@ SHOW CREATE TABLE tablea;
 Table	Create Table
 tablea	CREATE TABLE `tablea` (
   `a` int(11) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
  PARTITION BY RANGE (`a`)
 (PARTITION `parta` VALUES LESS THAN (4) ENGINE = TokuDB,
  PARTITION `partB` VALUES LESS THAN (7) ENGINE = TokuDB,
@@ -693,7 +693,7 @@ SHOW CREATE TABLE TableA;
 Table	Create Table
 TableA	CREATE TABLE `TableA` (
   `a` int(11) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 # Cleaning up after RANGE PARTITIONING test
 DROP TABLE TableA;
 # 4.0 LIST partitioning mgm
@@ -748,7 +748,7 @@ SHOW CREATE TABLE TableA;
 Table	Create Table
 TableA	CREATE TABLE `TableA` (
   `a` int(11) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
  PARTITION BY LIST (`a`)
 (PARTITION `parta` VALUES IN (1,8,9) ENGINE = TokuDB,
  PARTITION `partB` VALUES IN (2,10,11) ENGINE = TokuDB,
@@ -779,7 +779,7 @@ SHOW CREATE TABLE TableA;
 Table	Create Table
 TableA	CREATE TABLE `TableA` (
   `a` int(11) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
  PARTITION BY LIST (`a`)
 (PARTITION `parta` VALUES IN (1,8,9) ENGINE = TokuDB,
  PARTITION `partB` VALUES IN (2,10,11) ENGINE = TokuDB,
@@ -817,7 +817,7 @@ SHOW CREATE TABLE TableA;
 Table	Create Table
 TableA	CREATE TABLE `TableA` (
   `a` int(11) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
  PARTITION BY LIST (`a`)
 (PARTITION `Partc` VALUES IN (1,7) COMMENT = 'Mix 1 of old parta and Partc' ENGINE = TokuDB,
  PARTITION `parta` VALUES IN (3,9) COMMENT = 'Mix 2 of old parta and Partc' ENGINE = TokuDB,
@@ -889,7 +889,7 @@ SHOW CREATE TABLE tablea;
 Table	Create Table
 tablea	CREATE TABLE `tablea` (
   `a` int(11) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
  PARTITION BY LIST (`a`)
 (PARTITION `parta` VALUES IN (1,8,9) ENGINE = TokuDB,
  PARTITION `partB` VALUES IN (2,10,11) ENGINE = TokuDB,
@@ -913,7 +913,7 @@ SHOW CREATE TABLE TableA;
 Table	Create Table
 TableA	CREATE TABLE `TableA` (
   `a` int(11) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 # Cleaning up after LIST PARTITIONING test
 DROP TABLE TableA;
 # Testing TRUNCATE PARTITION
@@ -932,7 +932,7 @@ t1	CREATE TABLE `t1` (
   `a` bigint(20) NOT NULL AUTO_INCREMENT,
   `b` varchar(255) DEFAULT NULL,
   PRIMARY KEY (`a`)
-) ENGINE=TokuDB AUTO_INCREMENT=2002 DEFAULT CHARSET=latin1
+) ENGINE=TokuDB AUTO_INCREMENT=2002 DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
  PARTITION BY RANGE (`a`)
 (PARTITION `LT1000` VALUES LESS THAN (1000) ENGINE = TokuDB,
  PARTITION `LT2000` VALUES LESS THAN (2000) ENGINE = TokuDB,

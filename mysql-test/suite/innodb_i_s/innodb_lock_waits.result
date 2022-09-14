@@ -5,4 +5,4 @@ INNODB_LOCK_WAITS	CREATE TEMPORARY TABLE `INNODB_LOCK_WAITS` (
   `requested_lock_id` varchar(81) NOT NULL,
   `blocking_trx_id` bigint(21) unsigned NOT NULL,
   `blocking_lock_id` varchar(81) NOT NULL
-) ENGINE=MEMORY DEFAULT CHARSET=utf8
+) ENGINE=MEMORY DEFAULT CHARSET=utf8 COLLATE=utf8_general_ci

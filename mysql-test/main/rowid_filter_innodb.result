@@ -36,7 +36,7 @@ lineitem	CREATE TABLE `lineitem` (
   KEY `i_l_orderkey_quantity` (`l_orderkey`,`l_quantity`),
   KEY `i_l_commitdate` (`l_commitDATE`),
   KEY `i_l_quantity` (`l_quantity`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 show create table orders;
 Table	Create Table
 orders	CREATE TABLE `orders` (
@@ -53,7 +53,7 @@ orders	CREATE TABLE `orders` (
   KEY `i_o_orderdate` (`o_orderDATE`),
   KEY `i_o_custkey` (`o_custkey`),
   KEY `i_o_totalprice` (`o_totalprice`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 set optimizer_use_condition_selectivity=2;
 select
 100 *

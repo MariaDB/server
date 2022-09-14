@@ -44,7 +44,7 @@ t1	CREATE TABLE `t1` (
   `Index_priv` enum('N','Y') NOT NULL DEFAULT 'N',
   `Alter_priv` enum('N','Y') NOT NULL DEFAULT 'N',
   PRIMARY KEY (`Host`,`Db`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COMMENT='Host privileges;  Merged with database privileges'
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci COMMENT='Host privileges;  Merged with database privileges'
 DROP TABLE t1;
 SET @@character_set_database=DEFAULT;
 # Now do the same, but doing 'ALTER DATABASE' to create the db.opt file,
@@ -52,7 +52,7 @@ SET @@character_set_database=DEFAULT;
 # Emulate a pre-4.1 database without db.opt
 SHOW CREATE DATABASE db1;
 Database	Create Database
-db1	CREATE DATABASE `db1` /*!40100 DEFAULT CHARACTER SET utf8 */
+db1	CREATE DATABASE `db1` /*!40100 DEFAULT CHARACTER SET utf8 COLLATE utf8_general_ci */
 USE db1;
 SELECT @@character_set_database, 'taken from defaults' AS comment;
 @@character_set_database	comment
@@ -90,7 +90,7 @@ t1	CREATE TABLE `t1` (
   `Index_priv` enum('N','Y') NOT NULL DEFAULT 'N',
   `Alter_priv` enum('N','Y') NOT NULL DEFAULT 'N',
   PRIMARY KEY (`Host`,`Db`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COMMENT='Host privileges;  Merged with database privileges'
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci COMMENT='Host privileges;  Merged with database privileges'
 DROP TABLE t1;
 DROP DATABASE db1;
 USE test;

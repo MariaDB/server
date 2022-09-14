@@ -19,7 +19,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `b` blob DEFAULT NULL,
   UNIQUE KEY `b` (`b`) USING HASH
-) ENGINE=InnoDB DEFAULT CHARSET=latin1
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 drop table t1;
 create table t1 (pk int, b blob, primary key(pk), unique(b)) engine=myisam;
 insert into t1 values (1,'foo');
@@ -227,9 +227,9 @@ unique key a using hash (c(1))
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c` char(10) CHARACTER SET utf8mb4 DEFAULT NULL,
+  `c` char(10) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci DEFAULT NULL,
   UNIQUE KEY `a` (`c`(1)) USING HASH
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 insert into t1 values ('б');
 insert into t1 values ('бб');
 ERROR 23000: Duplicate entry '�' for key 'a'

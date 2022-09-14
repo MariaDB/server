@@ -42,7 +42,7 @@ PROCESSLIST	CREATE TEMPORARY TABLE `PROCESSLIST` (
   `QUERY_ID` bigint(4) NOT NULL,
   `INFO_BINARY` blob,
   `TID` bigint(4) NOT NULL
-)  DEFAULT CHARSET=utf8
+)  DEFAULT CHARSET=utf8 COLLATE=utf8_general_ci
 SHOW processlist;
 Id	User	Host	db	Command	Time	State	Info	Progress
 ID	root	HOST_NAME	information_schema	Query	TIME	starting	SHOW processlist	TIME_MS
@@ -122,7 +122,7 @@ PROCESSLIST	CREATE TEMPORARY TABLE `PROCESSLIST` (
   `QUERY_ID` bigint(4) NOT NULL,
   `INFO_BINARY` blob,
   `TID` bigint(4) NOT NULL
-)  DEFAULT CHARSET=utf8
+)  DEFAULT CHARSET=utf8 COLLATE=utf8_general_ci
 SHOW processlist;
 Id	User	Host	db	Command	Time	State	Info	Progress
 ID	ddicttestuser1	HOST_NAME	information_schema	Query	TIME	starting	SHOW processlist	TIME_MS

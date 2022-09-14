@@ -23,7 +23,7 @@ t1	CREATE TABLE `t1` (
   `a\\` int(10) unsigned DEFAULT NULL,
   `name` varchar(32) DEFAULT 'name',
   PRIMARY KEY (`id`)
-) ENGINE=FEDERATED DEFAULT CHARSET=latin1 CONNECTION='mysql://root@127.0.0.1:SLAVE_PORT/test/t1'
+) ENGINE=FEDERATED DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci CONNECTION='mysql://root@127.0.0.1:SLAVE_PORT/test/t1'
 INSERT INTO t1 (id, name) VALUES (1, 'foo');
 INSERT INTO t1 (id, name) VALUES (2, 'fee');
 SELECT * FROM t1;
@@ -57,7 +57,7 @@ t1	CREATE TABLE `t1` (
   `d` varchar(4096) NOT NULL,
   PRIMARY KEY (`a`),
   KEY `b` (`b`,`c`,`d`(255))
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 connection master;
 create table t1 engine=federated connection='mysql://root@127.0.0.1:$SLAVE_MYPORT/test/t1';
 show create table t1;
@@ -69,7 +69,7 @@ t1	CREATE TABLE `t1` (
   `d` varchar(4096) NOT NULL,
   PRIMARY KEY (`a`),
   KEY `b` (`b`,`c`,`d`(255))
-) ENGINE=FEDERATED DEFAULT CHARSET=latin1 CONNECTION='mysql://root@127.0.0.1:SLAVE_PORT/test/t1'
+) ENGINE=FEDERATED DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci CONNECTION='mysql://root@127.0.0.1:SLAVE_PORT/test/t1'
 drop table t1;
 connection slave;
 drop table t1;

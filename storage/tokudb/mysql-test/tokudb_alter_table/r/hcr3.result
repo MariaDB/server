@@ -18,7 +18,7 @@ foo	CREATE TABLE `foo` (
   PRIMARY KEY (`aa`),
   KEY `b` (`b`),
   KEY `d` (`d`) `clustering`=yes
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 select * from foo;
 aa	b	c	d	e
 1	10	cc	dddd	eeeee
@@ -40,7 +40,7 @@ foo	CREATE TABLE `foo` (
   PRIMARY KEY (`aa`),
   KEY `b` (`bb`),
   KEY `d` (`d`) `clustering`=yes
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 explain select bb from foo FORCE INDEX (b) where bb > 5;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	foo	range	b	b	9	NULL	1	Using where; Using index
@@ -59,7 +59,7 @@ foo	CREATE TABLE `foo` (
   PRIMARY KEY (`aa`),
   KEY `b` (`bb`),
   KEY `d` (`dd`) `clustering`=yes
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 explain select * from foo where dd > "d";
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	foo	index	d	d	13	NULL	1	Using where; Using index

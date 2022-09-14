@@ -513,7 +513,7 @@ t	CREATE TABLE `t` (
   `row_end` bigint(20) unsigned GENERATED ALWAYS AS ROW END INVISIBLE,
   PRIMARY KEY (`a`,`row_end`),
   PERIOD FOR SYSTEM_TIME (`row_start`, `row_end`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci WITH SYSTEM VERSIONING
 # handles VIRTUAL columns too
 CREATE OR REPLACE TABLE t (
 a INT AS (b + 1),

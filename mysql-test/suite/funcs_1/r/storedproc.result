@@ -1689,7 +1689,7 @@ CREATE FUNCTION fn1 (s char(20)) returns char(50)
 return concat('hello, ', s, '!');
 show CREATE FUNCTION fn1;
 Function	sql_mode	Create Function	character_set_client	collation_connection	Database Collation
-fn1		CREATE DEFINER=`root`@`localhost` FUNCTION `fn1`(s char(20)) RETURNS char(50) CHARSET latin1
+fn1		CREATE DEFINER=`root`@`localhost` FUNCTION `fn1`(s char(20)) RETURNS char(50) CHARSET latin1 COLLATE latin1_swedish_ci
 return concat('hello, ', s, '!')	latin1	<modified>	<created>
 DROP FUNCTION fn1;
 

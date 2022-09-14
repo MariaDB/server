@@ -8,7 +8,7 @@ t1	CREATE TABLE `t1` (
   `c` char(3) DEFAULT NULL,
   `e` enum('abc','def','ghi') DEFAULT NULL,
   `t` text DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 show create table vchar;
 Table	Create Table
 vchar	CREATE TABLE `vchar` (
@@ -16,7 +16,7 @@ vchar	CREATE TABLE `vchar` (
   `c` char(3) DEFAULT NULL,
   `e` enum('abc','def','ghi') DEFAULT NULL,
   `t` text DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 insert into t1 values ('abc', 'de', 'ghi', 'jkl');
 insert into t1 values ('abc ', 'de ', 'ghi', 'jkl ');
 insert into t1 values ('abc    ', 'd  ', 'ghi', 'jkl    ');
@@ -42,7 +42,7 @@ vchar	CREATE TABLE `vchar` (
   `e` enum('abc','def','ghi') DEFAULT NULL,
   `t` text DEFAULT NULL,
   `i` int(11) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 select length(v),length(c),length(e),length(t) from vchar;
 length(v)	length(c)	length(e)	length(t)
 3	2	3	3
@@ -399,21 +399,21 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `f1` varchar(65500) DEFAULT NULL,
   KEY `index1` (`f1`(10))
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 alter table t1 modify f1 varchar(255);
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `f1` varchar(255) DEFAULT NULL,
   KEY `index1` (`f1`(10))
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 alter table t1 modify f1 tinytext;
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `f1` tinytext DEFAULT NULL,
   KEY `index1` (`f1`(10))
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 drop table t1;
 DROP TABLE IF EXISTS t1;
 CREATE TABLE t1(f1 VARCHAR(100) DEFAULT 'test');
@@ -752,7 +752,7 @@ vchar	CREATE TABLE `vchar` (
   `c` char(3) DEFAULT NULL,
   `e` enum('abc','def','ghi') DEFAULT NULL,
   `t` text DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 ALTER TABLE vchar ADD FULLTEXT INDEX(v);
 SHOW CREATE TABLE vchar;
 Table	Create Table
@@ -762,7 +762,7 @@ vchar	CREATE TABLE `vchar` (
   `e` enum('abc','def','ghi') DEFAULT NULL,
   `t` text DEFAULT NULL,
   FULLTEXT KEY `v` (`v`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE vchar;
 #
 # End of 10.5 tests

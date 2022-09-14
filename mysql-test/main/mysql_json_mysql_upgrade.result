@@ -79,8 +79,8 @@ OK
 show create table mysql_json_test;
 Table	Create Table
 mysql_json_test	CREATE TABLE `mysql_json_test` (
-  `description` varchar(100) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-  `expected` longtext COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `description` varchar(100) DEFAULT NULL,
+  `expected` longtext DEFAULT NULL,
   `actual` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
 select * from mysql_json_test;
@@ -188,8 +188,8 @@ Array LITERALS: 	["prefix", true, "suffix", 1]	["prefix", true, "suffix", 1]
 show create table mysql_json_test_big;
 Table	Create Table
 mysql_json_test_big	CREATE TABLE `mysql_json_test_big` (
-  `description` varchar(100) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-  `expected` longtext COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `description` varchar(100) DEFAULT NULL,
+  `expected` longtext DEFAULT NULL,
   `actual` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
 select * from mysql.plugin;

@@ -29,7 +29,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(100) NOT NULL,
   KEY `a` (`a`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 SELECT * FROM t1;
 a
 0

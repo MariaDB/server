@@ -6,14 +6,14 @@ Table	Create Table
 foo	CREATE TABLE `foo` (
   `id` int(11) NOT NULL,
   PRIMARY KEY (`id`)
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 CREATE TABLE bar LIKE foo;
 SHOW CREATE TABLE bar;
 Table	Create Table
 bar	CREATE TABLE `bar` (
   `id` int(11) NOT NULL,
   PRIMARY KEY (`id`)
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 ALTER TABLE foo ADD COLUMN a INT;
 SHOW CREATE TABLE foo;
 Table	Create Table
@@ -21,7 +21,7 @@ foo	CREATE TABLE `foo` (
   `id` int(11) NOT NULL,
   `a` int(11) DEFAULT NULL,
   PRIMARY KEY (`id`)
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 FLUSH TABLES;
 SHOW CREATE TABLE foo;
 Table	Create Table
@@ -29,5 +29,5 @@ foo	CREATE TABLE `foo` (
   `id` int(11) NOT NULL,
   `a` int(11) DEFAULT NULL,
   PRIMARY KEY (`id`)
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE foo, bar;

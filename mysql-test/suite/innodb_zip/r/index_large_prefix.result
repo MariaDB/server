@@ -360,7 +360,7 @@ worklog5743	CREATE TABLE `worklog5743` (
   KEY `idx2` (`a3`(3072)),
   KEY `idx3` (`a4`),
   KEY `idx6` (`a1`,`a6`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 ROW_FORMAT=DYNAMIC
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci ROW_FORMAT=DYNAMIC
 insert into worklog5743 values(9,
 repeat("a", 20000), repeat("a", 3073),
 repeat("a", 3072), repeat("a", 3069),
@@ -436,7 +436,7 @@ worklog5743	CREATE TABLE `worklog5743` (
   `a` text NOT NULL,
   KEY `idx1` (`a`(3072)),
   KEY `idx2` (`a`(3072))
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 ROW_FORMAT=DYNAMIC
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci ROW_FORMAT=DYNAMIC
 drop table worklog5743;
 SET sql_mode= default;
 create table worklog5743(a TEXT not null) ROW_FORMAT=REDUNDANT;

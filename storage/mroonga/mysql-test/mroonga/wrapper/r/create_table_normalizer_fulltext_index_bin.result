@@ -9,7 +9,7 @@ SHOW CREATE TABLE memos;
 Table	Create Table
 memos	CREATE TABLE `memos` (
   `id` int(11) NOT NULL,
-  `content` text COLLATE utf8_bin NOT NULL,
+  `content` text NOT NULL,
   PRIMARY KEY (`id`),
   FULLTEXT KEY `content` (`content`) COMMENT 'normalizer "NormalizerAuto"'
 ) ENGINE=Mroonga DEFAULT CHARSET=utf8 COLLATE=utf8_bin COMMENT='ENGINE "InnoDB"'

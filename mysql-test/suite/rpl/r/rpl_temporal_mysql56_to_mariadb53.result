@@ -16,14 +16,14 @@ mysql050614_temporal0	CREATE TABLE `mysql050614_temporal0` (
   `a` time DEFAULT NULL,
   `b` datetime DEFAULT NULL,
   `c` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp()
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 SHOW CREATE TABLE mysql050614_temporal1;
 Table	Create Table
 mysql050614_temporal1	CREATE TABLE `mysql050614_temporal1` (
   `a` time(1) DEFAULT NULL,
   `b` datetime(1) DEFAULT NULL,
   `c` timestamp(1) NOT NULL DEFAULT current_timestamp(1) ON UPDATE current_timestamp(1)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 connection slave;
 SELECT @@mysql56_temporal_format;
 @@mysql56_temporal_format

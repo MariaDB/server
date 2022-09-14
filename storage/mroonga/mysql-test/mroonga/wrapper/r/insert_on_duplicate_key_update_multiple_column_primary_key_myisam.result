@@ -12,7 +12,7 @@ diaries	CREATE TABLE `diaries` (
   `title` varchar(100) NOT NULL,
   `content` text NOT NULL,
   PRIMARY KEY (`date`,`title`)
-) ENGINE=Mroonga DEFAULT CHARSET=utf8 COMMENT='ENGINE "MyISAM"'
+) ENGINE=Mroonga DEFAULT CHARSET=utf8 COLLATE=utf8_general_ci COMMENT='ENGINE "MyISAM"'
 INSERT INTO diaries (date, title, content)
 VALUES ("2012-03-04", "cloudy day", "Today is cloudy day...");
 INSERT INTO diaries (date, title, content)

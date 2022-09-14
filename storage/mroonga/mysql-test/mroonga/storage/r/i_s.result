@@ -4,4 +4,4 @@ Mroonga_stats	CREATE TEMPORARY TABLE `Mroonga_stats` (
   `VERSION` varchar(40) NOT NULL,
   `rows_written` int(11) NOT NULL,
   `rows_read` int(11) NOT NULL
-) ENGINE=MEMORY DEFAULT CHARSET=utf8
+) ENGINE=MEMORY DEFAULT CHARSET=utf8 COLLATE=utf8_general_ci

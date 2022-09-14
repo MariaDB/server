@@ -1095,7 +1095,7 @@ t1	CREATE TABLE `t1` (
   PRIMARY KEY (`t_cpac`,`t_vers`,`t_rele`,`t_cust`),
   UNIQUE KEY `IX_4` (`t_cust`,`t_cpac`,`t_vers`,`t_rele`),
   KEY `IX_5` (`t_vers`,`t_rele`,`t_cust`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 select t_vers,t_rele,t_cust,filler1 from t1 where t_vers = '7.6';
 t_vers	t_rele	t_cust	filler1
 7.6 	a 	    	

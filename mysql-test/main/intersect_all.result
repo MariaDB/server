@@ -608,7 +608,7 @@ Table	Create Table
 t4	CREATE TABLE `t4` (
   `a` int(11) DEFAULT NULL,
   `b` blob DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 drop tables t4;
 (select a,b from t1) intersect all (select c,d from t2) intersect all (select e,f from t3) union all (select 4,4);
 a	b

@@ -1432,11 +1432,8 @@ bool mysqld_show_create_db(THD *thd, LEX_CSTRING *dbname,
     buffer.append(STRING_WITH_LEN(" /*!40100"));
     buffer.append(STRING_WITH_LEN(" DEFAULT CHARACTER SET "));
     buffer.append(create.default_table_charset->csname);
-    if (!(create.default_table_charset->state & MY_CS_PRIMARY))
-    {
-      buffer.append(STRING_WITH_LEN(" COLLATE "));
-      buffer.append(create.default_table_charset->name);
-    }
+    buffer.append(STRING_WITH_LEN(" COLLATE "));
+    buffer.append(create.default_table_charset->name);
     buffer.append(STRING_WITH_LEN(" */"));
   }
 
@@ -1892,11 +1889,8 @@ static void add_table_options(THD *thd, TABLE *table,
     {
       packet->append(STRING_WITH_LEN(" DEFAULT CHARSET="));
       packet->append(share->table_charset->csname);
-      if (!(share->table_charset->state & MY_CS_PRIMARY))
-      {
-        packet->append(STRING_WITH_LEN(" COLLATE="));
-        packet->append(table->s->table_charset->name);
-      }
+      packet->append(STRING_WITH_LEN(" COLLATE="));
+      packet->append(table->s->table_charset->name);
     }
   }
 
@@ -2178,18 +2172,6 @@ int show_create_table_ex(THD *thd, TABLE_LIST *table_list,
       {
 	packet->append(STRING_WITH_LEN(" CHARACTER SET "));
 	packet->append(field->charset()->csname);
-      }
-      /*
-	For string types dump collation name only if
-	collation is not primary for the given charset
-
-        For generated fields don't print the COLLATE clause if
-        the collation matches the expression's collation.
-      */
-      if (!(field->charset()->state & MY_CS_PRIMARY) &&
-          (!field->vcol_info ||
-           field->charset() != field->vcol_info->expr->collation.collation))
-      {
 	packet->append(STRING_WITH_LEN(" COLLATE "));
 	packet->append(field->charset()->name);
       }

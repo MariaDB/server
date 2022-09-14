@@ -89,7 +89,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `name` varchar(10) DEFAULT NULL,
   `level` smallint(5) unsigned DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=euckr
+) ENGINE=MyISAM DEFAULT CHARSET=euckr COLLATE=euckr_korean_ci
 insert into t1 values ('string',1);
 select concat(name,space(level)), concat(name, repeat(' ',level)) from t1;
 concat(name,space(level))	concat(name, repeat(' ',level))
@@ -24436,8 +24436,8 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `code` varchar(8) DEFAULT NULL,
-  `a` varchar(1) CHARACTER SET euckr NOT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+  `a` varchar(1) CHARACTER SET euckr COLLATE euckr_korean_ci NOT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 UPDATE IGNORE t1 SET a=unhex(code) ORDER BY code;
 Warnings:
 Warning	1366	Incorrect string value: '\x80 ' for column `test`.`t1`.`a` at row 1
@@ -24903,14 +24903,14 @@ CREATE TABLE t1 AS SELECT 'a' AS a;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` varchar(1) CHARACTER SET euckr NOT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+  `a` varchar(1) CHARACTER SET euckr COLLATE euckr_korean_ci NOT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 CREATE TABLE t2 AS SELECT WEIGHT_STRING(a) AS ws FROM t1;
 SHOW CREATE TABLE t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `ws` varbinary(2) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 SELECT HEX(WEIGHT_STRING(a)) FROM t1;
 HEX(WEIGHT_STRING(a))
 41
@@ -24923,14 +24923,14 @@ CREATE TABLE t1 AS SELECT REPEAT('a',5) AS a;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` varchar(5) CHARACTER SET euckr DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+  `a` varchar(5) CHARACTER SET euckr COLLATE euckr_korean_ci DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 CREATE TABLE t2 AS SELECT WEIGHT_STRING(a) AS ws FROM t1;
 SHOW CREATE TABLE t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `ws` varbinary(10) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 SELECT HEX(WEIGHT_STRING(a)) FROM t1;
 HEX(WEIGHT_STRING(a))
 4141414141
@@ -24943,7 +24943,7 @@ SHOW CREATE TABLE t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `ws` varbinary(6) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 SELECT HEX(WEIGHT_STRING(a AS CHAR(3))) FROM t1;
 HEX(WEIGHT_STRING(a AS CHAR(3)))
 414141
@@ -24956,7 +24956,7 @@ SHOW CREATE TABLE t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `ws` varbinary(20) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 SELECT HEX(WEIGHT_STRING(a AS CHAR(10))) FROM t1;
 HEX(WEIGHT_STRING(a AS CHAR(10)))
 41414141412020202020
@@ -25163,13 +25163,13 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` varchar(1) CHARACTER SET euckr COLLATE euckr_bin NOT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 CREATE TABLE t2 AS SELECT WEIGHT_STRING(a) AS ws FROM t1;
 SHOW CREATE TABLE t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `ws` varbinary(2) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 SELECT HEX(WEIGHT_STRING(a)) FROM t1;
 HEX(WEIGHT_STRING(a))
 61
@@ -25183,13 +25183,13 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` varchar(5) CHARACTER SET euckr COLLATE euckr_bin DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 CREATE TABLE t2 AS SELECT WEIGHT_STRING(a) AS ws FROM t1;
 SHOW CREATE TABLE t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `ws` varbinary(10) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 SELECT HEX(WEIGHT_STRING(a)) FROM t1;
 HEX(WEIGHT_STRING(a))
 6161616161
@@ -25202,7 +25202,7 @@ SHOW CREATE TABLE t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `ws` varbinary(6) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 SELECT HEX(WEIGHT_STRING(a AS CHAR(3))) FROM t1;
 HEX(WEIGHT_STRING(a AS CHAR(3)))
 616161
@@ -25215,7 +25215,7 @@ SHOW CREATE TABLE t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `ws` varbinary(20) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 SELECT HEX(WEIGHT_STRING(a AS CHAR(10))) FROM t1;
 HEX(WEIGHT_STRING(a AS CHAR(10)))
 61616161612020202020
@@ -25429,8 +25429,8 @@ CREATE TABLE t1 AS SELECT REPEAT('a', 10) AS t LIMIT 0;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `t` varchar(10) CHARACTER SET euckr DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+  `t` varchar(10) CHARACTER SET euckr COLLATE euckr_korean_ci DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 INSERT INTO t1 VALUES ('abcdefghi'),('ABCDEFGHI');
 SELECT CONCAT(t2,'-',t2) c2 FROM (SELECT LOWER(t) t2 FROM t1) sub;
 c2
@@ -25463,7 +25463,7 @@ CREATE TABLE t1 (a VARCHAR(10) PRIMARY KEY) COLLATE 'euckr_korean_nopad_ci';
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` varchar(10) COLLATE euckr_korean_nopad_ci NOT NULL,
+  `a` varchar(10) NOT NULL,
   PRIMARY KEY (`a`)
 ) ENGINE=MyISAM DEFAULT CHARSET=euckr COLLATE=euckr_korean_nopad_ci
 INSERT INTO t1 VALUES ('abc'),('abc  '),(' a'),(' a '),('a   ');
@@ -25601,7 +25601,7 @@ CREATE TABLE t1 (a VARCHAR(10) PRIMARY KEY) COLLATE 'euckr_korean_nopad_ci';
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` varchar(10) COLLATE euckr_korean_nopad_ci NOT NULL,
+  `a` varchar(10) NOT NULL,
   PRIMARY KEY (`a`)
 ) ENGINE=MEMORY DEFAULT CHARSET=euckr COLLATE=euckr_korean_nopad_ci
 INSERT INTO t1 VALUES ('abc'),('abc  '),(' a'),(' a '),('a   ');
@@ -25740,7 +25740,7 @@ CREATE TABLE t1 (a VARCHAR(10) PRIMARY KEY) COLLATE 'euckr_nopad_bin';
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` varchar(10) COLLATE euckr_nopad_bin NOT NULL,
+  `a` varchar(10) NOT NULL,
   PRIMARY KEY (`a`)
 ) ENGINE=MyISAM DEFAULT CHARSET=euckr COLLATE=euckr_nopad_bin
 INSERT INTO t1 VALUES ('abc'),('abc  '),(' a'),(' a '),('a   ');
@@ -25878,7 +25878,7 @@ CREATE TABLE t1 (a VARCHAR(10) PRIMARY KEY) COLLATE 'euckr_nopad_bin';
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` varchar(10) COLLATE euckr_nopad_bin NOT NULL,
+  `a` varchar(10) NOT NULL,
   PRIMARY KEY (`a`)
 ) ENGINE=MEMORY DEFAULT CHARSET=euckr COLLATE=euckr_nopad_bin
 INSERT INTO t1 VALUES ('abc'),('abc  '),(' a'),(' a '),('a   ');

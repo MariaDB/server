@@ -55,7 +55,7 @@ t1	CREATE TABLE `t1` (
   `b` char(254) DEFAULT NULL,
   PRIMARY KEY (`a`),
   KEY `index1` (`b`)
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 SHOW CREATE TABLE t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
@@ -63,7 +63,7 @@ t2	CREATE TABLE `t2` (
   `b` char(254) DEFAULT NULL,
   PRIMARY KEY (`a`),
   KEY `index1` (`b`)
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 connection slave;
 USE test_rpl;
 SHOW CREATE TABLE t1;
@@ -73,7 +73,7 @@ t1	CREATE TABLE `t1` (
   `b` char(254) DEFAULT NULL,
   PRIMARY KEY (`a`),
   KEY `index1` (`b`)
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 SHOW CREATE TABLE t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
@@ -81,7 +81,7 @@ t2	CREATE TABLE `t2` (
   `b` char(254) DEFAULT NULL,
   PRIMARY KEY (`a`),
   KEY `index1` (`b`)
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 connection master;
 
 ******************** DDL for indexes ********************
@@ -95,7 +95,7 @@ t1	CREATE TABLE `t1` (
   `b` char(254) DEFAULT NULL,
   PRIMARY KEY (`a`),
   KEY `index1` (`b`)
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 SHOW CREATE TABLE t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
@@ -106,7 +106,7 @@ t2	CREATE TABLE `t2` (
   KEY `index1` (`b`),
   KEY `index2` (`d`),
   KEY `index3` (`a`,`d`)
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 connection slave;
 USE test_rpl;
 SHOW CREATE TABLE t1;
@@ -116,7 +116,7 @@ t1	CREATE TABLE `t1` (
   `b` char(254) DEFAULT NULL,
   PRIMARY KEY (`a`),
   KEY `index1` (`b`)
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 SHOW CREATE TABLE t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
@@ -127,7 +127,7 @@ t2	CREATE TABLE `t2` (
   KEY `index1` (`b`),
   KEY `index2` (`d`),
   KEY `index3` (`a`,`d`)
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 connection master;
 ALTER TABLE t2 DROP COLUMN d;
 

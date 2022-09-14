@@ -10,12 +10,12 @@ show create table foo;
 Table	Create Table
 foo	CREATE TABLE `foo` (
   `b` bigint(20) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 show create table bar;
 Table	Create Table
 bar	CREATE TABLE `bar` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
   `c` int(11) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE foo,bar;

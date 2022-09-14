@@ -907,6 +907,9 @@ lock_place_prdt_page_lock(
 
 	ut_ad(!dict_index_is_clust(index));
 	ut_ad(!dict_index_is_online_ddl(index));
+	if (index->table->is_temporary()) {
+		return DB_SUCCESS;
+	}
 
 	/* Another transaction cannot have an implicit lock on the record,
 	because when we come here, we already have modified the clustered

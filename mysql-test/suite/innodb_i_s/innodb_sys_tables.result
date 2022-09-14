@@ -9,4 +9,4 @@ INNODB_SYS_TABLES	CREATE TEMPORARY TABLE `INNODB_SYS_TABLES` (
   `ROW_FORMAT` enum('Redundant','Compact','Compressed','Dynamic'),
   `ZIP_PAGE_SIZE` int(11) unsigned NOT NULL,
   `SPACE_TYPE` enum('Single','System')
-) ENGINE=MEMORY DEFAULT CHARSET=utf8
+) ENGINE=MEMORY DEFAULT CHARSET=utf8 COLLATE=utf8_general_ci

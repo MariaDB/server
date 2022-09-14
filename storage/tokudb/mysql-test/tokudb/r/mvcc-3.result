@@ -12,7 +12,7 @@ foo	CREATE TABLE `foo` (
   `a` int(11) NOT NULL,
   `b` int(11) DEFAULT NULL,
   PRIMARY KEY (`a`)
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 insert into foo values (1,1);
 begin;
 select * from foo;

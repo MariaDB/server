@@ -9,7 +9,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
   PRIMARY KEY (`a`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
  PARTITION BY KEY (`a`)
 (PARTITION `pa1` MAX_ROWS = 20 MIN_ROWS = 2 ENGINE = InnoDB,
  PARTITION `pa2` MAX_ROWS = 30 MIN_ROWS = 3 ENGINE = InnoDB,
@@ -39,7 +39,7 @@ Table	Create Table
 t2	CREATE TABLE `t2` (
   `a` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
   PRIMARY KEY (`a`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
  PARTITION BY KEY (`a`)
 PARTITIONS 12
 insert into t2 values ('1975-01-01 0:1:1'), ('2020-12-31 10:11:12'), ('1980-10-14 13:14:15'), ('2000-06-15 14:15:16');
@@ -136,7 +136,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` date NOT NULL,
   PRIMARY KEY (`a`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
  PARTITION BY KEY (`a`)
 (PARTITION `pa1` MAX_ROWS = 20 MIN_ROWS = 2 ENGINE = InnoDB,
  PARTITION `pa2` MAX_ROWS = 30 MIN_ROWS = 3 ENGINE = InnoDB,
@@ -166,7 +166,7 @@ Table	Create Table
 t2	CREATE TABLE `t2` (
   `a` date NOT NULL,
   PRIMARY KEY (`a`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
  PARTITION BY KEY (`a`)
 PARTITIONS 12
 insert into t2 values ('1975-01-01'), ('2020-12-31'), ('1980-10-14'), ('2000-06-15');
@@ -290,7 +290,7 @@ Table	Create Table
 t3	CREATE TABLE `t3` (
   `a` date NOT NULL,
   PRIMARY KEY (`a`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
  PARTITION BY RANGE (month(`a`))
 SUBPARTITION BY KEY (`a`)
 SUBPARTITIONS 3
@@ -330,7 +330,7 @@ Table	Create Table
 t4	CREATE TABLE `t4` (
   `a` date NOT NULL,
   PRIMARY KEY (`a`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
  PARTITION BY LIST (month(`a`))
 SUBPARTITION BY KEY (`a`)
 SUBPARTITIONS 3
@@ -368,7 +368,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` time NOT NULL,
   PRIMARY KEY (`a`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
  PARTITION BY KEY (`a`)
 (PARTITION `pa1` MAX_ROWS = 20 MIN_ROWS = 2 ENGINE = InnoDB,
  PARTITION `pa2` MAX_ROWS = 30 MIN_ROWS = 3 ENGINE = InnoDB,
@@ -398,7 +398,7 @@ Table	Create Table
 t2	CREATE TABLE `t2` (
   `a` time NOT NULL,
   PRIMARY KEY (`a`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
  PARTITION BY KEY (`a`)
 PARTITIONS 12
 insert into t2 values ('0:1:1'), ('10:11:12'), ('13:14:15'), ('14:15:16');
@@ -497,7 +497,7 @@ Table	Create Table
 t3	CREATE TABLE `t3` (
   `a` time NOT NULL,
   PRIMARY KEY (`a`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
  PARTITION BY RANGE (second(`a`))
 SUBPARTITION BY KEY (`a`)
 SUBPARTITIONS 3
@@ -584,7 +584,7 @@ Table	Create Table
 t4	CREATE TABLE `t4` (
   `a` time NOT NULL,
   PRIMARY KEY (`a`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
  PARTITION BY LIST (second(`a`))
 SUBPARTITION BY KEY (`a`)
 SUBPARTITIONS 3
@@ -669,7 +669,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` datetime NOT NULL,
   PRIMARY KEY (`a`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
  PARTITION BY KEY (`a`)
 (PARTITION `pa1` MAX_ROWS = 20 MIN_ROWS = 2 ENGINE = InnoDB,
  PARTITION `pa2` MAX_ROWS = 30 MIN_ROWS = 3 ENGINE = InnoDB,
@@ -699,7 +699,7 @@ Table	Create Table
 t2	CREATE TABLE `t2` (
   `a` datetime NOT NULL,
   PRIMARY KEY (`a`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
  PARTITION BY KEY (`a`)
 PARTITIONS 12
 insert into t2 values ('1975-01-01 0:1:1'), ('2020-12-31 10:11:12'), ('1980-10-14 13:14:15'), ('2000-06-15 14:15:16');
@@ -798,7 +798,7 @@ Table	Create Table
 t3	CREATE TABLE `t3` (
   `a` datetime NOT NULL,
   PRIMARY KEY (`a`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
  PARTITION BY RANGE (month(`a`))
 SUBPARTITION BY KEY (`a`)
 SUBPARTITIONS 3
@@ -838,7 +838,7 @@ Table	Create Table
 t4	CREATE TABLE `t4` (
   `a` datetime NOT NULL,
   PRIMARY KEY (`a`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
  PARTITION BY LIST (month(`a`))
 SUBPARTITION BY KEY (`a`)
 SUBPARTITIONS 3
@@ -876,7 +876,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` year(4) NOT NULL,
   PRIMARY KEY (`a`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
  PARTITION BY KEY (`a`)
 (PARTITION `pa1` MAX_ROWS = 20 MIN_ROWS = 2 ENGINE = InnoDB,
  PARTITION `pa2` MAX_ROWS = 30 MIN_ROWS = 3 ENGINE = InnoDB,
@@ -906,7 +906,7 @@ Table	Create Table
 t2	CREATE TABLE `t2` (
   `a` year(4) NOT NULL,
   PRIMARY KEY (`a`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
  PARTITION BY KEY (`a`)
 PARTITIONS 12
 insert into t2 values ('1975'), ('2020'), ('1980'), ('2000');

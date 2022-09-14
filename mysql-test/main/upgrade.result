@@ -10,12 +10,12 @@ create table `#mysql50#mysqltest-1`.`t1` (a int);
 create table `#mysql50#mysqltest-1`.`#mysql50#t-1` (a int);
 show create database `mysqltest1`;
 Database	Create Database
-mysqltest1	CREATE DATABASE `mysqltest1` /*!40100 DEFAULT CHARACTER SET latin1 */
+mysqltest1	CREATE DATABASE `mysqltest1` /*!40100 DEFAULT CHARACTER SET latin1 COLLATE latin1_swedish_ci */
 show create database `mysqltest-1`;
 ERROR 42000: Unknown database 'mysqltest-1'
 show create database `#mysql50#mysqltest-1`;
 Database	Create Database
-#mysql50#mysqltest-1	CREATE DATABASE `#mysql50#mysqltest-1` /*!40100 DEFAULT CHARACTER SET latin1 */
+#mysql50#mysqltest-1	CREATE DATABASE `#mysql50#mysqltest-1` /*!40100 DEFAULT CHARACTER SET latin1 COLLATE latin1_swedish_ci */
 show tables in `mysqltest1`;
 Tables_in_mysqltest1
 #mysql50#t-1
@@ -26,10 +26,10 @@ Tables_in_#mysql50#mysqltest-1
 t1
 show create database `mysqltest1`;
 Database	Create Database
-mysqltest1	CREATE DATABASE `mysqltest1` /*!40100 DEFAULT CHARACTER SET latin1 */
+mysqltest1	CREATE DATABASE `mysqltest1` /*!40100 DEFAULT CHARACTER SET latin1 COLLATE latin1_swedish_ci */
 show create database `mysqltest-1`;
 Database	Create Database
-mysqltest-1	CREATE DATABASE `mysqltest-1` /*!40100 DEFAULT CHARACTER SET latin1 */
+mysqltest-1	CREATE DATABASE `mysqltest-1` /*!40100 DEFAULT CHARACTER SET latin1 COLLATE latin1_swedish_ci */
 show create database `#mysql50#mysqltest-1`;
 ERROR 42000: Unknown database '#mysql50#mysqltest-1'
 show tables in `mysqltest1`;
@@ -88,7 +88,7 @@ Database (%a-b-c%)
 a-b-c
 show create database `a-b-c`;
 Database	Create Database
-a-b-c	CREATE DATABASE `a-b-c` /*!40100 DEFAULT CHARACTER SET latin2 */
+a-b-c	CREATE DATABASE `a-b-c` /*!40100 DEFAULT CHARACTER SET latin2 COLLATE latin2_general_ci */
 show tables in `a-b-c`;
 Tables_in_a-b-c
 t1
@@ -96,7 +96,7 @@ show create table `a-b-c`.`t1`;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin2
+) ENGINE=MyISAM DEFAULT CHARSET=latin2 COLLATE=latin2_general_ci
 drop database `a-b-c`;
 drop database `tabc`;
 use `#mysql50#a-b-c`;

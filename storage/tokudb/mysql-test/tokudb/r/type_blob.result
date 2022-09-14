@@ -26,12 +26,12 @@ Table	Create Table
 t3	CREATE TABLE `t3` (
   `a` mediumtext DEFAULT NULL,
   `b` mediumblob DEFAULT NULL
-) ENGINE=ENGINE DEFAULT CHARSET=latin1
+) ENGINE=ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 show create TABLE t4;
 Table	Create Table
 t4	CREATE TABLE `t4` (
-  `c` mediumtext CHARACTER SET utf8 NOT NULL
-) ENGINE=ENGINE DEFAULT CHARSET=latin1
+  `c` mediumtext CHARACTER SET utf8 COLLATE utf8_general_ci NOT NULL
+) ENGINE=ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 drop table t1,t2,t3,t4;
 CREATE TABLE t1 (a char(257) default "hello");
 ERROR 42000: Column length too big for column 'a' (max = 255); use BLOB or TEXT instead
@@ -367,7 +367,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` text DEFAULT NULL,
   KEY `a` (`a`(2100))
-) ENGINE=ENGINE DEFAULT CHARSET=latin1
+) ENGINE=ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 drop table t1;
 CREATE TABLE t1 (
 t1_id bigint(21) NOT NULL auto_increment,
@@ -710,7 +710,7 @@ t1	CREATE TABLE `t1` (
   `e` int(11) DEFAULT NULL,
   PRIMARY KEY (`a`,`b`,`c`(255),`d`),
   KEY `a` (`a`,`b`,`d`,`e`)
-) ENGINE=ENGINE DEFAULT CHARSET=latin1
+) ENGINE=ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 drop table t1;
 CREATE table t1 (a blob);
 insert into t1 values ('b'),('a\0'),('a'),('a '),('aa'),(NULL);
@@ -787,7 +787,7 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` text DEFAULT ''
-) ENGINE=ENGINE DEFAULT CHARSET=latin1
+) ENGINE=ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 insert into t1 values (default);
 select * from t1;
 a

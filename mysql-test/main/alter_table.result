@@ -280,7 +280,7 @@ Table	Create Table
 t2	CREATE TABLE `t2` (
   `a` varchar(10) NOT NULL,
   PRIMARY KEY (`a`)
-) ENGINE=MRG_MyISAM DEFAULT CHARSET=latin1 UNION=(`t1`)
+) ENGINE=MRG_MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci UNION=(`t1`)
 flush tables;
 alter table t1 modify a varchar(10) not null;
 show create table t2;
@@ -288,7 +288,7 @@ Table	Create Table
 t2	CREATE TABLE `t2` (
   `a` varchar(10) NOT NULL,
   PRIMARY KEY (`a`)
-) ENGINE=MRG_MyISAM DEFAULT CHARSET=latin1 UNION=(`t1`)
+) ENGINE=MRG_MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci UNION=(`t1`)
 drop table if exists t1, t2;
 create table t1 (a int, b int, c int, d int, e int, f int, g int, h int,i int, primary key (a,b,c,d,e,f,g,i,h)) engine=MyISAM;
 insert ignore into t1 (a) values(1);
@@ -366,26 +366,26 @@ delete from t1;
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` char(10) CHARACTER SET koi8r DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+  `a` char(10) CHARACTER SET koi8r COLLATE koi8r_general_ci DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 alter table t1 DEFAULT CHARACTER SET latin1;
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` char(10) CHARACTER SET koi8r DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+  `a` char(10) CHARACTER SET koi8r COLLATE koi8r_general_ci DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 alter table t1 CONVERT TO CHARACTER SET latin1;
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` char(10) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 alter table t1 DEFAULT CHARACTER SET cp1251;
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` char(10) CHARACTER SET latin1 DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=cp1251
+  `a` char(10) CHARACTER SET latin1 COLLATE latin1_swedish_ci DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=cp1251 COLLATE=cp1251_general_ci
 drop table t1;
 create table t1 (myblob longblob,mytext longtext) 
 default charset latin1 collate latin1_general_cs;
@@ -393,7 +393,7 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `myblob` longblob DEFAULT NULL,
-  `mytext` longtext COLLATE latin1_general_cs DEFAULT NULL
+  `mytext` longtext DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_general_cs
 alter table t1 character set latin2;
 show create table t1;
@@ -401,7 +401,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `myblob` longblob DEFAULT NULL,
   `mytext` longtext CHARACTER SET latin1 COLLATE latin1_general_cs DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin2
+) ENGINE=MyISAM DEFAULT CHARSET=latin2 COLLATE=latin2_general_ci
 drop table t1;
 CREATE TABLE t1 (a int PRIMARY KEY, b INT UNIQUE);
 ALTER TABLE t1 DROP PRIMARY KEY;
@@ -411,7 +411,7 @@ t1	CREATE TABLE `t1` (
   `a` int(11) NOT NULL,
   `b` int(11) DEFAULT NULL,
   UNIQUE KEY `b` (`b`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 ALTER TABLE t1 DROP PRIMARY KEY;
 ERROR 42000: Can't DROP INDEX `PRIMARY`; check that it exists
 DROP TABLE t1;
@@ -582,13 +582,13 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   KEY `i1` (`a`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 ROW_FORMAT=FIXED
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci ROW_FORMAT=FIXED
 DROP INDEX i1 ON t1;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 ROW_FORMAT=FIXED
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci ROW_FORMAT=FIXED
 DROP TABLE t1;
 DROP TABLE IF EXISTS bug24219;
 DROP TABLE IF EXISTS bug24219_2;
@@ -830,7 +830,7 @@ t1	CREATE TABLE `t1` (
   `a` varchar(500) DEFAULT NULL,
   `b` geometry NOT NULL,
   SPATIAL KEY `b` (`b`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 ALTER TABLE t1 ADD KEY(b(50));
 SHOW CREATE TABLE t1;
 Table	Create Table
@@ -839,7 +839,7 @@ t1	CREATE TABLE `t1` (
   `b` geometry NOT NULL,
   SPATIAL KEY `b` (`b`),
   KEY `b_2` (`b`(50))
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 ALTER TABLE t1 ADD c POINT;
 SHOW CREATE TABLE t1;
 Table	Create Table
@@ -849,7 +849,7 @@ t1	CREATE TABLE `t1` (
   `c` point DEFAULT NULL,
   SPATIAL KEY `b` (`b`),
   KEY `b_2` (`b`(50))
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 CREATE TABLE t2 (a INT, KEY (a(20)));
 ERROR HY000: Incorrect prefix key; the used key part isn't a string, the used length is longer than the key part, or the storage engine doesn't support unique prefix keys
 ALTER TABLE t1 ADD d INT;
@@ -900,7 +900,7 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` text DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=utf8
+) ENGINE=MyISAM DEFAULT CHARSET=utf8 COLLATE=utf8_general_ci
 drop table t1;
 create table t1 (a mediumtext character set latin1);
 alter table t1 convert to character set utf8;
@@ -908,7 +908,7 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` longtext DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=utf8
+) ENGINE=MyISAM DEFAULT CHARSET=utf8 COLLATE=utf8_general_ci
 drop table t1;
 End of 5.0 tests
 drop table if exists t1, t2, t3;
@@ -981,12 +981,12 @@ SHOW CREATE TABLE `tt+1`;
 Table	Create Table
 tt+1	CREATE TEMPORARY TABLE `tt+1` (
   `c1` int(11) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 SHOW CREATE TABLE `tt+2`;
 Table	Create Table
 tt+2	CREATE TEMPORARY TABLE `tt+2` (
   `c1` int(11) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE   `tt+1`, `tt+2`;
 CREATE TABLE `#sql1` (c1 INT);
 CREATE TABLE `@0023sql2` (c1 INT);
@@ -1023,12 +1023,12 @@ SHOW CREATE TABLE `#sql2`;
 Table	Create Table
 #sql2	CREATE TEMPORARY TABLE `#sql2` (
   `c1` int(11) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 SHOW CREATE TABLE `@0023sql1`;
 Table	Create Table
 @0023sql1	CREATE TEMPORARY TABLE `@0023sql1` (
   `c1` int(11) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE `#sql2`, `@0023sql1`;
 DROP TABLE IF EXISTS t1;
 DROP TABLE IF EXISTS t2;
@@ -1371,7 +1371,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `consultant_id` int(11) NOT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=utf8
+) ENGINE=MyISAM DEFAULT CHARSET=utf8 COLLATE=utf8_general_ci
 DROP TABLE t1;
 CREATE TABLE t1 (
 `a` int(11) DEFAULT NULL
@@ -1383,7 +1383,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `consultant_id` int(11) NOT NULL DEFAULT 2
-) ENGINE=MyISAM DEFAULT CHARSET=utf8
+) ENGINE=MyISAM DEFAULT CHARSET=utf8 COLLATE=utf8_general_ci
 DROP TABLE t1;
 CREATE TABLE t1 (
 `a` int(11) DEFAULT NULL
@@ -1395,7 +1395,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `consultant_id` int(11) NOT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=utf8
+) ENGINE=MyISAM DEFAULT CHARSET=utf8 COLLATE=utf8_general_ci
 DROP TABLE t1;
 CREATE TABLE t1 (
 `a` int(11) DEFAULT NULL
@@ -1408,7 +1408,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `consultant_id` bigint(20) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=utf8
+) ENGINE=MyISAM DEFAULT CHARSET=utf8 COLLATE=utf8_general_ci
 DROP TABLE t1;
 #
 # BUG#27788685: NO WARNING WHEN TRUNCATING A STRING WITH DATA LOSS
@@ -1501,7 +1501,7 @@ t1	CREATE TABLE `t1` (
   `x_param` int(11) DEFAULT NULL,
   PRIMARY KEY (`id`),
   KEY `x_param1` (`x_param`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t1;
 CREATE TABLE t1 (
 id INT(11) NOT NULL,
@@ -1543,7 +1543,7 @@ t1	CREATE TABLE `t1` (
   `x_param` int(11) DEFAULT NULL,
   PRIMARY KEY (`id`),
   KEY `x_param1` (`x_param`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 ALTER TABLE t2 ADD FOREIGN KEY IF NOT EXISTS fk(id) REFERENCES t1(id);
 ALTER TABLE t2 ADD FOREIGN KEY IF NOT EXISTS fk(id) REFERENCES t1(id);
 Warnings:
@@ -1557,7 +1557,7 @@ Table	Create Table
 t2	CREATE TABLE `t2` (
   `id` int(11) NOT NULL,
   KEY `fk` (`id`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 ALTER TABLE t2 ADD FOREIGN KEY (id) REFERENCES t1(id);
 ALTER TABLE t2 ADD FOREIGN KEY IF NOT EXISTS t2_ibfk_1(id) REFERENCES t1(id);
 Warnings:
@@ -1571,7 +1571,7 @@ Table	Create Table
 t2	CREATE TABLE `t2` (
   `id` int(11) NOT NULL,
   KEY `id` (`id`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t2;
 CREATE TABLE t2 (
 id INT(11) NOT NULL);
@@ -1587,7 +1587,7 @@ t2	CREATE TABLE `t2` (
   `id` int(11) NOT NULL,
   `a` int(11) DEFAULT NULL,
   KEY `k_id` (`id`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 ALTER TABLE t2 DROP KEY k_id, DROP KEY IF EXISTS k_id;
 Warnings:
 Note	1091	Can't DROP INDEX `k_id`; check that it exists
@@ -1598,7 +1598,7 @@ SHOW CREATE TABLE t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `id` int(11) NOT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t2;
 DROP TABLE t1;
 CREATE TABLE t1 (
@@ -1610,7 +1610,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `transaction_id` int(11) NOT NULL DEFAULT 0,
   PRIMARY KEY (`transaction_id`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t1;
 # Bug#11748057 (formerly known as 34972): ALTER TABLE statement doesn't
 #                                         identify correct column name.
@@ -1624,7 +1624,7 @@ t1	CREATE TABLE `t1` (
   `c1` int(10) unsigned DEFAULT NULL,
   `c2` char(100) NOT NULL DEFAULT '',
   `c3` char(16) NOT NULL DEFAULT ''
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t1;
 #
 # WL#5534 Online ALTER, Phase 1
@@ -2116,7 +2116,7 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `b` bigint(20) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t1;
 create table t1 (i int);
 alter table t1 add unique index if not exists idx(i);
@@ -2128,7 +2128,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `i` int(11) DEFAULT NULL,
   UNIQUE KEY `idx` (`i`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t1;
 CREATE TABLE t1 (
 `event_id` bigint(20) unsigned NOT NULL DEFAULT '0',
@@ -2174,7 +2174,7 @@ tab1	CREATE TABLE `tab1` (
   `field11` enum('option1','option2','option3') NOT NULL DEFAULT 'option1',
   `v_col` varchar(128) DEFAULT NULL,
   PRIMARY KEY (`id`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 ALTER TABLE `tab1` CHANGE COLUMN v_col `v_col` varchar(128) AS (IF(field11='option1',CONCAT_WS(":","field1",field2,field3,field4,field5,field6,field7,field8,field9,field10), CONCAT_WS(":","field1",field11,field2,field3,field4,field5,field6,field7,field8,field9,field10))) PERSISTENT;
 SHOW CREATE TABLE `tab1`;
 Table	Create Table
@@ -2192,7 +2192,7 @@ tab1	CREATE TABLE `tab1` (
   `field11` enum('option1','option2','option3') NOT NULL DEFAULT 'option1',
   `v_col` varchar(128) GENERATED ALWAYS AS (if(`field11` = 'option1',concat_ws(':','field1',`field2`,`field3`,`field4`,`field5`,`field6`,`field7`,`field8`,`field9`,`field10`),concat_ws(':','field1',`field11`,`field2`,`field3`,`field4`,`field5`,`field6`,`field7`,`field8`,`field9`,`field10`))) STORED,
   PRIMARY KEY (`id`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE `tab1`;
 #
 # MDEV-11548 Reproducible server crash after the 2nd ALTER TABLE ADD FOREIGN KEY IF NOT EXISTS
@@ -2220,7 +2220,7 @@ t1	CREATE TABLE `t1` (
   `id` int(11) NOT NULL,
   `a` int(11) NOT NULL,
   `b` int(11) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 ALTER TABLE t1 CONVERT TO CHARACTER SET utf8;
 SHOW CREATE TABLE t1;
 Table	Create Table
@@ -2228,7 +2228,7 @@ t1	CREATE TABLE `t1` (
   `id` int(11) NOT NULL,
   `a` int(11) NOT NULL,
   `b` int(11) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=utf8
+) ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE=utf8_general_ci
 DROP TABLE t1;
 #
 # MDEV-15308
@@ -2243,7 +2243,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t1;
 CREATE TABLE t1 (a INT, b INT) ENGINE=InnoDB;
 ALTER TABLE t1 DROP INDEX IF EXISTS fk, DROP COLUMN b;
@@ -2253,7 +2253,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t1;
 CREATE TABLE t1 (a INT, b INT, c INT, KEY(c)) ENGINE=InnoDB;
 ALTER TABLE t1 DROP FOREIGN KEY IF EXISTS fk, DROP COLUMN c;
@@ -2264,7 +2264,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t1;
 CREATE TABLE t1 (a INT, b INT, c INT, KEY c1(c)) ENGINE=InnoDB;
 ALTER TABLE t1 DROP FOREIGN KEY IF EXISTS fk, DROP INDEX c1;
@@ -2276,7 +2276,7 @@ t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
   `c` int(11) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t1;
 CREATE TABLE t1 (a INT, b INT) ENGINE=InnoDB;
 ALTER TABLE t1 DROP INDEX IF EXISTS fk, DROP COLUMN IF EXISTS c;
@@ -2288,7 +2288,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t1;
 #
 # MDEV-14668 ADD PRIMARY KEY IF NOT EXISTS on composite key
@@ -2308,7 +2308,7 @@ t1	CREATE TABLE `t1` (
   `CHECK_POINT` bigint(20) NOT NULL,
   PRIMARY KEY (`ID`,`CHECK_POINT`),
   UNIQUE KEY `HORIZON_UIDX01` (`ID`,`RANK`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 ALTER TABLE t1 ADD PRIMARY KEY IF NOT EXISTS (`ID`, `CHECK_POINT`);
 Warnings:
 Note	1061	Multiple primary key defined
@@ -2335,7 +2335,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   KEY `i1` (`a`) COMMENT 'comment2'
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t1;
 #
 # End of 10.1 tests
@@ -2358,7 +2358,7 @@ t1	CREATE TABLE `t1` (
   `b` int(11) DEFAULT NULL,
   CONSTRAINT `min` CHECK (`a` + `b` > 100),
   CONSTRAINT `mini` CHECK (`a` + `b` > 100)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t1;
 CREATE TABLE t1(a INT, b INT, CONSTRAINT min check (a>5),
 CONSTRAINT min check (b>5));
@@ -2373,7 +2373,7 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `b` int(11) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 drop table t1;
 create table t1 (a int, b int, check(a>0));
 alter table t1 drop column a;
@@ -2381,7 +2381,7 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `b` int(11) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 drop table t1;
 create table t1 (a int, b int, check(a>0));
 alter table t1 drop column a, add column a bigint first;
@@ -2390,7 +2390,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` bigint(20) DEFAULT NULL,
   `b` int(11) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 drop table t1;
 create table t1 (a int, b int, c int, unique(a));
 alter table t1 drop column a;
@@ -2399,7 +2399,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `b` int(11) DEFAULT NULL,
   `c` int(11) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 drop table t1;
 create table t1 (a int, b int, c int, unique(a,b));
 alter table t1 drop column a;
@@ -2410,7 +2410,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `b` int(11) DEFAULT NULL,
   `c` int(11) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 drop table t1;
 create table t1 (i int);
 alter table t1 alter column if exists a set default 1;
@@ -2423,7 +2423,7 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `i` int(11) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 drop table t1;
 #
 # MDEV-13508 Check that rename of columns changes defaults, virtual
@@ -2437,7 +2437,7 @@ t1	CREATE TABLE `t1` (
   `b` int(11) DEFAULT NULL,
   `a` int(11) DEFAULT NULL,
   CONSTRAINT `CONSTRAINT_1` CHECK (`b` > `a`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 drop table t1;
 create table t1 (a int primary key, b int, c int default (a+b) check (a+b>0),
 d int as (a+b),
@@ -2456,7 +2456,7 @@ t1	CREATE TABLE `t1` (
   KEY `b` (`new_b`),
   CONSTRAINT `test` CHECK (`a` + `new_b` > 1),
   CONSTRAINT `new` CHECK (octet_length(`b`) > 0)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 drop table t1;
 #
 # MDEV-11071: Assertion `thd->transaction.stmt.is_empty()' failed
@@ -2486,7 +2486,7 @@ t2	CREATE TABLE `t2` (
   UNIQUE KEY `ui` (`c2`),
   KEY `sid` (`c1`),
   CONSTRAINT `sid` FOREIGN KEY (`c1`) REFERENCES `t1` (`id`) ON DELETE NO ACTION ON UPDATE NO ACTION
-) ENGINE=InnoDB DEFAULT CHARSET=latin1
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 ALTER TABLE t2 DROP CONSTRAINT sid;
 SHOW CREATE TABLE t2;
 Table	Create Table
@@ -2497,7 +2497,7 @@ t2	CREATE TABLE `t2` (
   PRIMARY KEY (`id`),
   UNIQUE KEY `ui` (`c2`),
   KEY `sid` (`c1`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 ALTER TABLE t2 DROP CONSTRAINT ui;
 SHOW CREATE TABLE t2;
 Table	Create Table
@@ -2507,7 +2507,7 @@ t2	CREATE TABLE `t2` (
   `c2` int(11) NOT NULL,
   PRIMARY KEY (`id`),
   KEY `sid` (`c1`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 ALTER TABLE t2 DROP CONSTRAINT PRIMARY KEY;
 SHOW CREATE TABLE t2;
 Table	Create Table
@@ -2516,7 +2516,7 @@ t2	CREATE TABLE `t2` (
   `c1` int(11) DEFAULT NULL,
   `c2` int(11) NOT NULL,
   KEY `sid` (`c1`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t2, t1;
 #
 # MDEV-18163: Assertion `table_share->tmp_table != NO_TMP_TABLE ||
@@ -2542,7 +2542,7 @@ t1	CREATE TABLE `t1` (
   `t` int(11) DEFAULT NULL,
   `d` date NOT NULL,
   `i` int(11) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 alter table t1 add x date not null;
 ERROR 22007: Incorrect date value: '0000-00-00' for column `test`.`t1`.`x` at row 1
 drop table t1;
@@ -2650,7 +2650,7 @@ t1	CREATE TABLE `t1` (
   `j` int(11) DEFAULT NULL,
   PRIMARY KEY (`pk`),
   KEY `b` (`i`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 alter table t1 rename index b to c;
 show create table t1;
 Table	Create Table
@@ -2660,7 +2660,7 @@ t1	CREATE TABLE `t1` (
   `j` int(11) DEFAULT NULL,
   PRIMARY KEY (`pk`),
   KEY `c` (`i`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 # 1.b) It should be impossible to rename index that doesn't
 #      exists, dropped or added within the same ALTER TABLE.
 alter table t1 rename key d to e;
@@ -2676,7 +2676,7 @@ t1	CREATE TABLE `t1` (
   `j` int(11) DEFAULT NULL,
   PRIMARY KEY (`pk`),
   KEY `c` (`i`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 alter table t1 drop key c, rename key c to d;
 ERROR 42000: Key 'c' doesn't exist in table 't1'
 show create table t1;
@@ -2687,7 +2687,7 @@ t1	CREATE TABLE `t1` (
   `j` int(11) DEFAULT NULL,
   PRIMARY KEY (`pk`),
   KEY `c` (`i`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 alter table t1 add key d(j), rename key d to e;
 ERROR 42000: Key 'd' doesn't exist in table 't1'
 show create table t1;
@@ -2698,7 +2698,7 @@ t1	CREATE TABLE `t1` (
   `j` int(11) DEFAULT NULL,
   PRIMARY KEY (`pk`),
   KEY `c` (`i`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 # 1.c) It should be impossible to rename index to a name
 #      which is already used by another index, or is used
 #      by index which is added within the same ALTER TABLE.
@@ -2714,7 +2714,7 @@ t1	CREATE TABLE `t1` (
   PRIMARY KEY (`pk`),
   KEY `c` (`i`),
   KEY `d` (`j`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 alter table t1 drop key d;
 alter table t1 add key d(j), rename key c to d;
 ERROR 42000: Duplicate key name 'd'
@@ -2726,7 +2726,7 @@ t1	CREATE TABLE `t1` (
   `j` int(11) DEFAULT NULL,
   PRIMARY KEY (`pk`),
   KEY `c` (`i`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 # 1.d) It should be possible to rename index to a name
 #      which belongs to index which is dropped within the
 #      same ALTER TABLE.
@@ -2740,7 +2740,7 @@ t1	CREATE TABLE `t1` (
   `j` int(11) DEFAULT NULL,
   PRIMARY KEY (`pk`),
   KEY `c` (`j`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 # 1.e) We disallow renaming from/to PRIMARY as it might
 #      lead to some other key becoming "primary" internally,
 #      which will be interpreted as dropping/addition of
@@ -2755,7 +2755,7 @@ t1	CREATE TABLE `t1` (
   `j` int(11) DEFAULT NULL,
   PRIMARY KEY (`pk`),
   KEY `c` (`j`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 # Even using 'funny' syntax.
 alter table t1 rename key `primary` to d;
 ERROR 42000: Incorrect index name 'primary'
@@ -2767,7 +2767,7 @@ t1	CREATE TABLE `t1` (
   `j` int(11) DEFAULT NULL,
   PRIMARY KEY (`pk`),
   KEY `c` (`j`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 alter table t1 rename key c to primary;
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'primary' at line 1
 show create table t1;
@@ -2778,7 +2778,7 @@ t1	CREATE TABLE `t1` (
   `j` int(11) DEFAULT NULL,
   PRIMARY KEY (`pk`),
   KEY `c` (`j`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 alter table t1 rename key c to `primary`;
 ERROR 42000: Incorrect index name 'primary'
 show create table t1;
@@ -2789,7 +2789,7 @@ t1	CREATE TABLE `t1` (
   `j` int(11) DEFAULT NULL,
   PRIMARY KEY (`pk`),
   KEY `c` (`j`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 drop table t1;
 #
 # 2) More complex tests for semantics of ALTER TABLE.
@@ -2805,7 +2805,7 @@ t1	CREATE TABLE `t1` (
   `b` int(11) DEFAULT NULL,
   UNIQUE KEY `uu` (`a`),
   KEY `k` (`b`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 alter table t1 rename key k to kk;
 show create table t1;
 Table	Create Table
@@ -2814,7 +2814,7 @@ t1	CREATE TABLE `t1` (
   `b` int(11) DEFAULT NULL,
   UNIQUE KEY `uu` (`a`),
   KEY `kk` (`b`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 # 2.b) Check how that this clause can be mixed with other
 #      clauses which don't affect key or its columns.
 alter table t1 rename key kk to kkk, add column c int;
@@ -2826,7 +2826,7 @@ t1	CREATE TABLE `t1` (
   `c` int(11) DEFAULT NULL,
   UNIQUE KEY `uu` (`a`),
   KEY `kkk` (`b`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 alter table t1 rename key uu to uuu, add key c(c);
 show create table t1;
 Table	Create Table
@@ -2837,7 +2837,7 @@ t1	CREATE TABLE `t1` (
   UNIQUE KEY `uuu` (`a`),
   KEY `kkk` (`b`),
   KEY `c` (`c`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 alter table t1 rename key kkk to k, drop key uuu;
 show create table t1;
 Table	Create Table
@@ -2847,7 +2847,7 @@ t1	CREATE TABLE `t1` (
   `c` int(11) DEFAULT NULL,
   KEY `k` (`b`),
   KEY `c` (`c`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 alter table t1 rename key k to kk, rename to t2;
 show create table t2;
 Table	Create Table
@@ -2857,7 +2857,7 @@ t2	CREATE TABLE `t2` (
   `c` int(11) DEFAULT NULL,
   KEY `kk` (`b`),
   KEY `c` (`c`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 drop table t2;
 #
 # 3) Test coverage for handling of RENAME INDEX clause in
@@ -2877,13 +2877,13 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `i` int(11) DEFAULT NULL,
   KEY `kk` (`i`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 show create table t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `i` int(11) DEFAULT NULL,
   KEY `kk` (`i`)
-) ENGINE=MEMORY DEFAULT CHARSET=latin1
+) ENGINE=MEMORY DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 # So by default in-place algorithm should be chosen.
 # (ALTER TABLE should report 0 rows affected).
 alter table t1 rename key kk to kkk;
@@ -2897,13 +2897,13 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `i` int(11) DEFAULT NULL,
   KEY `kkk` (`i`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 show create table t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `i` int(11) DEFAULT NULL,
   KEY `kkk` (`i`)
-) ENGINE=MEMORY DEFAULT CHARSET=latin1
+) ENGINE=MEMORY DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 # Copy algorithm should work as well.
 alter table t1 algorithm=copy, rename key kkk to kkkk;
 alter table t2 algorithm=copy, rename key kkk to kkkk;
@@ -2912,13 +2912,13 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `i` int(11) DEFAULT NULL,
   KEY `kkkk` (`i`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 show create table t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `i` int(11) DEFAULT NULL,
   KEY `kkkk` (`i`)
-) ENGINE=MEMORY DEFAULT CHARSET=latin1
+) ENGINE=MEMORY DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 # When renaming is combined with other in-place operation
 # it still works as expected (i.e. works in-place).
 alter table t1 algorithm=inplace, rename key kkkk to k, alter column i set default 100;
@@ -2928,13 +2928,13 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `i` int(11) DEFAULT 100,
   KEY `k` (`i`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 show create table t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `i` int(11) DEFAULT 100,
   KEY `k` (`i`)
-) ENGINE=MEMORY DEFAULT CHARSET=latin1
+) ENGINE=MEMORY DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 # Combining with non-inplace operation results in the whole ALTER
 # becoming non-inplace.
 alter table t1 algorithm=inplace, rename key k to kk, add column j int;
@@ -2955,7 +2955,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `i` int(11) DEFAULT NULL,
   KEY `kk` (`i`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 # copy algorithm should work as well.
 alter table t1 algorithm=copy, rename key kk to kkk;
 affected rows: 1
@@ -2965,7 +2965,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `i` int(11) DEFAULT NULL,
   KEY `kkk` (`i`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 drop table t1;
 #
 # 4) Additional coverage for complex cases in which code
@@ -2991,7 +2991,7 @@ t1	CREATE TABLE `t1` (
   KEY `x` (`b`),
   KEY `i2` (`c`),
   KEY `i1` (`d`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 select i.name as k, f.name as c from information_schema.innodb_sys_tables as t,
 information_schema.innodb_sys_indexes as i,
 information_schema.innodb_sys_fields as f
@@ -3016,7 +3016,7 @@ t1	CREATE TABLE `t1` (
   PRIMARY KEY (`a`),
   KEY `i2` (`b`),
   KEY `i1` (`d`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 select i.name as k, f.name as c from information_schema.innodb_sys_tables as t,
 information_schema.innodb_sys_indexes as i,
 information_schema.innodb_sys_fields as f
@@ -3044,7 +3044,7 @@ Table	Create Table
 t2	CREATE TABLE `t2` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 drop table t2;
 #
 # MDEV-22881 Unexpected errors, corrupt output, Valgrind / ASAN errors in Item_ident::print or append_identifier
@@ -3066,19 +3066,19 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `Abc` int(11) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 alter table t1 rename column abc to ABc, algorithm=inplace;
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `ABc` int(11) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 alter table t1 rename column abc to ABC;
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `ABC` int(11) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 drop table t1;
 #
 # MDEV-25555 Server crashes in tree_record_pos after INPLACE-recreating index on HEAP table

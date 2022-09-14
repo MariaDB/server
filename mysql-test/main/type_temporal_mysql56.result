@@ -8,7 +8,7 @@ mysql56time	CREATE TABLE `mysql56time` (
   `t4` time(4) DEFAULT NULL,
   `t5` time(5) DEFAULT NULL,
   `t6` time(6) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 SELECT * FROM mysql56time;
 t0	838:59:59
 t1	838:59:59.0
@@ -42,7 +42,7 @@ mysql56datetime	CREATE TABLE `mysql56datetime` (
   `dt4` datetime(4) DEFAULT NULL,
   `dt5` datetime(5) DEFAULT NULL,
   `dt6` datetime(6) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 SELECT * FROM mysql56datetime;
 dt0	0000-00-00 00:00:00
 dt1	0000-00-00 00:00:00.0
@@ -70,7 +70,7 @@ mysql56timestamp	CREATE TABLE `mysql56timestamp` (
   `ts4` timestamp(4) NOT NULL DEFAULT '0000-00-00 00:00:00.0000',
   `ts5` timestamp(5) NOT NULL DEFAULT '0000-00-00 00:00:00.00000',
   `ts6` timestamp(6) NOT NULL DEFAULT '0000-00-00 00:00:00.000000'
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 SELECT * FROM mysql56timestamp;
 ts0	1970-01-01 00:00:01
 ts1	1970-01-01 00:00:01.0
