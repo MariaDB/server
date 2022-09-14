@@ -64,6 +64,8 @@ public:
 
   void set_as_multitable() { multitable= true; }
 
+  void remove_order_by_without_limit(THD *thd);
+
 protected:
   /**
     @brief Perform precheck of table privileges for delete statements
