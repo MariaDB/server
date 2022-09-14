@@ -1454,6 +1454,19 @@ bool multi_delete::send_eof()
 
 
 /**
+  @brief Remove ORDER BY from DELETE if it's used without limit clause
+*/
+
+void  Sql_cmd_delete::remove_order_by_without_limit(THD *thd)
+{
+  SELECT_LEX *const select_lex = thd->lex->first_select_lex();
+  if (select_lex->order_list.elements &&
+      !select_lex->limit_params.select_limit)
+    select_lex->order_list.empty();
+}
+
+
+/**
   @brief Check whether processing to multi-table delete is prohibited
 
   @param thd  global context the processed statement
@@ -1594,7 +1607,10 @@ bool Sql_cmd_delete::prepare_inner(THD *thd)
         DBUG_ASSERT(update_source_table || table_list->view != 0);
         if (!table_list->is_multitable() &&
             !processing_as_multitable_delete_prohibited(thd))
+	{
           multitable= true;
+          remove_order_by_without_limit(thd);
+        }
       }
     }
 
