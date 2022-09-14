@@ -51,7 +51,6 @@ public:
   int init_scan() { return federatedx_handler_base::init_scan_(); }
   int next_row() { return federatedx_handler_base::next_row_(table); }
   int end_scan() { return federatedx_handler_base::end_scan_(); }
-  void print_error(int, unsigned long);
 };
 
 

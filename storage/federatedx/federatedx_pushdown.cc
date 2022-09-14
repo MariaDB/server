@@ -137,15 +137,10 @@ int federatedx_handler_base::end_scan_()
   DBUG_ENTER("ha_federatedx_derived_handler::end_scan");
 
   (*iop)->free_result(stored_result);
-
-  free_share(txn, share);
+  if (share)
+    free_share(txn, share);
 
   DBUG_RETURN(0);
-}
-
-
-void ha_federatedx_derived_handler::print_error(int, unsigned long)
-{
 }
 
 
@@ -228,6 +223,8 @@ int federatedx_handler_base::init_scan_()
   ha_federatedx *h= (ha_federatedx *) query_table->file;
   iop= &h->io;
   share= get_share(query_table->s->table_name.str, query_table);
+  if (!share)
+    goto err;
   txn= h->get_txn(thd);
   if ((rc= txn->acquire(share, thd, TRUE, iop)))
     DBUG_RETURN(rc);
