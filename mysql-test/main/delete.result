@@ -564,3 +564,50 @@ having t3.a > any (select t2.b from t2
 where t2.b*10 < sum(t3.b)));
 drop table t1,t2,t3;
 End of 10.4 tests
+#
+# MDEV-29428: DELETE with ORDER BY without LIMIT clause
+#
+create table t1 (c1 integer, c2 integer, c3 integer);
+insert into t1 values
+(1,1,1), (1,2,2), (1,3,3), (2,1,4), (2,2,5), (2,3,6), (2,4,7), (2,5,8);
+create temporary table t select * from t1;
+explain delete from t1 order by c2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	8	Deleting all rows
+delete from t1 order by c2;
+select *from t1;
+c1	c2	c3
+delete from t1;
+insert into t1 select * from t;
+explain delete from t1
+where exists (select 'X' from t1 a where a.c2 = t1.c2) and c2 >= 3;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	8	Using where
+2	DEPENDENT SUBQUERY	a	ALL	NULL	NULL	NULL	NULL	8	Using where
+delete from t1
+where exists (select 'X' from t1 a where a.c2 = t1.c2) and c2 >= 3;
+select *from t1;
+c1	c2	c3
+1	1	1
+1	2	2
+2	1	4
+2	2	5
+delete from t1;
+insert into t1 select * from t;
+explain delete from t1
+where exists (select 'X' from t1 a where a.c2 = t1.c2) and c2 >= 3
+order by c2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	8	Using where
+2	DEPENDENT SUBQUERY	a	ALL	NULL	NULL	NULL	NULL	8	Using where
+delete from t1
+where exists (select 'X' from t1 a where a.c2 = t1.c2) and c2 >= 3
+order by c2;
+select *from t1;
+c1	c2	c3
+1	1	1
+1	2	2
+2	1	4
+2	2	5
+drop table t1;
+End of 11.1 tests
