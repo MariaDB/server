@@ -582,3 +582,47 @@ DELETE v2 FROM v2;
 
 DROP VIEW v2, v1;
 DROP TABLE t1, t2;
+
+--echo End of 10.10 tests
+
+--echo #
+--echo # MDEV-29428: DELETE with ORDER BY without LIMIT clause
+--echo #
+
+create table t1 (c1 integer, c2 integer, c3 integer);
+
+insert into t1 values
+  (1,1,1), (1,2,2), (1,3,3), (2,1,4), (2,2,5), (2,3,6), (2,4,7), (2,5,8);
+
+create temporary table t select * from t1;
+
+let $q1=
+delete from t1 order by c2;
+eval explain $q1;
+eval $q1;
+select *from t1;
+
+delete from t1;
+insert into t1 select * from t;
+
+let $q2=
+delete from t1
+  where exists (select 'X' from t1 a where a.c2 = t1.c2) and c2 >= 3;
+eval explain $q2;
+eval $q2;
+select *from t1;
+
+delete from t1;
+insert into t1 select * from t;
+
+let $q3=
+delete from t1
+  where exists (select 'X' from t1 a where a.c2 = t1.c2) and c2 >= 3
+    order by c2;
+eval explain $q3;
+eval $q3;
+select *from t1;
+
+drop table t1;
+
+--echo End of 10.11 tests
