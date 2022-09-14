@@ -305,6 +305,8 @@ int Parser::parse_line(char **line_ptr, keyentry *key)
 char* Parser::read_and_decrypt_file(const char *secret)
 {
   int f;
+  size_t file_size= 0;
+  int ret= 0;
   if (!filename || !filename[0])
   {
     my_printf_error(EE_CANT_OPEN_STREAM, "file-key-management-filename is not set",
@@ -319,35 +321,29 @@ char* Parser::read_and_decrypt_file(const char *secret)
     goto err0;
   }
 
-  my_off_t file_size;
-  file_size= lseek(f, 0, SEEK_END);
+  //Read file into buffer
+  uchar *buffer;
 
-  if (file_size == MY_FILEPOS_ERROR || (my_off_t)lseek(f, 0, SEEK_SET) == MY_FILEPOS_ERROR)
+  buffer= (uchar *) malloc((size_t) file_size + 1);
+  if (!buffer)
   {
-    my_error(EE_CANT_SEEK, MYF(0), filename, errno);
+    my_error(EE_OUTOFMEMORY, ME_ERROR_LOG | ME_FATAL, file_size);
     goto err1;
   }
+  ret= read(f, buffer, MAX_KEY_FILE_SIZE + 1);
+  if (ret < 0)
+  {
+    my_printf_error(EE_READ, "read from %s failed, errno %d",
+                    MYF(ME_ERROR_LOG | ME_FATAL), filename, errno);
+    goto err2;
+  }
+  file_size= (size_t)ret;
 
   if (file_size > MAX_KEY_FILE_SIZE)
   {
-    my_error(EE_READ, MYF(0), filename, EFBIG);
-    goto err1;
-  }
-
-  //Read file into buffer
-  uchar *buffer;
-  buffer= (uchar*)malloc((size_t)file_size + 1);
-  if (!buffer)
-  {
-    my_error(EE_OUTOFMEMORY, ME_ERROR_LOG| ME_FATAL, file_size);
-    goto err1;
-  }
-
-  if (read(f, buffer, (int)file_size) != (int)file_size)
-  {
-    my_printf_error(EE_READ,
-      "read from %s failed, errno %d",
-      MYF(ME_ERROR_LOG|ME_FATAL), filename, errno);
+    my_printf_error(
+        EFBIG, "The key file reached max size   %d , filename  %s ,errno %d",
+        MYF(ME_ERROR_LOG | ME_FATAL), file_size, filename, errno);
     goto err2;
   }
 
