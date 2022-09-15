@@ -50,6 +50,7 @@ unlock tables;
 --echo #
 --echo # Check lock tables under BACKUP STAGE
 --echo #
+--disable_service_connection
 backup stage start;
 unlock tables;
 select lock_mode from information_schema.metadata_lock_info;
@@ -61,7 +62,7 @@ lock table t1 read;
 unlock tables;
 backup stage end;
 drop table t1;
-
+--enable_service_connection
 
 --echo #
 --echo # Check setting readonly under BACKUP STAGE
@@ -118,6 +119,7 @@ drop table t1;
 --echo #
 --echo # BACKUP STAGE performs implicit commits
 --echo #
+--disable_view_protocol
 create table t1(a int) engine=InnoDB;
 begin;
 insert into t1 values(1);
@@ -128,12 +130,13 @@ backup stage block_commit;
 commit;
 backup stage end;
 drop table t1;
+--enable_view_protocol
 
 --echo # Ensure that BACKUP STAGE ... does AUTOCOMMIT like most DDL.
 --echo # Sideeffect:
 --echo # Show the impact of not yet committed INSERT before sequence start
 --echo # and ROLLBACK sliding through the sequence.
-
+--disable_service_connection
 CREATE TABLE t1 (col1 INT) ENGINE = InnoDB;
 SET AUTOCOMMIT = 0;
 INSERT INTO t1 SET col1 = 1;
@@ -217,7 +220,7 @@ drop table t1;
 --echo # CHECK: RO transaction under BACKUP STAGE is a potential deadlock
 --echo # OTOH we most probably allow them under FTWRL as well
 --echo #
-
+--disable_view_protocol
 CREATE TABLE t1 (col1 INT) ENGINE = InnoDB;
 insert into t1 values (1);
 backup stage start;
@@ -228,6 +231,7 @@ select lock_mode from information_schema.metadata_lock_info;
 backup stage end;
 select lock_mode from information_schema.metadata_lock_info;
 drop table t1;
+--enable_view_protocol
 
 --echo #
 --echo # Check that handler are closed by backup stage block_ddl
@@ -347,6 +351,7 @@ SET SESSION sql_log_bin = 1;
 SET SESSION sql_log_bin = 0;
 BACKUP STAGE END;
 SET SESSION sql_log_bin = 1;
+--enable_service_connection
 
 --echo #-----------------------------------------------------------------------
 --echo # BACKUP STAGE statements are not allowed in stored routines
@@ -446,7 +451,7 @@ DROP TABLE t1_myisam;
 --echo #
 --echo # Creating and modifying TEMPORARY TABLES are allowed
 --echo #
-
+--disable_view_protocol
 BACKUP STAGE START;
 BACKUP STAGE BLOCK_DDL;
 CREATE TEMPORARY TABLE tmp (col1 INT);
@@ -501,6 +506,7 @@ TRUNCATE t_temporary_innodb;
 ALTER TABLE t_temporary_innodb ADD COLUMN col2 INT;
 ALTER TABLE t_temporary_innodb ADD KEY idx(col2);
 BACKUP STAGE END;
+--enable_view_protocol
 
 #
 # MDEV-18067, MDEV-18068 and MDEV-18069

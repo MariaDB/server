@@ -3211,7 +3211,10 @@ SELECT TIME('0001:01:01-'), TIME('0001:01:01--');
 
 SELECT TIME('-xxx'), TIME('-xxxxxxxxxxxxxxxxxxxx');
 SELECT TIME('-      '), TIME('-                         ');
+#enable after fix MDEV-28535
+--disable_view_protocol
 SELECT TIME('-'), TIME('-');
+--enable_view_protocol
 SELECT TIME('1-1-1 1:1:1'), TIME('1-1-1 1:1:1.0');
 SELECT TIME('1-1-1 1:2:3'), TIME('1-1-1 1:2:3.0');
 
@@ -3226,11 +3229,12 @@ SELECT TIME('- 01:00:00'), TIME('- 1 01:00:00');
 --echo #
 --echo # MDEV-17854 Assertion `decimals <= 6' failed in my_time_fraction_remainder on SELECT with NULLIF and FROM_UNIXTIME on incorrect time
 --echo #
-
+#enable after fix MDEV-29534
+--disable_view_protocol
 SET time_zone='+00:00';
 SELECT NULLIF(FROM_UNIXTIME('foo'), '2012-12-12 21:10:14');
 SET time_zone=DEFAULT;
-
+--enable_view_protocol
 
 --echo #
 --echo # MDEV-18402 Assertion `sec.sec() <= 59' failed in Item_func_maketime::get_date

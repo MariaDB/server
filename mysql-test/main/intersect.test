@@ -216,13 +216,10 @@ CREATE TABLE t (i INT);
 INSERT INTO t VALUES (1),(2);
 SELECT * FROM t WHERE i != ANY ( SELECT 6 INTERSECT SELECT 3 );
 
-#enable view protocol in 10.4
---disable_view_protocol
 select i from t where
    exists ((select 6 as r from dual having t.i <> 6)
            intersect
            (select 3 from dual having t.i <> 3));
---enable_view_protocol
 
 drop table t;
 

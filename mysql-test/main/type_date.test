@@ -770,11 +770,13 @@ DROP TABLE t2,t1;
 
 SELECT ROUND(GREATEST('1', CAST('2020-12-12' AS DATE)));
 
+--disable_view_protocol
 --disable_ps_protocol
 --enable_metadata
 SELECT GREATEST('1', CAST('2020-12-12' AS DATE));
 --disable_metadata
 --enable_ps_protocol
+--enable_view_protocol
 
 CREATE TABLE t1 (c_date DATE NOT NULL, c_int INT NOT NULL);
 CREATE TABLE t2 AS SELECT

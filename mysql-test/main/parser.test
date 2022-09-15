@@ -858,10 +858,13 @@ SELECT 1 FROM t1
   WHERE EXISTS(SELECT 1 FROM DUAL WHERE 1 GROUP BY 1 HAVING 1 ORDER BY 1
                PROCEDURE ANALYSE() FOR UPDATE);
 
+#enableafter fix MDEV-29537
+--disable_view_protocol
 SELECT 1 FROM t1
 UNION
 SELECT 1 FROM DUAL WHERE 1 GROUP BY 1 HAVING 1 ORDER BY 1
   FOR UPDATE;
+--enable_view_protocol
 
 --error ER_CANT_USE_OPTION_HERE
 SELECT 1 FROM t1
@@ -889,8 +892,10 @@ UNION
 
 SELECT 1 FROM t1 UNION SELECT 1 FROM t1 ORDER BY 1 LIMIT 1;
 (SELECT 1 FROM t1 FOR UPDATE) UNION SELECT 1 FROM t1 ORDER BY 1 LIMIT 1;
+#enableafter fix MDEV-29537
+--disable_view_protocol
 SELECT 1 FROM t1 UNION SELECT 1 FROM t1 ORDER BY 1 LIMIT 1 FOR UPDATE;
-
+--enable_view_protocol
 
 --echo # "INTO" clause tests
 
@@ -1679,7 +1684,7 @@ SET @@sql_mode=@save_sql_mode;
 --echo # MDEV-19540: 10.4 allow lock options with SELECT in brackets
 --echo # which previous version do not
 --echo #
-
+--disable_service_connection
 create table t1 (a int);
 (select * from t1) for update;
 --error ER_WRONG_USAGE
@@ -1687,11 +1692,13 @@ create table t1 (a int);
 (select * from t1 for update);
 select * from t1 for update;
 drop table t1;
+--enable_service_connection
 
 --echo #
 --echo # MDEV-20108: [ERROR] mysqld got signal 11 in
 --echo # st_select_lex::add_table_to_list
 --echo #
+--disable_service_connection
 CREATE TABLE t1 (c1 INT NULL);
 CREATE TABLE t2 (c1 INT NULL);
 
@@ -1701,6 +1708,7 @@ select * from t1;
 select * from t2;
 SET STATEMENT max_statement_time=900 FOR unlock tables;
 drop table t1, t2;
+--enable_service_connection
 
 --echo #
 --echo # MDEV-21616: Server crash when using

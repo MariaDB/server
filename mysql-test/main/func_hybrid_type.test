@@ -769,6 +769,7 @@ DROP TABLE t1;
 
 SET sql_mode='NO_ZERO_DATE,NO_ZERO_IN_DATE';
 
+--disable_view_protocol
 --disable_ps_protocol
 --enable_metadata
 SELECT
@@ -782,6 +783,7 @@ SELECT
   LEAST(20010001,TIMESTAMP'2001-01-01 00:00:00') AS i4;
 --disable_metadata
 --enable_ps_protocol
+--enable_view_protocol
 
 SET sql_mode='NO_ZERO_DATE,NO_ZERO_IN_DATE';
 CREATE TABLE t1 AS SELECT
