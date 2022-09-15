@@ -1,0 +1,593 @@
+--source include/not_embedded.inc
+
+#
+# This test covers show databases command interacting with DENY command.
+# A user is able to see a database in `show databases` if:
+# 1. They have globally granted any of the *DB_ACLS* (see privilege sets)
+#    or they have SHOW DATABASES privilege
+# 2. They have on the database level granted any privilege.
+# 3. They have grants on any of the underlying database objects:
+#    a. Tables
+#    b. Columns
+#    c. Stored Procedures
+# A deny masking rights should affect all levels of this chain.
+#
+
+create user foo;
+create database some_db;
+
+create table some_db.t1 (a int, secret int);
+
+
+show databases;
+
+grant select on *.* to foo;
+show grants for foo;
+
+--echo #############################
+--echo # Test global level denies. #
+--echo #############################
+
+--echo #
+--echo # Test masking global level denies.
+--echo #
+--connect (con1,localhost,foo,,)
+show databases;
+disconnect con1;
+connection default;
+
+--echo #
+--echo # Mask all rigths.
+--echo #
+deny select on *.* to foo;
+
+--connect (con1,localhost,foo,,)
+show databases;
+disconnect con1;
+connection default;
+
+--echo #
+--echo # Not all rights masked.
+--echo #
+grant insert on *.* to foo;
+
+--echo #
+--echo # some_db should now show up in the list because insert is not masked.
+--echo #
+--connect (con1,localhost,foo,,)
+show databases;
+disconnect con1;
+connection default;
+
+deny insert on *.* to foo;
+
+--echo #
+--echo # some_db should not be present now.
+--echo #
+--connect (con1,localhost,foo,,)
+show databases;
+disconnect con1;
+connection default;
+
+grant show databases on *.* to foo;
+
+--connect (con1,localhost,foo,,)
+show databases;
+disconnect con1;
+connection default;
+
+deny show databases on *.* to foo;
+
+--connect (con1,localhost,foo,,)
+show databases;
+disconnect con1;
+connection default;
+
+--echo #
+--echo # Test masking database level grants with global denies.
+--echo #
+grant select on some_db.* to foo;
+
+--connect (con1,localhost,foo,,)
+show databases;
+disconnect con1;
+connection default;
+
+grant update on some_db.* to foo;
+
+--connect (con1,localhost,foo,,)
+--echo #
+--echo # Update not masked via global deny, some_db should show up.
+--echo #
+show databases;
+disconnect con1;
+connection default;
+
+deny update on *.* to foo;
+
+--connect (con1,localhost,foo,,)
+--echo #
+--echo # Now it should show up.
+--echo #
+show databases;
+disconnect con1;
+connection default;
+
+--echo #
+--echo # Test masking table level grants with global denies.
+--echo #
+
+connection default;
+grant insert on some_db.t1 to foo;
+show grants for foo;
+
+--connect (con1,localhost,foo,,)
+show databases;
+disconnect con1;
+
+connection default;
+grant delete on some_db.t1 to foo;
+show grants for foo;
+
+--connect (con1,localhost,foo,,)
+--echo #
+--echo # some_db should show up because we have delete rights on t1.
+--echo #
+show databases;
+disconnect con1;
+connection default;
+
+deny delete on *.* to foo;
+
+--connect (con1,localhost,foo,,)
+show databases;
+disconnect con1;
+connection default;
+
+--echo #
+--echo # Test masking column level grants with global denies.
+--echo #
+grant references (a) on some_db.t1 to foo;
+show grants for foo;
+
+--connect (con1,localhost,foo,,)
+show databases;
+disconnect con1;
+connection default;
+
+deny references on *.* to foo;
+show grants for foo;
+
+--connect (con1,localhost,foo,,)
+show databases;
+disconnect con1;
+connection default;
+
+delimiter |;
+
+--echo #
+--echo # Test masking procedure / function / package level grants with global
+--echo # denies.
+--echo #
+
+create procedure some_db.proc_1()
+begin
+select 1;
+end|
+
+create function some_db.func_1() returns int
+begin
+return 3;
+end|
+
+set @old_sql_mode=@@sql_mode|
+set sql_mode=ORACLE|
+
+create package some_db.util_functions as
+  function f1(id int) return int;
+end|
+
+create package body some_db.util_functions as
+  function f1(id int) return int as result int;
+  begin
+    return 10;
+  end;
+end|
+
+
+delimiter ;|
+
+grant execute on procedure some_db.proc_1 to foo;
+
+grant execute on function some_db.func_1 to foo;
+
+grant execute on package some_db.util_functions to foo;
+
+set sql_mode=@old_sql_mode;
+
+--connect (con1,localhost,foo,,)
+show databases;
+disconnect con1;
+connection default;
+
+deny execute on *.* to foo;
+
+--connect (con1,localhost,foo,,)
+show databases;
+disconnect con1;
+connection default;
+
+
+
+drop user foo;
+drop database some_db;
+
+let $REGEX_VERSION_ID=/$mysql_get_server_version/VERSION_ID/;
+
+--echo ###############################
+--echo # Test database level denies. #
+--echo ###############################
+
+create user foo;
+grant select on *.* to foo;
+
+--echo #
+--echo # Test masking database level denies.
+--echo #
+--connect (con1,localhost,foo,,)
+show databases;
+disconnect con1;
+connection default;
+
+--echo #
+--echo # Mask all rights.
+--echo #
+deny select on mysql.* to foo;
+
+--connect (con1,localhost,foo,,)
+show databases;
+
+disconnect con1;
+connection default;
+
+--echo #
+--echo # Not all rights masked.
+--echo #
+grant insert on *.* to foo;
+grant insert on mysql.* to foo;
+
+--echo #
+--echo # mysql db should now show up in the list because insert is not masked.
+--echo #
+--connect (con1,localhost,foo,,)
+show databases;
+disconnect con1;
+connection default;
+
+deny insert on mysql.* to foo;
+
+--echo #
+--echo # mysql db should not be present now.
+--echo #
+--connect (con1,localhost,foo,,)
+show databases;
+disconnect con1;
+connection default;
+
+grant show databases on *.* to foo;
+
+--connect (con1,localhost,foo,,)
+show databases;
+disconnect con1;
+connection default;
+
+deny show databases on *.* to foo;
+
+
+--connect (con1,localhost,foo,,)
+show databases;
+disconnect con1;
+connection default;
+
+show grants for foo;
+grant update on mysql.* to foo;
+
+--connect (con1,localhost,foo,,)
+--echo #
+--echo # Update not masked via database deny, mysql should show up.
+--echo #
+show databases;
+disconnect con1;
+connection default;
+
+deny update on mysql.* to foo;
+
+--connect (con1,localhost,foo,,)
+--echo #
+--echo # Now it should not show up.
+--echo #
+show grants;
+show databases;
+disconnect con1;
+connection default;
+
+--echo #
+--echo # Test masking table level grants with global denies.
+--echo #
+
+create table mysql.t1 (a int);
+
+connection default;
+grant insert on mysql.t1 to foo;
+show grants for foo;
+
+--connect (con1,localhost,foo,,)
+show databases;
+disconnect con1;
+
+connection default;
+grant delete on mysql.t1 to foo;
+show grants for foo;
+
+--connect (con1,localhost,foo,,)
+--echo #
+--echo # mysql should show up because we have delete rights on t1.
+--echo #
+show databases;
+disconnect con1;
+connection default;
+
+deny delete on mysql.* to foo;
+
+--connect (con1,localhost,foo,,)
+show databases;
+disconnect con1;
+connection default;
+
+--echo #
+--echo # Test masking column level grants with global denies.
+--echo #
+grant references (a) on mysql.t1 to foo;
+show grants for foo;
+
+--connect (con1,localhost,foo,,)
+show databases;
+disconnect con1;
+connection default;
+
+deny references on mysql.* to foo;
+show grants for foo;
+
+--connect (con1,localhost,foo,,)
+show databases;
+disconnect con1;
+connection default;
+
+delimiter |;
+
+--echo #
+--echo # Test masking procedure / function / package level grants with global
+--echo # denies.
+--echo #
+
+create procedure mysql.proc_1()
+begin
+select 1;
+end|
+
+create function mysql.func_1() returns int
+begin
+return 3;
+end|
+
+set @old_sql_mode=@@sql_mode|
+set sql_mode=ORACLE|
+
+create package mysql.util_functions as
+  function f1(id int) return int;
+end|
+
+create package body mysql.util_functions as
+  function f1(id int) return int as result int;
+  begin
+    return 10;
+  end;
+end|
+
+
+delimiter ;|
+
+grant execute on procedure mysql.proc_1 to foo;
+
+grant execute on function mysql.func_1 to foo;
+
+grant execute on package mysql.util_functions to foo;
+
+set sql_mode=@old_sql_mode;
+
+--connect (con1,localhost,foo,,)
+show databases;
+disconnect con1;
+connection default;
+
+deny execute on mysql.* to foo;
+
+--connect (con1,localhost,foo,,)
+show databases;
+disconnect con1;
+connection default;
+
+--replace_regex $REGEX_VERSION_ID
+select user, host, JSON_EXTRACT(priv, '$.deny') from mysql.global_priv
+where user = 'foo';
+show grants for foo;
+
+create database some_db;
+grant all on some_db.* to foo;
+
+--connect (con1,localhost,foo,,)
+show databases;
+disconnect con1;
+connection default;
+
+deny all on some_db.* to foo;
+
+--connect (con1,localhost,foo,,)
+show databases;
+disconnect con1;
+connection default;
+
+--echo #
+--echo # Removing a deny for show databases globaly should make some_db show up.
+--echo #
+revoke deny all on *.* from foo;
+
+--connect (con1,localhost,foo,,)
+show databases;
+disconnect con1;
+connection default;
+
+drop database some_db;
+drop table mysql.t1;
+drop procedure mysql.proc_1;
+drop function mysql.func_1;
+set @old_sql_mode=@@sql_mode;
+set sql_mode=ORACLE;
+drop package body mysql.util_functions;
+drop package mysql.util_functions;
+set sql_mode=@old_sql_mode;
+drop user foo;
+
+
+--echo #
+--echo # Test table level denies interacting with show databases
+--echo #
+--echo # If a user gets access to a database via a higher level grant,
+--echo # but has all the resources in that database denied individually,
+--echo # the user should still be able to see the database, empty.
+--echo #
+
+create database some_db;
+create user foo;
+create table some_db.t1 (a int);
+
+grant select on *.* to foo;
+deny select on some_db.t1 to foo;
+
+--connect (con1,localhost,foo,,)
+--echo #
+--echo # some_db should still be visible, but it should show up as empty.
+--echo #
+show databases;
+show tables from some_db;
+disconnect con1;
+
+connection default;
+
+drop user foo;
+drop database some_db;
+
+--echo #
+--echo # Test table level denies masking table and column level grants.
+--echo #
+
+connection default;
+create user foo;
+create database some_db;
+create table some_db.t1 (a int, b int);
+
+grant select on some_db.t1 to foo;
+grant insert(a) on some_db.t1 to foo;
+
+--connect (con1,localhost,foo,,)
+use some_db;
+show tables;
+show full columns from some_db.t1;
+disconnect con1;
+
+connection default;
+deny select on some_db.t1 to foo;
+
+--connect (con1,localhost,foo,,)
+use some_db;
+show tables from some_db;
+show full columns from some_db.t1;
+disconnect con1;
+
+connection default;
+deny insert on some_db.t1 to foo;
+
+--echo #
+--echo # Now all rights for t1 are denied.
+--echo #
+--connect (con1,localhost,foo,,)
+--error ER_DBACCESS_DENIED_ERROR
+use some_db;
+--error ER_DBACCESS_DENIED_ERROR
+show tables from some_db;
+disconnect con1;
+
+
+connection default;
+drop user foo;
+drop database some_db;
+
+--echo #
+--echo # Test column level denies masking column level grants.
+--echo #
+connection default;
+create user foo;
+create database some_db;
+create table some_db.t1 (a int, b int);
+grant insert(a) on some_db.t1 to foo;
+
+deny select(a) on some_db.t1 to foo;
+
+--connect (con1,localhost,foo,,)
+show databases;
+use some_db;
+show tables from some_db;
+show full columns from some_db.t1;
+disconnect con1;
+connection default;
+
+deny insert(a) on some_db.t1 to foo;
+
+--connect (con1,localhost,foo,,)
+show databases;
+--error ER_DBACCESS_DENIED_ERROR
+use some_db;
+--error ER_DBACCESS_DENIED_ERROR
+show tables from some_db;
+--error ER_TABLEACCESS_DENIED_ERROR
+show full columns from some_db.t1;
+disconnect con1;
+connection default;
+
+grant select(b) on some_db.t1 to foo;
+
+--connect (con1,localhost,foo,,)
+show databases;
+use some_db;
+show tables from some_db;
+show full columns from some_db.t1;
+disconnect con1;
+connection default;
+
+connection default;
+
+deny select(b) on some_db.t1 to foo;
+
+--connect (con1,localhost,foo,,)
+show databases;
+--error ER_DBACCESS_DENIED_ERROR
+use some_db;
+--error ER_DBACCESS_DENIED_ERROR
+show tables from some_db;
+--error ER_TABLEACCESS_DENIED_ERROR
+show full columns from some_db.t1;
+disconnect con1;
+
+connection default;
+drop user foo;
+drop database some_db;

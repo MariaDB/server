@@ -17,6 +17,7 @@
    Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 #include "my_global.h" // ulonglong
+#include "my_bit.h"
 
 
 /*
@@ -67,7 +68,8 @@ enum privilege_t: unsigned long long
   REPL_MASTER_ADMIN_ACL = (1ULL << 35), // Added in 10.5.2
   BINLOG_ADMIN_ACL      = (1ULL << 36), // Added in 10.5.2
   BINLOG_REPLAY_ACL     = (1ULL << 37), // Added in 10.5.2
-  SLAVE_MONITOR_ACL     = (1ULL << 38)  // Added in 10.5.8
+  SLAVE_MONITOR_ACL     = (1ULL << 38), // Added in 10.5.8
+  IGNORE_DENIES_ACL     = (1ULL << 39), // Added in 10.9.0
   /*
     When adding new privilege bits, don't forget to update:
     In this file:
@@ -79,7 +81,7 @@ enum privilege_t: unsigned long long
 
     In other files:
     - static struct show_privileges_st sys_privileges[]
-    - static const char *command_array[] and static uint command_lengths[]
+    - static const LEX_CSTRING privilege_str_repr[]
     - mysql_system_tables.sql and mysql_system_tables_fix.sql
     - acl_init() or whatever - to define behaviour for old privilege tables
     - Update User_table_json::get_access()
@@ -103,9 +105,10 @@ constexpr static inline privilege_t ALL_KNOWN_BITS(privilege_t x)
 constexpr privilege_t LAST_100304_ACL= DELETE_HISTORY_ACL;
 constexpr privilege_t LAST_100502_ACL= BINLOG_REPLAY_ACL;
 constexpr privilege_t LAST_100508_ACL= SLAVE_MONITOR_ACL;
+constexpr privilege_t LAST_101000_ACL= IGNORE_DENIES_ACL;
 
 // Current version markers
-constexpr privilege_t LAST_CURRENT_ACL= LAST_100508_ACL;
+constexpr privilege_t LAST_CURRENT_ACL= LAST_101000_ACL;
 constexpr uint PRIVILEGE_T_MAX_BIT=
               my_bit_log2_uint64((ulonglong) LAST_CURRENT_ACL);
 
@@ -124,6 +127,9 @@ constexpr privilege_t ALL_KNOWN_ACL_100508= ALL_KNOWN_BITS(LAST_100508_ACL);
 // unfortunately, SLAVE_MONITOR_ACL was added in 10.5.9, but also in 10.5.8-5
 // let's stay compatible with that branch too.
 constexpr privilege_t ALL_KNOWN_ACL_100509= ALL_KNOWN_ACL_100508;
+
+// A combination of all bits defined in 10.9.0
+constexpr privilege_t ALL_KNOWN_ACL_101000= ALL_KNOWN_BITS(LAST_101000_ACL);
 
 // A combination of all bits defined as of the current version
 constexpr privilege_t ALL_KNOWN_ACL= ALL_KNOWN_BITS(LAST_CURRENT_ACL);
@@ -237,7 +243,8 @@ constexpr privilege_t  GLOBAL_SUPER_ADDED_SINCE_USER_TABLE_ACLS=
   READ_ONLY_ADMIN_ACL |
   REPL_SLAVE_ADMIN_ACL |
   BINLOG_ADMIN_ACL |
-  BINLOG_REPLAY_ACL;
+  BINLOG_REPLAY_ACL |
+  IGNORE_DENIES_ACL;
 
 
 constexpr privilege_t COL_DML_ACLS=
@@ -279,7 +286,7 @@ constexpr privilege_t GLOBAL_ACLS=
   SUPER_ACL | RELOAD_ACL | SHUTDOWN_ACL | PROCESS_ACL | FILE_ACL |
   REPL_SLAVE_ACL | BINLOG_MONITOR_ACL |
   GLOBAL_SUPER_ADDED_SINCE_USER_TABLE_ACLS |
-  REPL_MASTER_ADMIN_ACL | SLAVE_MONITOR_ACL;
+  REPL_MASTER_ADMIN_ACL | SLAVE_MONITOR_ACL | IGNORE_DENIES_ACL;
 
 constexpr privilege_t DEFAULT_CREATE_PROC_ACLS=
   ALTER_PROC_ACL | EXECUTE_ACL;
@@ -750,5 +757,70 @@ static inline privilege_t get_rights_for_procedure(privilege_t access)
             ((A & GRANT_ACL) >> 8));
 }
 
+enum PRIV_TYPE: unsigned long long
+{
+  NO_PRIV           = 0,
+  GLOBAL_PRIV       = (1 << 0),
+  DATABASE_PRIV     = (1 << 1),
+  TABLE_PRIV        = (1 << 2),
+  COLUMN_PRIV       = (1 << 3),
+  FUNCTION_PRIV     = (1 << 4),
+  PROCEDURE_PRIV    = (1 << 5),
+  PACKAGE_SPEC_PRIV = (1 << 6),
+  PACKAGE_BODY_PRIV = (1 << 7),
+  PROXY_PRIV        = (1 << 8)
+};
 
+
+static inline constexpr PRIV_TYPE operator~(PRIV_TYPE access)
+{
+  return static_cast<PRIV_TYPE>(~static_cast<ulonglong>(access));
+}
+
+static inline constexpr PRIV_TYPE operator|(PRIV_TYPE a, PRIV_TYPE b)
+{
+  return static_cast<PRIV_TYPE>(static_cast<ulonglong>(a) |
+                                static_cast<ulonglong>(b));
+}
+
+static inline constexpr PRIV_TYPE operator|(PRIV_TYPE a, ulonglong b)
+{
+  return static_cast<PRIV_TYPE>(static_cast<ulonglong>(a) | b);
+}
+
+static inline constexpr PRIV_TYPE operator|(ulonglong a, PRIV_TYPE b)
+{
+  return static_cast<PRIV_TYPE>(a | static_cast<ulonglong>(b));
+}
+
+static inline constexpr PRIV_TYPE operator&(PRIV_TYPE a, PRIV_TYPE b)
+{
+  return static_cast<PRIV_TYPE>(static_cast<ulonglong>(a) &
+                                static_cast<ulonglong>(b));
+}
+
+static inline constexpr PRIV_TYPE operator&(ulonglong a, PRIV_TYPE b)
+{
+  return static_cast<PRIV_TYPE>(a & static_cast<ulonglong>(b));
+}
+
+static inline constexpr PRIV_TYPE operator&(PRIV_TYPE a, ulonglong b)
+{
+  return static_cast<PRIV_TYPE>(static_cast<ulonglong>(a) & b);
+}
+
+static inline PRIV_TYPE& operator|=(PRIV_TYPE &a, PRIV_TYPE b)
+{
+  return a= a | b;
+}
+
+static inline PRIV_TYPE& operator&=(PRIV_TYPE &a, ulonglong b)
+{
+  return a= a & b;
+}
+
+static inline PRIV_TYPE& operator&=(PRIV_TYPE &a, PRIV_TYPE b)
+{
+  return a= a & b;
+}
 #endif /* PRIVILEGE_H_INCLUDED */

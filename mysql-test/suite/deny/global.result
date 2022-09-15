@@ -1,0 +1,327 @@
+create user foo;
+create database deny_db;
+create table deny_db.t1 (a int, b int, secret int);
+insert into deny_db.t1 values (1, 2, 3);
+create table deny_db.t2 (a int, b int, secret int);
+insert into deny_db.t2 values (10, 20, 30);
+#
+# Test global denies.
+#
+show databases;
+Database
+deny_db
+information_schema
+mtr
+mysql
+performance_schema
+sys
+test
+grant select (secret) on deny_db.t1 to foo;
+connect  con1,localhost,foo,,;
+select * from deny_db2.t1;
+ERROR 42000: SELECT command denied to user 'foo'@'localhost' for table 't1'
+show databases;
+Database
+deny_db
+information_schema
+test
+use deny_db;
+#
+# It is still possible to leak column names without denies.
+#
+select * from deny_db.t1;
+ERROR 42000: SELECT command denied to user 'foo'@'localhost' for column 'a' in table 't1'
+select a from deny_db.t1;
+ERROR 42000: SELECT command denied to user 'foo'@'localhost' for column 'a' in table 't1'
+select b from deny_db.t1;
+ERROR 42000: SELECT command denied to user 'foo'@'localhost' for column 'b' in table 't1'
+select table_name, column_name from information_schema.columns
+where table_schema = 'deny_db';
+table_name	column_name
+t1	secret
+#
+# Invalid field error is returned if table exists.
+#
+select c from deny_db.t1;
+ERROR 42S22: Unknown column 'c' in 'field list'
+#
+# Table access denied if table does exist but is not granted.
+#
+select c from deny_db.t2;
+ERROR 42000: SELECT command denied to user 'foo'@'localhost' for table 't2'
+#
+# Same error if table does not exist.
+#
+select c from deny_db.t_not_exists;
+ERROR 42000: SELECT command denied to user 'foo'@'localhost' for table 't_not_exists'
+select secret from deny_db.t1;
+secret
+3
+#
+# Now apply deny.
+#
+connection default;
+deny select on *.* to foo;
+disconnect con1;
+connect  con1,localhost,foo,,;
+show databases;
+Database
+information_schema
+test
+use information_schema;
+use deny_db;
+ERROR 42000: Access denied for user 'foo'@'%' to database 'deny_db'
+select * from deny_db.t1;
+ERROR 42000: SELECT command denied to user 'foo'@'localhost' for table 't1'
+select c from deny_db.t1;
+ERROR 42000: SELECT command denied to user 'foo'@'localhost' for table 't1'
+select c from deny_db.t2;
+ERROR 42000: SELECT command denied to user 'foo'@'localhost' for table 't2'
+select c from deny_db.t_not_exists;
+ERROR 42000: SELECT command denied to user 'foo'@'localhost' for table 't_not_exists'
+select secret from deny_db.t1;
+ERROR 42000: SELECT command denied to user 'foo'@'localhost' for table 't1'
+#
+# Grant table access then test deny.
+#
+connection default;
+grant select on deny_db.t1 to foo;
+connection con1;
+show databases;
+Database
+information_schema
+test
+use information_schema;
+use deny_db;
+ERROR 42000: Access denied for user 'foo'@'%' to database 'deny_db'
+select * from deny_db.t1;
+ERROR 42000: SELECT command denied to user 'foo'@'localhost' for table 't1'
+select c from deny_db.t1;
+ERROR 42000: SELECT command denied to user 'foo'@'localhost' for table 't1'
+select c from deny_db.t2;
+ERROR 42000: SELECT command denied to user 'foo'@'localhost' for table 't2'
+select c from deny_db.t_not_exists;
+ERROR 42000: SELECT command denied to user 'foo'@'localhost' for table 't_not_exists'
+select secret from deny_db.t1;
+ERROR 42000: SELECT command denied to user 'foo'@'localhost' for table 't1'
+#
+# Grant database access then test deny.
+#
+connection default;
+grant select on deny_db.* to foo;
+connection con1;
+show databases;
+Database
+information_schema
+test
+use information_schema;
+use deny_db;
+ERROR 42000: Access denied for user 'foo'@'%' to database 'deny_db'
+select * from deny_db.t1;
+ERROR 42000: SELECT command denied to user 'foo'@'localhost' for table 't1'
+select c from deny_db.t1;
+ERROR 42000: SELECT command denied to user 'foo'@'localhost' for table 't1'
+select c from deny_db.t2;
+ERROR 42000: SELECT command denied to user 'foo'@'localhost' for table 't2'
+select c from deny_db.t_not_exists;
+ERROR 42000: SELECT command denied to user 'foo'@'localhost' for table 't_not_exists'
+select secret from deny_db.t1;
+ERROR 42000: SELECT command denied to user 'foo'@'localhost' for table 't1'
+#
+# Grant global access then test deny.
+#
+connection default;
+grant select on *.* to foo;
+connection con1;
+show databases;
+Database
+information_schema
+test
+use information_schema;
+use deny_db;
+ERROR 42000: Access denied for user 'foo'@'%' to database 'deny_db'
+select * from deny_db.t1;
+ERROR 42000: SELECT command denied to user 'foo'@'localhost' for table 't1'
+select c from deny_db.t1;
+ERROR 42000: SELECT command denied to user 'foo'@'localhost' for table 't1'
+select c from deny_db.t2;
+ERROR 42000: SELECT command denied to user 'foo'@'localhost' for table 't2'
+select c from deny_db.t_not_exists;
+ERROR 42000: SELECT command denied to user 'foo'@'localhost' for table 't_not_exists'
+select secret from deny_db.t1;
+ERROR 42000: SELECT command denied to user 'foo'@'localhost' for table 't1'
+connection default;
+#
+# Test underlying data loading.
+#
+select user, host, JSON_EXTRACT(priv, '$.deny') from mysql.global_priv where user = 'foo';
+user	host	JSON_EXTRACT(priv, '$.deny')
+foo	%	{"global": 1, "version_id": 101100}
+show grants for foo;
+Grants for foo@%
+GRANT SELECT ON *.* TO `foo`@`%`
+DENY SELECT ON *.* TO `foo`@`%`
+GRANT SELECT ON `deny_db`.* TO `foo`@`%`
+GRANT SELECT, SELECT (secret) ON `deny_db`.`t1` TO `foo`@`%`
+flush privileges;
+show grants for foo;
+Grants for foo@%
+GRANT SELECT ON *.* TO `foo`@`%`
+DENY SELECT ON *.* TO `foo`@`%`
+GRANT SELECT ON `deny_db`.* TO `foo`@`%`
+GRANT SELECT, SELECT (secret) ON `deny_db`.`t1` TO `foo`@`%`
+connection con1;
+show databases;
+Database
+information_schema
+test
+use information_schema;
+use deny_db;
+ERROR 42000: Access denied for user 'foo'@'%' to database 'deny_db'
+select * from deny_db.t1;
+ERROR 42000: SELECT command denied to user 'foo'@'localhost' for table 't1'
+select c from deny_db.t1;
+ERROR 42000: SELECT command denied to user 'foo'@'localhost' for table 't1'
+select c from deny_db.t2;
+ERROR 42000: SELECT command denied to user 'foo'@'localhost' for table 't2'
+select c from deny_db.t_not_exists;
+ERROR 42000: SELECT command denied to user 'foo'@'localhost' for table 't_not_exists'
+select secret from deny_db.t1;
+ERROR 42000: SELECT command denied to user 'foo'@'localhost' for table 't1'
+disconnect con1;
+connection default;
+#
+# Now test insert not being denied.
+#
+grant insert(secret) on deny_db.t1 to foo;
+connect  con1,localhost,foo,,;
+show databases;
+Database
+deny_db
+information_schema
+test
+insert into deny_db.t1(secret) values (10000);
+disconnect con1;
+connection default;
+drop database deny_db;
+drop user foo;
+#
+# Test denying all rights globally.
+# User should still be able to connect and see information_schema
+# *at least*.
+#
+create user foo;
+create database some_db;
+grant select on *.* to foo;
+show grants for foo;
+Grants for foo@%
+GRANT SELECT ON *.* TO `foo`@`%`
+deny select on *.* to foo;
+show grants for foo;
+Grants for foo@%
+GRANT SELECT ON *.* TO `foo`@`%`
+DENY SELECT ON *.* TO `foo`@`%`
+deny all on *.* to foo;
+show grants for foo;
+Grants for foo@%
+GRANT SELECT ON *.* TO `foo`@`%`
+DENY ALL PRIVILEGES ON *.* TO `foo`@`%`
+connect  con1,localhost,foo,,information_schema;
+show databases;
+Database
+information_schema
+disconnect con1;
+connection default;
+drop user foo;
+drop database some_db;
+##############################################
+# Test SELECT command interacting with deny. #
+##############################################
+create user foo;
+create user bar;
+create database some_db;
+create table some_db.t1 (a int, secret int);
+insert into some_db.t1 values (1, 100);
+use some_db;
+create view v1 as (select a from t1);
+create view v2 as (select secret from t1);
+connect  con1,localhost,foo,,;
+select table_name, table_type from information_schema.tables where table_schema like 'some_db';
+table_name	table_type
+disconnect con1;
+connection default;
+grant select on *.* to foo;
+grant select on some_db.* to foo;
+grant select on some_db.t1 to foo;
+grant select(a) on some_db.t1 to foo;
+#
+# See what foo sees before denies.
+#
+connect  con1,localhost,foo,,;
+select table_name, table_type from information_schema.tables where table_schema like 'some_db';
+table_name	table_type
+t1	BASE TABLE
+v1	VIEW
+v2	VIEW
+disconnect con1;
+connection default;
+show grants for foo;
+Grants for foo@%
+GRANT SELECT ON *.* TO `foo`@`%`
+GRANT SELECT ON `some_db`.* TO `foo`@`%`
+GRANT SELECT, SELECT (a) ON `some_db`.`t1` TO `foo`@`%`
+deny select on *.* to foo;
+show grants for foo;
+Grants for foo@%
+GRANT SELECT ON *.* TO `foo`@`%`
+DENY SELECT ON *.* TO `foo`@`%`
+GRANT SELECT ON `some_db`.* TO `foo`@`%`
+GRANT SELECT, SELECT (a) ON `some_db`.`t1` TO `foo`@`%`
+connect  con1,localhost,foo,,;
+show grants;
+Grants for foo@%
+GRANT SELECT ON *.* TO `foo`@`%`
+DENY SELECT ON *.* TO `foo`@`%`
+GRANT SELECT ON `some_db`.* TO `foo`@`%`
+GRANT SELECT, SELECT (a) ON `some_db`.`t1` TO `foo`@`%`
+use some_db;
+ERROR 42000: Access denied for user 'foo'@'%' to database 'some_db'
+select * from some_db.t1;
+ERROR 42000: SELECT command denied to user 'foo'@'localhost' for table 't1'
+select * from some_db.v1;
+ERROR 42000: SELECT command denied to user 'foo'@'localhost' for table 'v1'
+select * from some_db.v2;
+ERROR 42000: SELECT command denied to user 'foo'@'localhost' for table 'v2'
+select table_name, table_type from information_schema.tables where table_schema like "some_db";
+table_name	table_type
+select table_name, column_name from information_schema.columns where table_schema like "some_db";
+table_name	column_name
+disconnect con1;
+connection default;
+grant insert(a) on some_db.t1 to bar;
+grant insert(a) on some_db.t1 to foo;
+connect  con1,localhost,foo,,;
+select table_name, column_name from information_schema.columns where table_schema like "some_db";
+table_name	column_name
+t1	a
+disconnect con1;
+connect  con2,localhost,bar,,;
+select table_name, column_name from information_schema.columns where table_schema like "some_db";
+table_name	column_name
+t1	a
+disconnect con2;
+connection default;
+deny insert on *.* to foo;
+deny insert on *.* to bar;
+connect  con1,localhost,foo,,;
+select table_name, column_name from information_schema.columns where table_schema like "some_db";
+table_name	column_name
+disconnect con1;
+connect  con2,localhost,bar,,;
+select table_name, column_name from information_schema.columns where table_schema like "some_db";
+table_name	column_name
+disconnect con2;
+connection default;
+drop user foo;
+drop user bar;
+drop database some_db;

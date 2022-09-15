@@ -1,0 +1,135 @@
+connection default;
+create user foo;
+create database some_db;
+create table some_db.p1 (a int, b int);
+CREATE PROCEDURE some_db.p1 (OUT param1 INT)
+BEGIN
+SELECT COUNT(*) INTO param1 FROM p1;
+END;
+|
+CREATE FUNCTION some_db.p1(IN c INT) RETURNS INT
+BEGIN
+SET c = 100;
+RETURN c + c;
+END;
+|
+set @old_sql_mode=@@sql_mode|
+set sql_mode=ORACLE|
+create package some_db.util_functions as
+function f1(id int) return int;
+end|
+create package body some_db.util_functions as
+function f1(id int) return int as result int;
+begin
+return 10;
+end;
+end|
+#
+# Test some illegal denies for packages.
+#
+deny execute on some_db.p1 to foo;
+ERROR 42000: Illegal GRANT/REVOKE/DENY command; please consult the manual to see which privileges can be used
+deny select on procedure some_db.p1 to foo;
+ERROR 42000: Illegal GRANT/REVOKE/DENY command; please consult the manual to see which privileges can be used
+deny select on function some_db.p1 to foo;
+ERROR 42000: Illegal GRANT/REVOKE/DENY command; please consult the manual to see which privileges can be used
+connect  con1,localhost,foo,,;
+select some_db.p1(1);
+ERROR 42000: execute command denied to user 'foo'@'%' for routine 'some_db.p1'
+select some_db.util_functions.f1(1);
+ERROR 42000: execute command denied to user 'foo'@'%' for routine 'some_db.util_functions'
+call some_db.p1(20);
+ERROR 42000: execute command denied to user 'foo'@'%' for routine 'some_db.p1'
+alter procedure some_db.p1 SQL SECURITY definer;
+ERROR 42000: alter routine command denied to user 'foo'@'%' for routine 'some_db.p1'
+show create procedure some_db.p1;
+ERROR 42000: PROCEDURE p1 does not exist
+disconnect con1;
+connection default;
+grant all on some_db.* to foo;
+grant all on procedure some_db.p1 to foo;
+grant all on function some_db.p1 to foo;
+grant all on package some_db.util_functions to foo;
+grant all on package body some_db.util_functions to foo;
+connect  con1,localhost,foo,,;
+select some_db.p1(1);
+some_db.p1(1)
+200
+select some_db.util_functions.f1(1);
+some_db.util_functions.f1(1)
+10
+call some_db.p1(@var);
+alter procedure some_db.p1 SQL SECURITY definer;
+show create procedure some_db.p1;
+Procedure	sql_mode	Create Procedure	character_set_client	collation_connection	Database Collation
+p1	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	NULL	latin1	latin1_swedish_ci	latin1_swedish_ci
+disconnect con1;
+connection default;
+deny execute on procedure some_db.p1 to foo;
+deny execute on function some_db.p1 to foo;
+deny execute on package some_db.util_functions to foo;
+deny execute on package body some_db.util_functions to foo;
+connect  con1,localhost,foo,,;
+select some_db.p1(1);
+ERROR 42000: execute command denied to user 'foo'@'%' for routine 'some_db.p1'
+select some_db.util_functions.f1(1);
+ERROR 42000: execute command denied to user 'foo'@'%' for routine 'some_db.util_functions'
+call some_db.p1(20);
+ERROR 42000: execute command denied to user 'foo'@'%' for routine 'some_db.p1'
+alter procedure some_db.p1 SQL SECURITY definer;
+show create procedure some_db.p1;
+Procedure	sql_mode	Create Procedure	character_set_client	collation_connection	Database Collation
+p1	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	NULL	latin1	latin1_swedish_ci	latin1_swedish_ci
+disconnect con1;
+connection default;
+deny all on procedure some_db.p1 to foo;
+deny all on function some_db.p1 to foo;
+deny all on package some_db.util_functions to foo;
+deny all on package body some_db.util_functions to foo;
+connect  con1,localhost,foo,,;
+select some_db.p1(1);
+ERROR 42000: execute command denied to user 'foo'@'%' for routine 'some_db.p1'
+select some_db.util_functions.f1(1);
+ERROR 42000: execute command denied to user 'foo'@'%' for routine 'some_db.util_functions'
+call some_db.p1(20);
+ERROR 42000: execute command denied to user 'foo'@'%' for routine 'some_db.p1'
+alter procedure some_db.p1 SQL SECURITY invoker;
+ERROR 42000: alter routine command denied to user 'foo'@'%' for routine 'some_db.p1'
+show create procedure some_db.p1;
+Procedure	sql_mode	Create Procedure	character_set_client	collation_connection	Database Collation
+p1	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	NULL	latin1	latin1_swedish_ci	latin1_swedish_ci
+disconnect con1;
+connection default;
+deny all on some_db.* to foo;
+connect  con1,localhost,foo,,;
+select some_db.p1(1);
+ERROR 42000: execute command denied to user 'foo'@'%' for routine 'some_db.p1'
+select some_db.util_functions.f1(1);
+ERROR 42000: execute command denied to user 'foo'@'%' for routine 'some_db.util_functions'
+call some_db.p1(20);
+ERROR 42000: execute command denied to user 'foo'@'%' for routine 'some_db.p1'
+show create procedure some_db.p1;
+ERROR 42000: PROCEDURE p1 does not exist
+disconnect con1;
+connection default;
+select user, host, JSON_EXTRACT(priv, '$.deny') from mysql.global_priv where user = 'foo';
+user	host	JSON_EXTRACT(priv, '$.deny')
+foo	%	{"db": [{"name": "`some_db`", "access": 770127935}], "function": [{"name": "`some_db`.`p1`", "access": 17039360}], "procedure": [{"name": "`some_db`.`p1`", "access": 17039360}], "package_spec": [{"name": "`some_db`.`util_functions`", "access": 17039360}], "package_body": [{"name": "`some_db`.`util_functions`", "access": 17039360}], "version_id": VERSION_ID}
+revoke all on some_db.* from foo;
+revoke deny all on some_db.* from foo;
+#
+# Test that proc denies mask access to the database too.
+#
+# Here foo has no more rights on any of the objects in some_db, hence
+# he should be denied access.
+#
+connect  con1,localhost,foo,,;
+use some_db;
+ERROR 42000: Access denied for user 'foo'@'%' to database 'some_db'
+show create procedure some_db.p1;
+ERROR 42000: PROCEDURE p1 does not exist
+disconnect con1;
+connection default;
+set sql_mode=@old_sql_mode;
+drop user foo;
+drop database some_db;

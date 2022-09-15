@@ -530,6 +530,7 @@ static struct show_privileges_st sys_privileges[]=
   {"Connection admin", "Server", "To bypass connection limits and kill other users' connections"},
   {"Read_only admin", "Server", "To perform write operations even if @@read_only=ON"},
   {"Usage","Server Admin","No privileges - allow connect only"},
+  {"Ignore denies", "Server Admin", "Deny statements have no effect on the user."},
   {NullS, NullS, NullS}
 };
 
@@ -1072,7 +1073,7 @@ public:
       my_snprintf(m_view_access_denied_message, MYSQL_ERRMSG_SIZE,
                   ER_THD(thd, ER_TABLEACCESS_DENIED_ERROR), "SHOW VIEW",
                   m_sctx->priv_user,
-                  m_sctx->host_or_ip, m_top_view->get_table_name());
+                  m_sctx->host_or_ip, m_top_view->get_table_name().str);
     }
     return m_view_access_denied_message_ptr;
   }
@@ -1117,8 +1118,8 @@ public:
       push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN, 
                           ER_VIEW_INVALID,
                           ER_THD(thd, ER_VIEW_INVALID),
-                          m_top_view->get_db_name(),
-                          m_top_view->get_table_name());
+                          m_top_view->get_db_name().str,
+                          m_top_view->get_table_name().str);
       is_handled= TRUE;
       break;
 
@@ -1392,6 +1393,7 @@ bool mysqld_show_create_db(THD *thd, LEX_CSTRING *dbname,
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
   Security_context *sctx= thd->security_ctx;
   privilege_t db_access(NO_ACL);
+  privilege_t deny_mask= acl_get_effective_deny_mask(sctx, *dbname);
 #endif
   Schema_specification_st create;
   Protocol *protocol=thd->protocol;
@@ -1402,14 +1404,11 @@ bool mysqld_show_create_db(THD *thd, LEX_CSTRING *dbname,
   if (test_all_bits(sctx->master_access, DB_ACLS))
     db_access=DB_ACLS;
   else
-  {
-    db_access= acl_get(sctx->host, sctx->ip, sctx->priv_user, dbname->str, 0) |
-               sctx->master_access;
-    if (sctx->priv_role[0])
-      db_access|= acl_get("", "", sctx->priv_role, dbname->str, 0);
-  }
+    db_access= sctx->master_access |
+                 acl_get_current_auth(sctx, dbname->str, false);
+  db_access&= ~deny_mask;
 
-  if (!(db_access & DB_ACLS) && check_grant_db(thd,dbname->str))
+  if (!(db_access & DB_ACLS) && check_grant_db(sctx, *dbname, deny_mask))
   {
     status_var_increment(thd->status_var.access_denied_errors);
     my_error(ER_DBACCESS_DENIED_ERROR, MYF(0),
@@ -4515,7 +4514,7 @@ int schema_tables_add(THD *thd, Dynamic_array<LEX_CSTRING*> *files,
 
 static int
 make_table_name_list(THD *thd, Dynamic_array<LEX_CSTRING*> *table_names,
-                     LEX *lex, LOOKUP_FIELD_VALUES *lookup_field_vals,
+                     LOOKUP_FIELD_VALUES *lookup_field_vals,
                      LEX_CSTRING *db_name)
 {
   char path[FN_REFLEN + 1];
@@ -5301,15 +5300,17 @@ int get_all_tables(THD *thd, TABLE_LIST *tables, COND *cond)
     LEX_CSTRING *db_name= db_names.at(i);
     DBUG_ASSERT(db_name->length <= NAME_LEN);
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
+    privilege_t deny_mask= acl_get_effective_deny_mask(sctx, *db_name);
+    //TODO(cvicentiu) denies -> write tests
     if (!(check_access(thd, SELECT_ACL, db_name->str,
                        &thd->col_access, NULL, 0, 1) ||
-          (!thd->col_access && check_grant_db(thd, db_name->str))) ||
-        sctx->master_access & (DB_ACLS | SHOW_DB_ACL) ||
-        acl_get(sctx->host, sctx->ip, sctx->priv_user, db_name->str, 0))
+          (!thd->col_access && check_grant_db(sctx, *db_name, NO_ACL))) ||
+        (sctx->master_access & ~deny_mask) & (DB_ACLS | SHOW_DB_ACL) ||
+        (acl_get_current_auth(sctx, db_name->str, false) & ~deny_mask))
 #endif
     {
       Dynamic_array<LEX_CSTRING*> table_names(PSI_INSTRUMENT_MEM);
-      int res= make_table_name_list(thd, &table_names, lex,
+      int res= make_table_name_list(thd, &table_names,
                                     &plan->lookup_field_vals, db_name);
       if (unlikely(res == 2))   /* Not fatal error, continue */
         continue;
@@ -5322,11 +5323,13 @@ int get_all_tables(THD *thd, TABLE_LIST *tables, COND *cond)
         DBUG_ASSERT(table_name->length <= NAME_LEN);
 
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
-        if (!(thd->col_access & TABLE_ACLS))
+        privilege_t table_deny_mask= acl_get_effective_deny_mask(sctx, *db_name,
+                                                                 *table_name);
+        if (!((thd->col_access & ~table_deny_mask) & TABLE_ACLS))
         {
           table_acl_check.db= *db_name;
           table_acl_check.table_name= *table_name;
-          table_acl_check.grant.privilege= thd->col_access;
+          table_acl_check.grant.privilege= thd->col_access & ~table_deny_mask;
           if (check_grant(thd, TABLE_ACLS, &table_acl_check, TRUE, 1, TRUE))
             continue;
         }
@@ -5504,11 +5507,11 @@ int fill_schema_schemata(THD *thd, TABLE_LIST *tables, COND *cond)
       continue;
     }
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
-    if (sctx->master_access & (DB_ACLS | SHOW_DB_ACL) ||
-        acl_get(sctx->host, sctx->ip, sctx->priv_user, db_name->str, false) ||
-        (sctx->priv_role[0] ?
-             acl_get("", "", sctx->priv_role, db_name->str, false) : NO_ACL) ||
-        !check_grant_db(thd, db_name->str))
+    privilege_t deny_mask= acl_get_effective_deny_mask(sctx, *db_name);
+
+    if ((sctx->master_access & ~deny_mask) & (DB_ACLS | SHOW_DB_ACL) ||
+        (acl_get_current_auth(sctx, db_name->str, false) & ~deny_mask)||
+        !check_grant_db(sctx, *db_name, deny_mask))
 #endif
     {
       load_db_opt_by_name(thd, db_name->str, &create);
@@ -6121,9 +6124,9 @@ static int get_schema_column_record(THD *thd, TABLE_LIST *tables,
     ulonglong col_access;
     check_access(thd,SELECT_ACL, db_name->str,
                  &tables->grant.privilege, 0, 0, MY_TEST(tables->schema_table));
-    col_access= get_column_grant(thd, &tables->grant,
-                                 db_name->str, table_name->str,
-                                 field->field_name.str) & COL_ACLS;
+    col_access= get_column_grant(thd->security_context(), &tables->grant,
+                                 *db_name, *table_name,
+                                 field->field_name) & COL_ACLS;
     if (!tables->schema_table && !col_access)
       continue;
     char *end= tmp;
@@ -6499,7 +6502,7 @@ bool store_schema_params(THD *thd, TABLE *table, TABLE *proc_table,
   if (!full_access)
     full_access= !strcmp(sp_user, definer.str);
   if (!full_access &&
-      check_some_routine_access(thd, db.str, name.str, sph))
+      check_some_routine_access(thd, db, name, *sph))
     DBUG_RETURN(0);
 
   proc_table->field[MYSQL_PROC_FIELD_PARAM_LIST]->val_str_nopad(thd->mem_root,
@@ -6610,7 +6613,7 @@ bool store_schema_proc(THD *thd, TABLE *table, TABLE *proc_table,
   if (!full_access)
     full_access= !strcmp(sp_user, definer.str);
   if (!full_access &&
-      check_some_routine_access(thd, db.str, name.str, sph))
+      check_some_routine_access(thd, db, name, *sph))
     return 0;
 
   if (!is_show_command(thd) ||
@@ -6946,19 +6949,38 @@ static int get_schema_views_record(THD *thd, TABLE_LIST *tables,
       else
       {
         if ((thd->col_access & (SHOW_VIEW_ACL|SELECT_ACL)) ==
-            (SHOW_VIEW_ACL|SELECT_ACL))
+            (SHOW_VIEW_ACL|SELECT_ACL) &&
+            !(thd->security_ctx->denies_active() & (TABLE_PRIV | COLUMN_PRIV)))
+        {
           tables->allowed_show= TRUE;
+        }
         else
         {
-          TABLE_LIST table_list;
-          table_list.reset();
-          table_list.db= tables->db;
-          table_list.table_name= tables->table_name;
-          table_list.grant.privilege= thd->col_access;
-          privilege_t view_access(get_table_grant(thd, &table_list));
-	  if ((view_access & (SHOW_VIEW_ACL|SELECT_ACL)) ==
-	      (SHOW_VIEW_ACL|SELECT_ACL))
-	    tables->allowed_show= TRUE;
+          privilege_t view_access(get_table_grant(thd->security_context(),
+                                                  thd->col_access, tables->db,
+                                                  tables->table_name));
+          if ((view_access & (SHOW_VIEW_ACL|SELECT_ACL)) ==
+              (SHOW_VIEW_ACL|SELECT_ACL))
+          {
+            if (thd->security_context()->denies_active() & COLUMN_PRIV)
+            {
+              /*
+                 Only allow show of the view's definition *if* we have
+                 TABLE or higher SELECT & SHOW VIEW privilege *and*
+                 we do not have any columns in the view with a denied
+                 SELECT.
+              */
+              if (!check_if_any_column_is_denied(thd->security_context(),
+                                                 SELECT_ACL,
+                                                 tables->db, tables->table_name,
+                                                 tables->table->field))
+                tables->allowed_show= TRUE;
+            }
+            else
+            {
+              tables->allowed_show= TRUE;
+            }
+          }
         }
       }
 #endif
@@ -8303,7 +8325,7 @@ TABLE *create_schema_table(THD *thd, TABLE_LIST *table_list)
   TABLE *table;
   ST_SCHEMA_TABLE *schema_table= table_list->schema_table;
   ST_FIELD_INFO *fields= schema_table->fields_info;
-  bool need_all_fieds= table_list->schema_table_reformed || // SHOW command
+  bool need_all_fields= table_list->schema_table_reformed || // SHOW command
                        thd->lex->only_view_structure(); // need table structure
   DBUG_ENTER("create_schema_table");
 
@@ -8319,7 +8341,7 @@ TABLE *create_schema_table(THD *thd, TABLE_LIST *table_list)
   bool keep_row_order= is_show_command(thd);
   if (!(table= create_tmp_table_for_schema(thd, tmp_table_param, *schema_table,
                  (select_lex->options | thd->variables.option_bits | TMP_TABLE_ALL_COLUMNS),
-                  table_list->alias, !need_all_fieds, keep_row_order)))
+                  table_list->alias, !need_all_fields, keep_row_order)))
     DBUG_RETURN(0);
   my_bitmap_map* bitmaps=
     (my_bitmap_map*) thd->alloc(bitmap_buffer_size(field_count));

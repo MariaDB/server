@@ -185,6 +185,7 @@ my @DEFAULT_SUITES= qw(
     compat/oracle-
     compat/mssql-
     compat/maxdb-
+    deny-
     encryption-
     federated-
     funcs_1-

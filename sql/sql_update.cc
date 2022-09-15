@@ -488,6 +488,7 @@ int mysql_update(THD *thd,
   old_covering_keys= table->covering_keys;		// Keys used in WHERE
   /* Check the fields we are going to modify */
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
+  /* TODO(cvicentiu) Test this interaction with DENIES and views. */
   table_list->grant.want_privilege= table->grant.want_privilege= want_privilege;
   table_list->register_want_access(want_privilege);
 #endif
@@ -514,8 +515,11 @@ int mysql_update(THD *thd,
 
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
   /* Check values */
-  table_list->grant.want_privilege= table->grant.want_privilege=
-    (SELECT_ACL & ~table->grant.privilege);
+  if (thd->security_ctx->denies_active() & COLUMN_PRIV)
+    table_list->grant.want_privilege= table->grant.want_privilege= SELECT_ACL;
+  else
+    table_list->grant.want_privilege= table->grant.want_privilege=
+      (SELECT_ACL & ~table->grant.privilege);
 #endif
   if (setup_fields(thd, Ref_ptr_array(), values, MARK_COLUMNS_READ, 0, NULL, 0))
   {
@@ -1425,8 +1429,11 @@ bool mysql_prepare_update(THD *thd, TABLE_LIST *table_list,
   DBUG_ENTER("mysql_prepare_update");
 
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
-  table_list->grant.want_privilege= table->grant.want_privilege= 
-    (SELECT_ACL & ~table->grant.privilege);
+  if (thd->security_ctx->denies_active() & COLUMN_PRIV)
+    table_list->grant.want_privilege= table->grant.want_privilege= SELECT_ACL;
+  else
+    table_list->grant.want_privilege=
+      table->grant.want_privilege= (SELECT_ACL & ~table->grant.privilege);
   table_list->register_want_access(SELECT_ACL);
 #endif
 

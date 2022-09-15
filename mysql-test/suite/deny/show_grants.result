@@ -1,0 +1,76 @@
+create user foo;
+create database some_db;
+create database secret_db;
+create table some_db.t1 (a int, b char);
+grant select,insert on *.* to foo;
+deny select, update on *.* to foo;
+grant select, delete on some_db.* to foo;
+deny insert, update on some_db.* to foo;
+deny all on secret_db.* to foo with grant option;
+show grants for foo;
+Grants for foo@%
+GRANT SELECT, INSERT ON *.* TO `foo`@`%`
+DENY SELECT, UPDATE ON *.* TO `foo`@`%`
+GRANT SELECT, DELETE ON `some_db`.* TO `foo`@`%`
+DENY ALL PRIVILEGES ON `secret_db`.* TO `foo`@`%` WITH GRANT OPTION
+DENY INSERT, UPDATE ON `some_db`.* TO `foo`@`%`
+connect  con1,localhost,foo,,;
+show grants;
+Grants for foo@%
+GRANT SELECT, INSERT ON *.* TO `foo`@`%`
+DENY SELECT, UPDATE ON *.* TO `foo`@`%`
+GRANT SELECT, DELETE ON `some_db`.* TO `foo`@`%`
+DENY ALL PRIVILEGES ON `secret_db`.* TO `foo`@`%` WITH GRANT OPTION
+DENY INSERT, UPDATE ON `some_db`.* TO `foo`@`%`
+disconnect con1;
+connection default;
+create role bar;
+show grants for bar;
+Grants for bar
+GRANT USAGE ON *.* TO `bar`
+#
+# Test role show grants
+#
+deny select on *.* to bar;
+deny insert on one_db.* to bar;
+deny update on one_db.t1 to bar;
+deny update (c1) on one_db.t1 to bar;
+deny insert (c1) on one_db.t1 to bar;
+deny insert (c2) on one_db.t1 to bar;
+deny insert (c3, c4) on one_db.t1 to bar;
+deny all privileges on one_db.t2 to bar;
+deny select (c_b, c_a) on one_db.t2 to bar;
+deny usage on one_db.t2 to bar with grant option;
+deny execute on procedure some_other_db.p1 to bar;
+deny execute on function some_other_db.p1 to bar;
+set @old_sql_mode=@@sql_mode;
+set sql_mode=ORACLE;
+deny execute on package some_other_db.p1 to bar;
+deny all on package body some_other_db.p1 to bar;
+set sql_mode=@old_sql_mode;
+grant bar to foo;
+connect  con1, localhost, foo,,;
+set role bar;
+show grants;
+Grants for foo@%
+GRANT `bar` TO `foo`@`%`
+GRANT SELECT, INSERT ON *.* TO `foo`@`%`
+DENY SELECT, UPDATE ON *.* TO `foo`@`%`
+GRANT SELECT, DELETE ON `some_db`.* TO `foo`@`%`
+DENY ALL PRIVILEGES ON `secret_db`.* TO `foo`@`%` WITH GRANT OPTION
+DENY INSERT, UPDATE ON `some_db`.* TO `foo`@`%`
+GRANT USAGE ON *.* TO `bar`
+DENY SELECT ON *.* TO `bar`
+DENY INSERT ON `one_db`.* TO `bar`
+DENY INSERT(c1,c2,c3,c4), UPDATE, UPDATE(c1) ON `one_db`.`t1` TO `bar`
+DENY ALL PRIVILEGES, SELECT(c_a,c_b) ON `one_db`.`t2` TO `bar` WITH GRANT OPTION
+DENY EXECUTE ON PROCEDURE `some_other_db`.`p1` TO `bar`
+DENY EXECUTE ON FUNCTION `some_other_db`.`p1` TO `bar`
+DENY EXECUTE ON PACKAGE `some_other_db`.`p1` TO `bar`
+DENY EXECUTE, ALTER ROUTINE ON PACKAGE BODY `some_other_db`.`p1` TO `bar`
+disconnect con1;
+connection default;
+drop database some_db;
+drop database secret_db;
+drop user foo;
+drop role bar;

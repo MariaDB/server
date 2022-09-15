@@ -197,9 +197,9 @@ uint get_table_def_key(const TABLE_LIST *table_list, const char **key)
     is properly initialized, so table definition cache can be produced
     from key used by MDL subsystem.
   */
-  DBUG_ASSERT(!strcmp(table_list->get_db_name(),
+  DBUG_ASSERT(!strcmp(table_list->get_db_name().str,
                       table_list->mdl_request.key.db_name()));
-  DBUG_ASSERT(!strcmp(table_list->get_table_name(),
+  DBUG_ASSERT(!strcmp(table_list->get_table_name().str,
                       table_list->mdl_request.key.name()));
 
   *key= (const char*)table_list->mdl_request.key.ptr() + 1;
@@ -8484,14 +8484,21 @@ insert_fields(THD *thd, Name_resolution_context *context, const char *db_name,
 
        - the table is a derived table
 
-       - the table is a view with SELECT privilege
+       - the table is a view with SELECT privilege and the
+         SELECT privilege could not have been masked by a DENY via column denies.
 
-       - the table is a base table with SELECT privilege
+       - the table is a base table with SELECT privilege and the
+         SELECT privilege could not have been masked by a DENY via column denies.
+         See check_grant's output for grant.want_privilege
     */
     if (!any_privileges &&
         !tables->is_derived() &&
-        !(tables->is_view() && (tables->grant.privilege & SELECT_ACL)) &&
-        !(table && (table->grant.privilege & SELECT_ACL)))
+        !(tables->is_view() &&
+          (tables->grant.privilege & SELECT_ACL) &&
+          !(tables->grant.want_privilege & SELECT_ACL)) &&
+        !(table &&
+          (table->grant.privilege & SELECT_ACL) &&
+          !(tables->grant.want_privilege & SELECT_ACL)))
     {
       field_iterator.set(tables);
       if (check_grant_all_columns(thd, SELECT_ACL, &field_iterator))
@@ -8562,19 +8569,32 @@ insert_fields(THD *thd, Name_resolution_context *context, const char *db_name,
                     tables->is_natural_join);
         DBUG_ASSERT(item->type() == Item::FIELD_ITEM);
         Item_field *fld= (Item_field*) item;
-        const char *field_table_name= field_iterator.get_table_name();
+        /*
+          TODO(cvicentiu) constructing these lex_cstrings could be avoided
+          if we updated all the users of field_iterator::get_xxx_name to
+          use LEX_CSTRING.
+        */
+        const LEX_CSTRING field_db_name = {
+          field_iterator.get_db_name(),
+          strlen(field_iterator.get_db_name())
+        };
+
+        const LEX_CSTRING field_table_name= {
+           field_iterator.get_table_name(),
+           strlen(field_iterator.get_table_name())
+        };
 
         if (!tables->schema_table && 
             !(fld->have_privileges=
-              (get_column_grant(thd, field_iterator.grant(),
-                                field_iterator.get_db_name(),
-                                field_table_name, fld->field_name.str) &
+              (get_column_grant(thd->security_context(), field_iterator.grant(),
+                                field_db_name, field_table_name,
+                                fld->field_name) &
                VIEW_ANY_ACL)))
         {
           my_error(ER_TABLEACCESS_DENIED_ERROR, MYF(0), "ANY",
                    thd->security_ctx->priv_user,
                    thd->security_ctx->host_or_ip,
-                   field_table_name);
+                   field_table_name.str);
           DBUG_RETURN(TRUE);
         }
       }

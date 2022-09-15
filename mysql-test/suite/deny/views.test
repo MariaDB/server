@@ -1,0 +1,118 @@
+--source include/not_embedded.inc
+
+--echo #
+--echo # Test view SQL SECURITY interacting with DENIES
+--echo #
+create database some_db;
+create user foo;
+create user bar;
+
+grant all on some_db.* to foo;
+grant select on some_db.* to bar;
+
+--connect (con1, localhost, foo,,)
+create table some_db.t1 (pk int, b char);
+insert into some_db.t1 values (1, 'a'), (2, 'b'), (3, 'c');
+
+create table some_db.t2 (pk int, fk int);
+insert into some_db.t2 values (10, 1), (20, 2), (30, 3);
+
+create view some_db.v1 (a, b) as
+  select pk, b from some_db.t1
+  order by pk;
+
+create view some_db.v2 (pk1, pk2, b) as
+  select t1.pk, t2.pk, t1.b
+  from some_db.t1 join some_db.t2 on t1.pk = t2.fk
+  order by t1.pk, t2.pk;
+
+create SQL SECURITY INVOKER view some_db.v3 (pk1, pk2, b) as
+  select t1.pk, t2.pk, t1.b
+  from some_db.t1 join some_db.t2 on t1.pk = t2.fk
+  order by t1.pk, t2.pk;
+
+select * from some_db.v1;
+select * from some_db.v2;
+disconnect con1;
+
+--connect (con2, localhost, bar,,)
+select * from some_db.v1;
+select * from some_db.v2;
+disconnect con2;
+
+connection default;
+deny select on some_db.* to foo;
+show create view some_db.v1;
+show create view some_db.v2;
+
+--connect (con1, localhost, foo,,)
+--error ER_TABLEACCESS_DENIED_ERROR
+select * from some_db.v1;
+--error ER_TABLEACCESS_DENIED_ERROR
+select * from some_db.v2;
+disconnect con1;
+
+--connect (con2, localhost, bar,,)
+--error ER_VIEW_INVALID
+select * from some_db.v1;
+--error ER_VIEW_INVALID
+select * from some_db.v2;
+disconnect con2;
+
+connection default;
+revoke deny select on some_db.* from foo;
+deny select on some_db.t2 to foo;
+
+--connect (con1, localhost, foo,,)
+select * from some_db.v1;
+--error ER_VIEW_INVALID
+select * from some_db.v2;
+disconnect con1;
+
+--connect (con2, localhost, bar,,)
+select * from some_db.v1;
+--error ER_VIEW_INVALID
+select * from some_db.v2;
+disconnect con2;
+
+--echo #
+--echo # Test that VIEWS correctly apply denies of the SQL SECURITY setting.
+--echo #
+--connect (con2, localhost, bar,,)
+select * from some_db.v1;
+--error ER_VIEW_INVALID
+select * from some_db.v2;
+--echo #
+--echo # v3 uses bar's rights, so bar should be able to see it.
+--echo #
+select * from some_db.v3;
+disconnect con2;
+
+connection default;
+deny select on some_db.t1 to bar;
+
+--connect (con2, localhost, bar,,)
+select * from some_db.v1;
+--error ER_VIEW_INVALID
+select * from some_db.v2;
+--error ER_VIEW_INVALID
+select * from some_db.v3;
+disconnect con2;
+
+connection default;
+deny select on some_db.v1 to bar;
+
+--connect (con2, localhost, bar,,)
+--error ER_TABLEACCESS_DENIED_ERROR
+select * from some_db.v1;
+--error ER_VIEW_INVALID
+select * from some_db.v2;
+--error ER_VIEW_INVALID
+select * from some_db.v3;
+disconnect con2;
+
+connection default;
+drop database some_db;
+drop user foo;
+drop user bar;
+

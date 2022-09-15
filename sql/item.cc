@@ -6197,16 +6197,17 @@ bool Item_field::fix_fields(THD *thd, Item **reference)
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
   if (any_privileges)
   {
-    const char *db, *tab;
-    db=  field->table->s->db.str;
-    tab= field->table->s->table_name.str;
-    if (!(have_privileges= (get_column_grant(thd, &field->table->grant,
-                                             db, tab, field_name.str) &
+    if (!(have_privileges= (get_column_grant(thd->security_context(),
+                                             &field->table->grant,
+                                             field->table->s->db,
+                                             field->table->s->table_name,
+                                             field_name) &
                             VIEW_ANY_ACL)))
     {
       my_error(ER_COLUMNACCESS_DENIED_ERROR, MYF(0),
                "ANY", thd->security_ctx->priv_user,
-               thd->security_ctx->host_or_ip, field_name.str, tab);
+               thd->security_ctx->host_or_ip, field_name.str,
+               field->table->s->table_name.str);
       goto error;
     }
   }
@@ -9958,11 +9959,10 @@ bool Item_trigger_field::fix_fields(THD *thd, Item **items)
     {
       table_grants->want_privilege= want_privilege;
 
-      if (check_grant_column(thd, table_grants,
-                             triggers->trigger_table->s->db.str,
-                             triggers->trigger_table->s->table_name.str,
-                             field_name.str, field_name.length,
-                             thd->security_ctx))
+      if (check_grant_column(thd->security_ctx, table_grants,
+                             triggers->trigger_table->s->db,
+                             triggers->trigger_table->s->table_name,
+                             field_name))
         return TRUE;
     }
 #endif // NO_EMBEDDED_ACCESS_CHECKS
