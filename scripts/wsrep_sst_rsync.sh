@@ -174,6 +174,7 @@ cd "$OLD_PWD"
 
 BINLOG_TAR_FILE="$DATA_DIR/wsrep_sst_binlog.tar"
 
+ar_log_dir="$DATA_DIR"
 ib_log_dir="$DATA_DIR"
 ib_home_dir="$DATA_DIR"
 ib_undo_dir="$DATA_DIR"
@@ -229,6 +230,23 @@ then
     [ ! -d "$INNODB_UNDO_DIR" ] && mkdir -p "$INNODB_UNDO_DIR"
     cd "$INNODB_UNDO_DIR"
     ib_undo_dir="$(pwd)"
+    cd "$OLD_PWD"
+fi
+
+# if no command line argument then try to get it from the my.cnf:
+if [ -z "$ARIA_LOG_DIR" ]; then
+    ARIA_LOG_DIR=$(parse_cnf '--mysqld' 'aria-log-dir-path')
+    ARIA_LOG_DIR=$(trim_dir "$ARIA_LOG_DIR")
+fi
+
+if [ -n "$ARIA_LOG_DIR" -a "$ARIA_LOG_DIR" != '.' -a \
+     "$ARIA_LOG_DIR" != "$DATA_DIR" ]
+then
+    # handle both relative and absolute paths:
+    cd "$DATA"
+    [ ! -d "$ARIA_LOG_DIR" ] && mkdir -p "$ARIA_LOG_DIR"
+    cd "$ARIA_LOG_DIR"
+    ar_log_dir="$(pwd)"
     cd "$OLD_PWD"
 fi
 
@@ -551,8 +569,8 @@ FILTER="-f '- /lost+found'
         -f '- $ib_home_dir/ibdata*'
         -f '- $ib_undo_dir/undo*'
         -f '- $ib_log_dir/ib_logfile[0-9]*'
-        -f '- $ib_log_dir/aria_log.*'
-        -f '- $ib_log_dir/aria_log_control'
+        -f '- $ar_log_dir/aria_log_control'
+        -f '- $ar_log_dir/aria_log.*'
         -f '+ /*/'
         -f '- /*'"
 
@@ -586,7 +604,7 @@ FILTER="-f '- /lost+found'
         # Transfer InnoDB data files
         rsync ${STUNNEL:+--rsh="$STUNNEL"} \
               --owner --group --perms --links --specials \
-              --ignore-times --inplace --dirs --delete --quiet \
+              --ignore-times --inplace --quiet --dirs --delete \
               $WHOLE_FILE_OPT -f '+ /ibdata*' -f '+ /ib_lru_dump' \
               -f '- **' "$ib_home_dir/" \
               "rsync://$WSREP_SST_OPT_ADDR-data_dir" >&2 || RC=$?
@@ -598,12 +616,12 @@ FILTER="-f '- /lost+found'
 
         wsrep_log_info "Transfer of InnoDB data files done"
 
-        # second, we transfer InnoDB and Aria log files
+        # second, we transfer InnoDB log files
         rsync ${STUNNEL:+--rsh="$STUNNEL"} \
               --owner --group --perms --links --specials \
-              --ignore-times --inplace --dirs --delete --quiet \
-              $WHOLE_FILE_OPT -f '+ /ib_logfile[0-9]*' -f '+ /aria_log.*' \
-              -f '+ /aria_log_control' -f '- **' "$ib_log_dir/" \
+              --ignore-times --inplace --quiet --dirs --delete \
+              $WHOLE_FILE_OPT -f '+ /ib_logfile[0-9]*' \
+              -f '- **' "$ib_log_dir/" \
               "rsync://$WSREP_SST_OPT_ADDR-log_dir" >&2 || RC=$?
 
         if [ $RC -ne 0 ]; then
@@ -611,13 +629,14 @@ FILTER="-f '- /lost+found'
             exit 255 # unknown error
         fi
 
-        wsrep_log_info "Transfer of InnoDB and Aria log files done"
+        wsrep_log_info "Transfer of InnoDB log files done"
 
         # third, we transfer InnoDB undo logs
         rsync ${STUNNEL:+--rsh="$STUNNEL"} \
               --owner --group --perms --links --specials \
-              --ignore-times --inplace --dirs --delete --quiet \
-              $WHOLE_FILE_OPT -f '+ /undo*' -f '- **' "$ib_undo_dir/" \
+              --ignore-times --inplace --quiet --dirs --delete \
+              $WHOLE_FILE_OPT -f '+ /undo*' \
+              -f '- **' "$ib_undo_dir/" \
               "rsync://$WSREP_SST_OPT_ADDR-undo_dir" >&2 || RC=$?
 
         if [ $RC -ne 0 ]; then
@@ -627,10 +646,23 @@ FILTER="-f '- /lost+found'
 
         wsrep_log_info "Transfer of InnoDB undo logs done"
 
+        # fourth, we transfer Aria logs
+        rsync ${STUNNEL:+--rsh="$STUNNEL"} \
+              --owner --group --perms --links --specials \
+              --ignore-times --inplace --quiet --dirs --delete \
+              $WHOLE_FILE_OPT -f '+ /aria_log_control' -f '+ /aria_log.*' \
+              -f '- **' "$ar_log_dir/" \
+              "rsync://$WSREP_SST_OPT_ADDR-aria_log" >&2 || RC=$?
+
+        if [ $RC -ne 0 ]; then
+            wsrep_log_error "rsync aria_log_dir_path returned code $RC:"
+            exit 255 # unknown error
+        fi
+
+        wsrep_log_info "Transfer of Aria logs done"
+
         # then, we parallelize the transfer of database directories,
         # use '.' so that path concatenation works:
-
-        cd "$DATA"
 
         backup_threads=$(parse_cnf '--mysqld|sst' 'backup-threads')
         if [ -z "$backup_threads" ]; then
@@ -638,13 +670,21 @@ FILTER="-f '- /lost+found'
             backup_threads=$nproc
         fi
 
+        cd "$DATA"
+
         find . -maxdepth 1 -mindepth 1 -type d -not -name 'lost+found' \
              -not -name '.zfs' -print0 | xargs -I{} -0 -P $backup_threads \
              rsync ${STUNNEL:+--rsh="$STUNNEL"} \
-             --owner --group --perms --links --specials --ignore-times \
-             --inplace --recursive --delete --quiet $WHOLE_FILE_OPT \
-             --exclude '*/ib_logfile*' --exclude '*/aria_log.*' \
-             --exclude '*/aria_log_control' "$WSREP_SST_OPT_DATA/{}/" \
+             --owner --group --perms --links --specials \
+             --ignore-times --inplace --recursive --delete --quiet \
+             $WHOLE_FILE_OPT \
+             -f '- $ib_home_dir/ib_lru_dump' \
+             -f '- $ib_home_dir/ibdata*' \
+             -f '- $ib_undo_dir/undo*' \
+             -f '- $ib_log_dir/ib_logfile[0-9]*' \
+             -f '- $ar_log_dir/aria_log_control' \
+             -f '- $ar_log_dir/aria_log.*' \
+             "$WSREP_SST_OPT_DATA/{}/" \
              "rsync://$WSREP_SST_OPT_ADDR/{}" >&2 || RC=$?
 
         cd "$OLD_PWD"
@@ -734,6 +774,8 @@ $SILENT
     path = $ib_home_dir
 [$MODULE-undo_dir]
     path = $ib_undo_dir
+[$MODULE-aria_log]
+    path = $ar_log_dir
 EOF
 
     # If the IP is local, listen only on it:
