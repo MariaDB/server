@@ -43,10 +43,22 @@ b
 select a from testdb2.t3;
 ERROR 42000: SELECT command denied to user 'testuser'@'localhost' for column 'a' in table 't3'
 connection default;
-SHOW PROCESSLIST;
-Id	User	Host	db	Command	Time	State	Info	Progress
-#	root	#	testdb2	Query	#	#	SHOW PROCESSLIST	0.000
-#	testuser	#	NULL	Sleep	#	#	NULL	0.000
+disconnect testuser;
+# check that the privilegas correctly read by acl_load
+flush privileges;
+connect  testuser,localhost,testuser,,;
+connection testuser;
+select * from testdb1.t1;
+a	b
+1	2
+select * from testdb2.t2;
+a	b
+1	2
+select b from testdb2.t3;
+b
+2
+select a from testdb2.t3;
+ERROR 42000: SELECT command denied to user 'testuser'@'localhost' for column 'a' in table 't3'
 connection default;
 use test;
 disconnect testuser;
@@ -84,6 +96,19 @@ call testdb.p1();
 1
 1
 connection default;
+disconnect testuser;
+# check that the privilegas correctly read by acl_load
+flush privileges;
+connect  testuser,localhost,testuser,,;
+connection testuser;
+SHOW PROCESSLIST;
+Id	User	Host	db	Command	Time	State	Info	Progress
+#	root	#	testdb	Sleep	#	#	NULL	0.000
+#	testuser	#	NULL	Query	#	#	SHOW PROCESSLIST	0.000
+call testdb.p1();
+1
+1
+connection default;
 SHOW PROCESSLIST;
 Id	User	Host	db	Command	Time	State	Info	Progress
 #	root	#	testdb	Query	#	#	SHOW PROCESSLIST	0.000
@@ -107,6 +132,13 @@ ERROR 42000: Access denied for user 'testuser'@'%' to database 'testdb'
 connection default;
 GRANT LOCK TABLES ON testdb.* to PUBLIC;
 disconnect testuser;
+connect  testuser,localhost,testuser,,;
+connection testuser;
+use testdb;
+connection default;
+disconnect testuser;
+# check that the privilegas correctly read by acl_load
+flush privileges;
 connect  testuser,localhost,testuser,,;
 connection testuser;
 use testdb;
@@ -185,6 +217,22 @@ ERROR 42000: SELECT command denied to user 'testuser'@'localhost' for column 'b'
 connection default;
 select * from testdb.t1;
 a
+insert into t1 values (1);
+disconnect testuser;
+# check that the privilegas correctly read by acl_load
+flush privileges;
+connect  testuser,localhost,testuser,,;
+connection testuser;
+use testdb;
+delete from t1;
+select a from t2;
+a
+1
+select b from t2;
+ERROR 42000: SELECT command denied to user 'testuser'@'localhost' for column 'b' in table 't2'
+connection default;
+select * from testdb.t1;
+a
 use test;
 disconnect testuser;
 REVOKE LOCK TABLES ON testdb.* from PUBLIC;
@@ -208,6 +256,15 @@ ERROR 42000: execute command denied to user 'testuser'@'%' for routine 'testdb.f
 connection default;
 GRANT ALTER ROUTINE ON testdb.* to PUBLIC;
 disconnect testuser;
+connect  testuser,localhost,testuser,,;
+connection testuser;
+alter function testdb.f1 comment "A stupid function";
+select testdb.f1();
+ERROR 42000: execute command denied to user 'testuser'@'%' for routine 'testdb.f1'
+connection default;
+disconnect testuser;
+# check that the privilegas correctly read by acl_load
+flush privileges;
 connect  testuser,localhost,testuser,,;
 connection testuser;
 alter function testdb.f1 comment "A stupid function";
@@ -265,7 +322,7 @@ select * from testdb1.t1;
 a	b
 connection default;
 disconnect testuser;
-# check that the privilegas crrectly read by acl_load
+# check that the privilegas correctly read by acl_load
 flush privileges;
 connect  testuser,localhost,testuser,,*NO-ONE*;
 connection testuser;
