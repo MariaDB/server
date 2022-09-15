@@ -235,9 +235,9 @@ select * from testdb.t1;
 a
 use test;
 disconnect testuser;
-REVOKE LOCK TABLES ON testdb.* from PUBLIC;
-REVOKE DELETE ON testdb.t1 from PUBLIC;
-REVOKE SELECT (a) ON testdb.t2 from PUBLIC;
+REVOKE ALL PRIVILEGES, GRANT OPTION from `PUBLIC`;
+SHOW GRANTS FOR PUBLIC;
+Grants for PUBLIC
 drop user testuser;
 drop database testdb;
 #
