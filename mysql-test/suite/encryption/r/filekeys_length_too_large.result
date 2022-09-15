@@ -1,3 +1,4 @@
+# Test checks if opening a too large key file, file key plugin will only read max key file size bytes and extra bytes will be treated as invalid key.
 call mtr.add_suppression("Invalid key");
 call mtr.add_suppression("Plugin 'file_key_management' init function returned error");
 call mtr.add_suppression("Plugin 'file_key_management' registration.*failed");

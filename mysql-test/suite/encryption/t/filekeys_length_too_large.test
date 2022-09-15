@@ -1,4 +1,3 @@
+--echo # Test checks if opening a too large key file, file key plugin will only read max key file size bytes and extra bytes will be treated as invalid key.
 let SEARCH_PATTERN=Invalid key;
 source filekeys_badtest.inc;
-
---echo # Test checks if opening an too short filekeys does not crash the server.
