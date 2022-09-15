@@ -602,8 +602,7 @@ EXPLAIN
 SELECT * FROM 
 (SELECT a FROM federated.t1 UNION ALL SELECT * FROM federated.t2) q;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	8	
-2	PUSHED DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL
+1	PUSHED SELECT	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL
 # There is an uncacheable side effect due to fetch into @var,
 # so the UNION cannot be pushed down as a whole.
 # But separate SELECTs can be pushed, and the results are combined
@@ -766,6 +765,41 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 4	INTERSECT	t1	ALL	NULL	NULL	NULL	NULL	3	
 NULL	INTERSECT RESULT	<intersect3,4>	ALL	NULL	NULL	NULL	NULL	NULL	
 NULL	UNIT RESULT	<unit1,2,5>	ALL	NULL	NULL	NULL	NULL	NULL	
+# Parenthesis must not prevent the whole UNIONs pushdown
+EXPLAIN (SELECT * FROM federated.t1 UNION
+SELECT * FROM federated.t2) UNION ALL
+SELECT * FROM federated.t1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+NULL	PUSHED UNION	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL
+(SELECT * FROM federated.t1 UNION
+SELECT * FROM federated.t2) UNION ALL
+SELECT * FROM federated.t1;
+a
+abc
+bcd
+cde
+def
+efg
+abc
+bcd
+cde
+EXPLAIN (SELECT * FROM federated.t1 UNION SELECT * FROM federated.t2)
+UNION ALL (SELECT * FROM federated.t1 UNION SELECT * FROM federated.t2);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+NULL	PUSHED UNION	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL
+(SELECT * FROM federated.t1 UNION SELECT * FROM federated.t2) UNION ALL
+(SELECT * FROM federated.t1 UNION SELECT * FROM federated.t2);
+a
+abc
+bcd
+cde
+def
+efg
+abc
+bcd
+cde
+def
+efg
 DROP TABLES federated.t1, federated.t2, t3, t4;
 connection slave;
 DROP TABLE federated.t1, federated.t2;

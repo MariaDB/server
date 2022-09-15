@@ -423,6 +423,21 @@ EXPLAIN SELECT * FROM federated.t2 UNION ALL
   SELECT * FROM t4 INTERSECT
   SELECT * FROM federated.t1;
 
+--echo # Parenthesis must not prevent the whole UNIONs pushdown
+EXPLAIN (SELECT * FROM federated.t1 UNION
+  SELECT * FROM federated.t2) UNION ALL
+  SELECT * FROM federated.t1;
+
+(SELECT * FROM federated.t1 UNION
+  SELECT * FROM federated.t2) UNION ALL
+  SELECT * FROM federated.t1;
+
+EXPLAIN (SELECT * FROM federated.t1 UNION SELECT * FROM federated.t2)
+  UNION ALL (SELECT * FROM federated.t1 UNION SELECT * FROM federated.t2);
+
+(SELECT * FROM federated.t1 UNION SELECT * FROM federated.t2) UNION ALL
+  (SELECT * FROM federated.t1 UNION SELECT * FROM federated.t2);
+
 DROP TABLES federated.t1, federated.t2, t3, t4;
 
 connection slave;

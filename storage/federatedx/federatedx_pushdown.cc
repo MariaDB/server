@@ -50,6 +50,15 @@ static TABLE *get_fed_table_for_pushdown(SELECT_LEX *sel_lex)
   {
     if (!tbl->table)
       return nullptr;
+    if (tbl->derived)
+    {
+      /*
+        Skip derived table for now as they will be checked
+        in the subsequent loop
+      */
+      continue;
+    }
+
     if (tbl->table->file->partition_ht() != federatedx_hton)
       return nullptr;
     if (!table)

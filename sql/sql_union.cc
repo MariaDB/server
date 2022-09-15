@@ -1298,11 +1298,58 @@ bool init_item_int(THD* thd, Item_int* &item)
 
 /**
   @brief
+    Recursive subroutine to be called from find_unit_handler() (see below).
+    Must not be called directly, only from find_unit_handler().
+*/
+static select_handler *find_unit_handler_for_lex(THD *thd,
+                                                 SELECT_LEX *sel_lex,
+                                                 SELECT_LEX_UNIT* unit)
+{
+  if (!(sel_lex->join))
+    return nullptr;
+  for (TABLE_LIST *tbl= sel_lex->join->tables_list; tbl; tbl= tbl->next_local)
+  {
+    if (!tbl->table)
+      continue;
+    if (tbl->derived)
+    {
+      /*
+        Skip derived table for now as they will be checked
+        in the subsequent loop
+      */
+      continue;
+    }
+    handlerton *ht= tbl->table->file->partition_ht();
+    if (!ht->create_unit)
+      continue;
+    select_handler *sh= ht->create_unit(thd, unit);
+    if (sh)
+      return sh;
+  }
+
+  for (SELECT_LEX_UNIT *un= sel_lex->first_inner_unit(); un;
+       un= un->next_unit())
+  {
+    for (SELECT_LEX *sl= un->first_select(); sl; sl= sl->next_select())
+    {
+      select_handler *uh= find_unit_handler_for_lex(thd, sl, unit);
+      if (uh)
+        return uh;
+    }
+  }
+  return nullptr;
+}
+
+
+/**
+  @brief
     Look for provision of the select_handler interface by a foreign engine.
     This interface must support processing UNITs (multiple SELECTs combined
     with UNION/EXCEPT/INTERSECT operators)
 
-  @param thd   The thread handler
+  @param
+    thd   The thread handler
+    unit  UNIT (one or more SELECTs combined with UNION/EXCEPT/INTERSECT
 
   @details
     The function checks that this is an upper level UNIT and if so looks
@@ -1313,31 +1360,26 @@ bool init_item_int(THD* thd, Item_int* &item)
     This is a responsibility of the create_unit call-back function to
     check whether the engine can execute the query.
 
+    The function recursively scans subqueries (see find_unit_handler_for_lex())
+    to get down to real tables and process queries like this:
+      (SELECT a FROM t1 UNION SELECT b FROM t2) UNION
+        (SELECT c FROM t3 UNION select d FROM t4)
+
   @retval the found select_handler if the search is successful
-          0  otherwise
+          nullptr  otherwise
 */
 
-select_handler *find_unit_handler(THD *thd,
-                                  SELECT_LEX_UNIT *unit)
+static select_handler *find_unit_handler(THD *thd,
+                                         SELECT_LEX_UNIT *unit)
 {
   if (unit->outer_select())
     return nullptr;
 
   for (SELECT_LEX *sl= unit->first_select(); sl; sl= sl->next_select())
   {
-    if (!(sl->join))
-      continue;
-    for (TABLE_LIST *tbl= sl->join->tables_list; tbl; tbl= tbl->next_local)
-    {
-      if (!tbl->table)
-        continue;
-      handlerton *ht= tbl->table->file->partition_ht();
-      if (!ht->create_unit)
-        continue;
-      select_handler *sh= ht->create_unit(thd, unit);
-      if (sh)
-        return sh;
-    }
+    select_handler *uh= find_unit_handler_for_lex(thd, sl, unit);
+    if (uh)
+      return uh;
   }
   return nullptr;
 }
