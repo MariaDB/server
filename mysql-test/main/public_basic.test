@@ -114,6 +114,17 @@ drop procedure p1;
 --echo # this test cleanup
 REVOKE SELECT on test.* from PUBLIC;
 
+--echo #
+--echo # check autocreation of PUBLIC on GRAND role TO PUBLIC
+--echo #
+--echo # make sure that the privilege will be added automatically
+delete from mysql.global_priv where user="PUBLIC";
+flush privileges;
+create role roletest;
+GRANT roletest TO PUBLIC;
+drop role roletest;
+
+
 -- echo # clean up
 delete from mysql.global_priv where user="PUBLIC";
 flush privileges;

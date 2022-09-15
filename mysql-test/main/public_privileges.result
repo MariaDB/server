@@ -241,6 +241,49 @@ connection default;
 disconnect testuser;
 drop user testuser;
 drop database testdb1;
+#
+# check assigning privileges via GRAND role TO PUBLIC
+#
+create user testuser;
+create database testdb1;
+use testdb1;
+create table t1 (a int, b int);
+# check that user do not have rights
+connect  testuser,localhost,testuser,,*NO-ONE*;
+connection testuser;
+select * from testdb1.t1;
+ERROR 42000: SELECT command denied to user 'testuser'@'localhost' for table 't1'
+connection default;
+disconnect testuser;
+give rights to everyone via assigning the role to public
+create role roletest;
+GRANT SELECT ON testdb1.* TO roletest;
+GRANT roletest TO PUBLIC;
+connect  testuser,localhost,testuser,,*NO-ONE*;
+connection testuser;
+select * from testdb1.t1;
+a	b
+connection default;
+disconnect testuser;
+# check that the privilegas crrectly read by acl_load
+flush privileges;
+connect  testuser,localhost,testuser,,*NO-ONE*;
+connection testuser;
+select * from testdb1.t1;
+a	b
+connection default;
+disconnect testuser;
+# drop role...
+drop role roletest;
+# ... and check that user do not have rights again
+connect  testuser,localhost,testuser,,*NO-ONE*;
+connection testuser;
+select * from testdb1.t1;
+ERROR 42000: SELECT command denied to user 'testuser'@'localhost' for table 't1'
+connection default;
+disconnect testuser;
+drop user testuser;
+drop database testdb1;
 # clean up
 delete from mysql.global_priv where user="PUBLIC";
 flush privileges;

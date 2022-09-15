@@ -3891,7 +3891,7 @@ static bool add_role_user_mapping(const char *uname, const char *hname,
                                   const char *rname)
 {
   ACL_USER_BASE *grantee= find_acl_user_base(uname, hname);
-  ACL_ROLE *role= find_acl_role(rname, true);
+  ACL_ROLE *role= find_acl_role(rname, false);
 
   if (grantee == NULL || role == NULL)
     return 1;
@@ -4465,7 +4465,7 @@ static ACL_USER_BASE *find_acl_user_base(const char *user, const char *host)
   if (*host)
     return find_user_exact(host, user);
 
-  return find_acl_role(user, false);
+  return find_acl_role(user, true);
 }
 
 
@@ -7653,7 +7653,7 @@ bool mysql_grant_role(THD *thd, List <LEX_USER> &list, bool revoke)
         continue;
       }
       if (!(role_as_user= find_acl_role(thd->security_ctx->priv_role,
-                                        false)))
+                                        true)))
       {
         LEX_CSTRING ls= { thd->security_ctx->priv_role,
                           strlen(thd->security_ctx->priv_role) };
@@ -7690,7 +7690,7 @@ bool mysql_grant_role(THD *thd, List <LEX_USER> &list, bool revoke)
         hostname= empty_clex_str;
       else
       {
-        if (check_role_name(username.str, false) == ROLE_NAME_INVALID)
+        if (check_role_name(username.str, true) == ROLE_NAME_INVALID)
         {
           append_user(thd, &wrong_users, &username, &empty_clex_str);
           result= 1;
@@ -7712,19 +7712,31 @@ bool mysql_grant_role(THD *thd, List <LEX_USER> &list, bool revoke)
     if (!grantee && !revoke)
     {
       LEX_USER user_combo = *user;
-      user_combo.host = hostname;
       user_combo.user = username;
+      user_combo.is_public= (user->host.length == 0 &&
+                             // it is also can be that
+                             // hostname.length= 1 && hostname.str[0] == '%'
+                             // if the PUBLIC was absent
+                             username.length == public_name.length &&
+                             (strcasecmp(username.str, public_name.str) == 0));
+      if (user_combo.is_public)
+        user_combo.host= hostname= empty_clex_str;
+      else
+        user_combo.host = hostname;
 
       if (copy_and_check_auth(&user_combo, &user_combo, thd) ||
           replace_user_table(thd, tables.user_table(), &user_combo, NO_ACL,
                              false, create_new_user,
-                             no_auto_create_user))
+                             (!user_combo.is_public && no_auto_create_user)))
       {
         append_user(thd, &wrong_users, &username, &hostname);
         result= 1;
         continue;
       }
-      grantee= find_user_exact(hostname.str, username.str);
+      if (!user_combo.is_public)
+        grantee= find_user_exact(hostname.str, username.str);
+      else
+        grantee= role_as_user= acl_public;
 
       /* either replace_user_table failed, or we've added the user */
       DBUG_ASSERT(grantee);
