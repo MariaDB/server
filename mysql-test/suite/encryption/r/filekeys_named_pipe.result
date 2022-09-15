@@ -21,4 +21,9 @@ t1	CREATE TABLE `t1` (
   `c1` bigint(20) NOT NULL,
   `b` char(200) DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1 `encrypted`=yes `encryption_key_id`=3
+# Reset mysqld
 drop table t1;
+uninstall soname 'file_key_management';
+Warnings:
+Warning	1620	Plugin is busy and will be uninstalled on shutdown
+# restart
