@@ -54,11 +54,11 @@ drop table t0,t1,t2;
 create table t1 (
   pk int, a int, b int,
   primary key (pk), index idx1(b), index idx2(b)
-) engine=innodb;
+) engine=innodb STATS_AUTO_RECALC=0;
 insert into t1 values (1,6,0),(2,1,0),(3,5,2),(4,8,0);
-create table t2 (c int) engine=innodb;
+create table t2 (c int) engine=innodb STATS_AUTO_RECALC=0;
 insert into t2 values (1),(2);
-create table t3 (d int) engine=innodb;
+create table t3 (d int) engine=innodb STATS_AUTO_RECALC=0;
 insert into t3 values (3),(-1),(4);
 
 set @save_optimizer_switch=@@optimizer_switch;
