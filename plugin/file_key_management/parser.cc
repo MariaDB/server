@@ -305,8 +305,7 @@ int Parser::parse_line(char **line_ptr, keyentry *key)
 char* Parser::read_and_decrypt_file(const char *secret)
 {
   int f;
-  size_t file_size= 0;
-  int ret= 0;
+  ssize_t file_size= 0;
   if (!filename || !filename[0])
   {
     my_printf_error(EE_CANT_OPEN_STREAM, "file-key-management-filename is not set",
@@ -314,7 +313,7 @@ char* Parser::read_and_decrypt_file(const char *secret)
     goto err0;
   }
 
-  f= open(filename, O_RDONLY|O_BINARY, 0);
+  f= open(filename, O_RDONLY|O_BINARY , 0);
   if (f < 0)
   {
     my_error(EE_FILENOTFOUND, ME_ERROR_LOG, filename, errno);
@@ -323,33 +322,23 @@ char* Parser::read_and_decrypt_file(const char *secret)
 
   //Read file into buffer
   uchar *buffer;
-
-  buffer= (uchar *) malloc((size_t) file_size + 1);
+  buffer= (uchar *) malloc((size_t) MAX_KEY_FILE_SIZE );
   if (!buffer)
   {
     my_error(EE_OUTOFMEMORY, ME_ERROR_LOG | ME_FATAL, file_size);
     goto err1;
   }
-  ret= read(f, buffer, MAX_KEY_FILE_SIZE + 1);
-  if (ret < 0)
+  file_size = read(f, buffer, MAX_KEY_FILE_SIZE );
+  if (file_size < 0)
   {
-    my_printf_error(EE_READ, "read from %s failed, errno %d",
-                    MYF(ME_ERROR_LOG | ME_FATAL), filename, errno);
+    my_printf_error(EE_READ, "Read from %s failed, errno %d",
+                   ME_ERROR_LOG , filename, errno);
     goto err2;
   }
-  file_size= (size_t)ret;
-
-  if (file_size > MAX_KEY_FILE_SIZE)
-  {
-    my_printf_error(
-        EFBIG, "The key file reached max size   %d , filename  %s ,errno %d",
-        MYF(ME_ERROR_LOG | ME_FATAL), file_size, filename, errno);
-    goto err2;
-  }
-
+  fprintf(stderr, "Read from %s , filesize: %ldB,max key file size :%d B\n " , filename,file_size,MAX_KEY_FILE_SIZE);
 // Check for file encryption
   uchar *decrypted;
-  if (file_size > OpenSSL_prefix_len && strncmp((char*)buffer, OpenSSL_prefix, OpenSSL_prefix_len) == 0)
+  if ((size_t)file_size > OpenSSL_prefix_len && strncmp((char*)buffer, OpenSSL_prefix, OpenSSL_prefix_len) == 0)
   {
     uchar key[OpenSSL_key_len];
     uchar iv[OpenSSL_iv_len];
