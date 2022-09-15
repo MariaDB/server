@@ -7614,6 +7614,8 @@ void TABLE::mark_columns_needed_for_update()
   }
   if (s->versioned)
   {
+    bitmap_set_bit(write_set, s->vers.start_fieldno);
+    bitmap_set_bit(write_set, s->vers.end_fieldno);
     /*
       For System Versioning we have to read all columns since we store
       a copy of previous row with modified row_end back to a table.
@@ -7671,6 +7673,12 @@ void TABLE::mark_columns_needed_for_insert()
     mark_auto_increment_column();
   if (default_field)
     mark_default_fields_for_write(TRUE);
+  if (s->versioned)
+  {
+    bitmap_set_bit(write_set, s->vers.start_fieldno);
+    bitmap_set_bit(write_set, s->vers.end_fieldno);
+    bitmap_set_bit(read_set, s->vers.end_fieldno);
+  }
   /* Mark virtual columns for insert */
   if (vfield)
     mark_virtual_columns_for_write(TRUE);
@@ -9125,29 +9133,21 @@ bool TABLE::check_period_overlaps(const KEY &key,
 void TABLE::vers_update_fields()
 {
   if (!vers_write)
-  {
-    file->column_bitmaps_signal();
     return;
-  }
 
   if (versioned(VERS_TIMESTAMP))
   {
-    bitmap_set_bit(write_set, vers_start_field()->field_index);
     if (vers_start_field()->store_timestamp(in_use->query_start(),
                                           in_use->query_start_sec_part()))
     {
       DBUG_ASSERT(0);
     }
     vers_start_field()->set_has_explicit_value();
-    bitmap_set_bit(read_set, vers_start_field()->field_index);
   }
 
-  bitmap_set_bit(write_set, vers_end_field()->field_index);
   vers_end_field()->set_max();
   vers_end_field()->set_has_explicit_value();
-  bitmap_set_bit(read_set, vers_end_field()->field_index);
 
-  file->column_bitmaps_signal();
   if (vfield)
     update_virtual_fields(file, VCOL_UPDATE_FOR_READ);
 }

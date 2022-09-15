@@ -6052,6 +6052,12 @@ int Rows_log_event::do_apply_event(rpl_group_info *rgi)
                              &m_cols_ai : &m_cols);
     bitmap_intersect(table->write_set, after_image);
 
+    if (table->versioned())
+    {
+      bitmap_set_bit(table->write_set, table->s->vers.start_fieldno);
+      bitmap_set_bit(table->write_set, table->s->vers.end_fieldno);
+    }
+
     this->slave_exec_mode= slave_exec_mode_options; // fix the mode
 
     // Do event specific preparations 
@@ -7686,8 +7692,6 @@ Rows_log_event::write_row(rpl_group_info *rgi,
   if (table->versioned(VERS_TIMESTAMP))
   {
     ulong sec_part;
-    bitmap_set_bit(table->read_set, table->vers_start_field()->field_index);
-    table->file->column_bitmaps_signal();
     // Check whether a row came from unversioned table and fix vers fields.
     if (table->vers_start_field()->get_timestamp(&sec_part) == 0 && sec_part == 0)
       table->vers_update_fields();
@@ -8212,18 +8216,15 @@ int Rows_log_event::find_row(rpl_group_info *rgi)
   {
     Field *row_end= table->vers_end_field();
     DBUG_ASSERT(table->read_set);
-    bitmap_set_bit(table->read_set, row_end->field_index);
     // check whether master table is unversioned
     if (row_end->val_int() == 0)
     {
-      bitmap_set_bit(table->write_set, row_end->field_index);
       // Plain source table may have a PRIMARY KEY. And row_end is always
       // a part of PRIMARY KEY. Set it to max value for engine to find it in
       // index. Needed for an UPDATE/DELETE cases.
       table->vers_end_field()->set_max();
       m_vers_from_plain= true;
     }
-    table->file->column_bitmaps_signal();
   }
 
   DBUG_PRINT("info",("looking for the following record"));
@@ -8583,7 +8584,6 @@ int Delete_rows_log_event::do_exec_row(rpl_group_info *rgi)
       if (m_vers_from_plain && m_table->versioned(VERS_TIMESTAMP))
       {
         Field *end= m_table->vers_end_field();
-        bitmap_set_bit(m_table->write_set, end->field_index);
         store_record(m_table, record[1]);
         end->set_time();
         error= m_table->file->ha_update_row(m_table->record[1],
