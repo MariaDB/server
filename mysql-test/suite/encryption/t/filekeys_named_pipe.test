@@ -1,0 +1,27 @@
+#
+# Test read key from named pipe
+#
+#
+# key id= 0
+#
+write_file $MYSQL_TMP_DIR/fifo.key;
+1;11111111111111111111111111111111
+2;00000000000000000000000000000000
+3;22222222222222222222222222222222
+EOF
+-- sleep 3 
+
+-- source include/have_innodb.inc
+install soname 'file_key_management';
+
+create table t1(c1 bigint not null, b char(200))  engine=innodb encrypted=yes encryption_key_id=1;
+show create table t1;
+insert t1 values (12345, repeat('1234567890', 20));
+
+alter table t1 encryption_key_id=2;
+show create table t1;
+alter table t1 encryption_key_id=3;
+show create table t1;
+
+drop table t1;
+
