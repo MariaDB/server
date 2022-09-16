@@ -995,11 +995,20 @@ select left('hello', 10);
 select left('hello', 0);
 select left('hello', -1);
 select left('hello', -4294967295);
+#enable after fix MDEV-29552
+--disable_view_protocol
 select left('hello', 4294967295);
+--enable_view_protocol
 select left('hello', -4294967296);
+#enable after fix MDEV-29552
+--disable_view_protocol
 select left('hello', 4294967296);
+--enable_view_protocol
 select left('hello', -4294967297);
+#enable after fix MDEV-29552
+--disable_view_protocol
 select left('hello', 4294967297);
+--enable_view_protocol
 #view protocol generates additional warning
 --disable_view_protocol
 select left('hello', -18446744073709551615);
@@ -1014,11 +1023,20 @@ select right('hello', 10);
 select right('hello', 0);
 select right('hello', -1);
 select right('hello', -4294967295);
+#enable after fix MDEV-29552
+--disable_view_protocol
 select right('hello', 4294967295);
+--enable_view_protocol
 select right('hello', -4294967296);
+#enable after fix MDEV-29552
+--disable_view_protocol
 select right('hello', 4294967296);
+--enable_view_protocol
 select right('hello', -4294967297);
+#enable after fix MDEV-29552
+--disable_view_protocol
 select right('hello', 4294967297);
+--enable_view_protocol
 #view protocol generates additional warning
 --disable_view_protocol
 select right('hello', -18446744073709551615);

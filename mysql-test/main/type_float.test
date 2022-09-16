@@ -337,8 +337,11 @@ select format(truncate('1.7976931348623157E+308',-12),1,'fr_BE') as foo;
 --echo # MDEV-17249 MAKETIME(-1e50,0,0) returns a wrong result
 --echo #
 
+#enable after fix MDEV-29552
+--disable_view_protocol
 SELECT LEFT('a',EXP(50));
 SELECT LEFT('a', COALESCE(1e30));
+--enable_view_protocol
 
 CREATE TABLE t1 (a FLOAT);
 INSERT INTO t1 VALUES (1e30);

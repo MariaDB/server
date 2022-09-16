@@ -877,11 +877,13 @@ SELECT 0 + LEAST(TIME'-10:00:00',TIME'10:00:00') AS c;
 --echo #
 
 CREATE TABLE t1 (a INT UNSIGNED, b TIMESTAMP);
+--disable_view_protocol
 --disable_ps_protocol
 --enable_metadata
 SELECT COALESCE(a,b) FROM t1;
 --disable_metadata
 --enable_ps_protocol
+--enable_view_protocol
 DROP TABLE t1;
 
 --echo #

@@ -280,6 +280,7 @@ drop table t1;
 
 # Compare with hash keys
 
+--disable_view_protocol
 CREATE TABLE t1 (a char(1));
 INSERT INTO t1 VALUES ('A'),('B'),('A'),('B'),('A'),('B'),(NULL),('a'),('b'),(NULL),('A'),('B'),(NULL);
 flush status;
@@ -305,6 +306,7 @@ show status like 'Created%tables';
 --enable_ps_protocol
 set tmp_memory_table_size=default;
 drop table t1;
+--enable_view_protocol
 
 #
 # Test of key >= 256 bytes

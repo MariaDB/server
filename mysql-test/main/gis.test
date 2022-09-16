@@ -3247,6 +3247,7 @@ CREATE TABLE t1 (
   g    GEOMETRY
 ) CHARACTER SET utf8;
 
+--disable_view_protocol
 --enable_metadata
 SELECT * FROM t1;
 
@@ -3350,6 +3351,7 @@ SELECT
 FROM t1;
 
 --disable_metadata
+--enable_view_protocol
 DROP TABLE t1;
 
 --echo #

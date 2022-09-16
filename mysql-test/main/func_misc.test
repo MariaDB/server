@@ -1299,6 +1299,7 @@ DROP TABLE t1;
 --echo #
 --echo # MDEV-10569 Add RELEASE_ALL_LOCKS SQL-function
 --echo #
+--disable_view_protocol
 
 --echo # Test function without any locks
 SELECT RELEASE_ALL_LOCKS();
@@ -1352,3 +1353,5 @@ FROM information_schema.metadata_lock_info WHERE thread_id>0 ORDER BY TABLE_SCHE
 SELECT RELEASE_ALL_LOCKS();
 SELECT LOCK_MODE, LOCK_TYPE, TABLE_SCHEMA
 FROM information_schema.metadata_lock_info WHERE thread_id>0 ORDER BY TABLE_SCHEMA;
+
+--enable_view_protocol

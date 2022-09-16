@@ -367,12 +367,14 @@ DROP TABLE t2,t1;
 CREATE TABLE t1 (a YEAR);
 INSERT INTO t1 VALUES (2000),(2001);
 SELECT MAX( NULLIF( a, 1970 ) ) AS f FROM t1;
+--disable_view_protocol
 --disable_ps_protocol
 --enable_metadata
 SELECT NULLIF(a, 1970) AS f FROM t1 ORDER BY a;
 SELECT MAX(NULLIF(a, 1970)) AS f FROM t1;
 --disable_metadata
 --enable_ps_protocol
+--enable_view_protocol
 DROP TABLE t1;
 
 

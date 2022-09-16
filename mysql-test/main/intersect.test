@@ -303,11 +303,8 @@ insert into t234 values(2);
 insert into t234 values(3);
 insert into t234 values(4);
 
-#enable view protocol in 10.5
---disable_view_protocol
 --sorted_result
 select * from t13 union select * from t234 intersect select * from t12;
---enable_view_protocol
 
 drop table t12,t13,t234;
 

@@ -556,11 +556,13 @@ DELIMITER ;$$
 --echo #
 
 CREATE TABLE t1 (b BIT(1));
+--disable_view_protocol
 --disable_ps_protocol
 --enable_metadata
 SELECT MIN(CASE WHEN 0 THEN b END) FROM t1;
 --disable_metadata
 --enable_ps_protocol
+--enable_view_protocol
 CREATE TABLE t2 AS SELECT MIN(CASE WHEN 0 THEN b END) FROM t1;
 SHOW CREATE TABLE t2;
 DROP TABLE t2;

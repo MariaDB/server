@@ -393,8 +393,11 @@ SET default_regex_flags=DEFAULT;
 --error ER_REGEXP_ERROR
 SELECT 'Aq' RLIKE 'A\\q';
 
+#double warning for view protocol 
+--disable_view_protocol
 SET default_regex_flags='EXTRA';
 SELECT 'A' RLIKE 'B';
+--enable_view_protocol
 
 SET default_regex_flags=DEFAULT;
 
