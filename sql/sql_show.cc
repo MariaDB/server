@@ -6784,7 +6784,10 @@ int fill_schema_proc(THD *thd, TABLE_LIST *tables, COND *cond)
     uint keylen= keyinfo->key_part[0].length;
     key_part_map keypart_map= 1;
     enum ha_rkey_function find_flag= HA_READ_PREFIX;
-    uchar keybuf[NAME_CHAR_LEN * 2 * 4 * 64];
+    const auto sp_name_len= NAME_LEN * 2 + 1 /*for type*/;
+    StringBuffer<sp_name_len> keybuf;
+    keybuf.alloc(proc_table->key_info->key_length);
+    keybuf.length(proc_table->key_info->key_length);
     proc_table->field[0]->store(lookup.db_value.str, lookup.db_value.length,
                                 system_charset_info);
     if (lookup.table_value.str)
@@ -6796,8 +6799,9 @@ int fill_schema_proc(THD *thd, TABLE_LIST *tables, COND *cond)
       keypart_map= 3;
       find_flag= HA_READ_KEY_EXACT;
     }
-    key_copy(keybuf, proc_table->record[0], keyinfo, keylen, 0);
-    res= proc_table->file->ha_index_read_map(proc_table->record[0], keybuf,
+    key_copy((uchar*)keybuf.ptr(), proc_table->record[0], keyinfo, keylen, 0);
+    res= proc_table->file->ha_index_read_map(proc_table->record[0],
+                                             (const uchar*) keybuf.ptr(),
                                              keypart_map, find_flag);
   }
   else
