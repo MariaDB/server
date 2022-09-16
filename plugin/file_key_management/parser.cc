@@ -335,8 +335,11 @@ char* Parser::read_and_decrypt_file(const char *secret)
                    ME_ERROR_LOG , filename, errno);
     goto err2;
   }
-  fprintf(stderr, "Read from %s , filesize: %zdB,max key file size :%dB\n " , filename,file_size,MAX_KEY_FILE_SIZE);
-// Check for file encryption
+  my_printf_error(EE_ERROR_FIRST,
+                  "Read from %s , filesize: %zdB,max key file size :%dB ",
+                  ME_ERROR_LOG | ME_NOTE, filename, file_size,
+                  MAX_KEY_FILE_SIZE);
+  // Check for file encryption
   uchar *decrypted;
   if ((size_t)file_size > OpenSSL_prefix_len && strncmp((char*)buffer, OpenSSL_prefix, OpenSSL_prefix_len) == 0)
   {

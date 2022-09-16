@@ -1,4 +1,6 @@
 install soname 'file_key_management';
+Warnings:
+Note	1	Read from /open-source/mariadb/build/mysql-test/var/tmp/fifo.key , filesize: 105B,max key file size :1048576B 
 create table t1(c1 bigint not null, b char(200))  engine=innodb encrypted=yes encryption_key_id=1;
 show create table t1;
 Table	Create Table
