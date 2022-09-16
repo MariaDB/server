@@ -3713,7 +3713,7 @@ static bool recv_scan_log(bool last_phase)
 
       for (;;)
       {
-        const byte b{log_sys.buf[recv_sys.offset]};
+        const byte& b{log_sys.buf[recv_sys.offset]};
         r= recv_sys.parse_pmem(store);
         if (r == recv_sys_t::OK)
         {
