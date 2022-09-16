@@ -336,7 +336,7 @@ char* Parser::read_and_decrypt_file(const char *secret)
     goto err2;
   }
   my_printf_error(EE_ERROR_FIRST,
-                  "Read from %s , filesize: %zdB,max key file size :%dB ",
+                  "Read from %s , filesize: %zdB, max key file size :%dB ",
                   ME_ERROR_LOG | ME_NOTE, filename, file_size,
                   MAX_KEY_FILE_SIZE);
   // Check for file encryption
