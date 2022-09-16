@@ -121,8 +121,8 @@ enum enum_slave_type_conversions { SLAVE_TYPE_CONVERSIONS_ALL_LOSSY,
                                    SLAVE_TYPE_CONVERSIONS_ALL_NON_LOSSY};
 
 /*
-  MARK_COLUMNS_READ:  A column is goind to be read.
-  MARK_COLUMNS_WRITE: A column is going to be written to.
+  COLUMNS_READ:       A column is goind to be read.
+  COLUMNS_WRITE:      A column is going to be written to.
   MARK_COLUMNS_READ:  A column is goind to be read.
                       A bit in read set is set to inform handler that the field
                       is to be read. If field list contains duplicates, then
