@@ -6376,12 +6376,10 @@ find_field_in_table(THD *thd, TABLE *table, const char *name, size_t length,
 */
 
 Field *
-find_field_in_table_ref(THD *thd, TABLE_LIST *table_list,
-                        const char *name, size_t length,
-                        const char *item_name, const char *db_name,
-                        const char *table_name,
-                        ignored_tables_list_t ignored_tables,
-                        Item **ref,
+find_field_in_table_ref(THD *thd, TABLE_LIST *table_list, const char *name,
+                        size_t length, const char *item_name,
+                        const char *db_name, const char *table_name,
+                        ignored_tables_list_t ignored_tables, Item **ref,
                         bool check_privileges, bool allow_rowid,
                         field_index_t *cached_field_index_ptr,
                         bool register_tree_change, TABLE_LIST **actual_table)
@@ -6454,8 +6452,7 @@ find_field_in_table_ref(THD *thd, TABLE_LIST *table_list,
     /* 'table_list' is a stored table. */
     DBUG_ASSERT(table_list->table);
     if ((fld= find_field_in_table(thd, table_list->table, name, length,
-                                  allow_rowid,
-                                  cached_field_index_ptr)))
+                                  allow_rowid, cached_field_index_ptr)))
       *actual_table= table_list;
   }
   else
@@ -6685,18 +6682,16 @@ find_field_in_tables(THD *thd, Item_ident *item,
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
       /* Check if there are sufficient access rights to the found field. */
       if (found && check_privileges && !is_temporary_table(table_ref) &&
-          check_column_grant_in_table_ref(thd, table_ref, name, length,
-                                          found))
+          check_column_grant_in_table_ref(thd, table_ref, name, length, found))
         found= WRONG_GRANT;
 #endif
     }
     else
-      found= find_field_in_table_ref(thd, table_ref, name, length, item->name.str,
-                                     NULL, NULL, ignored_tables, ref,
-                                     check_privileges, TRUE,
-                                     &(item->cached_field_index),
-                                     register_tree_change,
-                                     &actual_table);
+      found= find_field_in_table_ref(thd, table_ref, name, length,
+                                     item->name.str, NULL, NULL,
+                                     ignored_tables, ref, check_privileges,
+                                     TRUE, &(item->cached_field_index),
+                                     register_tree_change, &actual_table);
     if (found)
     {
       if (found == WRONG_GRANT)
@@ -6706,8 +6701,7 @@ find_field_in_tables(THD *thd, Item_ident *item,
         Only views fields should be marked as dependent, not an underlying
         fields.
       */
-      if (!table_ref->belong_to_view &&
-          !table_ref->belong_to_derived)
+      if (!table_ref->belong_to_view && !table_ref->belong_to_derived)
       {
         SELECT_LEX *current_sel= item->context->select_lex;
         SELECT_LEX *last_select= table_ref->select_lex;
@@ -7912,8 +7906,9 @@ bool setup_fields(THD *thd, Ref_ptr_array ref_pointer_array,
                   bool allow_sum_func)
 {
   Item *item;
+  LEX * const lex= thd->lex;
   enum_column_usage saved_column_usage= thd->column_usage;
-  nesting_map save_allow_sum_func= thd->lex->allow_sum_func;
+  nesting_map save_allow_sum_func= lex->allow_sum_func;
   List_iterator<Item> it(fields);
   bool save_is_item_list_lookup;
   bool make_pre_fix= (pre_fix && (pre_fix->elements == 0));
@@ -7929,15 +7924,14 @@ bool setup_fields(THD *thd, Ref_ptr_array ref_pointer_array,
     2) nest level of all SELECTs on the same level shoud be equal first
        SELECT on this level (and each other).
   */
-  DBUG_ASSERT(thd->lex->current_select->nest_level >= 0);
-  DBUG_ASSERT(thd->lex->current_select->master_unit()->first_select()
-                ->nest_level ==
-              thd->lex->current_select->nest_level);
+  DBUG_ASSERT(lex->current_select->nest_level >= 0);
+  DBUG_ASSERT(lex->current_select->master_unit()->first_select()->nest_level ==
+              lex->current_select->nest_level);
   if (allow_sum_func)
-    thd->lex->allow_sum_func.set_bit(thd->lex->current_select->nest_level);
+    lex->allow_sum_func.set_bit(lex->current_select->nest_level);
   thd->where= THD::DEFAULT_WHERE;
-  save_is_item_list_lookup= thd->lex->current_select->is_item_list_lookup;
-  thd->lex->current_select->is_item_list_lookup= 0;
+  save_is_item_list_lookup= lex->current_select->is_item_list_lookup;
+  lex->current_select->is_item_list_lookup= 0;
 
   /*
     To prevent fail on forward lookup we fill it with zeroes,
@@ -7967,13 +7961,13 @@ bool setup_fields(THD *thd, Ref_ptr_array ref_pointer_array,
        items we have to refresh their entries before fixing of
        Item_func_get_user_var items.
   */
-  List_iterator<Item_func_set_user_var> li(thd->lex->set_var_list);
+  List_iterator<Item_func_set_user_var> li(lex->set_var_list);
   Item_func_set_user_var *var;
   while ((var= li++))
     var->set_entry(thd, FALSE);
 
   Ref_ptr_array ref= ref_pointer_array;
-  thd->lex->current_select->cur_pos_in_select_list= 0;
+  lex->current_select->cur_pos_in_select_list= 0;
   while ((item= it++))
   {
     if (make_pre_fix)
@@ -7981,8 +7975,8 @@ bool setup_fields(THD *thd, Ref_ptr_array ref_pointer_array,
 
     if (item->fix_fields_if_needed_for_scalar(thd, it.ref()))
     {
-      thd->lex->current_select->is_item_list_lookup= save_is_item_list_lookup;
-      thd->lex->allow_sum_func= save_allow_sum_func;
+      lex->current_select->is_item_list_lookup= save_is_item_list_lookup;
+      lex->allow_sum_func= save_allow_sum_func;
       thd->column_usage= saved_column_usage;
       DBUG_PRINT("info", ("thd->column_usage: %d", thd->column_usage));
       DBUG_RETURN(TRUE); /* purecov: inspected */
@@ -8004,14 +7998,14 @@ bool setup_fields(THD *thd, Ref_ptr_array ref_pointer_array,
       item->split_sum_func(thd, ref_pointer_array, *sum_func_list,
                            SPLIT_SUM_SELECT);
     }
-    thd->lex->current_select->select_list_tables|= item->used_tables();
-    thd->lex->used_tables|= item->used_tables();
-    thd->lex->current_select->cur_pos_in_select_list++;
+    lex->current_select->select_list_tables|= item->used_tables();
+    lex->used_tables|= item->used_tables();
+    lex->current_select->cur_pos_in_select_list++;
   }
-  thd->lex->current_select->is_item_list_lookup= save_is_item_list_lookup;
-  thd->lex->current_select->cur_pos_in_select_list= UNDEF_POS;
+  lex->current_select->is_item_list_lookup= save_is_item_list_lookup;
+  lex->current_select->cur_pos_in_select_list= UNDEF_POS;
 
-  thd->lex->allow_sum_func= save_allow_sum_func;
+  lex->allow_sum_func= save_allow_sum_func;
   thd->column_usage= saved_column_usage;
   DBUG_PRINT("info", ("thd->column_usage: %d", thd->column_usage));
   DBUG_RETURN(MY_TEST(thd->is_error()));
