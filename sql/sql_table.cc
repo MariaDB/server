@@ -4398,6 +4398,7 @@ bool HA_CREATE_INFO::finalize_atomic_replace(THD *thd, TABLE_LIST *orig_table)
   LEX_CSTRING cpath;
   char path[FN_REFLEN + 1];
   cpath.str= path;
+  bool locked_tables_decremented= false;
 
   DBUG_ASSERT(is_atomic_replace());
 
@@ -4435,11 +4436,15 @@ bool HA_CREATE_INFO::finalize_atomic_replace(THD *thd, TABLE_LIST *orig_table)
       DBUG_ASSERT(thd->mdl_context.is_lock_owner(MDL_key::TABLE, db.str,
                                                  table_name.str,
                                                  MDL_EXCLUSIVE));
-
+      /*
+        HA_EXTRA_PREPARE_FOR_DROP: after CREATE OR REPLACE table
+        must be not locked, removing it from thd->locked_tables_list.
+      */
       close_all_tables_for_name(thd, table->s,
                                 HA_EXTRA_PREPARE_FOR_DROP, NULL);
       table= NULL;
       orig_table->table= NULL;
+      locked_tables_decremented= true;
     }
 
     param.rename_flags= FN_TO_IS_TMP;
@@ -4450,7 +4455,11 @@ bool HA_CREATE_INFO::finalize_atomic_replace(THD *thd, TABLE_LIST *orig_table)
     param.new_alias= backup_name.table_name;
     if (rename_table_and_triggers(thd, &param, NULL, orig_table,
                                   &backup_name.db, false, &dummy))
+    {
+      if (locked_tables_decremented)
+        thd->locked_tables_list.add_back_last_deleted_lock(pos_in_locked_tables);
       return true;
+    }
     debug_crash_here("ddl_log_create_after_save_backup");
   }
 
@@ -4465,7 +4474,11 @@ bool HA_CREATE_INFO::finalize_atomic_replace(THD *thd, TABLE_LIST *orig_table)
                            &cpath, &db, &table_name, false) ||
       rename_table_and_triggers(thd, &param, NULL, &tmp_name, &db, false,
                                 &dummy))
+  {
+    if (locked_tables_decremented)
+      thd->locked_tables_list.add_back_last_deleted_lock(pos_in_locked_tables);
     return true;
+  }
   debug_crash_here("ddl_log_create_after_install_new");
   return false;
 }

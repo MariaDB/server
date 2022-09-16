@@ -677,3 +677,23 @@ select * from information_schema.innodb_sys_foreign_cols;
 drop tables u, t;
 select * from information_schema.innodb_sys_foreign;
 select * from information_schema.innodb_sys_foreign_cols;
+
+--echo #
+--echo # MDEV-29544 SIGSEGV in HA_CREATE_INFO::finalize_locked_tables
+--echo #
+call mtr.add_suppression("mysql.innodb_index_stats");
+set sql_mode= '';
+create table t (x int) engine innodb;
+insert into t values (77);
+alter table mysql.innodb_index_stats modify stat_description char(10);
+lock table t write;
+--replace_regex /#sql-backup-.+-.+-/#sql-backup-/
+--replace_result $MYSQLD_DATADIR ./
+--error ER_ERROR_ON_RENAME
+create or replace table t (y int);
+# cleanup
+unlock tables;
+alter table mysql.innodb_index_stats modify stat_description varchar(1024) not null;
+select * from t;
+drop table t;
+set sql_mode= default;
