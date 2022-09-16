@@ -1214,7 +1214,7 @@ retry:
         }
       }
       else if (thd->lex->sql_command == SQLCOM_DELETE)
-      {
+     {
         Sql_cmd_delete *cmd= (Sql_cmd_delete *) (thd->lex->m_sql_cmd);
         if (cmd->is_multitable() || derived->derived->outer_select())
           materialize= false;

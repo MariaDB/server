@@ -5881,8 +5881,7 @@ make_join_statistics(JOIN *join, List<TABLE_LIST> &tables_list,
           s->needed_reg=select->needed_reg;
           select->quick=0;
           impossible_range= records == 0 && s->table->reginfo.impossible_range;
-          if (join->thd->lex->sql_command == SQLCOM_SELECT &&
-              optimizer_flag(join->thd, OPTIMIZER_SWITCH_USE_ROWID_FILTER))
+          if (optimizer_flag(join->thd, OPTIMIZER_SWITCH_USE_ROWID_FILTER))
             s->table->init_cost_info_for_usable_range_rowid_filters(join->thd);
         }
         if (!impossible_range)
