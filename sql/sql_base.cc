@@ -1205,7 +1205,7 @@ retry:
       if (thd->lex->sql_command == SQLCOM_UPDATE)
       {
         Sql_cmd_update *cmd= (Sql_cmd_update *) (thd->lex->m_sql_cmd);
-        if (cmd->is_multitable())
+        if (cmd->is_multitable() || derived->derived->outer_select())
           materialize= false;
         else if (!cmd->processing_as_multitable_update_prohibited(thd))
 	{
@@ -1216,9 +1216,9 @@ retry:
       else if (thd->lex->sql_command == SQLCOM_DELETE)
       {
         Sql_cmd_delete *cmd= (Sql_cmd_delete *) (thd->lex->m_sql_cmd);
-        if (cmd->is_multitable())
+        if (cmd->is_multitable() || derived->derived->outer_select())
           materialize= false;
-        if (!cmd->processing_as_multitable_delete_prohibited(thd))
+        else if (!cmd->processing_as_multitable_delete_prohibited(thd))
 	{
           cmd->set_as_multitable();
           materialize= false;
