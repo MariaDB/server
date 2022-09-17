@@ -57,3 +57,93 @@ INSERT INTO `t1` VALUES
 #MYSQL_DUMP --compact --as-of="1990-08-04 00:00' where 'abc" test 2>&1
 mysqldump: Incorrect DATETIME value: '1990-08-04 00:00' where 'abc'
 drop tables t1;
+#
+# MDEV-16029 mysqldump: dump and restore historical data
+#
+create or replace table t1 (x int) with system versioning;
+insert into t1 values (1), (2);
+delete from t1 where x = 1;
+select row_start, row_end into @s1, @e1 from t1 for system_time all where x = 1;
+select row_start, row_end into @s2, @e2 from t1 for system_time all where x = 2;
+create or replace table t2 (
+x int,
+row_start timestamp(6) as row start invisible,
+row_end timestamp(6)  as row end invisible,
+period for system_time (row_start, row_end))
+with system versioning;
+create or replace function check_fields(x int, row_start timestamp(6), row_end timestamp(6))
+returns char(50) deterministic
+return if (x = 1,
+if (row_start = @s1 and row_end = @e1, '[CORRECT]', '[WRONG]'),
+if (x = 2 and row_start = @s2 and row_end = @e2, '[CORRECT]', '[WRONG]'));
+set @@system_versioning_insert_history= 1;
+insert into t2 (x, row_start, row_end) select x, row_start, row_end from t1 for system_time all;
+set @@system_versioning_insert_history= 0;
+# t2 has the same data as t1
+select x, check_fields(x, row_start, row_end) from t2 for system_time all order by x;
+x	check_fields(x, row_start, row_end)
+1	[CORRECT]
+2	[CORRECT]
+mysqldump: --dump-history requires 'SET time_zone' to work correctly.
+mysqldump: --dump-history can't be used with --as-of.
+# SQL dump with/without history
+## With history
+drop tables t1, t2;
+select x, check_fields(x, row_start, row_end) from t1 for system_time all order by x;
+x	check_fields(x, row_start, row_end)
+1	[CORRECT]
+2	[CORRECT]
+select x, check_fields(x, row_start, row_end) from t2 for system_time all order by x;
+x	check_fields(x, row_start, row_end)
+1	[CORRECT]
+2	[CORRECT]
+## Without history
+drop tables t1, t2;
+select x, check_row_ts(row_start, row_end) from t1 for system_time all order by x;
+x	check_row_ts(row_start, row_end)
+2	CURRENT ROW
+select x, check_row_ts(row_start, row_end) from t2 for system_time all order by x;
+x	check_row_ts(row_start, row_end)
+2	CURRENT ROW
+## History and --no-create-info --skip-comments
+create or replace table t1 (x int) with system versioning;
+delete from t2;
+delete history from t2;
+select x, check_fields(x, row_start, row_end) from t1 for system_time all order by x;
+x	check_fields(x, row_start, row_end)
+1	[CORRECT]
+2	[CORRECT]
+select x, check_fields(x, row_start, row_end) from t2 for system_time all order by x;
+x	check_fields(x, row_start, row_end)
+1	[CORRECT]
+2	[CORRECT]
+create or replace table t1 (x int) with system versioning;
+# --tab with history
+drop tables t1, t2;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `x` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
+show create table t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `x` int(11) DEFAULT NULL,
+  `row_start` timestamp(6) GENERATED ALWAYS AS ROW START INVISIBLE,
+  `row_end` timestamp(6) GENERATED ALWAYS AS ROW END INVISIBLE,
+  PERIOD FOR SYSTEM_TIME (`row_start`, `row_end`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
+set @@system_versioning_insert_history= 1;
+load data infile 'tmp/t1.txt' into table t1 (x, row_start, row_end);
+load data infile 'tmp/t2.txt' into table t2 (x, row_start, row_end);
+set @@system_versioning_insert_history= 0;
+select *, check_row_ts(row_start, row_end) from t1 for system_time all;
+x	check_row_ts(row_start, row_end)
+1	HISTORICAL ROW
+2	CURRENT ROW
+select *, check_row_ts(row_start, row_end) from t2 for system_time all;
+x	check_row_ts(row_start, row_end)
+1	HISTORICAL ROW
+2	CURRENT ROW
+drop tables t1, t2;
+drop function check_fields;
