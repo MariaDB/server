@@ -1505,7 +1505,9 @@ bool Sql_cmd_delete::precheck(THD *thd)
       return true;
   }
 
+#ifdef WITH_WSREP
   WSREP_SYNC_WAIT(thd, WSREP_SYNC_WAIT_BEFORE_UPDATE_DELETE);
+#endif
 
   return false;
 
