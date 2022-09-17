@@ -1347,9 +1347,9 @@ static int get_options(int *argc, char ***argv)
             my_progname_short, opt_asof_timestamp);
     return(EX_USAGE);
   }
+
   if (strcmp(default_charset, MYSQL_AUTODETECT_CHARSET_NAME) &&
-      !(charset_info= get_charset_by_csname(default_charset,
-                                            MY_CS_PRIMARY,
+      !(charset_info= get_charset_by_csname(default_charset, MY_CS_PRIMARY,
                                             MYF(MY_UTF8_IS_UTF8MB3 | MY_WME))))
     exit(1);
   if (opt_order_by_size && (*argc > 1 && !opt_databases))
@@ -3076,15 +3076,6 @@ static uint get_table_structure(const char *table, const char *db, char *table_t
   char	     name_buff[NAME_LEN+3],table_buff[NAME_LEN*2+3];
   char       table_buff2[NAME_LEN*2+3], query_buff[QUERY_LENGTH];
   char       temp_buff[NAME_LEN*2 + 3], temp_buff2[NAME_LEN*2 + 3];
-  const char *show_fields_stmt= "SELECT `COLUMN_NAME` AS `Field`, "
-                                "`COLUMN_TYPE` AS `Type`, "
-                                "`IS_NULLABLE` AS `Null`, "
-                                "`COLUMN_KEY` AS `Key`, "
-                                "`COLUMN_DEFAULT` AS `Default`, "
-                                "`EXTRA` AS `Extra`, "
-                                "`COLUMN_COMMENT` AS `Comment` "
-                                "FROM `INFORMATION_SCHEMA`.`COLUMNS` WHERE "
-                                "TABLE_SCHEMA = %s AND TABLE_NAME = %s";
   FILE       *sql_file= md_result_file;
   size_t     len;
   my_bool    is_log_table;
@@ -3155,8 +3146,7 @@ static uint get_table_structure(const char *table, const char *db, char *table_t
   }
 
   len= my_snprintf(query_buff, sizeof(query_buff),
-                   "SET SQL_QUOTE_SHOW_CREATE=%d",
-                   (opt_quoted || opt_keywords));
+                   "SET SQL_QUOTE_SHOW_CREATE=%d", opt_quoted || opt_keywords);
   if (!create_options)
     strmov(query_buff+len,
            "/*!40102 ,SQL_MODE=concat(@@sql_mode, _utf8 ',NO_KEY_OPTIONS,NO_TABLE_OPTIONS,NO_FIELD_OPTIONS') */");
@@ -3387,7 +3377,6 @@ static uint get_table_structure(const char *table, const char *db, char *table_t
       dynstr_append_checked(&select_field_names,
               quote_name(row[SHOW_FIELDNAME], name_buff, 0));
     }
-    init=0;
     /*
       If write_data is true, then we build up insert statements for
       the table's data. Note: in subsequent lines of code, this test
@@ -3423,6 +3412,16 @@ static uint get_table_structure(const char *table, const char *db, char *table_t
   }
   else
   {
+    const char *show_fields_stmt= "SELECT `COLUMN_NAME` AS `Field`, "
+                                  "`COLUMN_TYPE` AS `Type`, "
+                                  "`IS_NULLABLE` AS `Null`, "
+                                  "`COLUMN_KEY` AS `Key`, "
+                                  "`COLUMN_DEFAULT` AS `Default`, "
+                                  "`EXTRA` AS `Extra`, "
+                                  "`COLUMN_COMMENT` AS `Comment` "
+                                  "FROM `INFORMATION_SCHEMA`.`COLUMNS` WHERE "
+                                  "TABLE_SCHEMA = %s AND TABLE_NAME = %s";
+
     verbose_msg("%s: Warning: Can't set SQL_QUOTE_SHOW_CREATE option (%s)\n",
                 my_progname_short, mysql_error(mysql));
 
@@ -3477,21 +3476,6 @@ static uint get_table_structure(const char *table, const char *db, char *table_t
 
     while ((row= mysql_fetch_row(result)))
     {
-      if (strlen(row[SHOW_EXTRA]) && strstr(row[SHOW_EXTRA],"INVISIBLE"))
-        complete_insert= 1;
-      if (init)
-      {
-        dynstr_append_checked(&select_field_names, ", ");
-      }
-      dynstr_append_checked(&select_field_names,
-              quote_name(row[SHOW_FIELDNAME], name_buff, 0));
-      init=1;
-    }
-    init=0;
-    mysql_data_seek(result, 0);
-
-    while ((row= mysql_fetch_row(result)))
-    {
       ulong *lengths= mysql_fetch_lengths(result);
       if (init)
       {
@@ -3500,13 +3484,11 @@ static uint get_table_structure(const char *table, const char *db, char *table_t
           fputs(",\n",sql_file);
           check_io(sql_file);
         }
-        if (complete_insert)
-          dynstr_append_checked(&insert_pat, ", ");
+        dynstr_append_checked(&select_field_names, ", ");
       }
+      dynstr_append_checked(&select_field_names,
+              quote_name(row[SHOW_FIELDNAME], name_buff, 0));
       init=1;
-      if (complete_insert)
-        dynstr_append_checked(&insert_pat,
-                      quote_name(row[SHOW_FIELDNAME], name_buff, 0));
       if (!opt_no_create_info)
       {
         if (opt_xml)
@@ -3517,12 +3499,10 @@ static uint get_table_structure(const char *table, const char *db, char *table_t
 
         if (opt_keywords)
           fprintf(sql_file, "  %s.%s %s", result_table,
-                  quote_name(row[SHOW_FIELDNAME],name_buff, 0),
-                  row[SHOW_TYPE]);
+                  quote_name(row[SHOW_FIELDNAME],name_buff, 0), row[SHOW_TYPE]);
         else
-          fprintf(sql_file, "  %s %s", quote_name(row[SHOW_FIELDNAME],
-                                                  name_buff, 0),
-                  row[SHOW_TYPE]);
+          fprintf(sql_file, "  %s %s",
+                quote_name(row[SHOW_FIELDNAME], name_buff, 0), row[SHOW_TYPE]);
         if (row[SHOW_DEFAULT])
         {
           fputs(" DEFAULT ", sql_file);
@@ -3535,6 +3515,8 @@ static uint get_table_structure(const char *table, const char *db, char *table_t
         check_io(sql_file);
       }
     }
+    if (complete_insert)
+      dynstr_append_checked(&insert_pat, select_field_names.str);
     num_fields= mysql_num_rows(result);
     mysql_free_result(result);
     if (!opt_no_create_info)
