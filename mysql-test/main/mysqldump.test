@@ -2978,3 +2978,9 @@ DROP DATABASE test1;
 --remove_file $MYSQLTEST_VARDIR/tmp/dumptest1.sql
 
 --echo # End of 10.3 tests
+
+#
+# MDEV-16733 mysqldump --tab and --xml options are conflicting
+#
+--error 1
+--exec $MYSQL_DUMP --xml --tab=$MYSQLTEST_VARDIR/tmp 2>&1
