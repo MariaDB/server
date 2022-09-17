@@ -2827,7 +2827,10 @@ bool multi_update::send_eof()
 
 bool Sql_cmd_update::processing_as_multitable_update_prohibited(THD *thd)
 {
-  return false;
+  SELECT_LEX *const select_lex = thd->lex->first_select_lex();
+  return
+    (select_lex->order_list.elements &&
+     select_lex->limit_params.select_limit);
 }
 
 
@@ -2851,7 +2854,9 @@ bool Sql_cmd_update::precheck(THD *thd)
       return true;
   }
 
+#ifdef WITH_WSREP
   WSREP_SYNC_WAIT(thd, WSREP_SYNC_WAIT_BEFORE_UPDATE_DELETE);
+#endif
 
   return false;
 
