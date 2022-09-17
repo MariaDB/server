@@ -130,7 +130,7 @@ static my_bool  verbose= 0, opt_no_create_info= 0, opt_no_data= 0, opt_no_data_m
                 opt_events= 0, opt_comments_used= 0,
                 opt_alltspcs=0, opt_notspcs= 0, opt_logging,
                 opt_header=0,
-                opt_drop_trigger= 0;
+                opt_drop_trigger= 0, opt_dump_history= 0;
 #define OPT_SYSTEM_ALL 1
 #define OPT_SYSTEM_USERS 2
 #define OPT_SYSTEM_PLUGINS 4
@@ -353,6 +353,8 @@ static struct my_option my_long_options[] =
    "'/*!40000 ALTER TABLE tb_name DISABLE KEYS */; and '/*!40000 ALTER "
    "TABLE tb_name ENABLE KEYS */; will be put in the output.", &opt_disable_keys,
    &opt_disable_keys, 0, GET_BOOL, NO_ARG, 1, 0, 0, 0, 0, 0},
+  {"dump-history", 'H', "Dump tables with history", &opt_dump_history,
+    &opt_dump_history, 0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
   {"dump-slave", OPT_MYSQLDUMP_SLAVE_DATA,
    "This causes the binary log position and filename of the master to be "
    "appended to the dumped data output. Setting the value to 1, will print"
@@ -1353,6 +1355,24 @@ static int get_options(int *argc, char ***argv)
   if (opt_xml && path)
   {
     fprintf(stderr, "%s: --xml can't be used with --tab.\n", my_progname_short);
+    return(EX_USAGE);
+  }
+  if (opt_xml && opt_dump_history)
+  {
+    fprintf(stderr, "%s: --xml can't be used with --dump-history.\n",
+            my_progname_short);
+    return(EX_USAGE);
+  }
+  if (opt_replace_into && opt_dump_history)
+  {
+    fprintf(stderr, "%s: --dump-history can't be used with --replace.\n",
+            my_progname_short);
+    return(EX_USAGE);
+  }
+  if (opt_asof_timestamp && opt_dump_history)
+  {
+    fprintf(stderr, "%s: --dump-history can't be used with --as-of.\n",
+            my_progname_short);
     return(EX_USAGE);
   }
   if (opt_asof_timestamp && strchr(opt_asof_timestamp, '\''))
@@ -3148,7 +3168,7 @@ static uint get_table_structure(const char *table, const char *db, char *table_t
 
   if (versioned)
   {
-    if (!opt_asof_timestamp)
+    if (!opt_asof_timestamp && !opt_dump_history)
       versioned= NULL;
     else
     {
@@ -3180,6 +3200,7 @@ static uint get_table_structure(const char *table, const char *db, char *table_t
 
   if (!opt_xml && !mysql_query_with_error_report(mysql, 0, query_buff))
   {
+    int vers_hidden= opt_dump_history && versioned && *versioned;
     /* using SHOW CREATE statement */
     if (!opt_no_create_info)
     {
@@ -3377,8 +3398,10 @@ static uint get_table_structure(const char *table, const char *db, char *table_t
         dynstr_free(&create_table_str);
       mysql_free_result(result);
     }
-    my_snprintf(query_buff, sizeof(query_buff), "show fields from %s",
-                result_table);
+    my_snprintf(query_buff, sizeof(query_buff),
+                "select column_name, extra, generation_expression "
+                "from information_schema.columns where table_schema=database() "
+                "and table_name=%s", quote_for_equal(table, temp_buff));
     if (mysql_query_with_error_report(mysql, &result, query_buff))
     {
       if (path)
@@ -3388,8 +3411,10 @@ static uint get_table_structure(const char *table, const char *db, char *table_t
 
     while ((row= mysql_fetch_row(result)))
     {
-      if (strlen(row[SHOW_EXTRA]) && strstr(row[SHOW_EXTRA],"INVISIBLE"))
+      if (strstr(row[1],"INVISIBLE"))
         complete_insert= 1;
+      if (vers_hidden && row[2])
+        vers_hidden= strcmp(row[2], "ROW START");
       if (init)
       {
         dynstr_append_checked(&select_field_names, ", ");
@@ -3398,11 +3423,18 @@ static uint get_table_structure(const char *table, const char *db, char *table_t
       }
       init=1;
       dynstr_append_checked(&select_field_names,
-              quote_name(row[SHOW_FIELDNAME], name_buff, 0));
+                            quote_name(row[0], name_buff, 0));
       if (opt_header)
         dynstr_append_checked(&select_field_names_for_header,
-                              quote_for_equal(row[SHOW_FIELDNAME], name_buff));
+                              quote_for_equal(row[0], name_buff));
     }
+
+    if (vers_hidden)
+    {
+      complete_insert= 1;
+      dynstr_append_checked(&select_field_names, ", row_start, row_end");
+    }
+
     /*
       If write_data is true, then we build up insert statements for
       the table's data. Note: in subsequent lines of code, this test
@@ -3433,7 +3465,7 @@ static uint get_table_structure(const char *table, const char *db, char *table_t
 
     if (complete_insert)
       dynstr_append_checked(&insert_pat, select_field_names.str);
-    num_fields= mysql_num_rows(result);
+    num_fields= mysql_num_rows(result) + (vers_hidden ? 2 : 0);
     mysql_free_result(result);
   }
   else
@@ -4033,10 +4065,15 @@ static char *alloc_query_str(size_t size)
 
 static void vers_append_system_time(DYNAMIC_STRING* query_string)
 {
-  DBUG_ASSERT(opt_asof_timestamp);
-  dynstr_append_checked(query_string, " FOR SYSTEM_TIME AS OF TIMESTAMP '");
-  dynstr_append_checked(query_string, opt_asof_timestamp);
-  dynstr_append_checked(query_string, "'");
+  if (opt_dump_history)
+    dynstr_append_checked(query_string, " FOR SYSTEM_TIME ALL");
+  else
+  {
+    DBUG_ASSERT(opt_asof_timestamp);
+    dynstr_append_checked(query_string, " FOR SYSTEM_TIME AS OF TIMESTAMP '");
+    dynstr_append_checked(query_string, opt_asof_timestamp);
+    dynstr_append_checked(query_string, "'");
+  }
 }
 
 
@@ -4282,6 +4319,11 @@ static void dump_table(const char *table, const char *db, const uchar *hash_key,
       goto err;
     }
 
+    if (versioned && !opt_xml && opt_dump_history)
+    {
+      fprintf(md_result_file,"/*!101100 SET system_versioning_insert_history=1 */;\n");
+      check_io(md_result_file);
+    }
     if (opt_lock)
     {
       fprintf(md_result_file,"LOCK TABLES %s WRITE;\n", opt_quoted_table);
@@ -4577,6 +4619,11 @@ static void dump_table(const char *table, const char *db, const uchar *hash_key,
     if (opt_autocommit)
     {
       fprintf(md_result_file, "commit;\n");
+      check_io(md_result_file);
+    }
+    if (versioned && !opt_xml && opt_dump_history)
+    {
+      fprintf(md_result_file,"/*!101100 SET system_versioning_insert_history=1 */;\n");
       check_io(md_result_file);
     }
     mysql_free_result(res);
