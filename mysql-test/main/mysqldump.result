@@ -6584,3 +6584,4 @@ SET GLOBAL LOG_OUTPUT=DEFAULT, GLOBAL GENERAL_LOG=@save_general_log;
 TRUNCATE TABLE mysql.general_log;
 DROP DATABASE test1;
 # End of 10.3 tests
+mysqldump: --xml can't be used with --tab.
