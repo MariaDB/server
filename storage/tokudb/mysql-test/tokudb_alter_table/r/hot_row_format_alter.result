@@ -17,7 +17,7 @@ foo	CREATE TABLE `foo` (
   `a` int(11) NOT NULL AUTO_INCREMENT,
   `b` int(11) DEFAULT NULL,
   PRIMARY KEY (`a`)
-) ENGINE=TokuDB AUTO_INCREMENT=4 DEFAULT CHARSET=latin1 `compression`=TOKUDB_LZMA
+) ENGINE=TokuDB AUTO_INCREMENT=4 DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci `compression`=TOKUDB_LZMA
 select * from foo;
 a	b
 1	11
@@ -30,7 +30,7 @@ foo	CREATE TABLE `foo` (
   `a` int(11) NOT NULL AUTO_INCREMENT,
   `b` int(11) DEFAULT NULL,
   PRIMARY KEY (`a`)
-) ENGINE=TokuDB AUTO_INCREMENT=4 DEFAULT CHARSET=latin1 `compression`=TOKUDB_QUICKLZ
+) ENGINE=TokuDB AUTO_INCREMENT=4 DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci `compression`=TOKUDB_QUICKLZ
 select * from foo;
 a	b
 1	11
@@ -43,7 +43,7 @@ foo	CREATE TABLE `foo` (
   `a` int(11) NOT NULL AUTO_INCREMENT,
   `b` int(11) DEFAULT NULL,
   PRIMARY KEY (`a`)
-) ENGINE=TokuDB AUTO_INCREMENT=4 DEFAULT CHARSET=latin1 `compression`=TOKUDB_UNCOMPRESSED
+) ENGINE=TokuDB AUTO_INCREMENT=4 DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci `compression`=TOKUDB_UNCOMPRESSED
 select * from foo;
 a	b
 1	11
@@ -56,7 +56,7 @@ foo	CREATE TABLE `foo` (
   `a` int(11) NOT NULL AUTO_INCREMENT,
   `b` int(11) DEFAULT NULL,
   PRIMARY KEY (`a`)
-) ENGINE=TokuDB AUTO_INCREMENT=4 DEFAULT CHARSET=latin1 `compression`=TOKUDB_ZLIB
+) ENGINE=TokuDB AUTO_INCREMENT=4 DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci `compression`=TOKUDB_ZLIB
 select * from foo;
 a	b
 1	11
@@ -69,7 +69,7 @@ foo	CREATE TABLE `foo` (
   `a` int(11) NOT NULL AUTO_INCREMENT,
   `b` int(11) DEFAULT NULL,
   PRIMARY KEY (`a`)
-) ENGINE=TokuDB AUTO_INCREMENT=4 DEFAULT CHARSET=latin1 `compression`=TOKUDB_FAST
+) ENGINE=TokuDB AUTO_INCREMENT=4 DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci `compression`=TOKUDB_FAST
 select * from foo;
 a	b
 1	11
@@ -82,7 +82,7 @@ foo	CREATE TABLE `foo` (
   `a` int(11) NOT NULL AUTO_INCREMENT,
   `b` int(11) DEFAULT NULL,
   PRIMARY KEY (`a`)
-) ENGINE=TokuDB AUTO_INCREMENT=4 DEFAULT CHARSET=latin1 `compression`=TOKUDB_SMALL
+) ENGINE=TokuDB AUTO_INCREMENT=4 DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci `compression`=TOKUDB_SMALL
 select * from foo;
 a	b
 1	11

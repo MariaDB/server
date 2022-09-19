@@ -12,7 +12,7 @@ t1	CREATE TABLE `t1` (
   PRIMARY KEY (`i`),
   KEY `kj` (`j`),
   KEY `kij` (`i`,`j`)
-) ENGINE=ROCKSDB DEFAULT CHARSET=latin1
+) ENGINE=ROCKSDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP INDEX kj on t1;
 DROP INDEX kij ON t1;
 ALTER TABLE t1 ADD INDEX kj(j), ADD INDEX kij(i,j), ADD INDEX kji(j,i), ALGORITHM=INPLACE;
@@ -25,5 +25,5 @@ t1	CREATE TABLE `t1` (
   KEY `kj` (`j`),
   KEY `kij` (`i`,`j`),
   KEY `kji` (`j`,`i`)
-) ENGINE=ROCKSDB DEFAULT CHARSET=latin1
+) ENGINE=ROCKSDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t1;

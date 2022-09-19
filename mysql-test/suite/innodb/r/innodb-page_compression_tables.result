@@ -14,13 +14,13 @@ Table	Create Table
 innodb_compact	CREATE TABLE `innodb_compact` (
   `c1` bigint(20) NOT NULL,
   `b` char(200) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 ROW_FORMAT=COMPACT `page_compressed`=1
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci ROW_FORMAT=COMPACT `page_compressed`=1
 show create table innodb_dynamic;
 Table	Create Table
 innodb_dynamic	CREATE TABLE `innodb_dynamic` (
   `c1` bigint(20) NOT NULL,
   `b` char(200) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 ROW_FORMAT=DYNAMIC `page_compressed`=1
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci ROW_FORMAT=DYNAMIC `page_compressed`=1
 create table innodb_redundant(c1 bigint not null, b char(200)) engine=innodb row_format=redundant page_compressed=1;
 ERROR HY000: Can't create table `test`.`innodb_redundant` (errno: 140 "Wrong create options")
 show warnings;
@@ -34,7 +34,7 @@ Table	Create Table
 innodb_redundant	CREATE TABLE `innodb_redundant` (
   `c1` bigint(20) NOT NULL,
   `b` char(200) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 ROW_FORMAT=REDUNDANT
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci ROW_FORMAT=REDUNDANT
 alter table innodb_redundant page_compressed=1;
 ERROR HY000: Table storage engine 'InnoDB' does not support the create option 'PAGE_COMPRESSED'
 show warnings;
@@ -46,14 +46,14 @@ Table	Create Table
 innodb_redundant	CREATE TABLE `innodb_redundant` (
   `c1` bigint(20) NOT NULL,
   `b` char(200) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 ROW_FORMAT=REDUNDANT
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci ROW_FORMAT=REDUNDANT
 alter table innodb_redundant row_format=compact page_compressed=1;
 show create table innodb_redundant;
 Table	Create Table
 innodb_redundant	CREATE TABLE `innodb_redundant` (
   `c1` bigint(20) NOT NULL,
   `b` char(200) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 ROW_FORMAT=COMPACT `page_compressed`=1
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci ROW_FORMAT=COMPACT `page_compressed`=1
 drop table innodb_redundant;
 create procedure innodb_insert_proc (repeat_count int)
 begin
@@ -99,13 +99,13 @@ Table	Create Table
 innodb_compact	CREATE TABLE `innodb_compact` (
   `c1` bigint(20) NOT NULL,
   `b` char(200) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 ROW_FORMAT=COMPACT
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci ROW_FORMAT=COMPACT
 show create table innodb_dynamic;
 Table	Create Table
 innodb_dynamic	CREATE TABLE `innodb_dynamic` (
   `c1` bigint(20) NOT NULL,
   `b` char(200) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 ROW_FORMAT=DYNAMIC
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci ROW_FORMAT=DYNAMIC
 update innodb_compact set c1 = c1 + 1;
 update innodb_dynamic set c1 = c1 + 1;
 select count(*) from innodb_compact where c1 < 1500000;
@@ -127,19 +127,19 @@ Table	Create Table
 no_compression	CREATE TABLE `no_compression` (
   `id` int(11) NOT NULL,
   `name` varchar(200) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 SHOW CREATE TABLE default_compression;
 Table	Create Table
 default_compression	CREATE TABLE `default_compression` (
   `id` int(11) NOT NULL,
   `name` varchar(200) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 `PAGE_COMPRESSED`='ON'
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci `PAGE_COMPRESSED`='ON'
 SHOW CREATE TABLE explicit_no_compression;
 Table	Create Table
 explicit_no_compression	CREATE TABLE `explicit_no_compression` (
   `id` int(11) NOT NULL,
   `name` varchar(200) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 `PAGE_COMPRESSED`=0
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci `PAGE_COMPRESSED`=0
 DROP TABLE no_compression;
 DROP TABLE default_compression;
 DROP TABLE explicit_no_compression;

@@ -4932,7 +4932,7 @@ t2	CREATE TABLE `t2` (
   `mid` int(11) DEFAULT NULL,
   `name` text DEFAULT NULL,
   `mname` text DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 insert into t2 WITH RECURSIVE
 cteReports (level, id, mid, name) AS
 (
@@ -5013,7 +5013,7 @@ t2	CREATE TABLE `t2` (
   `mid` int(11) DEFAULT NULL,
   `name` text DEFAULT NULL,
   `mname` text DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 set @@sql_mode=default;
 drop table t1,t2;
 #

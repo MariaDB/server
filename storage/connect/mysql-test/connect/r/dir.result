@@ -20,7 +20,7 @@ t1	CREATE TABLE `t1` (
   `fname` varchar(256) NOT NULL,
   `ftype` char(4) NOT NULL,
   `size` double(12,0) NOT NULL `flag`=5
-) ENGINE=CONNECT DEFAULT CHARSET=latin1 `TABLE_TYPE`=DIR `FILE_NAME`='*.txt' `OPTION_LIST`='subdir=0'
+) ENGINE=CONNECT DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci `TABLE_TYPE`=DIR `FILE_NAME`='*.txt' `OPTION_LIST`='subdir=0'
 SELECT fname, ftype, size FROM t1 ORDER BY fname, ftype, size;
 fname	ftype	size
 boys	.txt	282

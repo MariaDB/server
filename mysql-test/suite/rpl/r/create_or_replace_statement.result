@@ -123,7 +123,7 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `new_table` int(11) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 connection server_1;
 drop table t1;
 #
@@ -198,7 +198,7 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `server_2_ver_2` int(11) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 binlog from server 2
 include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info

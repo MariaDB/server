@@ -3680,13 +3680,12 @@ int spider_db_mbase_util::append_escaped_name_quote(
   DBUG_RETURN(0);
 }
 
-int spider_db_mbase_util::append_column_value(
-  ha_spider *spider,
-  spider_string *str,
-  Field *field,
-  const uchar *new_ptr,
-  CHARSET_INFO *access_charset
-) {
+int spider_db_mbase_util::append_column_value(ha_spider *spider,
+                                              spider_string *str, Field *field,
+                                              const uchar *new_ptr,
+                                              bool is_like,
+                                              CHARSET_INFO *access_charset)
+{
   char buf[MAX_FIELD_WIDTH];
   spider_string tmp_str(buf, MAX_FIELD_WIDTH, &my_charset_bin);
   String *ptr;
@@ -3710,70 +3709,15 @@ int spider_db_mbase_util::append_column_value(
       ptr = tmp_str.get_str();
     } else if (field->type() == MYSQL_TYPE_GEOMETRY)
     {
-/*
-      uint mlength = SIZEOF_STORED_DOUBLE, lcnt;
-      uchar *dest = (uchar *) buf;
-      const uchar *source;
-      for (lcnt = 0; lcnt < 4; lcnt++)
-      {
-        mlength = SIZEOF_STORED_DOUBLE;
-        source = new_ptr + mlength + SIZEOF_STORED_DOUBLE * lcnt;
-        while (mlength--)
-          *dest++ = *--source;
-      }
-      tmp_str.length(SIZEOF_STORED_DOUBLE * lcnt);
-*/
 #ifndef DBUG_OFF
       double xmin, xmax, ymin, ymax;
-/*
-      float8store(buf,xmin);
-      float8store(buf+8,xmax);
-      float8store(buf+16,ymin);
-      float8store(buf+24,ymax);
-      memcpy(&xmin,new_ptr,sizeof(xmin));
-      memcpy(&xmax,new_ptr + 8,sizeof(xmax));
-      memcpy(&ymin,new_ptr + 16,sizeof(ymin));
-      memcpy(&ymax,new_ptr + 24,sizeof(ymax));
-      float8get(xmin, buf);
-      float8get(xmax, buf + 8);
-      float8get(ymin, buf + 16);
-      float8get(ymax, buf + 24);
-      DBUG_PRINT("info", ("spider geo is %f %f %f %f",
-        xmin, xmax, ymin, ymax));
-      DBUG_PRINT("info", ("spider geo is %.14g %.14g %.14g %.14g",
-        xmin, xmax, ymin, ymax));
-*/
       float8get(xmin, new_ptr);
       float8get(xmax, new_ptr + 8);
       float8get(ymin, new_ptr + 16);
       float8get(ymax, new_ptr + 24);
       DBUG_PRINT("info", ("spider geo is %f %f %f %f",
         xmin, xmax, ymin, ymax));
-/*
-      float8get(xmin, new_ptr + SIZEOF_STORED_DOUBLE * 4);
-      float8get(xmax, new_ptr + SIZEOF_STORED_DOUBLE * 5);
-      float8get(ymin, new_ptr + SIZEOF_STORED_DOUBLE * 6);
-      float8get(ymax, new_ptr + SIZEOF_STORED_DOUBLE * 7);
-      DBUG_PRINT("info", ("spider geo is %f %f %f %f",
-        xmin, xmax, ymin, ymax));
-      float8get(xmin, new_ptr + SIZEOF_STORED_DOUBLE * 8);
-      float8get(xmax, new_ptr + SIZEOF_STORED_DOUBLE * 9);
-      float8get(ymin, new_ptr + SIZEOF_STORED_DOUBLE * 10);
-      float8get(ymax, new_ptr + SIZEOF_STORED_DOUBLE * 11);
-      DBUG_PRINT("info", ("spider geo is %f %f %f %f",
-        xmin, xmax, ymin, ymax));
-      float8get(xmin, new_ptr + SIZEOF_STORED_DOUBLE * 12);
-      float8get(xmax, new_ptr + SIZEOF_STORED_DOUBLE * 13);
-      float8get(ymin, new_ptr + SIZEOF_STORED_DOUBLE * 14);
-      float8get(ymax, new_ptr + SIZEOF_STORED_DOUBLE * 15);
-      DBUG_PRINT("info", ("spider geo is %f %f %f %f",
-        xmin, xmax, ymin, ymax));
-*/
 #endif
-/*
-      tmp_str.set_quick((char *) new_ptr, SIZEOF_STORED_DOUBLE * 4,
-        &my_charset_bin);
-*/
       tmp_str.length(0);
       tmp_str.q_append((char *) SPIDER_SQL_LINESTRING_HEAD_STR,
         SPIDER_SQL_LINESTRING_HEAD_LEN);
@@ -3798,27 +3742,7 @@ int spider_db_mbase_util::append_column_value(
 
   DBUG_PRINT("info", ("spider field->type() is %d", field->type()));
   DBUG_PRINT("info", ("spider ptr->length() is %d", ptr->length()));
-/*
-  if (
-    field->type() == MYSQL_TYPE_BIT ||
-    (field->type() >= MYSQL_TYPE_TINY_BLOB &&
-      field->type() <= MYSQL_TYPE_BLOB)
-  ) {
-    uchar *hex_ptr = (uchar *) ptr->ptr(), *end_ptr;
-    char *str_ptr;
-    DBUG_PRINT("info", ("spider HEX"));
-    if (str->reserve(SPIDER_SQL_HEX_LEN + ptr->length() * 2))
-      DBUG_RETURN(HA_ERR_OUT_OF_MEM);
-    str->q_append(SPIDER_SQL_HEX_STR, SPIDER_SQL_HEX_LEN);
-    str_ptr = (char *) str->ptr() + str->length();
-    for (end_ptr = hex_ptr + ptr->length(); hex_ptr < end_ptr; hex_ptr++)
-    {
-      *str_ptr++ = spider_dig_upper[(*hex_ptr) >> 4];
-      *str_ptr++ = spider_dig_upper[(*hex_ptr) & 0x0F];
-    }
-    str->length(str->length() + ptr->length() * 2);
-  } else 
-*/
+
   if (field->result_type() == STRING_RESULT)
   {
     DBUG_PRINT("info", ("spider STRING_RESULT"));
@@ -3841,6 +3765,10 @@ int spider_db_mbase_util::append_column_value(
         append_escaped_util(str, tmp_str2.get_str())
       )
         DBUG_RETURN(HA_ERR_OUT_OF_MEM);
+
+      if (is_like &&
+          str->append(SPIDER_SQL_PERCENT_STR, SPIDER_SQL_PERCENT_LEN))
+        DBUG_RETURN(HA_ERR_OUT_OF_MEM);
     } else if (str->append(*ptr))
       DBUG_RETURN(HA_ERR_OUT_OF_MEM);
     if (str->reserve(SPIDER_SQL_VALUE_QUOTE_LEN))
@@ -3855,6 +3783,7 @@ int spider_db_mbase_util::append_column_value(
     str->q_append(SPIDER_SQL_VALUE_QUOTE_STR, SPIDER_SQL_VALUE_QUOTE_LEN);
   } else if (str->append(*ptr))
     DBUG_RETURN(HA_ERR_OUT_OF_MEM);
+
   DBUG_RETURN(0);
 }
 
@@ -7881,12 +7810,10 @@ int spider_mbase_handler::append_insert_for_recovery(
         DBUG_RETURN(HA_ERR_OUT_OF_MEM);
       insert_sql->q_append(SPIDER_SQL_NULL_STR, SPIDER_SQL_NULL_LEN);
     } else {
-      if (
-        spider_db_mbase_utility->
-          append_column_value(spider, insert_sql, *field, NULL,
-            share->access_charset) ||
-        insert_sql->reserve(SPIDER_SQL_COMMA_LEN)
-      )
+      if (spider_db_mysql_utility.append_column_value(spider, insert_sql,
+                                                      *field, NULL, false,
+                                                      share->access_charset) ||
+          insert_sql->reserve(SPIDER_SQL_COMMA_LEN))
         DBUG_RETURN(HA_ERR_OUT_OF_MEM);
     }
     insert_sql->q_append(SPIDER_SQL_COMMA_STR, SPIDER_SQL_COMMA_LEN);
@@ -8275,12 +8202,10 @@ int spider_mbase_handler::append_update_set(
 #ifndef DBUG_OFF
         MY_BITMAP *tmp_map = dbug_tmp_use_all_columns(table, &table->read_set);
 #endif
-        if (
-          spider_db_mbase_utility->
-            append_column_value(spider, str, *fields, NULL,
-              share->access_charset) ||
-          str->reserve(SPIDER_SQL_COMMA_LEN)
-        ) {
+        if (spider_db_mysql_utility.append_column_value(
+                spider, str, *fields, NULL, FALSE, share->access_charset) ||
+            str->reserve(SPIDER_SQL_COMMA_LEN))
+        {
 #ifndef DBUG_OFF
           dbug_tmp_restore_column_map(&table->read_set, tmp_map);
 #endif
@@ -9079,8 +9004,8 @@ int spider_mbase_handler::append_key_column_values(
       if (error_num > 0)
         DBUG_RETURN(error_num);
     } else {
-      if (spider_db_mbase_utility->append_column_value(spider, str, field, ptr,
-        share->access_charset))
+      if (spider_db_mysql_utility.append_column_value(
+              spider, str, field, ptr, FALSE, share->access_charset))
         DBUG_RETURN(HA_ERR_OUT_OF_MEM);
     }
 
@@ -9160,8 +9085,8 @@ int spider_mbase_handler::append_key_column_values_with_name(
       if (error_num > 0)
         DBUG_RETURN(error_num);
     } else {
-      if (spider_db_mbase_utility->append_column_value(spider, str, field, ptr,
-        share->access_charset))
+      if (spider_db_mysql_utility.append_column_value(
+              spider, str, field, ptr, FALSE, share->access_charset))
         DBUG_RETURN(HA_ERR_OUT_OF_MEM);
     }
 
@@ -9533,12 +9458,9 @@ int spider_mbase_handler::append_update_where(
           mysql_share->append_column_name(str, (*field)->field_index);
           str->q_append(SPIDER_SQL_EQUAL_STR, SPIDER_SQL_EQUAL_LEN);
           (*field)->move_field_offset(ptr_diff);
-          if (
-            spider_db_mbase_utility->
-              append_column_value(spider, str, *field, NULL,
-                share->access_charset) ||
-            str->reserve(SPIDER_SQL_AND_LEN)
-          )
+          if (spider_db_mbase_utility->append_column_value(
+                  spider, str, *field, NULL, FALSE, share->access_charset) ||
+              str->reserve(SPIDER_SQL_AND_LEN))
             DBUG_RETURN(HA_ERR_OUT_OF_MEM);
           (*field)->move_field_offset(-ptr_diff);
         }
@@ -9573,12 +9495,9 @@ int spider_mbase_handler::append_update_where(
         mysql_share->append_column_name(str, (*field)->field_index);
         str->q_append(SPIDER_SQL_EQUAL_STR, SPIDER_SQL_EQUAL_LEN);
         (*field)->move_field_offset(ptr_diff);
-        if (
-          spider_db_mbase_utility->
-            append_column_value(spider, str, *field, NULL,
-              share->access_charset) ||
-          str->reserve(SPIDER_SQL_AND_LEN)
-        )
+        if (spider_db_mysql_utility.append_column_value(
+                spider, str, *field, NULL, FALSE, share->access_charset) ||
+            str->reserve(SPIDER_SQL_AND_LEN))
           DBUG_RETURN(HA_ERR_OUT_OF_MEM);
         (*field)->move_field_offset(-ptr_diff);
       }
@@ -11009,12 +10928,10 @@ int spider_mbase_handler::append_insert_values(
         }
         str->q_append(SPIDER_SQL_NULL_STR, SPIDER_SQL_NULL_LEN);
       } else {
-        if (
-          spider_db_mbase_utility->
-            append_column_value(spider, str, *field, NULL,
-              share->access_charset) ||
-          str->reserve(SPIDER_SQL_COMMA_LEN)
-        ) {
+        if (spider_db_mysql_utility.append_column_value(
+                spider, str, *field, NULL, FALSE, share->access_charset) ||
+            str->reserve(SPIDER_SQL_COMMA_LEN))
+        {
 #ifndef DBUG_OFF
           dbug_tmp_restore_column_map(&table->read_set, tmp_map);
 #endif

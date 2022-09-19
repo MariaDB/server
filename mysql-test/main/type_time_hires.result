@@ -73,7 +73,7 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` time(4) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 show columns from t1;
 Field	Type	Null	Key	Default	Extra
 a	time(4)	YES		NULL	
@@ -122,12 +122,12 @@ show create table t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `a` time(4) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 show create table t3;
 Table	Create Table
 t3	CREATE TABLE `t3` (
   `a` time(4) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 drop table t2, t3;
 insert t1 values ('2010-12-13 14:15:16.222222');
 Warnings:
@@ -149,7 +149,7 @@ t2	CREATE TABLE `t2` (
   `a-1` decimal(12,4) DEFAULT NULL,
   `a*1` decimal(12,4) DEFAULT NULL,
   `a/2` decimal(15,8) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 show create table t3;
 Table	Create Table
 t3	CREATE TABLE `t3` (
@@ -157,7 +157,7 @@ t3	CREATE TABLE `t3` (
   `min(a)` time(4) DEFAULT NULL,
   `sum(a)` decimal(33,4) DEFAULT NULL,
   `avg(a)` decimal(15,8) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 drop table t1, t2, t3;
 create table t1 (f0_time time(0), f1_time time(1), f2_time time(2), f3_time time(3), f4_time time(4), f5_time time(5), f6_time time(6));
 insert t1 values ( '2010-11-12 11:14:17.765432', '2010-11-12 11:14:17.765432', '2010-11-12 11:14:17.765432', '2010-11-12 11:14:17.765432', '2010-11-12 11:14:17.765432', '2010-11-12 11:14:17.765432', '2010-11-12 11:14:17.765432');
@@ -307,7 +307,7 @@ Table	Create Table
 t2	CREATE TABLE `t2` (
   `a` time(6) DEFAULT NULL,
   `b` time(6) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 select * from t2;
 a	b
 03:04:06.234500	03:04:06.234561

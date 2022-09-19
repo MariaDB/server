@@ -461,7 +461,7 @@ t1	CREATE TABLE `t1` (
   `col227` varchar(40) DEFAULT NULL,
   `col228` varchar(40) DEFAULT NULL,
   `col229` varchar(40) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 alter table t1 add i230 integer;
 show create table t1;
 Table	Create Table
@@ -696,7 +696,7 @@ t1	CREATE TABLE `t1` (
   `col228` varchar(40) DEFAULT NULL,
   `col229` varchar(40) DEFAULT NULL,
   `i230` int(11) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 drop table t1;
 create table t1(
 col1 varchar(40),
@@ -1163,5 +1163,5 @@ t1	CREATE TABLE `t1` (
   `col228` varchar(40) DEFAULT NULL,
   `col229` varchar(40) DEFAULT NULL,
   `col230` varchar(40) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 drop table t1;

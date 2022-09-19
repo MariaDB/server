@@ -588,7 +588,7 @@ s	CREATE TABLE `s` (
   `cache` bigint(21) NOT NULL,
   `cycle` tinyint(1) unsigned NOT NULL,
   `round` bigint(21) NOT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 show create table s2;
 Table	Create Table
 s2	CREATE TABLE `s2` (
@@ -600,7 +600,7 @@ s2	CREATE TABLE `s2` (
   `cache` bigint(21) NOT NULL,
   `cycle` tinyint(1) unsigned NOT NULL,
   `round` bigint(21) NOT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 show create sequence s;
 ERROR 42S02: 'test.s' is not a SEQUENCE
 show create sequence s2;
@@ -616,7 +616,7 @@ show create table s;
 Table	Create Table
 s	CREATE TEMPORARY TABLE `s` (
   `i` int(11) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 drop table s;
 create or replace sequence s;
 create temporary sequence s;
