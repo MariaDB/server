@@ -1,0 +1,21 @@
+--source include/have_innodb.inc
+
+set @save_default_engine= @@default_storage_engine;
+
+set default_storage_engine=InnoDB;
+--source include/delete_use_source.inc
+
+set default_storage_engine=Aria;
+--source include/delete_use_source.inc
+
+set default_storage_engine=MyISAM;
+--source include/delete_use_source.inc
+
+set default_storage_engine=MEMORY;
+--source include/delete_use_source.inc
+
+set @@default_storage_engine= @save_default_engine;
+
+--echo #
+--echo # End of 11.0 tests
+--echo #

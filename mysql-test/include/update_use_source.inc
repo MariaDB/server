@@ -1,150 +1,269 @@
 # Include to test update with same table as source and target
 
+create table t1 (old_c1 integer,
+                 old_c2 integer,
+                 c1 integer,
+                 c2 integer,
+                 c3 integer);
+create view v1 as select * from t1 where c2=2;
+delimiter /;
+create trigger trg_t1 before update on t1 for each row
+begin
+  set new.old_c1=old.c1;
+  set new.old_c2=old.c2;
+end;
+/
+delimiter ;/
+
+insert into t1(c1,c2,c3)
+        values (1,1,1), (1,2,2), (1,3,3),
+               (2,1,4), (2,2,5), (2,3,6),
+               (2,4,7), (2,5,8);
+analyze table t1;
+select * from t1;
+
+create table tmp as select * from t1;
+
+--echo # Test without any index
+--source include/update_use_source_cases.inc
+
+--echo # Test with an index on updated columns
+create index t1_c2 on t1 (c2,c1);
+analyze table t1;
+--source include/update_use_source_cases.inc
+
+--echo # Test with an index on updated columns
+create index t1_c3 on t1 (c3);
+analyze table t1;
+--source include/update_use_source_cases.inc
+
+--echo # Test with a primary key on updated columns
+drop index t1_c3 on t1;
+alter table t1 add primary key (c3);
+analyze table t1;
+--source include/update_use_source_cases.inc
+
+--echo # Update with error "Subquery returns more than 1 row"
+--error ER_SUBQUERY_NO_1_ROW
+update t1 set c2=(select c2 from t1);
+--sorted_result
+select c1,c2,c3 from t1;
+
+--echo # Update with error "Subquery returns more than 1 row"
+--echo # and order by
+--error ER_SUBQUERY_NO_1_ROW
+update t1 set c2=(select c2 from t1) order by c3;
+--sorted_result
+select c1,c2,c3 from t1;
+
+-- echo # Duplicate value on update a primary key
+--error ER_DUP_ENTRY
+
+update t1 set c3=0
+    where exists (select 'X' from t1 a where a.c2 = t1.c2) and c2 >= 3;
+--sorted_result
+select c1,c2,c3 from t1;
+truncate table t1;
+insert into t1 select * from tmp;
+
+-- echo # Duplicate value on update a primary key with ignore
+--enable_info ONCE
+update ignore t1 set c3=0
+    where exists (select 'X' from t1 a where a.c2 = t1.c2) and c2 >= 3;
+--sorted_result
+select c1,c2,c3 from t1;
+truncate table t1;
+insert into t1 select * from tmp;
+
+-- echo # Duplicate value on update a primary key and limit
+--error ER_DUP_ENTRY
+update t1 set c3=0
+    where exists (select 'X' from t1 a where a.c2 = t1.c2)
+      and c2 >= 3 limit 2;
+--sorted_result
+select c1,c2,c3 from t1;
+truncate table t1;
+insert into t1 select * from tmp;
+
+-- echo # Duplicate value on update a primary key with ignore
+-- echo # and limit
+--enable_info ONCE
+update ignore t1 set c3=0
+    where exists (select 'X' from t1 a where a.c2 = t1.c2)
+    and c2 >= 3 limit 2;
+--sorted_result
+select c1,c2,c3 from t1;
+truncate table t1;
+insert into t1 select * from tmp;
+
+--echo # Update no rows found
+--enable_info ONCE
+update t1 set c1=10
+    where c1 <2 and exists (select 'X' from t1 a where a.c1 = t1.c1 + 10);
+--sorted_result
+select c1,c2,c3 from t1;
+truncate table t1;
+insert into t1 select * from tmp;
+
+--echo # Update no rows changed
+drop trigger trg_t1;
+--enable_info ONCE
+update t1 set c1=c1
+    where c1 <2 and exists (select 'X' from t1 a where a.c1 = t1.c1);
+--sorted_result
+select c1,c2,c3 from t1;
+truncate table t1;
+insert into t1 select * from tmp;
+
 --echo #
---echo # Update a with value from subquery on the same table, no search clause. ALL access
+--echo # Check call of after trigger
 --echo #
 
-#Enable view protocol  after fix MDEV-29207
---disable_view_protocol
-start transaction;
+delimiter /;
+create or replace trigger trg_t2 after update on t1 for each row
+begin
+  declare msg varchar(100);
+  if (new.c3 = 5) then
+    set msg=concat('in after update trigger on ',new.c3);
+    SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = msg;
+  end if;
+end;
+/
+delimiter ;/
+--error 1644
+
+update t1 set c1=2
+    where c3 in (select distinct a.c3 from t1 a where a.c1=t1.c1);
+--sorted_result
+select c1,c2,c3 from t1;
+truncate table t1;
+insert into t1 select * from tmp;
+
+--echo #
+--echo # Check update with order by and after trigger
+--echo #
+
+--error 1644
+update t1 set c1=2
+    where c3 in (select distinct a.c3 from t1 a where a.c1=t1.c1)
+    order by t1.c2, t1.c1;
+--sorted_result
+select c1,c2,c3 from t1;
+truncate table t1;
+insert into t1 select * from tmp;
+
+drop view v1;
+
+--echo #
+--echo # Check update on view with check option
+--echo #
+
+create view v1 as select * from t1 where c2=2 with check option;
+
+-- error 1369
+update v1 set c2=3 where c1=1;
+--sorted_result
+select c1,c2,c3 from t1;
+truncate table t1;
+insert into t1 select * from tmp;
+
+-- error 1369
+update v1 set c2=(select max(c3) from v1) where c1=1;
+--sorted_result
+select c1,c2,c3 from t1;
+truncate table t1;
+insert into t1 select * from tmp;
+
+update v1 set c2=(select min(va.c3) from v1 va), c1=0 where c1=1;
+--sorted_result
+select c1,c2,c3 from t1;
+truncate table t1;
+insert into t1 select * from tmp;
+
+drop table tmp;
+drop view v1;
+drop table t1;
+
+--echo #
+--echo # Test with a temporary table
+--echo #
+
+create temporary table t1 (c1 integer, c2 integer, c3 integer);
+insert into t1(c1,c2,c3)
+        values (1,1,1),(1,2,2),(1,3,3),
+               (2,1,4),(2,2,5),(2,3,6),
+               (2,4,7),(2,5,8);
+analyze table t1;
+
 --enable_info ONCE
 update t1
-   set c1=(select a.c3
+   set c1=(select a.c2
              from t1 a
-            where a.c3 = t1.c3);
-select concat(old_c1,'->',c1),c3, case when c1 != old_c1 then '*' else ' ' end "Changed" from t1 ;
-rollback;
+            where a.c3 = t1.c3) limit 3;
+select * from t1 ;
+drop table t1;
+
+let $engine = `select @@default_storage_engine`;
+if ($engine != 'MEMORY'){
 
 --echo #
---echo # Update with search clause on the same table
+--echo # Test on dynamic columns (blob)
 --echo #
 
-start transaction;
---enable_info ONCE
-update t1
-   set c1=10
- where c1 <2
-   and exists (select 'X'
-                 from t1 a
-                where a.c1 = t1.c1);
-select concat(old_c1,'->',c1),c3, case when c1 != old_c1 then '*' else ' ' end "Changed" from t1 ;
-rollback;
+create table assets (
+  item_name varchar(32) primary key, -- A common attribute for all items
+  dynamic_cols  blob  -- Dynamic columns will be stored here
+);
+INSERT INTO assets VALUES ('MariaDB T-shirt',
+    COLUMN_CREATE('color', 'blue', 'size', 'XL'));
+INSERT INTO assets VALUES ('Thinkpad Laptop',
+    COLUMN_CREATE('color', 'black', 'price', 500));
+SELECT item_name, COLUMN_GET(dynamic_cols, 'color' as char) AS color
+    FROM assets;
+UPDATE assets
+  SET dynamic_cols=COLUMN_ADD(dynamic_cols, 'warranty', '3 years')
+    WHERE item_name='Thinkpad Laptop';
+SELECT item_name,
+  COLUMN_GET(dynamic_cols, 'warranty' as char) AS color
+    FROM assets;
+UPDATE assets
+  SET dynamic_cols=COLUMN_ADD(dynamic_cols, 'warranty', '4 years')
+    WHERE item_name in
+      (select b.item_name from assets b
+        where COLUMN_GET(b.dynamic_cols, 'color' as char) ='black');
+SELECT item_name,
+  COLUMN_GET(dynamic_cols, 'warranty' as char) AS color
+    FROM assets;
+
+UPDATE assets SET dynamic_cols=COLUMN_ADD(dynamic_cols, 'warranty',
+    (select COLUMN_GET(b.dynamic_cols, 'color' as char)
+      from assets b
+      where assets.item_name = item_name));
+SELECT item_name,
+  COLUMN_GET(dynamic_cols, 'warranty' as char) AS color
+    FROM assets;
+drop table assets ;
 
 --echo #
---echo # Update via RANGE or INDEX access if an index or a primary key exists
+--echo # Test on fulltext columns
 --echo #
+CREATE TABLE ft2(copy TEXT,FULLTEXT(copy));
+INSERT INTO ft2(copy) VALUES
+ ('MySQL vs MariaDB database'),
+ ('Oracle vs MariaDB database'),
+ ('PostgreSQL vs MariaDB database'),
+ ('MariaDB overview'),
+ ('Foreign keys'),
+ ('Primary keys'),
+ ('Indexes'),
+ ('Transactions'),
+ ('Triggers');
+SELECT * FROM ft2 WHERE MATCH(copy) AGAINST('database');
 
-explain update t1 set c1=0 where exists (select 'X' from t1 a where a.c2 = t1.c2) and c2 > 3;
-start transaction;
---enable_info ONCE
-update t1 set c1=c1+10 where exists (select 'X' from t1 a where a.c2 = t1.c2) and c2 >= 3;
-select concat(old_c1,'->',c1),c3, case when c1 != old_c1 then '*' else ' ' end "Changed" from t1;
-rollback;
+update ft2 set copy = (select max(concat('mykeyword ',substr(b.copy,1,5)))
+  from ft2 b WHERE MATCH(b.copy) AGAINST('database'))
+  where MATCH(copy) AGAINST('keys');
+SELECT * FROM ft2 WHERE MATCH(copy) AGAINST('mykeyword');
+drop table ft2;
 
---echo #
---echo # Update with order by
---echo #
-
-start transaction;
-update t1 set c1=c1+10 where exists (select 'X' from t1 a where a.c2 = t1.c2) and c2 >= 3 order by c2;
-select concat(old_c1,'->',c1),c3, case when c1 != old_c1 then '*' else ' ' end "Changed" from t1;
-rollback;
-
---echo #
---echo Update using a view in subquery
---echo #
-
-start transaction;
---enable_info ONCE
-update t1
-   set c1=c1 +(select max(a.c2)
-             from v1 a
-            where a.c1 = t1.c1) ;
-select concat(old_c1,'->',c1),c3, case when c1 != old_c1 then '*' else ' ' end "Changed" from t1;
-rollback;
-
---echo #
---echo # Update throw a view
---echo #
-
-start transaction;
---enable_info ONCE
-update v1
-   set c1=c1 + (select max(a.c2)
-             from t1 a
-            where a.c1 = v1.c1) +10
-where c3 > 3;
-select concat(old_c1,'->',c1),c3, case when c1 != old_c1 then '*' else ' ' end "Changed" from t1;
-rollback;
-
---echo #
---echo # Update through a view and using the view in subquery
---echo #
-
-start transaction;
---enable_info ONCE
-update v1
-   set c1=c1 + 1
- where c1 <2
-   and exists (select 'X'
-                 from v1 a
-                where a.c1 = v1.c1);
-select concat(old_c1,'->',c1),c3, case when c1 != old_c1 then '*' else ' ' end "Changed" from t1;
-rollback;
-
---echo #
---echo # Update through  a view and using the view in subquery
---echo #
-
-start transaction;
---enable_info ONCE
-update v1
-   set c1=(select max(a.c1)+10
-             from v1 a
-            where a.c1 = v1.c1)
- where c1 <10
-   and exists (select 'X'
-                 from v1 a
-                where a.c2 = v1.c2);
-select concat(old_c1,'->',c1),c3, case when c1 != old_c1 then '*' else ' ' end "Changed" from t1;
-rollback;
-
---echo #
---echo # Update of the index or primary key (c3)
---echo #
-
-start transaction;
-explain update t1 set c3=c3+10 where c2 in (select distinct a.c2 from t1 a where t1.c1=a.c1);
---enable_info ONCE
-update t1 set c3=c3+10 where c2 in (select distinct a.c2 from t1 a where t1.c1=a.c1);
-select c3 from t1;
-rollback;
-
---echo #
---echo # update with a limit
---echo #
-
-start transaction;
---enable_info ONCE
-update t1
-   set c1=(select a.c3
-             from t1 a
-            where a.c3 = t1.c3)
-    limit 2;
-select concat(old_c1,'->',c1),c3, case when c1 != old_c1 then '*' else ' ' end "Changed" from t1 ;
-rollback;
-
---echo #
---echo # update with a limit and an order by
---echo #
-
-start transaction;
---enable_info ONCE
-update t1
-   set c1=(select a.c3
-             from t1 a
-            where a.c3 = t1.c3)
-  order by c3 desc limit 2;
-select concat(old_c1,'->',c1),c3, case when c1 != old_c1 then '*' else ' ' end "Changed" from t1 ;
-rollback;
---enable_view_protocol
+}
