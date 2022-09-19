@@ -40,11 +40,11 @@
 */
 
 static bool fk_info_append_fields(THD *thd, String *str,
-                                  List<LEX_CSTRING> *fields)
+                                  List<Lex_cstring> *fields)
 {
   bool res= FALSE;
-  LEX_CSTRING *field;
-  List_iterator_fast<LEX_CSTRING> it(*fields);
+  Lex_cstring *field;
+  List_iterator_fast<Lex_cstring> it(*fields);
 
   while ((field= it++))
   {
@@ -80,17 +80,17 @@ static const char *fk_info_str(THD *thd, FOREIGN_KEY_INFO *fk_info)
     `db`.`tbl`, CONSTRAINT `id` FOREIGN KEY (`fk`) REFERENCES `db`.`tbl` (`fk`)
   */
 
-  res|= append_identifier(thd, &str, fk_info->foreign_db);
+  res|= append_identifier(thd, &str, &fk_info->foreign_db);
   res|= str.append('.');
-  res|= append_identifier(thd, &str, fk_info->foreign_table);
+  res|= append_identifier(thd, &str, &fk_info->foreign_table);
   res|= str.append(STRING_WITH_LEN(", CONSTRAINT "));
-  res|= append_identifier(thd, &str, fk_info->foreign_id);
+  res|= append_identifier(thd, &str, &fk_info->foreign_id);
   res|= str.append(STRING_WITH_LEN(" FOREIGN KEY ("));
   res|= fk_info_append_fields(thd, &str, &fk_info->foreign_fields);
   res|= str.append(STRING_WITH_LEN(") REFERENCES "));
-  res|= append_identifier(thd, &str, fk_info->referenced_db);
+  res|= append_identifier(thd, &str, fk_info->ref_db_ptr());
   res|= str.append('.');
-  res|= append_identifier(thd, &str, fk_info->referenced_table);
+  res|= append_identifier(thd, &str, &fk_info->referenced_table);
   res|= str.append(STRING_WITH_LEN(" ("));
   res|= fk_info_append_fields(thd, &str, &fk_info->referenced_fields);
   res|= str.append(')');
@@ -120,14 +120,13 @@ static bool
 fk_truncate_illegal_if_parent(THD *thd, TABLE *table)
 {
   FOREIGN_KEY_INFO *fk_info;
-  List<FOREIGN_KEY_INFO> fk_list;
   List_iterator_fast<FOREIGN_KEY_INFO> it;
 
   /*
     Bail out early if the table is not referenced by a foreign key.
     In this case, the table could only be, if at all, a child table.
   */
-  if (! table->file->referenced_by_foreign_key())
+  if (! table->s->referenced_by_foreign_key())
     return FALSE;
 
   /*
@@ -136,24 +135,17 @@ fk_truncate_illegal_if_parent(THD *thd, TABLE *table)
     of foreign keys referencing this table in order to check the name
     of the child (dependent) tables.
   */
-  table->file->get_parent_foreign_key_list(thd, &fk_list);
-
-  /* Out of memory when building list. */
-  if (unlikely(thd->is_error()))
-    return TRUE;
-
-  it.init(fk_list);
+  it.init(table->s->referenced_keys);
 
   /* Loop over the set of foreign keys for which this table is a parent. */
   while ((fk_info= it++))
   {
-    if (lex_string_cmp(system_charset_info, fk_info->referenced_db,
-                       &table->s->db) ||
-        lex_string_cmp(system_charset_info, fk_info->referenced_table,
+    if (cmp_table(fk_info->ref_db(), table->s->db) ||
+        lex_string_cmp(system_charset_info, &fk_info->referenced_table,
                        &table->s->table_name) ||
-        lex_string_cmp(system_charset_info, fk_info->foreign_db,
+        lex_string_cmp(system_charset_info, &fk_info->foreign_db,
                        &table->s->db) ||
-        lex_string_cmp(system_charset_info, fk_info->foreign_table,
+        lex_string_cmp(system_charset_info, &fk_info->foreign_table,
                        &table->s->table_name))
       break;
   }

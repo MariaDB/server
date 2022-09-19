@@ -64,7 +64,7 @@ create table t2 (id int not null primary key auto_increment,
 id2 int default null,  key f1 (id2),
 constraint f1 foreign key (id2) references t1 (id) on delete cascade) engine=innodb;
 drop table t1,t2;
-ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails
+ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails (f1)
 connection slave;
 show tables;
 Tables_in_test

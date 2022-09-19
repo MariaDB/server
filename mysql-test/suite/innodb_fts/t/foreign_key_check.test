@@ -4,7 +4,7 @@
 
 --source include/have_innodb.inc
 
---error ER_CANT_CREATE_TABLE
+--error ER_NO_SUCH_TABLE
 CREATE TABLE t1 (
   id       INT NOT NULL,
   title    TEXT,
@@ -19,7 +19,7 @@ CREATE TABLE t1 (
   PRIMARY  KEY (id)
 ) ENGINE=InnoDB;
 
---error ER_CANT_CREATE_TABLE
+--error ER_NO_SUCH_TABLE
 ALTER TABLE t1 ADD FULLTEXT KEY (title), ADD FOREIGN KEY (id) REFERENCES t2 (id);
 
 SET FOREIGN_KEY_CHECKS = 0;
