@@ -1153,7 +1153,7 @@ show create table t2;
 create index id2 on t2 (id);
 show create table t2;
 drop index id2 on t2;
---error ER_DROP_INDEX_FK
+--error ER_FK_NO_INDEX_CHILD
 drop index id on t2;
 show create table t2;
 drop table t2;

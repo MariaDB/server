@@ -8,14 +8,14 @@
 --echo #
 
 create table t1 (f1 int primary key) engine=InnoDB;
---error ER_CANT_CREATE_TABLE
+--error ER_DUP_CONSTRAINT_NAME
 create table t2 (f1 int primary key,
 constraint c1 foreign key (f1) references t1(f1),
 constraint c1 foreign key (f1) references t1(f1)) engine=InnoDB;
 create table t2 (f1 int primary key,
    constraint c1 foreign key (f1) references t1(f1)) engine=innodb;
 
---error ER_CANT_CREATE_TABLE
+--error ER_DUP_CONSTRAINT_NAME
 alter table t2 add constraint c1 foreign key (f1) references t1(f1);
 
 set foreign_key_checks = 0;
@@ -191,7 +191,7 @@ CREATE DATABASE best default character set latin1;
 CREATE TABLE t3 (a INT PRIMARY KEY,
 CONSTRAINT t2_ibfk_1 FOREIGN KEY (a) REFERENCES t1(a)) ENGINE=InnoDB;
 CREATE TABLE best.t2 (a INT PRIMARY KEY, b TEXT, FULLTEXT INDEX(b),
-FOREIGN KEY (a) REFERENCES test.t1(a)) ENGINE=InnoDB;
+FOREIGN KEY t2_ibfk_1 (a) REFERENCES test.t1(a)) ENGINE=InnoDB;
 --replace_regex /Table '.*t2'/Table 't2'/
 --error ER_TABLE_EXISTS_ERROR
 RENAME TABLE best.t2 TO test.t2;
@@ -256,18 +256,18 @@ DROP TABLE t2, t1;
 CREATE TABLE t1 (f VARCHAR(256)) ENGINE=InnoDB;
 SET SESSION FOREIGN_KEY_CHECKS = OFF;
 ALTER TABLE t1 ADD FOREIGN KEY (f) REFERENCES non_existing_table (x);
-SET SESSION FOREIGN_KEY_CHECKS = ON;
 ALTER TABLE t1 ADD FULLTEXT INDEX ft1 (f);
 ALTER TABLE t1 ADD FULLTEXT INDEX ft2 (f);
+SET SESSION FOREIGN_KEY_CHECKS = ON;
 DROP TABLE t1;
 
 CREATE TABLE t1 (f VARCHAR(256), FTS_DOC_ID BIGINT UNSIGNED PRIMARY KEY)
 ENGINE=InnoDB;
 SET SESSION FOREIGN_KEY_CHECKS = OFF;
 ALTER TABLE t1 ADD FOREIGN KEY (f) REFERENCES non_existing_table (x);
-SET SESSION FOREIGN_KEY_CHECKS = ON;
 ALTER TABLE t1 ADD FULLTEXT INDEX ft1 (f);
 ALTER TABLE t1 ADD FULLTEXT INDEX ft2 (f);
+SET SESSION FOREIGN_KEY_CHECKS = ON;
 DROP TABLE t1;
 
 --echo #
@@ -275,7 +275,7 @@ DROP TABLE t1;
 --echo # in ib_push_warning / dict_create_foreign_constraints_low
 --echo #
 CREATE TABLE t1 (a INT) ENGINE=InnoDB;
---error ER_CANT_CREATE_TABLE
+--error ER_NO_SUCH_TABLE
 ALTER IGNORE TABLE t1 ADD FOREIGN KEY (a) REFERENCES t2 (b);
 SHOW WARNINGS;
 DROP TABLE t1;
@@ -842,13 +842,13 @@ while ($i < $constr_count)
 }
 --disable_query_log
 --echo Parsing foreign keys 1...
---error ER_CANT_CREATE_TABLE
+--error ER_NO_SUCH_TABLE
 eval create table t0($fk_field int, $constrs) engine innodb;
 --echo Parsing foreign keys 2...
---error ER_CANT_CREATE_TABLE
+--error ER_FK_NO_INDEX_PARENT
 eval create table t1($fk_field int, $constrs) engine innodb;
 --echo Parsing foreign keys 3...
---error ER_CANT_CREATE_TABLE
+--error ER_FK_NO_INDEX_PARENT
 eval create table t1($fk_ref int, $fk_field int, $constrs) engine innodb;
 --echo Parsing foreign keys 4...
 eval create table t1($fk_ref int primary key, $fk_field int, $constrs) engine innodb;
@@ -911,7 +911,7 @@ DROP TABLE t;
 
 # MDEV-21792 Server aborts upon attempt to create foreign key on spatial field
 # Fail to create foreign key for spatial fields
---error ER_CANT_CREATE_TABLE
+--error ER_NO_SUCH_TABLE
 CREATE TABLE t1 (a GEOMETRY, INDEX(a(8)),
 		 FOREIGN KEY (a) REFERENCES x (xx)) ENGINE=InnoDB;
 
@@ -944,7 +944,7 @@ show create table t3;
 drop tables t3, t2, t1;
 
 create table t1 (id int primary key);
---error ER_CANT_CREATE_TABLE
+--error ER_WRONG_FK_DEF
 create table t2 (id2 int references t1);
 create table t2 (id int references t1);
 show create table t2;
@@ -957,7 +957,7 @@ set default_storage_engine= default;
 --echo #
 SET FOREIGN_KEY_CHECKS=1;
 CREATE TABLE t1 (a TEXT, b TEXT) ENGINE=InnoDB;
---error ER_CANT_CREATE_TABLE
+--error ER_FK_NO_INDEX_PARENT
 ALTER TABLE t1 ADD FOREIGN KEY (a) REFERENCES t1 (b);
 SET FOREIGN_KEY_CHECKS=DEFAULT;
 
@@ -995,10 +995,10 @@ create table t1(a int primary key, b int) engine=innodb;
 --error ER_WRONG_FK_DEF
 alter table t2 add foreign key(a) references t1(a, b);
 create or replace table t1(a tinyint primary key) engine innodb;
---error ER_CANT_CREATE_TABLE
+--error ER_WRONG_FK_DEF
 alter table t2 add foreign key(a) references t1;
 create or replace table t1(b int primary key) engine innodb;
---error ER_CANT_CREATE_TABLE
+--error ER_WRONG_FK_DEF
 alter table t2 add foreign key(a) references t1;
 create or replace table t1(a int primary key, b int) engine innodb;
 alter table t2 add foreign key(a) references t1;

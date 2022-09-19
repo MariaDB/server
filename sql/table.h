@@ -65,6 +65,8 @@ struct TABLE_LIST;
 class ACL_internal_schema_access;
 class ACL_internal_table_access;
 class Field;
+class FK_create_vector;
+class Table_name;
 class Table_statistics;
 class With_element;
 struct TDC_element;
@@ -78,6 +80,9 @@ class Pushdown_derived;
 struct Name_resolution_context;
 class Table_function_json_table;
 class Open_table_context;
+class Share_acquire;
+struct Share_map;
+struct Table_name_lt;
 
 /*
   Used to identify NESTED_JOIN structures within a join (applicable only to
@@ -760,6 +765,20 @@ struct TABLE_SHARE
   Field **field;
   Field **found_next_number_field;
   KEY  *key_info;			/* data of keys in database */
+  FK_list foreign_keys;
+  FK_list referenced_keys;
+  Field *find_field_by_name(const LEX_CSTRING n) const;
+  bool fk_handle_create(THD *thd, FK_create_vector &shares);
+  bool fk_check_consistency(THD *thd);
+  bool referenced_by_foreign_key() const
+  {
+    return !referenced_keys.is_empty();
+  }
+  int fk_write_shadow_frm(THD *thd);
+  bool fk_install_shadow_frm();
+  void fk_drop_shadow_frm();
+  bool fk_resolve_referenced_keys(THD *thd, TABLE_SHARE *from);
+
   Virtual_column_info **check_constraints;
   uint	*blob_field;			/* Index to blobs in Field arrray*/
   LEX_CUSTRING vcol_defs;              /* definitions of generated columns */
@@ -788,6 +807,16 @@ struct TABLE_SHARE
   LEX_CSTRING path;                	/* Path to .frm file (from datadir) */
   LEX_CSTRING normalized_path;		/* unpack_filename(path) */
   LEX_CSTRING connect_string;
+
+  int cmp_db_table(const LEX_CSTRING &_db, const LEX_CSTRING &_table_name) const
+  {
+    int res= ::cmp_table(_db, db);
+    if (res)
+      return res;
+    return ::cmp_table(_table_name, table_name);
+  }
+
+  int cmp_db_table(const TABLE_LIST &tl) const;
 
   /* 
      Set of keys in use, implemented as a Bitmap.
@@ -862,6 +891,7 @@ struct TABLE_SHARE
   uint next_number_keypart;             /* autoinc keypart number in a key */
   enum open_frm_error error;            /* error from open_table_def() */
   uint open_errno;                      /* error from open_table_def() */
+  uint open_flags;                      /* flags from open_table_def() */
   uint column_bitmap_size;
   uchar frm_version;
 
@@ -914,6 +944,11 @@ struct TABLE_SHARE
   uint  partition_info_buffer_size;
   plugin_ref default_part_plugin;
 #endif
+
+  bool partitioned() const
+  {
+    return IF_PARTITIONING(partition_info_str != NULL, false);
+  }
 
   /**
     System versioning and application-time periods support.
@@ -1185,7 +1220,7 @@ struct TABLE_SHARE
     returns an frm image for this table.
     the memory is allocated and must be freed later
   */
-  bool read_frm_image(const uchar **frm_image, size_t *frm_length);
+  int read_frm_image(const uchar **frm_image, size_t *frm_length);
 
   /* frees the memory allocated in read_frm_image */
   void free_frm_image(const uchar *frm);
@@ -1894,22 +1929,93 @@ enum enum_schema_table_state
   PROCESSED_BY_JOIN_EXEC
 };
 
-enum enum_fk_option { FK_OPTION_UNDEF, FK_OPTION_RESTRICT, FK_OPTION_CASCADE,
+enum enum_fk_option { FK_OPTION_UNDEF= 0, FK_OPTION_RESTRICT, FK_OPTION_CASCADE,
                FK_OPTION_SET_NULL, FK_OPTION_NO_ACTION, FK_OPTION_SET_DEFAULT};
+class Foreign_key;
+class Table_name;
 
-typedef struct st_foreign_key_info
+class FK_info : public Sql_alloc
 {
-  LEX_CSTRING *foreign_id;
-  LEX_CSTRING *foreign_db;
-  LEX_CSTRING *foreign_table;
-  LEX_CSTRING *referenced_db;
-  LEX_CSTRING *referenced_table;
+public:
+  Lex_cstring foreign_id;
+  // TODO: use Table_name
+  Lex_cstring foreign_db;
+  Lex_cstring foreign_table;
+  Lex_cstring referenced_db;
+  Lex_cstring referenced_table;
   enum_fk_option update_method;
   enum_fk_option delete_method;
-  LEX_CSTRING *referenced_key_name;
-  List<LEX_CSTRING> foreign_fields;
-  List<LEX_CSTRING> referenced_fields;
-} FOREIGN_KEY_INFO;
+  List<Lex_cstring> foreign_fields;
+  List<Lex_cstring> referenced_fields;
+  /*
+    Note: to find referenced_key use find_referenced_key()
+  */
+  KEY *foreign_idx;
+
+public:
+  FK_info() :
+    update_method(FK_OPTION_UNDEF),
+    delete_method(FK_OPTION_UNDEF),
+    foreign_idx(NULL)
+  {}
+  Lex_cstring ref_db() const
+  {
+    return referenced_db.str ? referenced_db : foreign_db;
+  }
+  Lex_cstring* ref_db_ptr()
+  {
+    return referenced_db.str ? &referenced_db : &foreign_db;
+  }
+  bool self_ref() const
+  {
+    if (referenced_db.length && 0 != cmp_table(referenced_db, foreign_db))
+      return false;
+    // TODO: keep NULL in referenced_table for self-refs
+    return 0 == cmp_table(referenced_table, foreign_table);
+  }
+  bool fields_eq(/* const */ FK_info &fk) /* const */
+  {
+    if (foreign_fields.elements == 0 ||
+        foreign_fields.elements != referenced_fields.elements ||
+        fk.foreign_fields.elements != fk.referenced_fields.elements)
+    {
+      DBUG_ASSERT(0);
+      return false;
+    }
+    if (foreign_fields.elements != fk.foreign_fields.elements)
+      return false;
+    List_iterator_fast<Lex_cstring> ff_it(foreign_fields);
+    List_iterator_fast<Lex_cstring> ff_it2(fk.foreign_fields);
+    List_iterator_fast<Lex_cstring> rf_it(referenced_fields);
+    List_iterator_fast<Lex_cstring> rf_it2(fk.referenced_fields);
+    while (Lex_cstring *ff= ff_it++)
+    {
+      Lex_cstring *ff2= ff_it2++;
+      if (!ff2 || cmp(ff, ff2))
+        return false;
+      Lex_cstring *rf= rf_it++;
+      Lex_cstring *rf2= rf_it2++;
+      if (cmp(rf, rf2))
+        return false;
+    }
+    return true;
+  }
+  bool assign(Foreign_key &fk, Table_name table);
+  FK_info * clone(MEM_ROOT *mem_root) const;
+  Table_name for_table(MEM_ROOT *mem_root) const;
+  Table_name ref_table(MEM_ROOT *mem_root) const;
+  void print(String &out);
+
+  bool get_referenced_share(THD *thd, Share_map *ref_shares, myf MyFlags) const;
+  KEY * find_referenced_idx(KEY *key_info, uint keys, myf MyFlags) const;
+  KEY * find_referenced_idx(TABLE_SHARE *ref_share, myf MyFlags) const
+  {
+    return find_referenced_idx(ref_share->key_info, ref_share->keys, MyFlags);
+  }
+  KEY * find_idx(KEY *key_info, uint keys, bool foreign_idx);
+};
+
+typedef class FK_info FOREIGN_KEY_INFO;
 
 LEX_CSTRING *fk_option_name(enum_fk_option opt);
 bool fk_modifies_child(enum_fk_option opt);
@@ -3262,7 +3368,8 @@ enum get_table_share_flags {
   GTS_VIEW                 = 2,
   GTS_NOLOCK               = 4,
   GTS_USE_DISCOVERY        = 8,
-  GTS_FORCE_DISCOVERY      = 16
+  GTS_FORCE_DISCOVERY      = 16,
+  GTS_FK_SHALLOW_HINTS     = 32
 };
 
 size_t max_row_length(TABLE *table, MY_BITMAP const *cols, const uchar *data);

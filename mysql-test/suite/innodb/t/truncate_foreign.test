@@ -98,7 +98,7 @@ TRUNCATE t1;
 # Whether TRUNCATE succeeds or fails, it will reload FOREIGN KEY constraints.
 # As a result, ha_innobase::referenced_by_foreign_key() will retun TRUE
 # (for the self-referential key), and the statement will fail.
---error ER_TABLE_NOT_LOCKED
+--error ER_NO_REFERENCED_ROW_2
 INSERT INTO t1 VALUES (2,2);
 SELECT * FROM t1;
 UNLOCK TABLES;

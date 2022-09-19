@@ -85,7 +85,7 @@ t2id	id
 use test;
 drop database `#mysql50#-`;
 SET NAMES default;
-FOUND 8 /\[ERROR\] Invalid \(old\?\) table or database name/ in mysqld.1.err
+FOUND 4 /\[ERROR\] Invalid \(old\?\) table or database name/ in mysqld.1.err
 set global query_cache_type=DEFAULT;
 set global query_cache_size=@save_query_cache_size;
 End of 10.2 tests
