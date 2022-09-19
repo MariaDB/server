@@ -6626,11 +6626,8 @@ get_innobase_type_from_mysql_type(unsigned *unsigned_flag, const Field *field)
 	case MYSQL_TYPE_TIME:
 	case MYSQL_TYPE_DATETIME:
 	case MYSQL_TYPE_TIMESTAMP:
-		if (field->key_type() == HA_KEYTYPE_BINARY) {
-			return(DATA_FIXBINARY);
-		} else {
-			return(DATA_INT);
-		}
+		ut_ad (field->key_type() == HA_KEYTYPE_BINARY);
+		return(DATA_FIXBINARY);
 	case MYSQL_TYPE_FLOAT:
 		return(DATA_FLOAT);
 	case MYSQL_TYPE_DOUBLE:
