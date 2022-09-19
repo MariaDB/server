@@ -29,7 +29,7 @@
 /* extra 4+4 bytes for slave tmp tables */
 #define MAX_DBKEY_LENGTH (NAME_LEN*2+1+1+4+4)
 #define MAX_ALIAS_NAME 256
-#define MAX_FIELD_NAME (NAME_LEN+1)             /* Max column name length +1 */
+#define MAX_FIELD_NAME (NAME_LEN+2)             /* Max column name length +2 */
 #define MAX_SYS_VAR_LENGTH 32
 #define MAX_KEY MAX_INDEXES                     /* Max used keys */
 #define MAX_REF_PARTS 32			/* Max parts used as ref */
