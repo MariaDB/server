@@ -225,8 +225,6 @@ int my_addr_resolve(void *ptr, my_addr_loc *loc)
   int filename_start = -1;
   int line_number_start = -1;
 
-  void *offset;
-
   poll_fds.fd = out[0];
   poll_fds.events = POLLIN | POLLRDBAND;
 
@@ -246,8 +244,7 @@ int my_addr_resolve(void *ptr, my_addr_loc *loc)
     /* Save result for future comparisons. */
     strnmov(addr2line_binary, info.dli_fname, sizeof(addr2line_binary));
   }
-  offset = info.dli_fbase;
-  len= my_snprintf(input, sizeof(input), "%08x\n", (ulonglong)(ptr - offset));
+  len= my_snprintf(input, sizeof(input), "%p\n", ptr);
   if (write(in[1], input, len) <= 0)
     return 3;
 
