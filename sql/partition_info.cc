@@ -984,6 +984,7 @@ bool vers_create_partitions(THD *thd, TABLE_LIST* tl, uint num_parts)
                tl->db.str, tl->table_name.str);
       goto exit;
     }
+    alter_ctx.fk_table_backup.commit();
   }
 
   result= false;

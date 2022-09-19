@@ -21,7 +21,7 @@ CREATE TABLE t1 (pk INT, a VARCHAR(8), PRIMARY KEY(pk),
 FULLTEXT KEY(a)) ENGINE=InnoDB;
 CREATE TABLE t2 (b INT, FOREIGN KEY(b) REFERENCES t1(pk)) ENGINE=InnoDB;
 DROP TABLE/*foo*/ t1;
-ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails
+ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails (1)
 SET DEBUG_DBUG="+d,fts_instrument_sync";
 INSERT INTO t1 VALUES(1, "mariadb");
 ALTER TABLE t1 FORCE;

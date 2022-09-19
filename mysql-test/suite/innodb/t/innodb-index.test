@@ -158,15 +158,15 @@ create table t2(a int not null, b int, c int, d int, e int,
 foreign key (b) references t1(b) on delete set null,
 foreign key (c) references t3(c), foreign key (d) references t4(d) on update set null)
 engine = innodb;
---error ER_DROP_INDEX_FK
+--error ER_FK_NO_INDEX_PARENT
 alter table t1 drop index b;
---error ER_DROP_INDEX_FK
+--error ER_FK_NO_INDEX_PARENT
 alter table t3 drop index c;
---error ER_DROP_INDEX_FK
+--error ER_FK_NO_INDEX_PARENT
 alter table t4 drop index d;
---error ER_DROP_INDEX_FK
+--error ER_FK_NO_INDEX_CHILD
 alter table t2 drop index b;
---error ER_DROP_INDEX_FK
+--error ER_FK_NO_INDEX_CHILD
 alter table t2 drop index b, drop index c, drop index d;
 --error ER_FK_COLUMN_NOT_NULL
 alter table t2 MODIFY b INT NOT NULL, ALGORITHM=COPY;
@@ -178,9 +178,9 @@ alter table t2 MODIFY b INT NOT NULL, ALGORITHM=INPLACE;
 set @@sql_mode = @old_sql_mode;
 
 SET FOREIGN_KEY_CHECKS=0;
---error ER_FK_COLUMN_CANNOT_DROP
+--error ER_WRONG_FK_DEF
 alter table t2 DROP COLUMN b, ALGORITHM=COPY;
---error ER_FK_COLUMN_CANNOT_DROP
+--error ER_WRONG_FK_DEF
 alter table t2 DROP COLUMN b;
 --error ER_FK_COLUMN_CANNOT_DROP_CHILD
 alter table t1 DROP COLUMN b, ALGORITHM=COPY;

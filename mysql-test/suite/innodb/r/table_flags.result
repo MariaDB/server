@@ -174,7 +174,7 @@ call mtr.add_suppression("ERROR HY000: Can't create table `test`.`t1`");
 CREATE TABLE t1(f1 INT, f2 VARCHAR(1), KEY k1(f2),
 FULLTEXT KEY(f2),
 FOREIGN KEY (f2) REFERENCES t1(f3))ENGINE=InnoDB;
-ERROR HY000: Can't create table `test`.`t1` (errno: 150 "Foreign key constraint is incorrectly formed")
+ERROR HY000: Missing index for constraint 't1.1' in the referenced table 't1'
 #
 # MDEV-23199 page_compression flag is missing
 #	for full_crc32 tablespace

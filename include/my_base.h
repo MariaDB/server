@@ -318,7 +318,10 @@ enum ha_base_keytype {
 #define HA_KEYFLAG_MASK (HA_NOSAME | HA_AUTO_KEY | HA_NULL_ARE_EQUAL | \
                          HA_GENERATED_KEY | HA_UNIQUE_HASH)
 
-	/* These flags can be added to key-seg-flag */
+/*
+  These flags can be added to key-seg-flag.
+  See pack_keys() to discover what is FRM-stored (currently only HA_REVERSE_SORT).
+*/
 
 #define HA_SPACE_PACK		 1	/* Pack space in key-seg */
 #define HA_PART_KEY_SEG		 4	/* Used by MySQL for part-key-cols */
@@ -326,11 +329,12 @@ enum ha_base_keytype {
 #define HA_NULL_PART		 16
 #define HA_BLOB_PART		 32
 #define HA_SWAP_KEY		 64
-#define HA_REVERSE_SORT		 128	/* Sort key in reverse order */
+#define HA_REVERSE_SORT		 128	/* Sort key in reverse order, FRM-stored */
 #define HA_NO_SORT               256 /* do not bother sorting on this keyseg */
 
 #define HA_BIT_PART		1024
 #define HA_CAN_MEMCMP           2048 /* internal, never stored in frm */
+#define HA_CREATE_TABLE         4096 /* Field is of type Create_field */
 
 	/* optionbits for database */
 #define HA_OPTION_PACK_RECORD		1U

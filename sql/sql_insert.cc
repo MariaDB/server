@@ -2318,7 +2318,7 @@ int write_record(THD *thd, TABLE *table, COPY_INFO *info, select_result *sink)
                it is the last normal unique.
              */
              last_uniq_key(table, table->key_info, key_nr)) &&
-            !table->file->referenced_by_foreign_key() &&
+            !table->s->referenced_by_foreign_key() &&
             (!table->triggers || !table->triggers->has_delete_triggers()))
         {
           /*

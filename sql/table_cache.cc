@@ -1318,3 +1318,41 @@ void TDC_element::flush_unused(bool mark_flushed)
   while (auto table= purge_tables.pop_front())
     intern_close_table(table);
 }
+
+
+Share_acquire::~Share_acquire()
+{
+  if (share)
+  {
+    if (flush_unused)
+      share->tdc->flush_unused(true);
+    tdc_release_share(share);
+  }
+}
+
+
+void Share_acquire::acquire(THD *thd, TABLE_LIST &tl, uint flags)
+{
+  Diagnostics_area *da= thd->get_stmt_da();
+  Warning_info tmp_wi(thd->query_id, false, true);
+
+  da->push_warning_info(&tmp_wi);
+  share= tdc_acquire_share(thd, &tl, GTS_TABLE|flags);
+  da->pop_warning_info();
+}
+
+
+bool Share_acquire::fk_error(THD *thd, bool use_check_foreign) const
+{
+  if (share)
+    return false;
+
+  if (!(use_check_foreign && thd->variables.check_foreign()) &&
+      thd->is_error() &&
+      thd->get_stmt_da()->sql_errno() == ER_NO_SUCH_TABLE)
+  {
+    thd->clear_error();
+    return false;
+  }
+  return true;
+}

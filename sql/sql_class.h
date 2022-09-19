@@ -59,6 +59,10 @@
 #include "ha_handler_stats.h"                    // ha_handler_stats */
 #include "sql_basic_types.h"                     // enum class active_dml_stmt
 #include "sql_trigger.h"
+#include "sql_priv.h"
+#include <vector>
+#include <set>
+#include <map>
 
 extern "C"
 void set_thd_stage_info(void *thd,
@@ -339,6 +343,234 @@ typedef struct st_copy_info {
 } COPY_INFO;
 
 
+// FIXME: move mbd:: utility to separate commit
+namespace mbd
+{
+/* Convert STL exceptions to my_error() */
+template <class Base>
+class exception_wrapper : public Base
+{
+public:
+  /*
+     NB: any methods from different classes can be added here,
+     as templates are instantiated on demand.
+     Both lvalue and rvalue types are covered by perfect forwarding.
+  */
+  template <class T>
+  typename Base::iterator insert(T&& value, bool &inserted) noexcept
+  {
+    try
+    {
+      auto ret= Base::insert(std::forward<T>(value));
+      inserted= ret.second;
+      return ret.first;
+    }
+    catch (std::bad_alloc())
+    {
+      my_error(ER_OUT_OF_RESOURCES, MYF(0));
+      return Base::end();
+    }
+    catch (...)
+    {
+      my_error(ER_INTERNAL_ERROR, MYF(0), "Unexpected exception");
+      return Base::end();
+    }
+    return Base::end();
+  }
+  template <class T>
+  bool push_back(T&& value) noexcept
+  {
+    try
+    {
+      Base::push_back(std::forward<T>(value));
+    }
+    catch (std::bad_alloc())
+    {
+      my_error(ER_OUT_OF_RESOURCES, MYF(0));
+      return true;
+    }
+    catch (...)
+    {
+      my_error(ER_INTERNAL_ERROR, MYF(0), "Unexpected exception");
+      return true;
+    }
+    return false;
+  }
+};
+
+
+/* std::vector adapter for returning true instead of throwing exception */
+
+template <class T, class Allocator = std::allocator<T> >
+class vector :
+  public exception_wrapper<std::vector<T, Allocator> >
+{
+public:
+  bool push_back(const T& value)
+  {
+    return exception_wrapper<std::vector<T, Allocator> >::
+      push_back(value);
+  }
+  bool push_back(T&& value)
+  {
+    return exception_wrapper<std::vector<T, Allocator> >::
+      push_back(std::forward<T>(value));
+  }
+};
+
+
+/* std::set adapter for returning NULL instead of throwing exception */
+
+template <class Key, class Compare = std::less<Key>,
+  class Allocator = std::allocator<Key> >
+class set :
+  public exception_wrapper<std::set<Key, Compare, Allocator> >
+{
+public:
+  const Key* insert(const Key& value, bool *inserted= NULL)
+  {
+    bool ins= false;
+    auto ret= exception_wrapper<std::set<Key, Compare, Allocator> >::
+      insert(value, ins);
+    if (inserted)
+      *inserted= ins;
+    if (ret == std::set<Key, Compare, Allocator>::end())
+      return NULL;
+    return &*ret;
+  }
+  const Key* insert(Key&& value, bool *inserted= NULL)
+  {
+    bool ins= false;
+    auto ret= exception_wrapper<std::set<Key, Compare, Allocator> >::
+      insert(std::forward<Key>(value), ins);
+    if (inserted)
+      *inserted= ins;
+    if (ret == std::set<Key, Compare, Allocator>::end())
+      return NULL;
+    return &*ret;
+  }
+  template <class... Args>
+  const Key* emplace(bool *inserted, Args&&... args)
+  {
+    bool ins= false;
+    auto ret= exception_wrapper<std::set<Key, Compare, Allocator> >::
+      emplace(ins, std::forward<Args>(args)...);
+    if (inserted)
+      *inserted= ins;
+    if (ret == std::set<Key, Compare, Allocator>::end())
+      return NULL;
+    return &*ret;
+  }
+};
+
+
+/* std::map adapter for returning NULL instead of throwing exception */
+
+template<class Key, class T, class Compare = std::less<Key>,
+  class Allocator = std::allocator<std::pair<const Key, T> > >
+class map :
+  public exception_wrapper<std::map<Key, T, Compare, Allocator> >
+{
+public:
+  T* insert(const Key& key, const T& value, bool *inserted= NULL)
+  {
+    bool ins;
+    auto ret= exception_wrapper<std::map<Key, T, Compare, Allocator> >::
+      insert(std::make_pair(key, value), ins);
+    if (inserted)
+      *inserted= ins;
+    return &ret->second;
+  }
+  T* insert(const Key& key, T&& value, bool *inserted= NULL)
+  {
+    bool ins;
+    auto ret= exception_wrapper<std::map<Key, T, Compare, Allocator> >::
+      insert(std::make_pair(key, std::forward<T>(value)), ins);
+    if (inserted)
+      *inserted= ins;
+    return &ret->second;
+  }
+};
+} // namespace mbd
+
+
+/*
+   TODO: Table_ident is parser-oriented class that contains SELECT_LEX_UNIT and
+   depends on sql_lex.h, so it can't be declared in this place and is not declared
+   in many headers. Table_ident should be derived from Table_name.
+   Classes containing (db, table_name) pairs such as TABLE_LIST, TABLE_SHARE, etc.
+   should be reworked to contain Table_name instead.
+*/
+class Table_name
+{
+public:
+  // TODO: use Lex_table_name
+  Lex_ident_db db;
+  Lex_ident_table name;
+  Table_name() {}
+  Table_name(Lex_ident_db _db, Lex_ident_table _name)
+    : db(_db), name(_name) {}
+  int cmp(const Table_name &rhs) const
+  {
+    if (db.length < rhs.db.length)
+      return -1;
+    if (db.length > rhs.db.length)
+      return 1;
+    if (db.str != rhs.db.str)
+    {
+      int db_cmp= cmp_table(db, rhs.db);
+      if (db_cmp)
+        return db_cmp;
+    }
+    if (name.length < rhs.name.length)
+      return -1;
+    if (name.length > rhs.name.length)
+      return 1;
+    if (name.str != rhs.name.str)
+      return cmp_table(name, rhs.name);
+    return 0;
+  }
+  bool lowercase(MEM_ROOT *mem_root)
+  {
+    if (db.length)
+    {
+      db.str= (const char *) memdup_root(mem_root, db.str, db.length + 1);
+      if (unlikely(!db.str))
+        return true;
+      my_casedn_str_8bit(system_charset_info, (char *)db.str);
+    }
+    if (name.length)
+    {
+      name.str= (const char *) memdup_root(mem_root, name.str, name.length + 1);
+      if (unlikely(!name.str))
+        return true;
+      my_casedn_str_8bit(system_charset_info, (char *)name.str);
+    }
+    return false;
+  }
+  // NB: needed for std::set
+  bool operator<(const Table_name &rhs) const
+  {
+    return cmp(rhs) < 0;
+  }
+};
+
+/*
+   NB: needed for std::set when we have recommendation to not have operator
+   overloading in important classes.
+*/
+struct Table_name_lt
+{
+  bool operator() (const Table_name &lhs, const Table_name &rhs) const
+  {
+    return lhs.cmp(rhs) < 0;
+  }
+};
+
+typedef mbd::set<Lex_ident_column, Lex_ident_lt> Lex_ident_set;
+typedef mbd::set<uchar *, UUID_lt> UUID_set;
+
+
 class Key_part_spec :public Sql_alloc {
 public:
   Lex_ident_column field_name;
@@ -367,7 +599,7 @@ public:
   }
   bool check_foreign_key_for_blob(const class handler *file) const
   {
-    return check_key_for_blob(file) || check_key_length_for_blob();
+    return check_key_for_blob(file);
   }
   bool init_multiple_key_for_blob(const class handler *file);
 };
@@ -470,9 +702,9 @@ private:
 
 class Key :public Sql_alloc, public DDL_options {
 public:
-  enum Keytype { PRIMARY, UNIQUE, MULTIPLE, FULLTEXT, SPATIAL, VECTOR,
-                 FOREIGN_KEY, IGNORE_KEY};
+  enum Keytype { PRIMARY, UNIQUE, MULTIPLE, FULLTEXT, SPATIAL, VECTOR };
   enum Keytype type;
+  bool foreign;
   KEY_CREATE_INFO key_create_info;
   List<Key_part_spec> columns;
   Lex_ident_column name;
@@ -483,13 +715,25 @@ public:
   bool old;
   uint length;
   Lex_ident_column period;
+  bool ignore;
+  /*
+    Key that inflicts this key to be redundant.
+    Helps to put correct KEY pointer "foreign_key" into FK_info for ignored keys.
+  */
+  Key *ignore_reason;
+  /*
+    Second reason is for ALTER TABLE.
+    See "key->ignore= true" in mysql_prepare_alter_table().
+  */
+  FK_info *ignore_reason2;
 
   Key(enum Keytype type_par, const LEX_CSTRING *name_arg,
       ha_key_alg algorithm_arg, bool generated_arg, DDL_options_st ddl_options)
     :DDL_options(ddl_options),
-     type(type_par), key_create_info(default_key_create_info),
+     type(type_par), foreign(false), key_create_info(default_key_create_info),
     name(*name_arg), option_list(NULL), generated(generated_arg),
-    invisible(false), without_overlaps(false), old(false), length(0)
+    invisible(false), without_overlaps(false), old(false), length(0),
+    ignore(false), ignore_reason(NULL), ignore_reason2(NULL)
   {
     key_create_info.algorithm= algorithm_arg;
   }
@@ -498,9 +742,10 @@ public:
       bool generated_arg, List<Key_part_spec> *cols,
       engine_option_value *create_opt, DDL_options_st ddl_options)
     :DDL_options(ddl_options),
-     type(type_par), key_create_info(*key_info_arg), columns(*cols),
+     type(type_par), foreign(false), key_create_info(*key_info_arg), columns(*cols),
     name(*name_arg), option_list(create_opt), generated(generated_arg),
-    invisible(false), without_overlaps(false), old(false), length(0)
+    invisible(false), without_overlaps(false), old(false), length(0),
+    ignore(false),ignore_reason(NULL), ignore_reason2(NULL)
   {}
   Key(const Key &rhs, MEM_ROOT *mem_root);
   virtual ~Key() = default;
@@ -519,28 +764,53 @@ class Foreign_key: public Key {
 public:
   enum fk_match_opt { FK_MATCH_UNDEF, FK_MATCH_FULL,
 		      FK_MATCH_PARTIAL, FK_MATCH_SIMPLE};
-  LEX_CSTRING constraint_name;
-  LEX_CSTRING ref_db;
-  LEX_CSTRING ref_table;
+  Lex_ident_column constraint_name;
+  Lex_ident_names ref_db;
+  Lex_ident_names ref_table;
   List<Key_part_spec> ref_columns;
   enum enum_fk_option delete_opt, update_opt;
   enum fk_match_opt match_opt;
-  Foreign_key(const LEX_CSTRING *name_arg, List<Key_part_spec> *cols,
+  Foreign_key(const LEX_CSTRING *name_arg,
               const LEX_CSTRING *constraint_name_arg,
-	      const LEX_CSTRING *ref_db_arg, const LEX_CSTRING *ref_table_arg,
-              List<Key_part_spec> *ref_cols,
-              enum_fk_option delete_opt_arg, enum_fk_option update_opt_arg,
-              fk_match_opt match_opt_arg,
-	      DDL_options ddl_options)
-    :Key(FOREIGN_KEY, name_arg, &default_key_create_info, 0, cols, NULL,
-         ddl_options),
-    constraint_name(*constraint_name_arg),
-    ref_db(*ref_db_arg), ref_table(*ref_table_arg), ref_columns(*ref_cols),
-    delete_opt(delete_opt_arg), update_opt(update_opt_arg),
-    match_opt(match_opt_arg)
+              DDL_options ddl_options)
+    : Key(MULTIPLE, name_arg, default_key_create_info.algorithm, true,
+         ddl_options), constraint_name(*constraint_name_arg)
   {
+    foreign= true;
   }
- Foreign_key(const Foreign_key &rhs, MEM_ROOT *mem_root);
+  Foreign_key(const FK_info &src, MEM_ROOT *mem_root)
+    : Key(MULTIPLE, &src.name, default_key_create_info.algorithm, true,
+          DDL_options()),
+    constraint_name(src.name),
+    ref_db(src.referenced_db),
+    ref_table(src.referenced_table),
+    delete_opt(src.delete_method),
+    update_opt(src.update_method),
+    match_opt(FK_MATCH_UNDEF)
+  {
+    for (const auto &src_f: src.foreign_fields)
+    {
+      Key_part_spec *kp= new (mem_root) Key_part_spec(&src_f, 0);
+      if (!kp || columns.push_back(kp, mem_root))
+        return;
+    }
+
+    for (const auto &src_f: src.referenced_fields)
+    {
+      Key_part_spec *kp= new (mem_root) Key_part_spec(&src_f, 0);
+      if (!kp || ref_columns.push_back(kp, mem_root))
+        return;
+    }
+
+    foreign= true; // false means failed initialization
+  }
+  bool failed() const
+  {
+    return !foreign;
+  }
+  void init(const Lex_ident_names _ref_db, const Lex_ident_names _ref_table,
+            const LEX *lex);
+  Foreign_key(const Foreign_key &rhs, MEM_ROOT *mem_root);
   /**
     Used to make a clone of this object for ALTER/CREATE TABLE
     @sa comment for Key_part_spec::clone
@@ -731,6 +1001,10 @@ typedef struct system_variables
   sql_mode_t sql_mode; ///< which non-standard SQL behaviour should be enabled
   sql_mode_t old_behavior; ///< which old SQL behaviour should be enabled
   ulonglong option_bits; ///< OPTION_xxx constants, e.g. OPTION_PROFILING
+  bool check_foreign()
+  {
+      return !((bool)(option_bits & OPTION_NO_FOREIGN_KEY_CHECKS));
+  }
   ulonglong join_buff_space_limit;
   ulonglong log_slow_filter; 
   ulonglong log_slow_verbosity; 
@@ -1593,6 +1867,22 @@ public:
   bool arena_replaced()
   {
     return arena != NULL;
+  }
+};
+
+
+class Mutex_lock
+{
+  mysql_mutex_t *mutex;
+
+public:
+  Mutex_lock(mysql_mutex_t *_mutex): mutex(_mutex)
+  {
+    mysql_mutex_lock(mutex);
+  }
+  ~Mutex_lock()
+  {
+    mysql_mutex_unlock(mutex);
   }
 };
 
@@ -6272,6 +6562,7 @@ public:
   bool need_report_unit_results();
   bool report_collected_unit_results();
   bool init_collecting_unit_results();
+  List<TABLE_SHARE> fk_circular_check;
   void push_final_warnings();
 };
 
@@ -7339,13 +7630,14 @@ typedef struct st_sort_buffer {
   SORT_FIELD *sortorder;
 } SORT_BUFFER;
 
+
 /* Structure for db & table in sql_yacc */
 
 class Table_ident :public Sql_alloc
 {
 public:
-  LEX_CSTRING db;
-  LEX_CSTRING table;
+  Lex_ident_names db;
+  Lex_ident_names table;
   SELECT_LEX_UNIT *sel;
   inline Table_ident(THD *thd, const LEX_CSTRING *db_arg,
                      const LEX_CSTRING *table_arg,
@@ -7353,14 +7645,14 @@ public:
     :table(*table_arg), sel((SELECT_LEX_UNIT *)0)
   {
     if (!force && (thd->client_capabilities & CLIENT_NO_SCHEMA))
-      db= null_clex_str;
+      db= Lex_ident_names(null_clex_str);
     else
-      db= *db_arg;
+      db= Lex_ident_names(*db_arg);
   }
   inline Table_ident(const LEX_CSTRING *table_arg)
     :table(*table_arg), sel((SELECT_LEX_UNIT *)0)
   {
-    db= null_clex_str;
+    db= Lex_ident_names(null_clex_str);
   }
   /*
     This constructor is used only for the case when we create a derived
@@ -7376,10 +7668,15 @@ public:
     table.str= internal_table_name;
     table.length=1;
   }
+  Table_ident(LEX_CSTRING &db_arg, LEX_CSTRING &table_arg)
+    :db(Lex_ident_names(db_arg)), table(Lex_ident_names(table_arg))
+  {}
+  Table_ident()
+  {}
   bool is_derived_table() const { return MY_TEST(sel); }
   inline void change_db(LEX_CSTRING *db_name)
   {
-    db= *db_name;
+    db= Lex_ident_names(*db_name);
   }
   bool resolve_table_rowtype_ref(THD *thd, Row_definition_list &defs);
   bool append_to(THD *thd, String *to) const;
@@ -7393,6 +7690,24 @@ public:
                    or a good identifier otherwise.
   */
   Lex_ident_db to_ident_db_internal_with_error(Query_arena *arena) const;
+  bool lowercase(MEM_ROOT *mem_root)
+  {
+    if (db.length)
+    {
+      db.str= (const char *) memdup_root(mem_root, db.str, db.length + 1);
+      if (unlikely(!db.str))
+        return true;
+      my_casedn_str_8bit(system_charset_info, (char *)db.str);
+    }
+    if (table.length)
+    {
+      table.str= (const char *) memdup_root(mem_root, table.str, table.length + 1);
+      if (unlikely(!table.str))
+        return true;
+      my_casedn_str_8bit(system_charset_info, (char *)table.str);
+    }
+    return false;
+  }
 };
 
 

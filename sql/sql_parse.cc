@@ -7197,7 +7197,7 @@ bool check_fk_parent_table_access(THD *thd,
 
   while ((key= key_iterator++))
   {
-    if (key->type == Key::FOREIGN_KEY)
+    if (key->foreign)
     {
       TABLE_LIST parent_table;
       Foreign_key *fk_key= (Foreign_key *)key;

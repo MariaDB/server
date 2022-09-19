@@ -70,6 +70,8 @@ def	mysql	name	mysql	help_category
 def	mysql	PRIMARY	mysql	help_category
 def	mysql	name	mysql	help_keyword
 def	mysql	PRIMARY	mysql	help_keyword
+def	mysql	1	mysql	help_relation
+def	mysql	2	mysql	help_relation
 def	mysql	PRIMARY	mysql	help_relation
 def	mysql	name	mysql	help_topic
 def	mysql	PRIMARY	mysql	help_topic

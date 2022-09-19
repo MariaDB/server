@@ -446,15 +446,15 @@ foreign key (b) references t1(b) on delete set null,
 foreign key (c) references t3(c), foreign key (d) references t4(d) on update set null)
 engine = innodb;
 alter table t1 drop index b;
-ERROR HY000: Cannot drop index 'b': needed in a foreign key constraint
+ERROR HY000: Missing index for constraint 't2.1' in the referenced table 't1'
 alter table t3 drop index c;
-ERROR HY000: Cannot drop index 'c': needed in a foreign key constraint
+ERROR HY000: Missing index for constraint 't2.2' in the referenced table 't3'
 alter table t4 drop index d;
-ERROR HY000: Cannot drop index 'd': needed in a foreign key constraint
+ERROR HY000: Missing index for constraint 't2.3' in the referenced table 't4'
 alter table t2 drop index b;
-ERROR HY000: Cannot drop index 'b': needed in a foreign key constraint
+ERROR HY000: Missing index for constraint '1' in the foreign table 't2'
 alter table t2 drop index b, drop index c, drop index d;
-ERROR HY000: Cannot drop index 'b': needed in a foreign key constraint
+ERROR HY000: Missing index for constraint '1' in the foreign table 't2'
 alter table t2 MODIFY b INT NOT NULL, ALGORITHM=COPY;
 ERROR HY000: Column 'b' cannot be NOT NULL: needed in a foreign key constraint '1' SET NULL
 set @old_sql_mode = @@sql_mode;
@@ -464,9 +464,9 @@ ERROR HY000: Column 'b' cannot be NOT NULL: needed in a foreign key constraint '
 set @@sql_mode = @old_sql_mode;
 SET FOREIGN_KEY_CHECKS=0;
 alter table t2 DROP COLUMN b, ALGORITHM=COPY;
-ERROR HY000: Cannot drop column 'b': needed in a foreign key constraint '1'
+ERROR 42000: Incorrect foreign key definition for 'b': foreign field not found
 alter table t2 DROP COLUMN b;
-ERROR HY000: Cannot drop column 'b': needed in a foreign key constraint '1'
+ERROR 42000: Incorrect foreign key definition for 'b': foreign field not found
 alter table t1 DROP COLUMN b, ALGORITHM=COPY;
 ERROR HY000: Cannot drop column 'b': needed in a foreign key constraint '1' of table `test`.`t2`
 alter table t1 DROP COLUMN b;
@@ -481,10 +481,10 @@ info: Records: 0  Duplicates: 0  Warnings: 0
 set @@sql_mode = 'STRICT_TRANS_TABLES';
 alter table t2 add primary key (alpha), change a alpha int,
 change b beta int not null, change c charlie int not null;
-ERROR HY000: Column 'b' cannot be NOT NULL: needed in a foreign key constraint '1' SET NULL
+ERROR HY000: Column 'beta' cannot be NOT NULL: needed in a foreign key constraint '1' SET NULL
 alter table t2 add primary key (alpha), change a alpha int,
 change c charlie int not null, change d delta int not null;
-ERROR HY000: Column 'd' cannot be NOT NULL: needed in a foreign key constraint '3' SET NULL
+ERROR HY000: Column 'delta' cannot be NOT NULL: needed in a foreign key constraint '3' SET NULL
 alter table t2 add primary key (alpha), change a alpha int,
 change b beta int, modify c int not null;
 affected rows: 0
@@ -958,13 +958,13 @@ FOREIGN KEY (c3,c2) REFERENCES t1(c1,c1), ALGORITHM=COPY;
 ERROR HY000: Can't create table `test`.`t2` (errno: 150 "Foreign key constraint is incorrectly formed")
 ALTER TABLE t2 ADD CONSTRAINT fk_t2_ca
 FOREIGN KEY (c3,c2) REFERENCES t1(c1,c1);
-ERROR HY000: Failed to add the foreign key constraint. Missing index for constraint 'fk_t2_ca' in the referenced table 't1'
+ERROR HY000: Missing index for constraint 't2.fk_t2_ca' in the referenced table 't1'
 ALTER TABLE t2 ADD CONSTRAINT fk_t2_ca
 FOREIGN KEY (c3,c2) REFERENCES t1(c1,c2), ALGORITHM=COPY;
 ERROR HY000: Can't create table `test`.`t2` (errno: 150 "Foreign key constraint is incorrectly formed")
 ALTER TABLE t2 ADD CONSTRAINT fk_t2_ca
 FOREIGN KEY (c3,c2) REFERENCES t1(c1,c2);
-ERROR HY000: Failed to add the foreign key constraint. Missing index for constraint 'fk_t2_ca' in the referenced table 't1'
+ERROR HY000: Missing index for constraint 't2.fk_t2_ca' in the referenced table 't1'
 ALTER TABLE t2 ADD CONSTRAINT fk_t2_ca
 FOREIGN KEY (c3,c2) REFERENCES t1(c2,c1), ALGORITHM=INPLACE;
 ERROR HY000: Failed to add the foreign key constraint on table 't2'. Incorrect options in FOREIGN KEY constraint 'fk_t2_ca'
@@ -979,7 +979,7 @@ FOREIGN KEY (c3,c2) REFERENCES t1(c1,c2), ALGORITHM=COPY;
 ERROR HY000: Can't create table `test`.`t2` (errno: 150 "Foreign key constraint is incorrectly formed")
 ALTER TABLE t2 ADD CONSTRAINT fk_t2_ca
 FOREIGN KEY (c3,c2) REFERENCES t1(c1,c2);
-ERROR HY000: Failed to add the foreign key constraint. Missing index for constraint 'fk_t2_ca' in the referenced table 't1'
+ERROR HY000: Missing index for constraint 't2.fk_t2_ca' in the referenced table 't1'
 ALTER TABLE t2 ADD CONSTRAINT fk_t2_ca
 FOREIGN KEY (c3,c2) REFERENCES t1(c2,c1);
 affected rows: 0

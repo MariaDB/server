@@ -50,7 +50,7 @@ CREATE TABLE s (a INT, b INT GENERATED ALWAYS AS (0) STORED,  c INT,
 d INT GENERATED ALWAYS AS (0) VIRTUAL, e INT) ENGINE=innodb;
 CREATE TABLE t (a INT) ENGINE=innodb;
 ALTER TABLE s ADD CONSTRAINT c FOREIGN KEY (e) REFERENCES t(a) ON UPDATE SET null;
-ERROR HY000: Failed to add the foreign key constraint. Missing index for constraint 'c' in the referenced table 't'
+ERROR HY000: Missing index for constraint 's.c' in the referenced table 't'
 ALTER  TABLE t ADD PRIMARY KEY(a);
 ALTER TABLE s ADD CONSTRAINT c FOREIGN KEY (e) REFERENCES t(a) ON UPDATE SET null;
 DROP TABLE s,t;
@@ -58,7 +58,7 @@ CREATE TABLE s (a INT GENERATED ALWAYS AS (0) VIRTUAL,
 b INT GENERATED ALWAYS AS (0) STORED,  c INT) ENGINE=innodb;
 CREATE TABLE t (a INT) ENGINE=innodb;
 ALTER TABLE s ADD CONSTRAINT c FOREIGN KEY (c) REFERENCES t(a) ON UPDATE SET null;
-ERROR HY000: Failed to add the foreign key constraint. Missing index for constraint 'c' in the referenced table 't'
+ERROR HY000: Missing index for constraint 's.c' in the referenced table 't'
 ALTER  TABLE t ADD PRIMARY KEY(a);
 ALTER TABLE s ADD CONSTRAINT c FOREIGN KEY (c) REFERENCES t(a) ON UPDATE SET null;
 DROP TABLE s,t;
@@ -69,7 +69,7 @@ DROP TABLE s,t;
 CREATE TABLE s (a INT, b INT) ENGINE=innodb;
 CREATE TABLE t (a INT) ENGINE=innodb;
 ALTER TABLE s ADD CONSTRAINT c FOREIGN KEY (a) REFERENCES t(a) ON UPDATE SET null;
-ERROR HY000: Failed to add the foreign key constraint. Missing index for constraint 'c' in the referenced table 't'
+ERROR HY000: Missing index for constraint 's.c' in the referenced table 't'
 ALTER  TABLE t ADD PRIMARY KEY(a);
 ALTER TABLE s ADD CONSTRAINT c FOREIGN KEY (a) REFERENCES t(a) ON UPDATE SET null;
 DROP TABLE s,t;

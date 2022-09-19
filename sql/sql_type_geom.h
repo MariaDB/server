@@ -160,9 +160,6 @@ public:
   bool Key_part_spec_init_multiple(Key_part_spec *part,
                                    const Column_definition &def,
                                    const handler *file) const override;
-  bool Key_part_spec_init_foreign(Key_part_spec *part,
-                                  const Column_definition &def,
-                                  const handler *file) const override;
   bool Key_part_spec_init_spatial(Key_part_spec *part,
                                   const Column_definition &def) const override;
   Field *make_table_field(MEM_ROOT *root,
@@ -236,9 +233,6 @@ public:
   bool Key_part_spec_init_multiple(Key_part_spec *part,
                                    const Column_definition &def,
                                    const handler *file) const override;
-  bool Key_part_spec_init_foreign(Key_part_spec *part,
-                                  const Column_definition &def,
-                                  const handler *file) const override;
 };
 
 

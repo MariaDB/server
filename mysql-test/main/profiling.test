@@ -250,7 +250,7 @@ select @@profiling;
 commit;
 select @@profiling;
 
-drop table if exists t1, t2, t3;
+drop table if exists t2, t1, t3;
 drop view if exists v1;
 drop function if exists f1;
 

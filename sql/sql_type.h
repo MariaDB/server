@@ -4367,9 +4367,6 @@ public:
   virtual bool Key_part_spec_init_multiple(Key_part_spec *part,
                                            const Column_definition &def,
                                            const handler *file) const;
-  virtual bool Key_part_spec_init_foreign(Key_part_spec *part,
-                                          const Column_definition &def,
-                                          const handler *file) const;
   virtual bool Key_part_spec_init_spatial(Key_part_spec *part,
                                           const Column_definition &def) const;
   virtual bool Key_part_spec_init_vector(Key_part_spec *part,
@@ -7352,9 +7349,6 @@ public:
   bool Key_part_spec_init_multiple(Key_part_spec *part,
                                    const Column_definition &def,
                                    const handler *file) const override;
-  bool Key_part_spec_init_foreign(Key_part_spec *part,
-                                  const Column_definition &def,
-                                  const handler *file) const override;
   bool Item_hybrid_func_fix_attributes(THD *thd,
                                        const LEX_CSTRING &name,
                                        Type_handler_hybrid_field_type *,

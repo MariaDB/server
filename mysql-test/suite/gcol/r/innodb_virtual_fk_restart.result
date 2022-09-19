@@ -48,6 +48,7 @@ fld2
 3
 CHECK TABLE t2;
 Table	Op	Msg_type	Msg_text
+test.t2	check	Note	Found 1 foreign keys
 test.t2	check	status	OK
 connection default;
 disconnect con1;

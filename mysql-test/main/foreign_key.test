@@ -2,11 +2,19 @@
 # Test syntax of foreign keys
 #
 
--- source include/have_innodb.inc
+--source include/have_innodb.inc
+--source include/have_partition.inc
 
 --disable_warnings
 drop table if exists t1,t2;
 --enable_warnings
+
+create table t2 (
+  a int unique, c int unique);
+
+create table t3 (
+  a int unique, c int unique, d int unique,
+  r int references t3(d), index (c, d));
 
 create table t1 (
 	a int not null references t2,
@@ -22,7 +30,11 @@ create table t1 (
 
 create index a on t1 (a);
 create unique index b on t1 (a,b);
-drop table t1;
+--error ER_ROW_IS_REFERENCED_2
+drop tables t2;
+--error ER_ROW_IS_REFERENCED_2
+drop tables t3;
+drop tables t1, t2, t3;
 
 # End of 4.1 tests
 
@@ -141,14 +153,580 @@ DROP TABLE tfk;
 
 DROP TABLE tpk;
 
-
 --echo #
 --echo # MDEV-33223 Assertion `dst_size > 4' failed in size_t Identifier_chain2::make_sep_name_opt_casedn(char*, size_t, int, bool) const
 --echo #
 
 CREATE DATABASE x;
 USE x;
---error ER_CANT_CREATE_TABLE
+--error ER_NO_SUCH_TABLE
 CREATE TABLE t (i INT, j INT, CONSTRAINT fk2 FOREIGN KEY(i) REFERENCES p (i)) ENGINE=InnoDB;
 DROP DATABASE x;
 USE test;
+--echo #
+--echo # MDEV-16417 Store Foreign Key metadata outside of InnoDB
+--echo #
+call mtr.add_suppression("has or is referenced in foreign key");
+set default_storage_engine= innodb;
+
+--echo # Check create table
+create or replace table t1 (id int primary key);
+create or replace table t2 (id int primary key, foreign key (id) references t1(id));
+select * from t1, t2;
+check tables t1, t2;
+flush tables t1, t2;
+check tables t1, t2;
+drop table t2, t1;
+
+create table t1 (id int primary key);
+create table t2 (id int references t1(id)) select id from t1;
+check tables t1, t2;
+flush tables;
+check tables t1, t2;
+drop table t2, t1;
+
+create database Test_MariaDB;
+create table Test_MariaDB.T1(id int primary key);
+create table t2(id int primary key, f1 int references Test_MariaDB.T1(id));
+select * from Test_MariaDB.T1;
+--replace_result test_mariadb.t1 Test_MariaDB.T1
+check table Test_MariaDB.T1;
+drop table t2;
+--replace_result test_mariadb.t1 Test_MariaDB.T1
+check table Test_MariaDB.T1;
+flush tables;
+--replace_result test_mariadb.t1 Test_MariaDB.T1
+check table Test_MariaDB.T1;
+drop table Test_MariaDB.T1;
+drop database Test_MariaDB;
+
+--echo # Check rename column, lock tables
+create or replace table t1 (id int primary key);
+create or replace table t2 (id int primary key);
+create or replace table t3 (id int primary key);
+create or replace table ch1 (
+  id int, id2 int,
+  foreign key (id) references t1 (id),
+  foreign key (id2) references t2 (id),
+  foreign key (id) references t3 (id));
+select * from t1, t2, t3;
+--connect con1, localhost, root
+lock tables t3 read;
+--connection default
+set @saved_lock_wait_timeout= @@lock_wait_timeout;
+set lock_wait_timeout= 1;
+alter table ch1 change id2 xid2 int;
+--error ER_LOCK_WAIT_TIMEOUT
+alter table ch1 change id xid int;
+set lock_wait_timeout= @saved_lock_wait_timeout;
+--connection con1
+unlock tables;
+--disconnect con1
+--connection default
+alter table ch1 change id xid int;
+select * from ch1;
+check tables t1, t2, t3;
+flush tables t1, t2, t3;
+check tables t1, t2, t3;
+drop tables ch1, t2, t1, t3;
+
+--echo # Rename column on referenced table
+create or replace table t1 (id int primary key);
+create or replace table t2 (id int references t1, id2 int references t1(id));
+select * from t2;
+alter table t1 change id xid int;
+show create table t2;
+select * from t1;
+check table t2;
+flush table t2;
+check table t2;
+alter table t1 rename column xid to yid;
+show create table t2;
+select * from t1;
+check table t2;
+flush table t2;
+check table t2;
+drop tables t2, t1;
+
+--echo # Check rename table
+create or replace table t1 (id int primary key);
+create or replace table t2 (id int references t1);
+select * from t2, t1;
+rename table t2 to t3;
+create table t2 (x int);
+check table t1;
+flush tables t1;
+check table t1;
+drop tables t3, t1, t2;
+
+create or replace table t1 (id int primary key);
+create or replace table t2 (id int primary key);
+create or replace table t3 (id int primary key);
+select * from t1, t2, t3;
+create or replace table t4 (
+  id int primary key, id2 int references t4(id),
+  foreign key (id) references t1 (id),
+  foreign key (id2) references t2 (id),
+  foreign key (id) references t3 (id));
+select * from t4;
+rename table t4 to xt4;
+check tables t1, t2, t3;
+flush tables t1, t2, t3;
+check tables t1, t2, t3;
+alter table xt4 rename to yt4, algorithm=inplace;
+select * from t1, t2, t3;
+check tables t1, t2, t3;
+flush tables t1, t2, t3;
+check tables t1, t2, t3;
+alter table yt4 rename to zt4, algorithm=copy;
+select * from t1, t2, t3;
+check tables t1, t2, t3;
+flush tables t1, t2, t3;
+check tables t1, t2, t3;
+drop tables zt4, t2, t1, t3;
+
+--echo # Rename of referenced table
+create or replace table t1 (id int primary key);
+create or replace table t2 (id int references t1);
+select * from t2;
+rename table t1 to xt1;
+show create table t2;
+select * from xt1;
+check tables t2, xt1;
+flush tables t2, xt1;
+check tables t2, xt1;
+alter table xt1 rename to yt1, algorithm=inplace;
+show create table t2;
+select * from yt1;
+check tables t2, yt1;
+flush tables t2, yt1;
+check tables t2, yt1;
+alter table yt1 rename to t1, algorithm=copy;
+show create table t2;
+select * from t1;
+check tables t2, t1;
+flush tables t2, t1;
+check tables t2, t1;
+drop tables t2, t1;
+
+--echo # Check drop table
+create or replace table t1 (id int primary key);
+create or replace table ch1 (id int, foreign key (id) references t1 (id));
+select * from t1;
+select * from ch1;
+--error ER_ROW_IS_REFERENCED_2
+drop table t1;
+drop tables ch1, t1;
+
+--echo # Check drop database
+create or replace table t1 (id int primary key);
+select * from t1;
+create or replace database test2;
+create or replace database test3;
+create or replace database test4;
+use test2;
+create or replace table ch1 (
+  id int, id2 int,
+  foreign key (id) references test.t1 (id));
+select * from ch1;
+use test3;
+create or replace table par2 (
+  id int primary key);
+use test4;
+create or replace table par3 (
+  id int primary key);
+create or replace table ch3 (
+  id int, id2 int,
+  foreign key (id) references par3 (id));
+select * from par3;
+select * from ch3;
+use test;
+create or replace table ch2 (
+  id int, id2 int,
+  foreign key (id) references test3.par2 (id));
+drop database test2;
+check tables t1;
+flush tables t1;
+check tables t1;
+drop tables t1;
+--error ER_ROW_IS_REFERENCED_2
+drop database test3;
+drop table ch2;
+drop database test3;
+drop database test4;
+
+--echo # Check add foreign key
+create or replace table t1(fld1 int not null primary key);
+create or replace table t2(fld1 int not null, fld2 int as (fld1) virtual);
+insert into t1 values(1);
+insert into t2 values(1, default);
+set foreign_key_checks= 0;
+alter table t2 add index(fld2), add foreign key (fld1) references t1(fld1)
+  on update cascade, algorithm=inplace;
+set foreign_key_checks= 1;
+update t1 set fld1= 2;
+select fld2 from t2;
+select * from t2;
+drop table t2, t1;
+
+--echo # Check drop column, drop foreign key
+create or replace table t1 (id int primary key, a int);
+create or replace table t2 (id int, a int, foreign key fk (id) references t1 (id));
+--error ER_FK_NO_INDEX_PARENT
+alter table t1 drop id;
+--error ER_WRONG_FK_DEF
+alter table t2 drop id;
+# TODO: generated index is not auto-dropped. Should we drop it automatically?
+alter table t2 drop foreign key fk, drop index fk;
+drop tables t1, t2;
+
+--echo # Check drop index
+create or replace table t1 (id int primary key, a int unique key, b int unique key) engine innodb;
+create or replace table t2 (id int, a int, foreign key fk (id) references t1 (id)) engine innodb;
+--error ER_FK_NO_INDEX_CHILD
+drop index fk on t2;
+# TODO: must be better error code (f.ex. ER_DROP_INDEX_RK)
+--error ER_FK_NO_INDEX_PARENT
+drop index `primary` on t1;
+# Drop index before FK
+create or replace table t2 (
+  id int primary key, a int unique, b int unique, foreign key fk (b) references t1 (b)) engine innodb;
+drop index `primary` on t1;
+drop index `a` on t1;
+--error ER_FK_NO_INDEX_PARENT
+drop index `b` on t1;
+drop index `primary` on t2;
+drop index `a` on t2;
+--error ER_FK_NO_INDEX_CHILD
+drop index `b` on t2;
+drop tables t2, t1;
+--echo # Check multiple foreign keys having one index and
+--echo # multiple foreign keys referencing one index.
+create table t1 (
+  id int primary key,
+  a int unique key,
+  b int unique key) engine innodb;
+create table t2 (
+  id int primary key, a int unique, b int,
+  foreign key fk1 (b) references t1 (id),
+  foreign key fk2 (b) references t1 (b),
+  foreign key fk3 (b) references t1 (b)) engine innodb;
+drop index `primary` on t2;
+drop index `a` on t2;
+--error ER_FK_NO_INDEX_CHILD
+drop index `fk3` on t2;
+alter table t2 drop foreign key fk3;
+--error ER_FK_NO_INDEX_CHILD
+drop index `fk3` on t2;
+alter table t2 drop foreign key fk1;
+--error ER_FK_NO_INDEX_CHILD
+drop index `fk3` on t2;
+--error ER_FK_NO_INDEX_PARENT
+drop index `b` on t1;
+alter table t2 drop foreign key fk2;
+drop index `fk3` on t2;
+drop index `b` on t1;
+drop tables t2, t1;
+
+--echo # Check drop index at FK but created new one good index
+create table t1 (id int primary key) engine innodb;
+create table t2 (id int, foreign key fk (id) references t1 (id)) engine innodb;
+--error ER_FK_NO_INDEX_CHILD
+alter table t2 drop index fk;
+alter table t2 drop index fk, add index i1 (id), add unique i2 (id);
+alter table t2 drop index i1;
+--error ER_FK_NO_INDEX_CHILD
+alter table t2 drop index i2;
+alter table t2 drop index i2, add index i1 (id), add unique i2 (id);
+alter table t2 drop index i2;
+--error ER_FK_NO_INDEX_CHILD
+alter table t2 drop index i1;
+--echo # Check drop index and drop FK
+alter table t2 drop index i1, drop foreign key fk;
+drop tables t2, t1;
+
+# Test when qsort returns different order (see my_qsort() in mysql_prepare_create_table())
+create table t1 (a int, b int, key (a, b)) engine innodb;
+create table t2 (id int, a int, b int) engine innodb;
+alter table t2 add foreign key fk (a, b) references t1 (a, b),
+  add unique i1 (a), add primary key (id);
+--error ER_FK_NO_INDEX_CHILD
+alter table t2 drop index fk;
+alter table t2 drop index i1;
+alter table t2 drop primary key;
+alter table t2 drop index fk, drop foreign key fk;
+drop tables t2, t1;
+
+# FIXME: check all the above without check_foreign
+
+--echo # Check no parent index, check printing referenced index
+create table t1 (id int primary key, b int unique) engine innodb;
+create table t2 (
+  a int, b int, c int,
+  index idx1 (b),
+  foreign key fk (a) references t1 (id),
+  foreign key fk2 (b) references t1 (b),
+  foreign key self (c) references t2 (b)) engine innodb;
+--error ER_FK_NO_INDEX_PARENT
+alter table t1 drop primary key;
+set foreign_key_checks= 0;
+alter table t1 drop primary key;
+set foreign_key_checks= 1;
+
+select constraint_name from information_schema.referential_constraints
+where constraint_schema is null;
+
+select constraint_name, unique_constraint_name, table_name, referenced_table_name
+from information_schema.referential_constraints where constraint_schema = "test";
+
+--error ER_FK_NO_INDEX_PARENT
+alter table t1 modify id char(1);
+alter table t1 add index (id);
+# TODO this should be renamed to ER_FK_CHANGE_COLUMN_PARENT
+--error ER_FK_COLUMN_CANNOT_CHANGE_CHILD
+alter table t1 modify id char(1);
+
+set foreign_key_checks= 0;
+alter table t1 drop index id;
+set foreign_key_checks= 1;
+# TODO should we drop generated key automatically?
+alter table t2 drop foreign key fk, drop key fk;
+drop tables t2, t1;
+
+--echo # Check self-references
+create or replace table t1 (id int primary key, id2 int references t1 (id));
+check tables t1;
+flush tables t1;
+check tables t1;
+show create table t1;
+--error ER_NO_REFERENCED_ROW_2
+insert into t1 values (1, 2);
+insert into t1 values (1, 1);
+alter table t1 change id2 id3 int;
+check tables t1;
+flush tables t1;
+check tables t1;
+show create table t1;
+alter table t1 add foreign key (id3) references t1 (id);
+check tables t1;
+flush tables t1;
+check tables t1;
+show create table t1;
+alter table t1 change id id4 int;
+show create table t1;
+check tables t1;
+flush tables t1;
+check tables t1;
+show create table t1;
+alter table t1 drop foreign key `1`;
+check tables t1;
+flush tables t1;
+check tables t1;
+show create table t1;
+rename table t1 to t2;
+check tables t2;
+flush tables t2;
+check tables t2;
+show create table t2;
+# TODO: actually this should succeed (it fails in upstream too)
+--error ER_ROW_IS_REFERENCED_2
+delete from t2;
+drop table t2;
+
+set default_storage_engine= default;
+
+--echo # Prohibit wrong references and fix field name case
+--error ER_WRONG_FK_DEF
+create table t1 (A int unique key, x timestamp references t1(a)) engine innodb;
+--error ER_FK_NO_INDEX_PARENT
+create table t1 (A int unique key, x int references t1(b));
+create table t1 (A int unique key, x int references t1(a));
+--error ER_FK_NO_INDEX_PARENT
+alter table t1 add foreign key(x) references t1(b);
+alter table t1 add foreign key(x) references t1(a);
+
+show create table t1;
+--error ER_WRONG_FK_DEF
+create table t2 (AA int, x int references t1(ax));
+--error ER_WRONG_FK_DEF
+create table t2 (AA int, x timestamp references t1(a));
+
+create table t2 (AA int, x int references t1(a));
+
+--error ER_WRONG_FK_DEF
+alter table t2 add foreign key(aa) references t1(b);
+alter table t2 add foreign key(aa) references t1(a);
+
+show create table t2;
+drop tables t2, t1;
+
+--echo # Foreign keys and partitioning
+create table t1 (x int primary key) partition by hash(x) partitions 3;
+--error ER_FEATURE_NOT_SUPPORTED_WITH_PARTITIONING
+create table t2 (y int references t1(x));
+create table t2 (y int);
+--error ER_FEATURE_NOT_SUPPORTED_WITH_PARTITIONING
+alter table t2 add foreign key (y) references t1 (x);
+drop tables t2, t1;
+create table t1 (x int primary key);
+--error ER_FEATURE_NOT_SUPPORTED_WITH_PARTITIONING
+create table t2 (y int references t1(x)) partition by hash(x) partitions 3;
+create table t2 (y int) partition by hash(y) partitions 3;
+--error ER_FEATURE_NOT_SUPPORTED_WITH_PARTITIONING
+alter table t2 add foreign key (y) references t1 (x);
+create or replace table t2 (y int references t1(x));
+--error ER_FEATURE_NOT_SUPPORTED_WITH_PARTITIONING
+alter table t1 partition by hash(x) partitions 3;
+--error ER_FEATURE_NOT_SUPPORTED_WITH_PARTITIONING
+alter table t2 partition by hash(y) partitions 3;
+drop tables t2, t1;
+
+create table t1 (a varchar(255) unique) engine innodb;
+create or replace table t2 (
+  a varchar(5) references t1(a)) engine innodb;
+create or replace  table t2 (
+  a char(5) references t1(a)) engine innodb;
+--echo # Different character set is not allowed
+--error ER_WRONG_FK_DEF
+create or replace table t2 (
+  a char(5) character set utf8 references t1(a)) engine innodb;
+--echo # Different collation is not allowed
+--error ER_WRONG_FK_DEF
+create or replace table t2 (
+  a char(5) collate latin1_german2_ci references t1(a)) engine innodb;
+--echo # Binary and non-binary are prihibited
+--error ER_WRONG_FK_DEF
+create or replace  table t2 (
+  a varbinary(255) references t1(a)) engine innodb;
+drop tables if exists t2, t1;
+
+--echo # Foreign-referenced types compatibility
+
+--echo # BLOB or TEXT are prefix indexes, they can not be used in FK
+create table t1 (a blob(255) unique) engine innodb;
+--error ER_WRONG_FK_DEF
+create or replace table t2 (
+  a text(5) references t1(a)) engine innodb;
+--error ER_WRONG_FK_DEF
+create or replace table t2 (
+  a blob(255) references t1(a)) engine innodb;
+--error ER_WRONG_FK_DEF
+create or replace table t2 (
+  a binary(255) references t1(a)) engine innodb;
+drop tables if exists t2, t1;
+
+--echo # GEOMETRY types are prohibited
+create table t1 (a point unique) engine innodb;
+--error ER_WRONG_FK_DEF
+create or replace table t2 (
+  a point references t1(a)) engine innodb;
+--error ER_WRONG_FK_DEF
+create or replace table t2 (
+  a blob(255) references t1(a)) engine innodb;
+--error ER_WRONG_FK_DEF
+create or replace table t2 (
+  a binary(255) references t1(a)) engine innodb;
+drop tables if exists t2, t1;
+
+create table t1 (a int(10) unique) engine innodb;
+--echo # Storage length is different (4 vs 1)
+--error ER_WRONG_FK_DEF
+create or replace table t2 (
+  a tinyint references t1(a)) engine innodb;
+--echo # DECIMAL is different type (DATA_FIXBINARY)
+--error ER_WRONG_FK_DEF
+create or replace table t2 (
+  a decimal(10) references t1(a)) engine innodb;
+--echo # Different signs are not allowed
+--error ER_WRONG_FK_DEF
+create or replace table t2 (
+  a int unsigned references t1(a)) engine innodb;
+drop tables if exists t2, t1;
+
+--echo # DATE and YEAR are DATA_INT types
+create table t1 (a mediumint unique) engine innodb;
+create or replace table t2 (
+  a date references t1(a)) engine innodb;
+drop tables if exists t2, t1;
+create table t1 (a tinyint unsigned unique) engine innodb;
+create or replace table t2 (
+  a year references t1(a)) engine innodb;
+drop tables if exists t2, t1;
+
+--echo # This is all compatible binary types in terms of InnoDB
+create table t1 (a binary(10) unique) engine innodb;
+create or replace table t2 (
+  a varbinary(5) references t1(a)) engine innodb;
+create or replace table t2 (
+  a decimal(7) references t1(a)) engine innodb;
+create or replace table t2 (
+  a uuid references t1(a)) engine innodb;
+create or replace table t2 (
+  a inet6 references t1(a)) engine innodb;
+create or replace table t2 (
+  a timestamp references t1(a)) engine innodb;
+create or replace table t2 (
+  a datetime references t1(a)) engine innodb;
+create or replace table t2 (
+  a time references t1(a)) engine innodb;
+drop tables if exists t2, t1;
+
+--echo # All the above for self-refs
+create table t1 (
+  a varchar(254) unique,
+  b varchar(6) references t1(a),
+  c char(6) references t1(a)) engine innodb;
+--echo # Different collation is not allowed
+--error ER_WRONG_FK_DEF
+create or replace table t1 (
+  a varchar(254) unique,
+  b char(6) collate latin1_german2_ci references t1(a)) engine innodb;
+--echo # Binary and non-binary are prihibited
+--error ER_WRONG_FK_DEF
+create or replace table t1 (
+  a varchar(254) unique,
+  b varbinary(254) references t1(a)) engine innodb;
+--echo # BLOB or TEXT are prefix indexes, they can not be used in FK
+--error ER_WRONG_FK_DEF
+create or replace table t1 (
+  a blob(254) unique,
+  b varbinary(6) references t1(a)) engine innodb;
+--echo # GEOMETRY types are prohibited
+--error ER_WRONG_FK_DEF
+create or replace table t1 (
+  a point unique,
+  b binary(6) references t1(a)) engine innodb;
+--echo # Storage length is different (4 vs 1)
+--error ER_WRONG_FK_DEF
+create or replace table t1 (
+  a int unique,
+  b tinyint references t1(a)) engine innodb;
+--echo # DECIMAL is different type (DATA_FIXBINARY)
+--error ER_WRONG_FK_DEF
+create or replace table t1 (
+  a int unique,
+  b decimal(10) references t1(a)) engine innodb;
+--echo # Different signs are not allowed
+--error ER_WRONG_FK_DEF
+create or replace table t1 (
+  a int unique,
+  b int unsigned references t1(a)) engine innodb;
+--echo # DATE and YEAR are DATA_INT types
+create or replace table t1 (
+  a mediumint unique,
+  b date references t1(a)) engine innodb;
+create or replace table t1 (
+  a tinyint unsigned unique,
+  b year references t1(a)) engine innodb;
+drop table if exists t1;
+--echo # This is all compatible binary types in terms of InnoDB
+create or replace table t1 (
+  a binary(10) unique,
+  b varbinary(5) references t1(a),
+  c decimal(7) references t1(a),
+  d uuid references t1(a),
+  e inet6 references t1(a),
+  f timestamp references t1(a),
+  g datetime references t1(a),
+  h time references t1(a)) engine innodb;
+drop tables if exists t2, t1;

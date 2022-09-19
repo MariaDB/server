@@ -3152,6 +3152,51 @@ err:
   DBUG_RETURN(TRUE);
 }
 
+bool MDL_context::upgrade_shared_locks(MDL_request_list *mdl_requests,
+                                       enum_mdl_type new_type,
+                                       double lock_wait_timeout)
+{
+  MDL_request_list::Iterator it(*mdl_requests);
+  MDL_request **sort_buf, **p_req;
+  MDL_savepoint mdl_svp= mdl_savepoint();
+  ssize_t req_count= static_cast<ssize_t>(mdl_requests->elements());
+
+  if (req_count == 0)
+    return false;
+
+  /* Sort requests according to MDL_key. */
+  // TODO: maybe refactor acquire_locks() and upgrade_shared_locks() for
+  // persistent sort_buf?
+  if (! (sort_buf= (MDL_request **)my_malloc(key_memory_MDL_context_acquire_locks,
+                                             req_count * sizeof(MDL_request*),
+                                             MYF(MY_WME))))
+    return true;
+
+  for (p_req= sort_buf; p_req < sort_buf + req_count; p_req++)
+    *p_req= it++;
+
+  my_qsort(sort_buf, req_count, sizeof(MDL_request*),
+           mdl_request_ptr_cmp);
+
+  for (p_req= sort_buf; p_req < sort_buf + req_count; p_req++)
+  {
+    if (upgrade_shared_lock((*p_req)->ticket, new_type, lock_wait_timeout))
+      goto err;
+  }
+  my_free(sort_buf);
+  return false;
+
+err:
+  /*
+    Release locks we have managed to acquire so far.
+    Use rollback_to_savepoint() since there may be duplicate
+    requests that got assigned the same ticket.
+  */
+  rollback_to_savepoint(mdl_svp);
+  my_free(sort_buf);
+  return true;
+}
+
 
 /**
   Upgrade a shared metadata lock.

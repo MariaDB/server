@@ -366,6 +366,8 @@ TABLE_SHARE *alloc_table_share(const char *db, const char *table_name,
     share->normalized_path.length= path_length;
     share->table_category= get_table_category(share->db, share->table_name);
     share->open_errno= ENOENT;
+    share->foreign_keys.empty();
+    share->referenced_keys.empty();
     /* The following will be updated in open_table_from_share */
     share->can_do_row_logging= 1;
     if (share->table_category == TABLE_CATEGORY_LOG)
@@ -418,7 +420,7 @@ TABLE_SHARE *alloc_table_share(const char *db, const char *table_name,
 
   NOTES
     This is different from alloc_table_share() because temporary tables
-    don't have to be shared between threads or put into the table def
+    dap on't have to be shared between threads or put into the table def
     cache, so we can do some things notable simpler and faster
 
     If table is not put in thd->temporary_tables (happens only when
@@ -451,6 +453,8 @@ void init_tmp_table_share(THD *thd, TABLE_SHARE *share, const char *key,
   share->frm_version= 		 FRM_VER_CURRENT;
   share->not_usable_by_query_cache= 1;
   share->can_do_row_logging= 0;           // No row logging
+  share->foreign_keys.empty();
+  share->referenced_keys.empty();
 
   /*
     table_map_id is also used for MERGE tables to suppress repeated
@@ -656,6 +660,7 @@ enum open_frm_error open_table_def(THD *thd, TABLE_SHARE *share, uint flags)
                        share->table_name.str, share->normalized_path.str));
 
   share->error= OPEN_FRM_OPEN_ERROR;
+  share->open_flags= flags;
 
   length=(uint) (strxnmov(path, sizeof(path) - 1,
                           share->normalized_path.str, reg_ext, NullS) - path);
@@ -1764,6 +1769,8 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
   plugin_ref se_plugin= 0;
   bool vers_can_native= false, frm_created= 0;
   Field_data_type_info_array field_data_type_info_array;
+  Foreign_key_io foreign_key_io(this);
+
   MEM_ROOT *old_root= thd->mem_root;
   Virtual_column_info **table_check_constraints;
   bool *interval_unescaped= NULL;
@@ -3393,6 +3400,10 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
     }
   }
 
+  if (extra2.foreign_key_info.length &&
+      foreign_key_io.parse(thd, extra2.foreign_key_info))
+    goto err;
+
   /*
     the correct null_bytes can now be set, since bitfields have been taken
     into account
@@ -3607,6 +3618,8 @@ int TABLE_SHARE::init_from_sql_statement_string(THD *thd, bool write,
   thd->reset_db(&db);
   lex_start(thd);
 
+  Alter_table_ctx alter_ctx(&db, &table_name);
+
   if (unlikely((error= parse_sql(thd, & parser_state, NULL) ||
                 sql_unusable_for_discovery(thd, hton, sql_copy))))
     goto ret;
@@ -3626,7 +3639,10 @@ int TABLE_SHARE::init_from_sql_statement_string(THD *thd, bool write,
   tmp_lex.alter_info.db= db;
   tmp_lex.alter_info.table_name= table_name;
   promote_first_timestamp_column(&tmp_lex.alter_info.create_list);
-  file= mysql_create_frm_image(thd, &tmp_lex.create_info, &tmp_lex.alter_info,
+  tmp_lex.create_info.alter_info= &tmp_lex.alter_info;
+  file= mysql_create_frm_image(thd, &tmp_lex.create_info,
+                               &tmp_lex.alter_info,  // FIXME: don't pass alter_info
+                               &alter_ctx,
                                C_ORDINARY_CREATE, &unused1, &unused2, &frm);
   error|= file == 0;
   delete file;
@@ -3675,7 +3691,7 @@ bool TABLE_SHARE::write_par_image(const uchar *par, size_t len)
 }
 
 
-bool TABLE_SHARE::read_frm_image(const uchar **frm, size_t *len)
+int TABLE_SHARE::read_frm_image(const uchar **frm, size_t *len)
 {
   if (IF_PARTITIONING(partition_info_str, 0))   // cannot discover a partition
   {
@@ -5280,7 +5296,7 @@ bool Lex_ident_fs::ok_for_lower_case_names() const
 bool Lex_ident_fs::is_in_lower_case() const
 {
   DBNameBuffer buf(*this, true);
-  return cmp(*this, buf.to_lex_cstring()) == 0;
+  return ::cmp(*this, buf.to_lex_cstring()) == 0;
 }
 #endif
 
@@ -10432,7 +10448,8 @@ LEX_CSTRING *fk_option_name(enum_fk_option opt)
 {
   static LEX_CSTRING names[]=
   {
-    { STRING_WITH_LEN("???") },
+    /* Unspecified FK option is the same as RESTRICT. */
+    { STRING_WITH_LEN("RESTRICT") },
     { STRING_WITH_LEN("RESTRICT") },
     { STRING_WITH_LEN("NO ACTION") },
     { STRING_WITH_LEN("CASCADE") },
@@ -10441,6 +10458,652 @@ LEX_CSTRING *fk_option_name(enum_fk_option opt)
   };
   return names + opt;
 }
+
+int TABLE_SHARE::cmp_db_table(const TABLE_LIST& tl) const
+{
+  return cmp_db_table(tl.db, tl.table_name);
+}
+
+
+class Local_da : public Diagnostics_area
+{
+  THD *thd;
+  Diagnostics_area *saved_da;
+
+public:
+  Local_da(THD *thd_arg) :
+    Diagnostics_area(thd_arg->query_id, false, true),
+    thd(thd_arg), saved_da(thd_arg->get_stmt_da())
+  {
+    thd->set_stmt_da(this);
+  }
+  ~Local_da()
+  {
+    if (saved_da)
+      thd->set_stmt_da(saved_da);
+  }
+  void finish()
+  {
+    DBUG_ASSERT(saved_da && thd);
+    thd->set_stmt_da(saved_da);
+    saved_da= NULL;
+  }
+};
+
+
+bool FK_info::assign(Foreign_key &src, Table_name table)
+{
+  DBUG_ASSERT(src.foreign);
+  DBUG_ASSERT(src.type == Key::MULTIPLE);
+
+  my_uuid(uuid);
+  name= src.constraint_name.str ? src.constraint_name : src.name;
+  foreign_db= table.db;
+  foreign_table= table.name;
+  referenced_db= Lex_ident_db(src.ref_db);
+  referenced_table= Lex_ident_table(src.ref_table);
+  update_method= src.update_opt;
+  delete_method= src.delete_opt;
+
+  List_iterator_fast<Key_part_spec> ref_it(src.ref_columns);
+
+  for (auto &kp: src.columns)
+  {
+    if (foreign_fields.push_back(&kp.field_name))
+      return true;
+    auto *kp2= ref_it++;
+    if (referenced_fields.push_back(&kp2->field_name))
+      return true;
+  }
+  return false;
+}
+
+
+FK_info * FK_info::clone(MEM_ROOT *mem_root) const
+{
+  FK_info *dst= new (mem_root) FK_info();
+  if (!dst)
+    return NULL;
+
+  memcpy(dst->uuid, uuid, MY_UUID_SIZE);
+  if (dst->name.strdup(mem_root, name))
+    return NULL;
+  if (dst->foreign_db.strdup(mem_root, foreign_db))
+    return NULL;
+  if (dst->foreign_table.strdup(mem_root, foreign_table))
+    return NULL;
+  if (dst->referenced_db.strdup(mem_root, referenced_db))
+    return NULL;
+  if (dst->referenced_table.strdup(mem_root, referenced_table))
+    return NULL;
+  dst->update_method= update_method;
+  dst->delete_method= delete_method;
+
+  for (const auto &src_f: foreign_fields)
+  {
+    Lex_ident_column *dst_f= new (mem_root) Lex_ident_column();
+    if (!dst_f)
+      return NULL;
+    if (dst_f->strdup(mem_root, src_f))
+      return NULL;
+    if (dst->foreign_fields.push_back(dst_f, mem_root))
+      return NULL;
+  }
+
+  for (const auto &src_f: referenced_fields)
+  {
+    Lex_ident_column *dst_f= new (mem_root) Lex_ident_column();
+    if (!dst_f)
+      return NULL;
+    if (dst_f->strdup(mem_root, src_f))
+      return NULL;
+    if (dst->referenced_fields.push_back(dst_f, mem_root))
+      return NULL;
+  }
+
+  DBUG_ASSERT(foreign_fields.elements == referenced_fields.elements);
+  return dst;
+}
+
+
+Table_name FK_info::for_table(MEM_ROOT *mem_root) const
+{
+  Table_name result(foreign_db, foreign_table);
+  if (lower_case_table_names)
+    result.lowercase(mem_root);
+  return result;
+}
+
+
+Table_name FK_info::ref_table(MEM_ROOT *mem_root) const
+{
+  Table_name result(ref_db(), referenced_table);
+  if (lower_case_table_names)
+    result.lowercase(mem_root);
+  return result;
+}
+
+
+void FK_info::print(String& out)
+{
+  out.append(STRING_WITH_LEN("foreign_id: "));
+  out.append(name.print());
+  out.append(STRING_WITH_LEN("; foreign_db: "));
+  out.append(foreign_db.print());
+  out.append(STRING_WITH_LEN("; foreign_table: "));
+  out.append(foreign_table.print());
+  out.append(STRING_WITH_LEN("; referenced_db: "));
+  out.append(referenced_db.print());
+  out.append(STRING_WITH_LEN("; referenced_table: "));
+  out.append(referenced_table.print());
+  out.append(STRING_WITH_LEN("; update_method: "));
+  out.append(fk_option_name(update_method));
+  out.append(STRING_WITH_LEN("; delete_method: "));
+  out.append(fk_option_name(delete_method));
+  out.append(STRING_WITH_LEN("; foreign_fields: "));
+  uint i= 0;
+  for (const Lex_cstring &fld: foreign_fields)
+  {
+    if (i)
+      out.append(STRING_WITH_LEN("; "));
+    out.append(STRING_WITH_LEN("["));
+    out.append(i++, true);
+    out.append(STRING_WITH_LEN("]: "));
+    out.append(fld.print());
+  }
+  if (!i)
+    out.append(STRING_WITH_LEN("(empty)"));
+  out.append(STRING_WITH_LEN("; referenced_fields: "));
+  i= 0;
+  for (const Lex_cstring &fld: referenced_fields)
+  {
+    if (i)
+      out.append(STRING_WITH_LEN("; "));
+    out.append(STRING_WITH_LEN("["));
+    out.append(i++, true);
+    out.append(STRING_WITH_LEN("]: "));
+    out.append(fld.print());
+  }
+  if (!i)
+    out.append(STRING_WITH_LEN("(empty)"));
+}
+
+
+/**
+  @brief Check if share exists in ref_shares.
+         Otherwise acquire and put the share into ref_shares.
+*/
+
+bool
+FK_info::get_referenced_share(THD *thd, Share_map *ref_shares, myf MyFlags) const
+{
+  if (self_ref())
+    return false;
+
+  Table_name ref(ref_db(), referenced_table);
+  /*
+    TODO: maybe lowercase() in Table_name ctor?
+          Maybe keep that already lowercased in FK_info?
+  */
+  if (lower_case_table_names)
+    ref.lowercase(thd->mem_root);
+  if (ref_shares->find(ref) != ref_shares->end())
+    return false;
+
+  Share_acquire sa(thd, ref);
+  if (sa.fk_error(thd, false))
+  {
+    my_error(ER_WRONG_FK_DEF, MyFlags, ref.name.str, "referenced table failed");
+    return MyFlags & (ME_WARNING | ME_NOTE) ? false : true;
+  }
+  if (!sa.share)
+  {
+    return false; // skip non-existing referenced shares, allow CREATE
+  }
+  if (!ref_shares->insert(ref, std::move(sa)))
+  {
+    my_error(ER_OUT_OF_RESOURCES, MYF(0));
+    return true;
+  }
+  DBUG_ASSERT(!sa.share);
+  return false;
+}
+
+
+struct Create_field_or_Field
+{
+  Create_field *create_field= NULL;
+  Field *field= NULL;
+  bool binary= false;
+
+  Lex_ident_column field_name() const
+  {
+    return field ? field->field_name : create_field->field_name;
+  }
+  CHARSET_INFO *charset() const
+  {
+    return field ? field->charset() : create_field->charset;
+  }
+  uint32 pack_length() const
+  {
+    return field ? field->pack_length() : create_field->pack_length;
+  }
+  uint32 flags() const
+  {
+    return field ? field->flags : create_field->flags;
+  }
+  const Type_handler *type_handler() const
+  {
+    return field ? field->type_handler() : create_field->type_handler();
+  }
+  Create_field_or_Field(KEY_PART_INFO *kp)
+  {
+    if (kp->key_part_flag & HA_CREATE_TABLE)
+      create_field= (Create_field *) kp->field;
+    else
+      field= kp->field;
+    binary= kp->key_type & FIELDFLAG_BINARY;
+  }
+};
+
+
+/* Compatibility with InnoDB foreign-referenced key types check */
+
+class FK_InnoDB_Compat
+{
+  enum
+  {
+    DATA_CHAR,
+    DATA_BINARY,
+    DATA_INT,
+    DATA_FLOAT,
+    DATA_DOUBLE,
+    DATA_DECIMAL
+  };
+
+  /*
+     Adaptation of get_innobase_type_from_mysql_type(). Some return
+     values are merged down for the sake of simplicity as they don't
+     matter for the comparison algorithm.
+  */
+
+  static
+  uint8_t get_innobase_type_from_mysql_type(bool *unsigned_flag,
+                                            const Create_field_or_Field *field)
+  {
+    if (field->flags() & UNSIGNED_FLAG)
+      *unsigned_flag= true;
+    else
+      *unsigned_flag= false;
+
+    const Type_handler *type_handler= field->type_handler();
+
+    if (type_handler->real_field_type() == MYSQL_TYPE_ENUM ||
+        type_handler->real_field_type() == MYSQL_TYPE_SET)
+    {
+      *unsigned_flag= true;
+      return (DATA_INT);
+    }
+
+    switch (type_handler->field_type())
+    {
+    case MYSQL_TYPE_VAR_STRING:
+    case MYSQL_TYPE_VARCHAR:
+      if (field->binary) // BINARY, VARBINARY
+        return (DATA_BINARY);
+      else
+        return (DATA_CHAR);
+    case MYSQL_TYPE_BIT:
+    case MYSQL_TYPE_STRING:
+      if (field->binary) // INET6, UUID
+        return (DATA_BINARY);
+      else
+        return (DATA_CHAR);
+    case MYSQL_TYPE_NEWDECIMAL:
+      return (DATA_BINARY); // DECIMAL
+    case MYSQL_TYPE_LONG:
+    case MYSQL_TYPE_LONGLONG:
+    case MYSQL_TYPE_TINY:
+    case MYSQL_TYPE_SHORT:
+    case MYSQL_TYPE_INT24:
+    case MYSQL_TYPE_DATE:
+    case MYSQL_TYPE_YEAR:
+    case MYSQL_TYPE_NEWDATE:
+      return (DATA_INT);
+    case MYSQL_TYPE_TIME:
+    case MYSQL_TYPE_DATETIME:
+    case MYSQL_TYPE_TIMESTAMP:
+      return (DATA_BINARY);
+    case MYSQL_TYPE_FLOAT:
+      return (DATA_FLOAT);
+    case MYSQL_TYPE_DOUBLE:
+      return (DATA_DOUBLE);
+    case MYSQL_TYPE_DECIMAL:
+      return (DATA_DECIMAL);
+    case MYSQL_TYPE_NULL:
+    case MYSQL_TYPE_GEOMETRY:
+    case MYSQL_TYPE_TINY_BLOB:
+    case MYSQL_TYPE_MEDIUM_BLOB:
+    case MYSQL_TYPE_BLOB:
+    case MYSQL_TYPE_LONG_BLOB:
+    default:
+      DBUG_ASSERT(0);
+    }
+
+    return (0);
+  }
+
+public:
+
+  /*
+     Adaptation of cmp_cols_are_equal()
+  */
+
+  static
+  bool cmp_cols_are_equal(KEY_PART_INFO *kp1, KEY_PART_INFO *kp2)
+  {
+    bool unsigned_flag1, unsigned_flag2;
+    Create_field_or_Field field1(kp1);
+    Create_field_or_Field field2(kp2);
+
+    uint8_t mtype1= get_innobase_type_from_mysql_type(&unsigned_flag1, &field1);
+    uint8_t mtype2= get_innobase_type_from_mysql_type(&unsigned_flag2, &field2);
+
+    if (mtype1 == DATA_CHAR && mtype2 == DATA_CHAR)
+      /* Note: different collation is different charset */
+      return (field1.charset() == field2.charset());
+
+    if (mtype1 == DATA_BINARY && mtype2 == DATA_BINARY)
+      return (TRUE);
+
+    if (mtype1 != mtype2)
+      return (FALSE);
+
+    if (mtype1 == DATA_INT && unsigned_flag1 != unsigned_flag2)
+      return (FALSE);
+
+    return (mtype1 != DATA_INT || field1.pack_length() == field2.pack_length());
+  }
+};
+
+
+/**
+  @brief SQL layer adaptation of dict_foreign_find_index()
+
+  @param ref_share  Referenced table share
+
+  @return KEY which FK_info is referring to or NULL if not found.
+*/
+
+KEY * FK_info::find_referenced_idx(KEY *key_info, uint keys, myf MyFlags) const
+{
+  KEY *key, *end;
+
+  DBUG_ASSERT(foreign_fields.elements == referenced_fields.elements);
+  DBUG_ASSERT(foreign_idx->user_defined_key_parts >= foreign_fields.elements);
+
+  for (key= key_info, end= key + keys; key < end; key++)
+  {
+    if (key->user_defined_key_parts < referenced_fields.elements)
+      continue;
+    KEY_PART_INFO *rkp= key->key_part;
+    KEY_PART_INFO *fkp= foreign_idx->key_part;
+    bool found;
+    List_iterator_fast<Lex_ident_column> ff_it(*(
+      const_cast<List<Lex_ident_column> *>(&foreign_fields)));
+    for (const auto &rf: referenced_fields)
+    {
+      const auto *ff= ff_it++;
+      Create_field_or_Field rkp_field(rkp);
+      if (!rkp_field.field_name().streq(rf))
+      {
+        found= false;
+        break;
+      }
+
+      if (fkp->key_type & (FIELDFLAG_BLOB|FIELDFLAG_GEOM))
+      {
+        my_error(ER_WRONG_FK_DEF, MyFlags, ff->str,
+                 "foreign key by blob or geometry is not supported");
+        return NULL;
+      }
+      else if (rkp->key_type & (FIELDFLAG_BLOB|FIELDFLAG_GEOM))
+      {
+        my_error(ER_WRONG_FK_DEF, MyFlags, ff->str,
+                 "referenced key by blob or geometry is not supported");
+        return NULL;
+      }
+
+      found= FK_InnoDB_Compat::cmp_cols_are_equal(rkp, fkp);
+
+      if (!found)
+      {
+        my_error(ER_WRONG_FK_DEF, MyFlags, ff->str,
+                 "foreign-referenced fields type mismatch");
+        return NULL;
+      }
+      rkp++, fkp++;
+    }
+    if (!found)
+      continue; /* not found */
+    return key;
+  }
+
+  my_error(ER_FK_NO_INDEX_PARENT, MyFlags, foreign_table.str, name.str,
+           referenced_table.str);
+
+  return NULL;
+}
+
+
+/**
+  @brief Find KEY corresponding to foreign_fields or referenced_fields of
+         FK_info. Used to check DROP INDEX and for updating foreign_idx.
+
+  @param key_info     KEY array
+  @param keys         KEY array length
+  @param foreign_idx  What to compare: foreign_fields or referenced_fields
+
+  @return KEY which FK_info is referring to or NULL if not found.
+*/
+
+KEY * FK_info::find_idx(KEY *key_info, uint keys, bool foreign_idx)
+{
+  uint i;
+  KEY *key;
+  List<Lex_ident_column> &fields= foreign_idx ? foreign_fields : referenced_fields;
+  for (i= 0, key= key_info; i < keys; i++, key++)
+  {
+    if (key->user_defined_key_parts < fields.elements)
+      continue;
+    KEY_PART_INFO *kp= key->key_part;
+    bool found= true;
+    for (const auto &f: fields)
+    {
+      /* field is Create_field */
+      DBUG_ASSERT(kp->key_part_flag & HA_CREATE_TABLE);
+      Create_field *cf= (Create_field *) kp->field;
+      if (!cf->field_name.streq(f))
+      {
+        found= false;
+        break;
+      }
+      kp++;
+    }
+    if (found)
+      return key;
+  }
+
+  return NULL;
+}
+
+
+bool TABLE_SHARE::fk_check_consistency(THD *thd)
+{
+  mbd::set<Table_name> warned;
+  mbd::set<Table_name> warned_self;
+  bool error= false;
+  uint rk_self_refs= 0;
+  uint fk_self_refs= 0;
+  for (FK_info &rk: referenced_keys)
+  {
+    if (rk.self_ref())
+    {
+      rk_self_refs++;
+      continue;
+    }
+
+    TABLE_LIST tl;
+    tl.init_one_table(&rk.foreign_db, &rk.foreign_table, NULL, TL_IGNORE);
+    Share_acquire sa(thd, tl);
+    if (!sa.share)
+    {
+      if (!ha_table_exists(thd, &rk.foreign_db, &rk.foreign_table))
+      {
+        my_printf_error(ER_UNKNOWN_ERROR, "Foreign table %s.%s not exists",
+                        MYF(0), rk.foreign_db.str, rk.foreign_table.str);
+      }
+      return true;
+    }
+    List_iterator_fast<FK_info> fk_it(sa.share->foreign_keys);
+    FK_info *fk;
+    bool found_table= false;
+    /*
+       For each referenced key rk let's find foreign key fk with matching lists
+       of referenced_fields and foreign_fields.
+    */
+    while ((fk= fk_it++))
+    {
+      if (!cmp_db_table(fk->ref_db(), fk->referenced_table))
+      {
+        found_table= true;
+        if (fk->fields_eq(rk))
+          break;
+      }
+    }
+    if (!fk)
+    {
+      bool warn;
+      if (!warned.insert(Table_name(rk.foreign_db, rk.foreign_table), &warn))
+        return true;
+      if (warn)
+      {
+        my_printf_error(ER_UNKNOWN_ERROR,
+                        found_table ?
+                          "Foreign table %s.%s does not match foreign keys with referenced keys" :
+                          "Foreign table %s.%s does not refer this table",
+                        MYF(0), sa.share->db.str, sa.share->table_name.str);
+      }
+      DBUG_ASSERT(warn || error);
+      error= true;
+    }
+  }
+
+  warned.clear();
+  warned_self.clear();
+
+  if (referenced_keys.elements)
+  {
+    push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
+                        ER_UNKNOWN_ERROR,
+                        "Found %u referenced keys",
+                        referenced_keys.elements);
+  }
+
+  for (FK_info &fk: foreign_keys)
+  {
+    if (fk.self_ref())
+    {
+      if (cmp_db_table(fk.foreign_db, fk.foreign_table))
+      {
+        bool warn;
+        if (!warned_self.insert(Table_name(fk.foreign_db, fk.foreign_table), &warn))
+          return true;
+        if (warn)
+        {
+          my_printf_error(ER_UNKNOWN_ERROR,
+                          "Self-reference in foreign list %s.%s does not point to this table",
+                          MYF(0), fk.foreign_db.str, fk.foreign_table.str);
+        }
+        DBUG_ASSERT(warn || error);
+        error= true;
+      }
+      fk_self_refs++;
+      continue;
+    }
+    TABLE_LIST tl;
+    tl.init_one_table(fk.ref_db_ptr(), &fk.referenced_table, NULL, TL_IGNORE);
+    Share_acquire sa(thd, tl);
+    if (!sa.share)
+    {
+      if (!ha_table_exists(thd, fk.ref_db_ptr(), &fk.referenced_table))
+      {
+        my_printf_error(ER_UNKNOWN_ERROR, "Referenced table %s.%s not exists",
+                        MYF(0), fk.ref_db().str, fk.referenced_table.str);
+      }
+      return true;
+    }
+    List_iterator_fast<FK_info> ref_it(sa.share->referenced_keys);
+    FK_info *rk;
+    bool found_table= false;
+    /*
+       For each foreign key fk let's find referenced key rk with matching lists
+       of referenced_fields and foreign_fields.
+    */
+    while ((rk= ref_it++))
+    {
+      if (!cmp_db_table(rk->foreign_db, rk->foreign_table))
+      {
+        found_table= true;
+        if (rk->fields_eq(fk))
+          break;
+      }
+    }
+    if (!rk)
+    {
+      bool warn;
+      if (!warned.insert(Table_name(fk.foreign_db, fk.foreign_table), &warn))
+        return true;
+      if (warn)
+      {
+        my_printf_error(ER_UNKNOWN_ERROR,
+                        found_table ?
+                          "Referenced table %s.%s does not match referenced keys with foreign keys" :
+                          "Referenced table %s.%s does not refer this table", MYF(0),
+                        sa.share->db.str, sa.share->table_name.str);
+      }
+      DBUG_ASSERT(warn || error);
+      error= true;
+    }
+  }
+
+  if (foreign_keys.elements - fk_self_refs)
+  {
+    push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
+                        ER_UNKNOWN_ERROR,
+                        "Found %u foreign keys",
+                        foreign_keys.elements - fk_self_refs);
+  }
+
+  if (rk_self_refs)
+  {
+    my_printf_error(ER_UNKNOWN_ERROR,
+                    "Found %u self-references in referenced list (must be 0)",
+                    MYF(0), rk_self_refs);
+    error= true;
+  }
+
+  if (fk_self_refs)
+  {
+    push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
+                        ER_UNKNOWN_ERROR,
+                        "Found %u self-references",
+                        fk_self_refs);
+  }
+
+  return error;
+}
+
 
 enum TR_table::enabled TR_table::use_transaction_registry= TR_table::MAYBE;
 
@@ -10881,6 +11544,27 @@ Field *TABLE::find_field_by_name(const LEX_CSTRING *str) const
     {
       if ((*tmp)->field_name.streq(*str))
         return *tmp;
+    }
+  }
+  return NULL;
+}
+
+
+Field *TABLE_SHARE::find_field_by_name(const Lex_ident_column n) const
+{
+  Field **f;
+  if (name_hash.records)
+  {
+    f= (Field**) my_hash_search(&name_hash, (uchar *) n.str, n.length);
+    return f ? *f : NULL;
+  }
+  else
+  {
+    for (f= field; *f; f++)
+    {
+      if ((*f)->field_name.length == n.length &&
+          (*f)->field_name.streq(n))
+        return *f;
     }
   }
   return NULL;

@@ -46,6 +46,7 @@
 #include <my_attribute.h> /* __attribute__ */
 
 class Alter_info;
+class Alter_table_ctx;
 class Virtual_column_info;
 class sequence_definition;
 class Rowid_filter;
@@ -1118,7 +1119,12 @@ enum enum_schema_tables
 struct TABLE_SHARE;
 struct HA_CREATE_INFO;
 struct st_foreign_key_info;
-typedef struct st_foreign_key_info FOREIGN_KEY_INFO;
+class FK_info;
+class FK_list : public List<FK_info>
+{
+public:
+  bool assign(const FK_list &src, MEM_ROOT *mem_root);
+};
 typedef bool (stat_print_fn)(THD *thd, const char *type, size_t type_len,
                              const char *file, size_t file_len,
                              const char *status, size_t status_len);
@@ -2560,6 +2566,7 @@ public:
           Field instance for old version of table.
   */
   Alter_info *alter_info;
+  Alter_table_ctx *alter_ctx;
 
   /**
     Array of KEYs for new version of table - including KEYs to be added.
@@ -2706,6 +2713,7 @@ public:
 
   Alter_inplace_info(HA_CREATE_INFO *create_info_arg,
                      Alter_info *alter_info_arg,
+                     Alter_table_ctx *alter_ctx_arg,
                      KEY *key_info_arg, uint key_count_arg,
                      partition_info *modified_part_info_arg,
                      bool ignore_arg, bool error_non_empty);
@@ -4529,35 +4537,6 @@ public:
   */
   virtual bool can_switch_engines() { return true; }
   virtual int can_continue_handler_scan() { return 0; }
-  /**
-    Get the list of foreign keys in this table.
-
-    @remark Returns the set of foreign keys where this table is the
-            dependent or child table.
-
-    @param thd  The thread handle.
-    @param f_key_list[out]  The list of foreign keys.
-
-    @return The handler error code or zero for success.
-  */
-  virtual int
-  get_foreign_key_list(THD *thd, List<FOREIGN_KEY_INFO> *f_key_list)
-  { return 0; }
-  /**
-    Get the list of foreign keys referencing this table.
-
-    @remark Returns the set of foreign keys where this table is the
-            referenced or parent table.
-
-    @param thd  The thread handle.
-    @param f_key_list[out]  The list of foreign keys.
-
-    @return The handler error code or zero for success.
-  */
-  virtual int
-  get_parent_foreign_key_list(THD *thd, List<FOREIGN_KEY_INFO> *f_key_list)
-  { return 0; }
-  virtual bool referenced_by_foreign_key() const noexcept { return false;}
   virtual void init_table_handle_for_HANDLER()
   { return; }       /* prepare InnoDB for HANDLER */
   virtual void free_foreign_key_create_info(char* str) {}
@@ -5658,7 +5637,8 @@ void ha_drop_database(const char* path);
 void ha_commit_checkpoint_request(void *cookie, void (*pre_hook)(void *));
 int ha_create_table(THD *thd, const char *path, const char *db,
                     const char *table_name, HA_CREATE_INFO *create_info,
-                    LEX_CUSTRING *frm, bool skip_frm_file);
+                    LEX_CUSTRING *frm, bool skip_frm_file,
+                    bool fk_update_refs);
 int ha_delete_table(THD *thd, handlerton *db_type, const char *path,
                     const LEX_CSTRING *db, const LEX_CSTRING *alias,
                     bool generate_warning);

@@ -1,4 +1,9 @@
 drop table if exists t1,t2;
+create table t2 (
+a int unique, c int unique);
+create table t3 (
+a int unique, c int unique, d int unique,
+r int references t3(d), index (c, d));
 create table t1 (
 a int not null references t2,
 b int not null constraint t2_c references t2 (c),
@@ -12,7 +17,11 @@ foreign key (a,b) references t3 (c,d) on delete set default,
 foreign key (a,b) references t3 (c,d) on update set null);
 create index a on t1 (a);
 create unique index b on t1 (a,b);
-drop table t1;
+drop tables t2;
+ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails (1)
+drop tables t3;
+ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails (2)
+drop tables t1, t2, t3;
 create table t1 (id int primary key) engine = innodb;
 create table t2 (id int PRIMARY KEY, FOREIGN KEY (id) REFERENCES t1(id)) engine=innodb;
 insert into t1 values (1), (2), (3), (4), (5), (6);
@@ -114,6 +123,852 @@ DROP TABLE tpk;
 CREATE DATABASE x;
 USE x;
 CREATE TABLE t (i INT, j INT, CONSTRAINT fk2 FOREIGN KEY(i) REFERENCES p (i)) ENGINE=InnoDB;
-ERROR HY000: Can't create table `x`.`t` (errno: 150 "Foreign key constraint is incorrectly formed")
+ERROR 42S02: Table 'x.p' doesn't exist
 DROP DATABASE x;
 USE test;
+#
+# MDEV-16417 Store Foreign Key metadata outside of InnoDB
+#
+call mtr.add_suppression("has or is referenced in foreign key");
+set default_storage_engine= innodb;
+# Check create table
+create or replace table t1 (id int primary key);
+create or replace table t2 (id int primary key, foreign key (id) references t1(id));
+select * from t1, t2;
+id	id
+check tables t1, t2;
+Table	Op	Msg_type	Msg_text
+test.t1	check	Note	Found 1 referenced keys
+test.t1	check	status	OK
+test.t2	check	Note	Found 1 foreign keys
+test.t2	check	status	OK
+flush tables t1, t2;
+check tables t1, t2;
+Table	Op	Msg_type	Msg_text
+test.t1	check	Note	Found 1 referenced keys
+test.t1	check	status	OK
+test.t2	check	Note	Found 1 foreign keys
+test.t2	check	status	OK
+drop table t2, t1;
+create table t1 (id int primary key);
+create table t2 (id int references t1(id)) select id from t1;
+check tables t1, t2;
+Table	Op	Msg_type	Msg_text
+test.t1	check	Note	Found 1 referenced keys
+test.t1	check	status	OK
+test.t2	check	Note	Found 1 foreign keys
+test.t2	check	status	OK
+flush tables;
+check tables t1, t2;
+Table	Op	Msg_type	Msg_text
+test.t1	check	Note	Found 1 referenced keys
+test.t1	check	status	OK
+test.t2	check	Note	Found 1 foreign keys
+test.t2	check	status	OK
+drop table t2, t1;
+create database Test_MariaDB;
+create table Test_MariaDB.T1(id int primary key);
+create table t2(id int primary key, f1 int references Test_MariaDB.T1(id));
+select * from Test_MariaDB.T1;
+id
+check table Test_MariaDB.T1;
+Table	Op	Msg_type	Msg_text
+Test_MariaDB.T1	check	Note	Found 1 referenced keys
+Test_MariaDB.T1	check	status	OK
+drop table t2;
+check table Test_MariaDB.T1;
+Table	Op	Msg_type	Msg_text
+Test_MariaDB.T1	check	status	OK
+flush tables;
+check table Test_MariaDB.T1;
+Table	Op	Msg_type	Msg_text
+Test_MariaDB.T1	check	status	OK
+drop table Test_MariaDB.T1;
+drop database Test_MariaDB;
+# Check rename column, lock tables
+create or replace table t1 (id int primary key);
+create or replace table t2 (id int primary key);
+create or replace table t3 (id int primary key);
+create or replace table ch1 (
+id int, id2 int,
+foreign key (id) references t1 (id),
+foreign key (id2) references t2 (id),
+foreign key (id) references t3 (id));
+select * from t1, t2, t3;
+id	id	id
+connect con1, localhost, root;
+lock tables t3 read;
+connection default;
+set @saved_lock_wait_timeout= @@lock_wait_timeout;
+set lock_wait_timeout= 1;
+alter table ch1 change id2 xid2 int;
+alter table ch1 change id xid int;
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+set lock_wait_timeout= @saved_lock_wait_timeout;
+connection con1;
+unlock tables;
+disconnect con1;
+connection default;
+alter table ch1 change id xid int;
+select * from ch1;
+xid	xid2
+check tables t1, t2, t3;
+Table	Op	Msg_type	Msg_text
+test.t1	check	Note	Found 1 referenced keys
+test.t1	check	status	OK
+test.t2	check	Note	Found 1 referenced keys
+test.t2	check	status	OK
+test.t3	check	Note	Found 1 referenced keys
+test.t3	check	status	OK
+flush tables t1, t2, t3;
+check tables t1, t2, t3;
+Table	Op	Msg_type	Msg_text
+test.t1	check	Note	Found 1 referenced keys
+test.t1	check	status	OK
+test.t2	check	Note	Found 1 referenced keys
+test.t2	check	status	OK
+test.t3	check	Note	Found 1 referenced keys
+test.t3	check	status	OK
+drop tables ch1, t2, t1, t3;
+# Rename column on referenced table
+create or replace table t1 (id int primary key);
+create or replace table t2 (id int references t1, id2 int references t1(id));
+select * from t2;
+id	id2
+alter table t1 change id xid int;
+show create table t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `id` int(11) DEFAULT NULL,
+  `id2` int(11) DEFAULT NULL,
+  KEY `id` (`id`),
+  KEY `id2` (`id2`),
+  CONSTRAINT `1` FOREIGN KEY (`id`) REFERENCES `t1` (`xid`),
+  CONSTRAINT `2` FOREIGN KEY (`id2`) REFERENCES `t1` (`xid`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+select * from t1;
+xid
+check table t2;
+Table	Op	Msg_type	Msg_text
+test.t2	check	Note	Found 2 foreign keys
+test.t2	check	status	OK
+flush table t2;
+check table t2;
+Table	Op	Msg_type	Msg_text
+test.t2	check	Note	Found 2 foreign keys
+test.t2	check	status	OK
+alter table t1 rename column xid to yid;
+show create table t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `id` int(11) DEFAULT NULL,
+  `id2` int(11) DEFAULT NULL,
+  KEY `id` (`id`),
+  KEY `id2` (`id2`),
+  CONSTRAINT `1` FOREIGN KEY (`id`) REFERENCES `t1` (`yid`),
+  CONSTRAINT `2` FOREIGN KEY (`id2`) REFERENCES `t1` (`yid`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+select * from t1;
+yid
+check table t2;
+Table	Op	Msg_type	Msg_text
+test.t2	check	Note	Found 2 foreign keys
+test.t2	check	status	OK
+flush table t2;
+check table t2;
+Table	Op	Msg_type	Msg_text
+test.t2	check	Note	Found 2 foreign keys
+test.t2	check	status	OK
+drop tables t2, t1;
+# Check rename table
+create or replace table t1 (id int primary key);
+create or replace table t2 (id int references t1);
+select * from t2, t1;
+id	id
+rename table t2 to t3;
+create table t2 (x int);
+check table t1;
+Table	Op	Msg_type	Msg_text
+test.t1	check	Note	Found 1 referenced keys
+test.t1	check	status	OK
+flush tables t1;
+check table t1;
+Table	Op	Msg_type	Msg_text
+test.t1	check	Note	Found 1 referenced keys
+test.t1	check	status	OK
+drop tables t3, t1, t2;
+create or replace table t1 (id int primary key);
+create or replace table t2 (id int primary key);
+create or replace table t3 (id int primary key);
+select * from t1, t2, t3;
+id	id	id
+create or replace table t4 (
+id int primary key, id2 int references t4(id),
+foreign key (id) references t1 (id),
+foreign key (id2) references t2 (id),
+foreign key (id) references t3 (id));
+select * from t4;
+id	id2
+rename table t4 to xt4;
+check tables t1, t2, t3;
+Table	Op	Msg_type	Msg_text
+test.t1	check	Note	Found 1 referenced keys
+test.t1	check	status	OK
+test.t2	check	Note	Found 1 referenced keys
+test.t2	check	status	OK
+test.t3	check	Note	Found 1 referenced keys
+test.t3	check	status	OK
+flush tables t1, t2, t3;
+check tables t1, t2, t3;
+Table	Op	Msg_type	Msg_text
+test.t1	check	Note	Found 1 referenced keys
+test.t1	check	status	OK
+test.t2	check	Note	Found 1 referenced keys
+test.t2	check	status	OK
+test.t3	check	Note	Found 1 referenced keys
+test.t3	check	status	OK
+alter table xt4 rename to yt4, algorithm=inplace;
+select * from t1, t2, t3;
+id	id	id
+check tables t1, t2, t3;
+Table	Op	Msg_type	Msg_text
+test.t1	check	Note	Found 1 referenced keys
+test.t1	check	status	OK
+test.t2	check	Note	Found 1 referenced keys
+test.t2	check	status	OK
+test.t3	check	Note	Found 1 referenced keys
+test.t3	check	status	OK
+flush tables t1, t2, t3;
+check tables t1, t2, t3;
+Table	Op	Msg_type	Msg_text
+test.t1	check	Note	Found 1 referenced keys
+test.t1	check	status	OK
+test.t2	check	Note	Found 1 referenced keys
+test.t2	check	status	OK
+test.t3	check	Note	Found 1 referenced keys
+test.t3	check	status	OK
+alter table yt4 rename to zt4, algorithm=copy;
+select * from t1, t2, t3;
+id	id	id
+check tables t1, t2, t3;
+Table	Op	Msg_type	Msg_text
+test.t1	check	Note	Found 1 referenced keys
+test.t1	check	status	OK
+test.t2	check	Note	Found 1 referenced keys
+test.t2	check	status	OK
+test.t3	check	Note	Found 1 referenced keys
+test.t3	check	status	OK
+flush tables t1, t2, t3;
+check tables t1, t2, t3;
+Table	Op	Msg_type	Msg_text
+test.t1	check	Note	Found 1 referenced keys
+test.t1	check	status	OK
+test.t2	check	Note	Found 1 referenced keys
+test.t2	check	status	OK
+test.t3	check	Note	Found 1 referenced keys
+test.t3	check	status	OK
+drop tables zt4, t2, t1, t3;
+# Rename of referenced table
+create or replace table t1 (id int primary key);
+create or replace table t2 (id int references t1);
+select * from t2;
+id
+rename table t1 to xt1;
+show create table t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `id` int(11) DEFAULT NULL,
+  KEY `id` (`id`),
+  CONSTRAINT `1` FOREIGN KEY (`id`) REFERENCES `xt1` (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+select * from xt1;
+id
+check tables t2, xt1;
+Table	Op	Msg_type	Msg_text
+test.t2	check	Note	Found 1 foreign keys
+test.t2	check	status	OK
+test.xt1	check	Note	Found 1 referenced keys
+test.xt1	check	status	OK
+flush tables t2, xt1;
+check tables t2, xt1;
+Table	Op	Msg_type	Msg_text
+test.t2	check	Note	Found 1 foreign keys
+test.t2	check	status	OK
+test.xt1	check	Note	Found 1 referenced keys
+test.xt1	check	status	OK
+alter table xt1 rename to yt1, algorithm=inplace;
+show create table t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `id` int(11) DEFAULT NULL,
+  KEY `id` (`id`),
+  CONSTRAINT `1` FOREIGN KEY (`id`) REFERENCES `yt1` (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+select * from yt1;
+id
+check tables t2, yt1;
+Table	Op	Msg_type	Msg_text
+test.t2	check	Note	Found 1 foreign keys
+test.t2	check	status	OK
+test.yt1	check	Note	Found 1 referenced keys
+test.yt1	check	status	OK
+flush tables t2, yt1;
+check tables t2, yt1;
+Table	Op	Msg_type	Msg_text
+test.t2	check	Note	Found 1 foreign keys
+test.t2	check	status	OK
+test.yt1	check	Note	Found 1 referenced keys
+test.yt1	check	status	OK
+alter table yt1 rename to t1, algorithm=copy;
+show create table t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `id` int(11) DEFAULT NULL,
+  KEY `id` (`id`),
+  CONSTRAINT `1` FOREIGN KEY (`id`) REFERENCES `t1` (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+select * from t1;
+id
+check tables t2, t1;
+Table	Op	Msg_type	Msg_text
+test.t2	check	Note	Found 1 foreign keys
+test.t2	check	status	OK
+test.t1	check	Note	Found 1 referenced keys
+test.t1	check	status	OK
+flush tables t2, t1;
+check tables t2, t1;
+Table	Op	Msg_type	Msg_text
+test.t2	check	Note	Found 1 foreign keys
+test.t2	check	status	OK
+test.t1	check	Note	Found 1 referenced keys
+test.t1	check	status	OK
+drop tables t2, t1;
+# Check drop table
+create or replace table t1 (id int primary key);
+create or replace table ch1 (id int, foreign key (id) references t1 (id));
+select * from t1;
+id
+select * from ch1;
+id
+drop table t1;
+ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails (1)
+drop tables ch1, t1;
+# Check drop database
+create or replace table t1 (id int primary key);
+select * from t1;
+id
+create or replace database test2;
+create or replace database test3;
+create or replace database test4;
+use test2;
+create or replace table ch1 (
+id int, id2 int,
+foreign key (id) references test.t1 (id));
+select * from ch1;
+id	id2
+use test3;
+create or replace table par2 (
+id int primary key);
+use test4;
+create or replace table par3 (
+id int primary key);
+create or replace table ch3 (
+id int, id2 int,
+foreign key (id) references par3 (id));
+select * from par3;
+id
+select * from ch3;
+id	id2
+use test;
+create or replace table ch2 (
+id int, id2 int,
+foreign key (id) references test3.par2 (id));
+drop database test2;
+check tables t1;
+Table	Op	Msg_type	Msg_text
+test.t1	check	status	OK
+flush tables t1;
+check tables t1;
+Table	Op	Msg_type	Msg_text
+test.t1	check	status	OK
+drop tables t1;
+drop database test3;
+ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails (1)
+drop table ch2;
+drop database test3;
+drop database test4;
+# Check add foreign key
+create or replace table t1(fld1 int not null primary key);
+create or replace table t2(fld1 int not null, fld2 int as (fld1) virtual);
+insert into t1 values(1);
+insert into t2 values(1, default);
+set foreign_key_checks= 0;
+alter table t2 add index(fld2), add foreign key (fld1) references t1(fld1)
+on update cascade, algorithm=inplace;
+set foreign_key_checks= 1;
+update t1 set fld1= 2;
+select fld2 from t2;
+fld2
+2
+select * from t2;
+fld1	fld2
+2	2
+drop table t2, t1;
+# Check drop column, drop foreign key
+create or replace table t1 (id int primary key, a int);
+create or replace table t2 (id int, a int, foreign key fk (id) references t1 (id));
+alter table t1 drop id;
+ERROR HY000: Missing index for constraint 't2.fk' in the referenced table 't1'
+alter table t2 drop id;
+ERROR 42000: Incorrect foreign key definition for 'id': foreign field not found
+alter table t2 drop foreign key fk, drop index fk;
+drop tables t1, t2;
+# Check drop index
+create or replace table t1 (id int primary key, a int unique key, b int unique key) engine innodb;
+create or replace table t2 (id int, a int, foreign key fk (id) references t1 (id)) engine innodb;
+drop index fk on t2;
+ERROR HY000: Missing index for constraint 'fk' in the foreign table 't2'
+drop index `primary` on t1;
+ERROR HY000: Missing index for constraint 't2.fk' in the referenced table 't1'
+create or replace table t2 (
+id int primary key, a int unique, b int unique, foreign key fk (b) references t1 (b)) engine innodb;
+drop index `primary` on t1;
+drop index `a` on t1;
+drop index `b` on t1;
+ERROR HY000: Missing index for constraint 't2.fk' in the referenced table 't1'
+drop index `primary` on t2;
+drop index `a` on t2;
+drop index `b` on t2;
+ERROR HY000: Missing index for constraint 'fk' in the foreign table 't2'
+drop tables t2, t1;
+# Check multiple foreign keys having one index and
+# multiple foreign keys referencing one index.
+create table t1 (
+id int primary key,
+a int unique key,
+b int unique key) engine innodb;
+create table t2 (
+id int primary key, a int unique, b int,
+foreign key fk1 (b) references t1 (id),
+foreign key fk2 (b) references t1 (b),
+foreign key fk3 (b) references t1 (b)) engine innodb;
+drop index `primary` on t2;
+drop index `a` on t2;
+drop index `fk3` on t2;
+ERROR HY000: Missing index for constraint 'fk1' in the foreign table 't2'
+alter table t2 drop foreign key fk3;
+drop index `fk3` on t2;
+ERROR HY000: Missing index for constraint 'fk1' in the foreign table 't2'
+alter table t2 drop foreign key fk1;
+drop index `fk3` on t2;
+ERROR HY000: Missing index for constraint 'fk2' in the foreign table 't2'
+drop index `b` on t1;
+ERROR HY000: Missing index for constraint 't2.fk2' in the referenced table 't1'
+alter table t2 drop foreign key fk2;
+drop index `fk3` on t2;
+drop index `b` on t1;
+drop tables t2, t1;
+# Check drop index at FK but created new one good index
+create table t1 (id int primary key) engine innodb;
+create table t2 (id int, foreign key fk (id) references t1 (id)) engine innodb;
+alter table t2 drop index fk;
+ERROR HY000: Missing index for constraint 'fk' in the foreign table 't2'
+alter table t2 drop index fk, add index i1 (id), add unique i2 (id);
+alter table t2 drop index i1;
+alter table t2 drop index i2;
+ERROR HY000: Missing index for constraint 'fk' in the foreign table 't2'
+alter table t2 drop index i2, add index i1 (id), add unique i2 (id);
+alter table t2 drop index i2;
+alter table t2 drop index i1;
+ERROR HY000: Missing index for constraint 'fk' in the foreign table 't2'
+# Check drop index and drop FK
+alter table t2 drop index i1, drop foreign key fk;
+drop tables t2, t1;
+create table t1 (a int, b int, key (a, b)) engine innodb;
+create table t2 (id int, a int, b int) engine innodb;
+alter table t2 add foreign key fk (a, b) references t1 (a, b),
+add unique i1 (a), add primary key (id);
+alter table t2 drop index fk;
+ERROR HY000: Missing index for constraint 'fk' in the foreign table 't2'
+alter table t2 drop index i1;
+alter table t2 drop primary key;
+alter table t2 drop index fk, drop foreign key fk;
+drop tables t2, t1;
+# Check no parent index, check printing referenced index
+create table t1 (id int primary key, b int unique) engine innodb;
+create table t2 (
+a int, b int, c int,
+index idx1 (b),
+foreign key fk (a) references t1 (id),
+foreign key fk2 (b) references t1 (b),
+foreign key self (c) references t2 (b)) engine innodb;
+alter table t1 drop primary key;
+ERROR HY000: Missing index for constraint 't2.fk' in the referenced table 't1'
+set foreign_key_checks= 0;
+alter table t1 drop primary key;
+set foreign_key_checks= 1;
+select constraint_name from information_schema.referential_constraints
+where constraint_schema is null;
+constraint_name
+select constraint_name, unique_constraint_name, table_name, referenced_table_name
+from information_schema.referential_constraints where constraint_schema = "test";
+constraint_name	unique_constraint_name	table_name	referenced_table_name
+fk	NULL	t2	t1
+fk2	b	t2	t1
+self	idx1	t2	t2
+Warnings:
+Warning	1822	Missing index for constraint 't2.fk' in the referenced table 't1'
+alter table t1 modify id char(1);
+ERROR HY000: Missing index for constraint 't2.fk' in the referenced table 't1'
+alter table t1 add index (id);
+alter table t1 modify id char(1);
+ERROR HY000: Cannot change column 'id': used in a foreign key constraint 'fk' of table 'test.t2'
+set foreign_key_checks= 0;
+alter table t1 drop index id;
+set foreign_key_checks= 1;
+alter table t2 drop foreign key fk, drop key fk;
+drop tables t2, t1;
+# Check self-references
+create or replace table t1 (id int primary key, id2 int references t1 (id));
+check tables t1;
+Table	Op	Msg_type	Msg_text
+test.t1	check	Note	Found 1 self-references
+test.t1	check	status	OK
+flush tables t1;
+check tables t1;
+Table	Op	Msg_type	Msg_text
+test.t1	check	Note	Found 1 self-references
+test.t1	check	status	OK
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `id` int(11) NOT NULL,
+  `id2` int(11) DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  KEY `id2` (`id2`),
+  CONSTRAINT `1` FOREIGN KEY (`id2`) REFERENCES `t1` (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+insert into t1 values (1, 2);
+ERROR 23000: Cannot add or update a child row: a foreign key constraint fails (`test`.`t1`, CONSTRAINT `1` FOREIGN KEY (`id2`) REFERENCES `t1` (`id`))
+insert into t1 values (1, 1);
+alter table t1 change id2 id3 int;
+check tables t1;
+Table	Op	Msg_type	Msg_text
+test.t1	check	Note	Found 1 self-references
+test.t1	check	status	OK
+flush tables t1;
+check tables t1;
+Table	Op	Msg_type	Msg_text
+test.t1	check	Note	Found 1 self-references
+test.t1	check	status	OK
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `id` int(11) NOT NULL,
+  `id3` int(11) DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  KEY `id2` (`id3`),
+  CONSTRAINT `1` FOREIGN KEY (`id3`) REFERENCES `t1` (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+alter table t1 add foreign key (id3) references t1 (id);
+check tables t1;
+Table	Op	Msg_type	Msg_text
+test.t1	check	Note	Found 2 self-references
+test.t1	check	status	OK
+flush tables t1;
+check tables t1;
+Table	Op	Msg_type	Msg_text
+test.t1	check	Note	Found 2 self-references
+test.t1	check	status	OK
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `id` int(11) NOT NULL,
+  `id3` int(11) DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  KEY `id3` (`id3`),
+  CONSTRAINT `1` FOREIGN KEY (`id3`) REFERENCES `t1` (`id`),
+  CONSTRAINT `2` FOREIGN KEY (`id3`) REFERENCES `t1` (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+alter table t1 change id id4 int;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `id4` int(11) NOT NULL,
+  `id3` int(11) DEFAULT NULL,
+  PRIMARY KEY (`id4`),
+  KEY `id3` (`id3`),
+  CONSTRAINT `1` FOREIGN KEY (`id3`) REFERENCES `t1` (`id4`),
+  CONSTRAINT `2` FOREIGN KEY (`id3`) REFERENCES `t1` (`id4`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+check tables t1;
+Table	Op	Msg_type	Msg_text
+test.t1	check	Note	Found 2 self-references
+test.t1	check	status	OK
+flush tables t1;
+check tables t1;
+Table	Op	Msg_type	Msg_text
+test.t1	check	Note	Found 2 self-references
+test.t1	check	status	OK
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `id4` int(11) NOT NULL,
+  `id3` int(11) DEFAULT NULL,
+  PRIMARY KEY (`id4`),
+  KEY `id3` (`id3`),
+  CONSTRAINT `1` FOREIGN KEY (`id3`) REFERENCES `t1` (`id4`),
+  CONSTRAINT `2` FOREIGN KEY (`id3`) REFERENCES `t1` (`id4`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+alter table t1 drop foreign key `1`;
+check tables t1;
+Table	Op	Msg_type	Msg_text
+test.t1	check	Note	Found 1 self-references
+test.t1	check	status	OK
+flush tables t1;
+check tables t1;
+Table	Op	Msg_type	Msg_text
+test.t1	check	Note	Found 1 self-references
+test.t1	check	status	OK
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `id4` int(11) NOT NULL,
+  `id3` int(11) DEFAULT NULL,
+  PRIMARY KEY (`id4`),
+  KEY `id3` (`id3`),
+  CONSTRAINT `2` FOREIGN KEY (`id3`) REFERENCES `t1` (`id4`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+rename table t1 to t2;
+check tables t2;
+Table	Op	Msg_type	Msg_text
+test.t2	check	Note	Found 1 self-references
+test.t2	check	status	OK
+flush tables t2;
+check tables t2;
+Table	Op	Msg_type	Msg_text
+test.t2	check	Note	Found 1 self-references
+test.t2	check	status	OK
+show create table t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `id4` int(11) NOT NULL,
+  `id3` int(11) DEFAULT NULL,
+  PRIMARY KEY (`id4`),
+  KEY `id3` (`id3`),
+  CONSTRAINT `2` FOREIGN KEY (`id3`) REFERENCES `t2` (`id4`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+delete from t2;
+ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails (`test`.`t2`, CONSTRAINT `2` FOREIGN KEY (`id3`) REFERENCES `t2` (`id4`))
+drop table t2;
+set default_storage_engine= default;
+# Prohibit wrong references and fix field name case
+create table t1 (A int unique key, x timestamp references t1(a)) engine innodb;
+ERROR 42000: Incorrect foreign key definition for 'x': foreign-referenced fields type mismatch
+create table t1 (A int unique key, x int references t1(b));
+ERROR HY000: Missing index for constraint 't1.1' in the referenced table 't1'
+create table t1 (A int unique key, x int references t1(a));
+alter table t1 add foreign key(x) references t1(b);
+ERROR HY000: Missing index for constraint 't1.2' in the referenced table 't1'
+alter table t1 add foreign key(x) references t1(a);
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `A` int(11) DEFAULT NULL,
+  `x` int(11) DEFAULT NULL,
+  UNIQUE KEY `A` (`A`),
+  KEY `x` (`x`),
+  CONSTRAINT `1` FOREIGN KEY (`x`) REFERENCES `t1` (`A`),
+  CONSTRAINT `2` FOREIGN KEY (`x`) REFERENCES `t1` (`A`)
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+create table t2 (AA int, x int references t1(ax));
+ERROR 42000: Incorrect foreign key definition for 'ax': referenced field not found
+create table t2 (AA int, x timestamp references t1(a));
+ERROR 42000: Incorrect foreign key definition for 'x': foreign-referenced fields type mismatch
+create table t2 (AA int, x int references t1(a));
+alter table t2 add foreign key(aa) references t1(b);
+ERROR 42000: Incorrect foreign key definition for 'b': referenced field not found
+alter table t2 add foreign key(aa) references t1(a);
+show create table t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `AA` int(11) DEFAULT NULL,
+  `x` int(11) DEFAULT NULL,
+  KEY `x` (`x`),
+  KEY `AA` (`AA`),
+  CONSTRAINT `1` FOREIGN KEY (`x`) REFERENCES `t1` (`A`),
+  CONSTRAINT `2` FOREIGN KEY (`AA`) REFERENCES `t1` (`A`)
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+drop tables t2, t1;
+# Foreign keys and partitioning
+create table t1 (x int primary key) partition by hash(x) partitions 3;
+create table t2 (y int references t1(x));
+ERROR HY000: Partitioned tables do not support FOREIGN KEY
+create table t2 (y int);
+alter table t2 add foreign key (y) references t1 (x);
+ERROR HY000: Partitioned tables do not support FOREIGN KEY
+drop tables t2, t1;
+create table t1 (x int primary key);
+create table t2 (y int references t1(x)) partition by hash(x) partitions 3;
+ERROR HY000: Partitioned tables do not support FOREIGN KEY
+create table t2 (y int) partition by hash(y) partitions 3;
+alter table t2 add foreign key (y) references t1 (x);
+ERROR HY000: Partitioned tables do not support FOREIGN KEY
+create or replace table t2 (y int references t1(x));
+alter table t1 partition by hash(x) partitions 3;
+ERROR HY000: Partitioned tables do not support FOREIGN KEY
+alter table t2 partition by hash(y) partitions 3;
+ERROR HY000: Partitioned tables do not support FOREIGN KEY
+drop tables t2, t1;
+create table t1 (a varchar(255) unique) engine innodb;
+create or replace table t2 (
+a varchar(5) references t1(a)) engine innodb;
+create or replace  table t2 (
+a char(5) references t1(a)) engine innodb;
+# Different character set is not allowed
+create or replace table t2 (
+a char(5) character set utf8 references t1(a)) engine innodb;
+ERROR 42000: Incorrect foreign key definition for 'a': foreign-referenced fields type mismatch
+# Different collation is not allowed
+create or replace table t2 (
+a char(5) collate latin1_german2_ci references t1(a)) engine innodb;
+ERROR 42000: Incorrect foreign key definition for 'a': foreign-referenced fields type mismatch
+# Binary and non-binary are prihibited
+create or replace  table t2 (
+a varbinary(255) references t1(a)) engine innodb;
+ERROR 42000: Incorrect foreign key definition for 'a': foreign-referenced fields type mismatch
+drop tables if exists t2, t1;
+Warnings:
+Note	1051	Unknown table 'test.t2'
+# Foreign-referenced types compatibility
+# BLOB or TEXT are prefix indexes, they can not be used in FK
+create table t1 (a blob(255) unique) engine innodb;
+create or replace table t2 (
+a text(5) references t1(a)) engine innodb;
+ERROR 42000: Incorrect foreign key definition for 'a': foreign key by blob or geometry is not supported
+create or replace table t2 (
+a blob(255) references t1(a)) engine innodb;
+ERROR 42000: Incorrect foreign key definition for 'a': foreign key by blob or geometry is not supported
+create or replace table t2 (
+a binary(255) references t1(a)) engine innodb;
+ERROR 42000: Incorrect foreign key definition for 'a': referenced key by blob or geometry is not supported
+drop tables if exists t2, t1;
+Warnings:
+Note	1051	Unknown table 'test.t2'
+# GEOMETRY types are prohibited
+create table t1 (a point unique) engine innodb;
+create or replace table t2 (
+a point references t1(a)) engine innodb;
+ERROR 42000: Incorrect foreign key definition for 'a': foreign key by blob or geometry is not supported
+create or replace table t2 (
+a blob(255) references t1(a)) engine innodb;
+ERROR 42000: Incorrect foreign key definition for 'a': foreign key by blob or geometry is not supported
+create or replace table t2 (
+a binary(255) references t1(a)) engine innodb;
+ERROR 42000: Incorrect foreign key definition for 'a': referenced key by blob or geometry is not supported
+drop tables if exists t2, t1;
+Warnings:
+Note	1051	Unknown table 'test.t2'
+create table t1 (a int(10) unique) engine innodb;
+# Storage length is different (4 vs 1)
+create or replace table t2 (
+a tinyint references t1(a)) engine innodb;
+ERROR 42000: Incorrect foreign key definition for 'a': foreign-referenced fields type mismatch
+# DECIMAL is different type (DATA_FIXBINARY)
+create or replace table t2 (
+a decimal(10) references t1(a)) engine innodb;
+ERROR 42000: Incorrect foreign key definition for 'a': foreign-referenced fields type mismatch
+# Different signs are not allowed
+create or replace table t2 (
+a int unsigned references t1(a)) engine innodb;
+ERROR 42000: Incorrect foreign key definition for 'a': foreign-referenced fields type mismatch
+drop tables if exists t2, t1;
+Warnings:
+Note	1051	Unknown table 'test.t2'
+# DATE and YEAR are DATA_INT types
+create table t1 (a mediumint unique) engine innodb;
+create or replace table t2 (
+a date references t1(a)) engine innodb;
+drop tables if exists t2, t1;
+create table t1 (a tinyint unsigned unique) engine innodb;
+create or replace table t2 (
+a year references t1(a)) engine innodb;
+drop tables if exists t2, t1;
+# This is all compatible binary types in terms of InnoDB
+create table t1 (a binary(10) unique) engine innodb;
+create or replace table t2 (
+a varbinary(5) references t1(a)) engine innodb;
+create or replace table t2 (
+a decimal(7) references t1(a)) engine innodb;
+create or replace table t2 (
+a uuid references t1(a)) engine innodb;
+create or replace table t2 (
+a inet6 references t1(a)) engine innodb;
+create or replace table t2 (
+a timestamp references t1(a)) engine innodb;
+create or replace table t2 (
+a datetime references t1(a)) engine innodb;
+create or replace table t2 (
+a time references t1(a)) engine innodb;
+drop tables if exists t2, t1;
+# All the above for self-refs
+create table t1 (
+a varchar(254) unique,
+b varchar(6) references t1(a),
+c char(6) references t1(a)) engine innodb;
+# Different collation is not allowed
+create or replace table t1 (
+a varchar(254) unique,
+b char(6) collate latin1_german2_ci references t1(a)) engine innodb;
+ERROR 42000: Incorrect foreign key definition for 'b': foreign-referenced fields type mismatch
+# Binary and non-binary are prihibited
+create or replace table t1 (
+a varchar(254) unique,
+b varbinary(254) references t1(a)) engine innodb;
+ERROR 42000: Incorrect foreign key definition for 'b': foreign-referenced fields type mismatch
+# BLOB or TEXT are prefix indexes, they can not be used in FK
+create or replace table t1 (
+a blob(254) unique,
+b varbinary(6) references t1(a)) engine innodb;
+ERROR 42000: Incorrect foreign key definition for 'b': referenced key by blob or geometry is not supported
+# GEOMETRY types are prohibited
+create or replace table t1 (
+a point unique,
+b binary(6) references t1(a)) engine innodb;
+ERROR 42000: Incorrect foreign key definition for 'b': referenced key by blob or geometry is not supported
+# Storage length is different (4 vs 1)
+create or replace table t1 (
+a int unique,
+b tinyint references t1(a)) engine innodb;
+ERROR 42000: Incorrect foreign key definition for 'b': foreign-referenced fields type mismatch
+# DECIMAL is different type (DATA_FIXBINARY)
+create or replace table t1 (
+a int unique,
+b decimal(10) references t1(a)) engine innodb;
+ERROR 42000: Incorrect foreign key definition for 'b': foreign-referenced fields type mismatch
+# Different signs are not allowed
+create or replace table t1 (
+a int unique,
+b int unsigned references t1(a)) engine innodb;
+ERROR 42000: Incorrect foreign key definition for 'b': foreign-referenced fields type mismatch
+# DATE and YEAR are DATA_INT types
+create or replace table t1 (
+a mediumint unique,
+b date references t1(a)) engine innodb;
+create or replace table t1 (
+a tinyint unsigned unique,
+b year references t1(a)) engine innodb;
+drop table if exists t1;
+# This is all compatible binary types in terms of InnoDB
+create or replace table t1 (
+a binary(10) unique,
+b varbinary(5) references t1(a),
+c decimal(7) references t1(a),
+d uuid references t1(a),
+e inet6 references t1(a),
+f timestamp references t1(a),
+g datetime references t1(a),
+h time references t1(a)) engine innodb;
+drop tables if exists t2, t1;
+Warnings:
+Note	1051	Unknown table 'test.t2'

@@ -481,7 +481,9 @@ t1	CREATE TABLE `t1` (
   `y` int(11) DEFAULT NULL,
   KEY `x` (`x`),
   KEY `c` (`y`),
-  VECTOR KEY `v` (`v`)
+  VECTOR KEY `v` (`v`),
+  CONSTRAINT `1` FOREIGN KEY (`x`) REFERENCES `t1` (`x`),
+  CONSTRAINT `c` FOREIGN KEY (`y`) REFERENCES `t1` (`y`)
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 drop table t1;
 #

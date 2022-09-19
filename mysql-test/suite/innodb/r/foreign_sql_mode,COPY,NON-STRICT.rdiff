@@ -1,5 +1,5 @@
---- foreign_sql_mode.result
-+++ foreign_sql_mode,COPY,NON-STRICT.rdiff
+--- mysql-test/suite/innodb/r/foreign_sql_mode.result	2025-08-25 14:59:04.233928317 +0300
++++ mysql-test/suite/innodb/r/foreign_sql_mode,COPY,NON-STRICT.result	2025-08-25 14:59:20.269729338 +0300
 @@ -3,14 +3,14 @@
  CREATE TABLE t1(f1 INT, f2 INT, PRIMARY KEY(f1), KEY(f2))ENGINE=InnoDB;
  CREATE TABLE t2(f1 INT, FOREIGN KEY(f1) REFERENCES t1(f2) ON UPDATE CASCADE)ENGINE=InnoDB;
@@ -48,10 +48,3 @@
  DELETE FROM `t#2`;
  SELECT * FROM `t#1`;
  f1	f2
-@@ -60,6 +59,5 @@
- PRIMARY KEY(f1, f2),
- FOREIGN KEY(f2, f3) REFERENCES t1(f2, f1)
- ON UPDATE CASCADE)ENGINE=InnoDB;
--ERROR HY000: Can't create table `test`.`t2` (errno: 150 "Foreign key constraint is incorrectly formed")
- DROP TABLE IF EXISTS t2;
- DROP TABLE IF EXISTS t1;

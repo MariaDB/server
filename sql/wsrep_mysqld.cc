@@ -1824,16 +1824,11 @@ bool wsrep_append_fk_parent_table(THD *thd, TABLE_LIST *tables,
 
     if (table->table && !is_temporary_table(table))
     {
-      FOREIGN_KEY_INFO *f_key_info;
-      List<FOREIGN_KEY_INFO> f_key_list;
-
-      table->table->file->get_foreign_key_list(thd, &f_key_list);
-      List_iterator_fast<FOREIGN_KEY_INFO> it(f_key_list);
-      while ((f_key_info= it++))
+      for (FOREIGN_KEY_INFO &f_key_info: table->table->s->foreign_keys)
       {
-        WSREP_DEBUG("appended fkey %s", f_key_info->referenced_table->str);
+        WSREP_DEBUG("appended fkey %s", f_key_info.referenced_table.str);
         keys->push_back(wsrep_prepare_key_for_toi(
-            f_key_info->referenced_db->str, f_key_info->referenced_table->str,
+            f_key_info.ref_db().str, f_key_info.referenced_table.str,
             wsrep::key::shared));
       }
     }
@@ -2035,7 +2030,7 @@ static bool wsrep_prepare_keys_for_alter_add_fk(const char* child_table_db,
   List_iterator<Key> key_iterator(const_cast<Alter_info*>(alter_info)->key_list);
   while ((key= key_iterator++))
   {
-    if (key->type == Key::FOREIGN_KEY)
+    if (key->foreign)
     {
       Foreign_key *fk_key= (Foreign_key *)key;
       const char *db_name= fk_key->ref_db.str;
@@ -2201,7 +2196,7 @@ wsrep_prepare_keys_for_alter_add_fk(const char* child_table_db,
   List_iterator<Key> key_iterator(const_cast<Alter_info*>(alter_info)->key_list);
   while ((key= key_iterator++))
   {
-    if (key->type == Key::FOREIGN_KEY)
+    if (key->foreign)
     {
       Foreign_key *fk_key= (Foreign_key *)key;
       const char *db_name= fk_key->ref_db.str;
@@ -4154,8 +4149,8 @@ bool wsrep_foreign_key_append(THD *thd, FOREIGN_KEY_INFO *fk)
        (CF_UPDATES_DATA | CF_DELETES_DATA)))
   {
     wsrep::key key(wsrep::key::shared);
-    key.append_key_part(fk->foreign_db->str, fk->foreign_db->length);
-    key.append_key_part(fk->foreign_table->str, fk->foreign_table->length);
+    key.append_key_part(fk->foreign_db.str, fk->foreign_db.length);
+    key.append_key_part(fk->foreign_table.str, fk->foreign_table.length);
 
     if (thd->wsrep_cs().append_key(key))
     {
@@ -4163,16 +4158,16 @@ bool wsrep_foreign_key_append(THD *thd, FOREIGN_KEY_INFO *fk)
                   wsrep_thd_query(thd));
       sql_print_information("Failed Foreign key referenced table found: "
                             "%s.%s",
-                            fk->foreign_db->str,
-                            fk->foreign_table->str);
+                            fk->foreign_db.str,
+                            fk->foreign_table.str);
       return true;
     }
 
     DBUG_EXECUTE_IF(
       "wsrep_print_foreign_keys_table",
       sql_print_information("Foreign key referenced table found: %s.%s",
-                            fk->foreign_db->str,
-                            fk->foreign_table->str);
+                            fk->foreign_db.str,
+                            fk->foreign_table.str);
     );
   }
 

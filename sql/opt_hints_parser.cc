@@ -403,7 +403,7 @@ bool Parser::Table_level_hint::resolve(Parse_context *pc) const
     Opt_hints_qb *qb= find_qb_hints(pc, qb_name_sys, hint_type, hint_state);
     if (qb == NULL)
       return false;
-    if (at_query_block_name_opt_table_name_list.is_empty())
+    if (at_query_block_name_opt_table_name_list.base_list::is_empty())
     {
       // e.g. BKA(@qb1)
       if (qb->set_switch(hint_state, hint_type, false))
@@ -594,7 +594,7 @@ bool Parser::Index_level_hint::resolve(Parse_context *pc) const
     Otherwise this is a group of index-level hints:
     NO_INDEX(t1 idx1, idx2) NO_ICP(t2 idx_a, idx_b, idx_c)
   */
-  if (is_empty())
+  if (base_list::is_empty())
   {
     uint warn_code= 0;
     if (is_compound_hint(hint_type) &&
@@ -698,7 +698,7 @@ bool Parser::Index_level_hint::resolve(Parse_context *pc) const
 
 void Parser::Index_level_hint::append_args(THD *thd, String *str) const
 {
-  if (is_empty())  // Empty list of index names, no additional info
+  if (base_list::is_empty())  // Empty list of index names, no additional info
     return;
 
   bool first_index_name= true;

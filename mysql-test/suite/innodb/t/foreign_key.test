@@ -7,6 +7,7 @@ call mtr.add_suppression("Invalid \\(old\\?\\) table or database name '#mysql50#
 --enable_query_log
 
 SET GLOBAL innodb_stats_persistent = 0;
+let $innodb_lock_wait_timeout_save= `select @@innodb_lock_wait_timeout`;
 
 --echo #
 --echo # Bug #19027905 ASSERT RET.SECOND DICT_CREATE_FOREIGN_CONSTRAINTS_LOW
@@ -14,7 +15,7 @@ SET GLOBAL innodb_stats_persistent = 0;
 --echo #
 
 create table t1 (f1 int primary key) engine=InnoDB;
---error ER_CANT_CREATE_TABLE
+--error ER_DUP_CONSTRAINT_NAME
 create table t2 (f1 int primary key,
 constraint c1 foreign key (f1) references t1(f1),
 constraint c1 foreign key (f1) references t1(f1)) engine=InnoDB;
@@ -239,10 +240,10 @@ DROP TABLE t3,t1;
 CREATE TABLE t1 (a INT, UNIQUE(a), KEY(a)) ENGINE=InnoDB;
 ALTER TABLE t1 ADD FOREIGN KEY (a) REFERENCES t1 (a);
 SET SESSION FOREIGN_KEY_CHECKS = OFF;
---error ER_FK_COLUMN_CANNOT_CHANGE_CHILD
+--error ER_FK_COLUMN_CANNOT_CHANGE
 ALTER TABLE t1 CHANGE COLUMN a a TIME NOT NULL;
 ALTER TABLE t1 ADD pk INT NOT NULL AUTO_INCREMENT PRIMARY KEY;
---error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
+--error ER_FK_COLUMN_CANNOT_DROP
 ALTER TABLE t1 CHANGE COLUMN a b TIME;
 SHOW CREATE TABLE t1;
 ALTER TABLE t1 CHANGE COLUMN a b TIME, DROP FOREIGN KEY `1`;
@@ -262,18 +263,18 @@ DROP TABLE t2, t1;
 CREATE TABLE t1 (f VARCHAR(256)) ENGINE=InnoDB;
 SET SESSION FOREIGN_KEY_CHECKS = OFF;
 ALTER TABLE t1 ADD FOREIGN KEY (f) REFERENCES non_existing_table (x);
-SET SESSION FOREIGN_KEY_CHECKS = ON;
 ALTER TABLE t1 ADD FULLTEXT INDEX ft1 (f);
 ALTER TABLE t1 ADD FULLTEXT INDEX ft2 (f);
+SET SESSION FOREIGN_KEY_CHECKS = ON;
 DROP TABLE t1;
 
 CREATE TABLE t1 (f VARCHAR(256), FTS_DOC_ID BIGINT UNSIGNED PRIMARY KEY)
 ENGINE=InnoDB;
 SET SESSION FOREIGN_KEY_CHECKS = OFF;
 ALTER TABLE t1 ADD FOREIGN KEY (f) REFERENCES non_existing_table (x);
-SET SESSION FOREIGN_KEY_CHECKS = ON;
 ALTER TABLE t1 ADD FULLTEXT INDEX ft1 (f);
 ALTER TABLE t1 ADD FULLTEXT INDEX ft2 (f);
+SET SESSION FOREIGN_KEY_CHECKS = ON;
 DROP TABLE t1;
 
 --echo #
@@ -281,7 +282,7 @@ DROP TABLE t1;
 --echo # in ib_push_warning / dict_create_foreign_constraints_low
 --echo #
 CREATE TABLE t1 (a INT) ENGINE=InnoDB;
---error ER_CANT_CREATE_TABLE
+--error ER_NO_SUCH_TABLE
 ALTER IGNORE TABLE t1 ADD FOREIGN KEY (a) REFERENCES t2 (b);
 SHOW WARNINGS;
 DROP TABLE t1;
@@ -589,7 +590,8 @@ UPDATE t2 SET f = 11 WHERE id = 1;
 SET innodb_lock_wait_timeout= 0;
 --error ER_LOCK_WAIT_TIMEOUT
 DELETE FROM t1 WHERE id = 1;
-SET innodb_lock_wait_timeout= 1;
+select @innodb_lock_wait_timeout_save;
+eval SET innodb_lock_wait_timeout= $innodb_lock_wait_timeout_save;
 
 --connection con1
 COMMIT;
@@ -851,13 +853,13 @@ while ($i < $constr_count)
 }
 --disable_query_log
 --echo Parsing foreign keys 1...
---error ER_CANT_CREATE_TABLE
+--error ER_NO_SUCH_TABLE
 eval create table t0($fk_field int, $constrs) engine innodb;
 --echo Parsing foreign keys 2...
---error ER_CANT_CREATE_TABLE
+--error ER_FK_NO_INDEX_PARENT
 eval create table t1($fk_field int, $constrs) engine innodb;
 --echo Parsing foreign keys 3...
---error ER_CANT_CREATE_TABLE
+--error ER_FK_NO_INDEX_PARENT
 eval create table t1($fk_ref int, $fk_field int, $constrs) engine innodb;
 --echo Parsing foreign keys 4...
 eval create table t1($fk_ref int primary key, $fk_field int, $constrs) engine innodb;
@@ -920,7 +922,7 @@ DROP TABLE t;
 
 # MDEV-21792 Server aborts upon attempt to create foreign key on spatial field
 # Fail to create foreign key for spatial fields
---error ER_CANT_CREATE_TABLE
+--error ER_NO_SUCH_TABLE
 CREATE TABLE t1 (a GEOMETRY, INDEX(a(8)),
 		 FOREIGN KEY (a) REFERENCES x (xx)) ENGINE=InnoDB;
 
@@ -954,7 +956,7 @@ CREATE TABLE t2 (
 
 ALTER TABLE t1 MODIFY id INT unsigned AUTO_INCREMENT;
 
-DROP TABLE t1,t2;
+DROP TABLE t2, t1;
 
 --echo #
 --echo # MDEV-31441 BLOB corruption on UPDATE of PRIMARY KEY with FOREIGN KEY
@@ -1001,7 +1003,7 @@ show create table t3;
 drop tables t3, t2, t1;
 
 create table t1 (id int primary key);
---error ER_CANT_CREATE_TABLE
+--error ER_WRONG_FK_DEF
 create table t2 (id2 int references t1);
 create table t2 (id int references t1);
 show create table t2;
@@ -1014,7 +1016,7 @@ set default_storage_engine= default;
 --echo #
 SET FOREIGN_KEY_CHECKS=1;
 CREATE TABLE t1 (a TEXT, b TEXT) ENGINE=InnoDB;
---error ER_CANT_CREATE_TABLE
+--error ER_FK_NO_INDEX_PARENT
 ALTER TABLE t1 ADD FOREIGN KEY (a) REFERENCES t1 (b);
 SET FOREIGN_KEY_CHECKS=DEFAULT;
 
@@ -1054,10 +1056,10 @@ create table t1(a int primary key, b int) engine=innodb;
 --error ER_WRONG_FK_DEF
 alter table t2 add foreign key(a) references t1(a, b);
 create or replace table t1(a tinyint primary key) engine innodb;
---error ER_CANT_CREATE_TABLE
+--error ER_WRONG_FK_DEF
 alter table t2 add foreign key(a) references t1;
 create or replace table t1(b int primary key) engine innodb;
---error ER_CANT_CREATE_TABLE
+--error ER_WRONG_FK_DEF
 alter table t2 add foreign key(a) references t1;
 create or replace table t1(a int primary key, b int) engine innodb;
 alter table t2 add foreign key(a) references t1;
@@ -1090,21 +1092,24 @@ CREATE TABLE parent(a INT PRIMARY KEY) ENGINE=InnoDB;
 CREATE TABLE child(a INT PRIMARY KEY REFERENCES parent(a)) ENGINE=InnoDB;
 connect (con1, localhost, root,,);
 BEGIN;
+# TODO: on error it should release test/child (MDL_SHARED_WRITE) right away.
+# Now it waits until end of transaction.
 --error ER_NO_REFERENCED_ROW_2
 INSERT INTO child SET a=1;
 connection default;
+SET innodb_lock_wait_timeout= 1;
 --error ER_TRUNCATE_ILLEGAL_FK
 TRUNCATE TABLE parent;
 --error ER_ROW_IS_REFERENCED_2
 DROP TABLE parent;
-SET innodb_lock_wait_timeout=0;
+SET lock_wait_timeout=0;
 --error ER_LOCK_WAIT_TIMEOUT
 RENAME TABLE parent TO transparent;
 --error ER_LOCK_WAIT_TIMEOUT
 ALTER TABLE parent FORCE, ALGORITHM=COPY;
 --error ER_LOCK_WAIT_TIMEOUT
 ALTER TABLE parent FORCE, ALGORITHM=INPLACE;
-SET innodb_lock_wait_timeout=0, foreign_key_checks=0;
+SET foreign_key_checks=0;
 --error ER_LOCK_WAIT_TIMEOUT
 TRUNCATE TABLE parent;
 --error ER_LOCK_WAIT_TIMEOUT
@@ -1119,7 +1124,7 @@ connection con1;
 COMMIT;
 connection default;
 # Restore the timeout to avoid occasional races with purge.
-SET innodb_lock_wait_timeout=DEFAULT;
+eval SET innodb_lock_wait_timeout= $innodb_lock_wait_timeout_save;
 TRUNCATE TABLE parent;
 ALTER TABLE parent FORCE, ALGORITHM=COPY;
 ALTER TABLE parent FORCE, ALGORITHM=INPLACE;
@@ -1220,7 +1225,7 @@ USE test;
 --echo # MDEV-35962 CREATE INDEX fails to heal a FOREIGN KEY constraint
 --echo #
 
---error ER_CANT_CREATE_TABLE
+--error ER_NO_SUCH_TABLE
 CREATE TABLE t2 (b INT, FOREIGN KEY (b) REFERENCES t1(a)) ENGINE=InnoDB;
 SET STATEMENT foreign_key_checks=0 FOR
 CREATE TABLE t2 (b INT, FOREIGN KEY (b) REFERENCES t1(a)) ENGINE=InnoDB;
@@ -1233,7 +1238,7 @@ INSERT INTO t1 VALUES (1);
 INSERT INTO t2 VALUES (1);
 ALTER TABLE t1 ADD KEY(a), ALGORITHM=NOCOPY;
 INSERT INTO t2 VALUES (1);
---error ER_DROP_INDEX_FK
+--error ER_FK_NO_INDEX_CHILD
 DROP INDEX b ON t2;
 SET STATEMENT foreign_key_checks=0 FOR
 DROP INDEX b ON t2;

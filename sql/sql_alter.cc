@@ -27,6 +27,8 @@
 
 Alter_info::Alter_info(const Alter_info &rhs, MEM_ROOT *mem_root)
   :drop_list(rhs.drop_list, mem_root),
+  tmp_drop_list(rhs.tmp_drop_list, mem_root),
+  tmp_old_fkeys(rhs.tmp_old_fkeys),
   alter_list(rhs.alter_list, mem_root),
   key_list(rhs.key_list, mem_root),
   alter_rename_key_list(rhs.alter_rename_key_list, mem_root),
@@ -52,6 +54,7 @@ Alter_info::Alter_info(const Alter_info &rhs, MEM_ROOT *mem_root)
     constants never change.
   */
   list_copy_and_replace_each_value(drop_list, mem_root);
+  list_copy_and_replace_each_value(tmp_drop_list, mem_root);
   list_copy_and_replace_each_value(alter_list, mem_root);
   list_copy_and_replace_each_value(key_list, mem_root);
   list_copy_and_replace_each_value(alter_rename_key_list, mem_root);
@@ -293,7 +296,7 @@ uint Alter_info::check_vcol_field(Item_field *item) const
   }
   for (Key &k: key_list)
   {
-    if (k.type != Key::FOREIGN_KEY)
+    if (!k.foreign)
       continue;
     Foreign_key *fk= (Foreign_key*) &k;
     if (fk->update_opt < FK_OPTION_CASCADE &&
@@ -401,7 +404,7 @@ Alter_table_ctx::Alter_table_ctx(THD *thd, TABLE_LIST *table_list,
                                  const LEX_CSTRING *new_db_arg,
                                  const LEX_CSTRING *new_name_arg)
   : tables_opened(tables_opened_arg),
-    new_db(*new_db_arg), new_name(*new_name_arg)
+    new_db(Lex_ident_db(*new_db_arg)), new_name(Lex_ident_table(*new_name_arg))
 {
   /*
     Assign members db, table_name, new_db and new_name

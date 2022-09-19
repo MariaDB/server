@@ -360,8 +360,8 @@ select name from json_table(@fn, '$[*]' columns(name text path '$')) as jt;
 set @ddls=(select JSON_DETAILED(JSON_EXTRACT(@trace, '$**.ddl')));
 select ddl from json_table(@ddls, '$[*]' columns(ddl text path '$')) as jt;
 
-drop table t1;
 drop table t2;
+drop table t1;
 
 --echo #
 --echo # MDEV-37207: test multi delete of 2 tables

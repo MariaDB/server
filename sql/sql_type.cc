@@ -3427,15 +3427,6 @@ bool Type_handler::Key_part_spec_init_multiple(Key_part_spec *part,
 }
 
 
-bool Type_handler::Key_part_spec_init_foreign(Key_part_spec *part,
-                                              const Column_definition &def,
-                                              const handler *file) const
-{
-  part->length*= def.charset->mbmaxlen;
-  return false;
-}
-
-
 bool Type_handler::Key_part_spec_init_spatial(Key_part_spec *part,
                                               const Column_definition &def)
                                               const
@@ -3471,15 +3462,6 @@ bool Type_handler_blob_common::Key_part_spec_init_multiple(Key_part_spec *part,
 {
   part->length*= def.charset->mbmaxlen;
   return part->init_multiple_key_for_blob(file);
-}
-
-
-bool Type_handler_blob_common::Key_part_spec_init_foreign(Key_part_spec *part,
-                                               const Column_definition &def,
-                                               const handler *file) const
-{
-  part->length*= def.charset->mbmaxlen;
-  return part->check_foreign_key_for_blob(file);
 }
 
 

@@ -31,6 +31,7 @@
 #include "sql_table.h"                   // build_table_filename
 #include "sql_parse.h"                          // check_stack_overrun
 #include "sql_base.h"           // TDC_element
+#include "sql_rename.h"
 #include "discover.h"           // extension_based_table_discovery, etc
 #include "log_event.h"          // *_rows_log_event
 #include "create_options.h"
@@ -5830,11 +5831,13 @@ handler::check_if_supported_inplace_alter(TABLE *altered_table,
 
 Alter_inplace_info::Alter_inplace_info(HA_CREATE_INFO *create_info_arg,
                      Alter_info *alter_info_arg,
+                     Alter_table_ctx *alter_ctx_arg,
                      KEY *key_info_arg, uint key_count_arg,
                      partition_info *modified_part_info_arg,
                      bool ignore_arg, bool error_non_empty)
     : create_info(create_info_arg),
     alter_info(alter_info_arg),
+    alter_ctx(alter_ctx_arg),
     key_info_buffer(key_info_arg),
     key_count(key_count_arg),
     rename_keys(current_thd->mem_root),
@@ -6457,12 +6460,14 @@ static int ha_create_table_from_share(THD *thd, TABLE_SHARE *share,
 */
 int ha_create_table(THD *thd, const char *path, const char *db,
                     const char *table_name, HA_CREATE_INFO *create_info,
-                    LEX_CUSTRING *frm, bool skip_frm_file)
+                    LEX_CUSTRING *frm, bool skip_frm_file,
+                    bool fk_update_refs)
 {
   int error= 1;
   uint ref_length;
   TABLE_SHARE share;
   Abort_on_warning_instant_set old_abort_on_warning(thd, 0);
+  FK_create_vector fk_shares;
   bool is_tmp __attribute__((unused)) =
     create_info->options & (HA_LEX_CREATE_TMP_TABLE | HA_CREATE_TMP_ALTER);
   DBUG_ENTER("ha_create_table");
@@ -6489,6 +6494,9 @@ int ha_create_table(THD *thd, const char *path, const char *db,
     if (open_table_def(thd, &share))
       goto err;
   }
+
+  if (fk_update_refs && share.fk_handle_create(thd, fk_shares))
+    goto err;
 
   share.m_psi= PSI_CALL_get_table_share(is_tmp, &share);
   if ((error= ha_create_table_from_share(thd, &share, create_info, &ref_length)))
@@ -6550,9 +6558,29 @@ int ha_create_table(THD *thd, const char *path, const char *db,
     free_table_share(&index_share);
   }
 
-err:
+  if (error)
+    goto err;
+
+  if (fk_update_refs)
+  {
+    for (FK_ddl_backup &bak: fk_shares)
+    {
+      bak.sa.share->fk_install_shadow_frm(thd);
+      /* TODO: (MDEV-21053) Now there is no right for error.
+        Actually it should drop table if install shadow fails. */
+      thd->clear_error();
+    }
+  }
+
   free_table_share(&share);
-  DBUG_RETURN(error != 0);
+  DBUG_RETURN(0);
+
+err:
+  if (fk_update_refs)
+    for (FK_ddl_backup &bak: fk_shares)
+      bak.rollback(thd);
+  free_table_share(&share);
+  DBUG_RETURN(1);
 }
 
 void st_ha_check_opt::init()

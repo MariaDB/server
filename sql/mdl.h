@@ -881,6 +881,9 @@ public:
   bool upgrade_shared_lock(MDL_ticket *mdl_ticket,
                            enum_mdl_type new_type,
                            double lock_wait_timeout);
+  bool upgrade_shared_locks(MDL_request_list *mdl_requests,
+                            enum_mdl_type new_type,
+                            double lock_wait_timeout);
 
   bool clone_ticket(MDL_request *mdl_request);
 

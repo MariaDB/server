@@ -164,14 +164,16 @@ bool Key_part_spec::init_multiple_key_for_blob(const handler *file)
 */
 
 Key::Key(const Key &rhs, MEM_ROOT *mem_root)
-  :DDL_options(rhs),type(rhs.type),
+  :DDL_options(rhs), type(rhs.type), foreign(rhs.foreign),
   key_create_info(rhs.key_create_info),
   columns(rhs.columns, mem_root),
   name(rhs.name),
   option_list(rhs.option_list),
-  generated(rhs.generated), invisible(false),
+  generated(rhs.generated), invisible(rhs.invisible),
   without_overlaps(rhs.without_overlaps), old(rhs.old), length(rhs.length),
-  period(rhs.period)
+  period(rhs.period),
+  ignore(rhs.ignore), ignore_reason(rhs.ignore_reason),
+  ignore_reason2(rhs.ignore_reason2)
 {
   list_copy_and_replace_each_value(columns, mem_root);
 }
@@ -194,6 +196,22 @@ Foreign_key::Foreign_key(const Foreign_key &rhs, MEM_ROOT *mem_root)
   match_opt(rhs.match_opt)
 {
   list_copy_and_replace_each_value(ref_columns, mem_root);
+}
+
+void Foreign_key::init(const Lex_ident_names _ref_db, const Lex_ident_names _ref_table,
+                       const LEX* lex)
+{
+  DBUG_ASSERT(lex);
+  ref_db= _ref_db;
+  ref_table= _ref_table;
+  ref_columns= lex->ref_list;
+  if (ref_columns.is_empty())
+  {
+    ref_columns= columns;
+  }
+  delete_opt= lex->fk_delete_opt;
+  update_opt= lex->fk_update_opt;
+  match_opt= lex->fk_match_option;
 }
 
 /*
@@ -302,7 +320,7 @@ bool Foreign_key::validate(List<Create_field> &table_fields)
       my_error(ER_KEY_COLUMN_DOES_NOT_EXIST, MYF(0), column->field_name.str);
       DBUG_RETURN(TRUE);
     }
-    if (type == Key::FOREIGN_KEY && sql_field->vcol_info)
+    if (sql_field->vcol_info)
     {
       if (delete_opt == FK_OPTION_SET_NULL)
       {

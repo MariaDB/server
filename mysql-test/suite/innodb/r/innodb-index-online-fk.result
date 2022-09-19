@@ -36,13 +36,13 @@ SET foreign_key_checks = 0;
 ALTER TABLE child ADD CONSTRAINT fk_20 FOREIGN KEY (a1, a2)
 REFERENCES parent(a, b) ON DELETE CASCADE ON UPDATE CASCADE,
 ALGORITHM = INPLACE;
-ERROR HY000: Failed to add the foreign key constraint. Missing index for constraint 'fk_20' in the referenced table 'parent'
+ERROR HY000: Missing index for constraint 'child.fk_20' in the referenced table 'parent'
 SHOW WARNINGS;
 Level	Code	Message
-Error	1822	Failed to add the foreign key constraint. Missing index for constraint 'fk_20' in the referenced table 'parent'
+Error	1822	Missing index for constraint 'child.fk_20' in the referenced table 'parent'
 SHOW ERRORS;
 Level	Code	Message
-Error	1822	Failed to add the foreign key constraint. Missing index for constraint 'fk_20' in the referenced table 'parent'
+Error	1822	Missing index for constraint 'child.fk_20' in the referenced table 'parent'
 CREATE INDEX idx1 on parent(a, b);
 ALTER TABLE child ADD CONSTRAINT fk_10 FOREIGN KEY (a1, a2)
 REFERENCES parent(a, b) ON DELETE CASCADE ON UPDATE CASCADE,
@@ -141,11 +141,11 @@ SET DEBUG_DBUG = '+d,innodb_test_no_foreign_idx';
 ALTER TABLE `#child` ADD CONSTRAINT fk_40 FOREIGN KEY (a1, a2)
 REFERENCES `#parent`(a, b) ON DELETE CASCADE ON UPDATE CASCADE,
 ALGORITHM = INPLACE;
-ERROR HY000: Failed to add the foreign key constraint. Missing index for constraint 'fk_40' in the foreign table '#child'
+ERROR HY000: Missing index for constraint 'fk_40' in the foreign table '#child'
 SET DEBUG_DBUG = @saved_debug_dbug;
 SHOW ERRORS;
 Level	Code	Message
-Error	1821	Failed to add the foreign key constraint. Missing index for constraint 'fk_40' in the foreign table '#child'
+Error	1821	Missing index for constraint 'fk_40' in the foreign table '#child'
 SELECT * FROM information_schema.INNODB_SYS_FOREIGN;
 ID	FOR_NAME	REF_NAME	N_COLS	TYPE
 fk_1	test/child	test/parent	1	6
@@ -168,11 +168,11 @@ SET DEBUG_DBUG = '+d,innodb_test_no_reference_idx';
 ALTER TABLE child ADD CONSTRAINT fk_42 FOREIGN KEY (a1, a2)
 REFERENCES parent(a, b) ON DELETE CASCADE ON UPDATE CASCADE,
 ALGORITHM = INPLACE;
-ERROR HY000: Failed to add the foreign key constraint. Missing index for constraint 'fk_42' in the referenced table 'parent'
+ERROR HY000: Missing index for constraint 'child.fk_42' in the referenced table 'parent'
 SET DEBUG_DBUG = @saved_debug_dbug;
 SHOW ERRORS;
 Level	Code	Message
-Error	1822	Failed to add the foreign key constraint. Missing index for constraint 'fk_42' in the referenced table 'parent'
+Error	1822	Missing index for constraint 'child.fk_42' in the referenced table 'parent'
 SET DEBUG_DBUG = '+d,innodb_test_wrong_fk_option';
 ALTER TABLE child ADD CONSTRAINT fk_42 FOREIGN KEY (a1, a2)
 REFERENCES parent(a, b) ON DELETE CASCADE ON UPDATE CASCADE,
@@ -470,7 +470,7 @@ ADD CONSTRAINT fk_new_1 FOREIGN KEY (a1_new) REFERENCES parent(b),
 ADD CONSTRAINT fk_new_2 FOREIGN KEY (a2_new) REFERENCES parent(a),
 ADD CONSTRAINT fk_new_3 FOREIGN KEY (a3) REFERENCES parent(c),
 ALGORITHM = INPLACE;
-ERROR HY000: Failed to add the foreign key constraint. Missing index for constraint 'fk_new_3' in the referenced table 'parent'
+ERROR HY000: Missing index for constraint 'child.fk_new_3' in the referenced table 'parent'
 SHOW CREATE TABLE child;
 Table	Create Table
 child	CREATE TABLE `child` (
@@ -532,7 +532,7 @@ ADD CONSTRAINT fk_new_1 FOREIGN KEY (a1) REFERENCES parent(b),
 ADD CONSTRAINT fk_new_2 FOREIGN KEY (a2) REFERENCES parent(a),
 ADD CONSTRAINT fk_new_3 FOREIGN KEY (a3) REFERENCES parent(c),
 ALGORITHM = INPLACE;
-ERROR HY000: Failed to add the foreign key constraint. Missing index for constraint 'fk_new_3' in the referenced table 'parent'
+ERROR HY000: Missing index for constraint 'child.fk_new_3' in the referenced table 'parent'
 SHOW CREATE TABLE child;
 Table	Create Table
 child	CREATE TABLE `child` (

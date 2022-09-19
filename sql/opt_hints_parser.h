@@ -662,7 +662,7 @@ public:
       Otherwise this is an index-level hints:
       NO_INDEX(t1 idx1, idx2) NO_ICP(t2 idx_a, idx_b, idx_c)
     */
-    bool is_table_level_hint() const { return is_empty(); }
+    bool is_table_level_hint() const { return base_list::is_empty(); }
 
     bool resolve(Parse_context *pc) const;
     void append_args(THD *thd, String *str) const override;

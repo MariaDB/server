@@ -53,8 +53,9 @@ eval DROP TABLE `$d255`.`$d250`;
 eval RENAME TABLE `$d255`.`$d245` TO `$d255`.`$d250`;
 --replace_result $d250 d250 $d255 d255
 eval RENAME TABLE `$d255`.`$d250` TO a;
---replace_result $d255 d255
-DROP TABLE a,t;
+DROP TABLE a;
+flush tables;
+drop table t;
 
 --echo #
 --echo # MDEV-29409 Buffer overflow in my_wc_mb_filename() on RENAME TABLE

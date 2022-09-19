@@ -581,7 +581,10 @@ drop table t;
 --echo #
 --echo # MDEV-20729 Fix REFERENCES constraint in column definition
 --echo #
-create table t1(id int);
+--replace_result $sys_datatype_expl SYS_DATATYPE
+eval create or replace table t1(
+  id $sys_datatype_expl
+);
 --echo # system fields can't be foreign keys:
 --replace_result $sys_datatype_expl SYS_DATATYPE
 --error ER_PARSE_ERROR,ER_PARSE_ERROR
@@ -600,7 +603,7 @@ eval create or replace table t2(
   period for system_time(sys_start, sys_end)
 ) engine innodb with system versioning;
 --replace_result $sys_datatype_expl SYS_DATATYPE
---error ER_CANT_CREATE_TABLE
+--error ER_FK_NO_INDEX_PARENT
 eval create or replace table t2(
   x int,
   sys_start $sys_datatype_expl as row start,
@@ -609,7 +612,7 @@ eval create or replace table t2(
   foreign key (sys_start) references t1(id)
 ) engine innodb with system versioning;
 --replace_result $sys_datatype_expl SYS_DATATYPE
---error ER_CANT_CREATE_TABLE
+--error ER_FK_NO_INDEX_PARENT
 eval create or replace table t2(
   x int,
   sys_start $sys_datatype_expl as row start,

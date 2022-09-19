@@ -518,7 +518,7 @@ SET DEBUG_SYNC = 'RESET';
 disconnect con1;
 CREATE TABLE t2 (c VARCHAR(64)) ENGINE=InnoDB;
 ALTER TABLE t2 ADD FOREIGN KEY (c) REFERENCES t1 (c);
-ERROR HY000: Can't create table `test`.`t2` (errno: 150 "Foreign key constraint is incorrectly formed")
+ERROR HY000: Missing index for constraint 't2.1' in the referenced table 't1'
 DROP TABLE t2,t1;
 CREATE TABLE t1 (a INT PRIMARY KEY, b INT) ENGINE=InnoDB;
 INSERT INTO t1 VALUES(0,0);

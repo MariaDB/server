@@ -171,12 +171,12 @@ master-bin.000001	#	Query	#	#	use `test`; DROP TABLE IF EXISTS /* */ `t1` /* gen
 create table t1 (a int, key(a)) engine=InnoDB;
 create table t2 (b int, foreign key(b) references t1(a)) engine=InnoDB;
 drop table if exists t1;
-ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails
+ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails (1)
 drop table if exists t1,t0;
-ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails
+ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails (1)
 show warnings;
 Level	Code	Message
-Error	1451	Cannot delete or update a parent row: a foreign key constraint fails
+Error	1451	Cannot delete or update a parent row: a foreign key constraint fails (1)
 Note	1051	Unknown table 'test.t0'
 drop table t2,t1;
 create table t3 (a int) engine=aria;

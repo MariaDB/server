@@ -1559,28 +1559,22 @@ child	CREATE TABLE `child` (
   SPATIAL KEY `idx2` (`p`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 ALTER TABLE child ADD FOREIGN KEY(p) REFERENCES parent(p);
-ERROR HY000: Can't create table `test`.`child` (errno: 150 "Foreign key constraint is incorrectly formed")
+ERROR 42000: Incorrect foreign key definition for 'p': foreign key by blob or geometry is not supported
 show warnings;
 Level	Code	Message
-Warning	150	Alter  table `test`.`child` with foreign key (p) constraint failed. There is only prefix index in the referenced table where the referenced columns appear as the first columns.
-Error	1005	Can't create table `test`.`child` (errno: 150 "Foreign key constraint is incorrectly formed")
-Warning	1215	Cannot add foreign key constraint for `child`
+Error	1239	Incorrect foreign key definition for 'p': foreign key by blob or geometry is not supported
 ALTER TABLE parent DROP INDEX idx1;
 ALTER TABLE child ADD FOREIGN KEY(p) REFERENCES parent(p);
-Got one of the listed errors
+ERROR 42000: Incorrect foreign key definition for 'p': foreign key by blob or geometry is not supported
 show warnings;
 Level	Code	Message
-Warning	150	Alter  table `test`.`child` with foreign key (p) constraint failed. There is only prefix index in the referenced table where the referenced columns appear as the first columns.
-Error	1005	Can't create table `test`.`child` (errno: 150 "Foreign key constraint is incorrectly formed")
-Warning	1215	Cannot add foreign key constraint for `child`
+Error	1239	Incorrect foreign key definition for 'p': foreign key by blob or geometry is not supported
 ALTER TABLE child DROP INDEX idx2;
 ALTER TABLE child ADD FOREIGN KEY(p) REFERENCES parent(p);
-Got one of the listed errors
+ERROR 42000: Incorrect foreign key definition for 'p': foreign key by blob or geometry is not supported
 show warnings;
 Level	Code	Message
-Warning	150	Alter  table `test`.`child` with foreign key (p) constraint failed. There is only prefix index in the referenced table where the referenced columns appear as the first columns.
-Error	1005	Can't create table `test`.`child` (errno: 150 "Foreign key constraint is incorrectly formed")
-Warning	1215	Cannot add foreign key constraint for `child`
+Error	1239	Incorrect foreign key definition for 'p': foreign key by blob or geometry is not supported
 DROP TABLE child, parent;
 #
 # Bug#28763: Selecting geometry fields in UNION caused server crash.

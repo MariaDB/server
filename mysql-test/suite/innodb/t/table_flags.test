@@ -239,7 +239,7 @@ DROP TABLE tr,tc,td,tz,tp;
 --rmdir $undodir
 
 call mtr.add_suppression("ERROR HY000: Can't create table `test`.`t1`");
---error ER_CANT_CREATE_TABLE
+--error ER_FK_NO_INDEX_PARENT
 CREATE TABLE t1(f1 INT, f2 VARCHAR(1), KEY k1(f2),
 		FULLTEXT KEY(f2),
 		FOREIGN KEY (f2) REFERENCES t1(f3))ENGINE=InnoDB;

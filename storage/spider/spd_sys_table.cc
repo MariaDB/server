@@ -2998,7 +2998,7 @@ int spider_sys_replace(
 
     if (
       last_uniq_key &&
-      !table->file->referenced_by_foreign_key()
+      !table->s->referenced_by_foreign_key()
     ) {
       if ((error_num = spider_update_sys_table_row(table)))
         goto error;

@@ -21,6 +21,9 @@
 #include "m_string.h"                           // LEX_CUSTRING
 #include "lex_charset.h"
 #include "lex_ident.h"
+#include "mdl.h"                                // MDL_request_list
+#include "handler.h"
+#include "table.h"
 
 #define ERROR_INJECT(code) \
   ((DBUG_IF("crash_" code) && (DBUG_SUICIDE(), 0)) || \
@@ -30,6 +33,7 @@ class Alter_info;
 class Alter_table_ctx;
 class Column_definition;
 class Create_field;
+class FK_rename_vector;
 struct TABLE_LIST;
 class THD;
 struct TABLE;
@@ -58,6 +62,7 @@ enum enum_explain_filename_mode
 #define EXPLAIN_FILENAME_MAX_EXTRA_LENGTH 63
 
 /* See mysql_write_frm function comment for explanations of these flags */
+/* Shadow FRM is new FRM file that replaces the old one */
 #define WFRM_WRITE_SHADOW 1
 #define WFRM_INSTALL_SHADOW 2
 #define WFRM_KEEP_SHARE 4
@@ -82,6 +87,8 @@ static constexpr uint SKIP_SYMDIR_ACCESS= 1 << 5;
 /** Don't check foreign key constraints while renaming table */
 static constexpr uint NO_FK_CHECKS=    1 << 6;
 
+constexpr LEX_CSTRING FK_INFIX= { C_STRING_WITH_LEN("_ibfk_") };
+
 uint filename_to_tablename(const char *from, char *to, size_t to_length,
                            bool stay_quiet = false);
 uint tablename_to_filename(const char *from, char *to, size_t to_length);
@@ -89,6 +96,9 @@ uint check_n_cut_mysql50_prefix(const char *from, char *to, size_t to_length);
 bool check_mysql50_prefix(const char *name);
 uint build_table_filename(char *buff, size_t bufflen, const char *db,
                           const char *table, const char *ext, uint flags);
+uint build_table_shadow_filename(THD *thd, char *buff, size_t bufflen,
+                                 const char *db, const char *table_name,
+                                 bool backup= false);
 uint build_table_shadow_filename(char *buff, size_t bufflen,
                                  ALTER_PARTITION_PARAM_TYPE *lpt,
                                  bool backup= false);
@@ -144,13 +154,16 @@ int mysql_create_table_no_lock(THD *thd,
                                int create_table_mode, TABLE_LIST *table);
 
 handler *mysql_create_frm_image(THD *thd, HA_CREATE_INFO *create_info,
-                                Alter_info *alter_info, int create_table_mode,
+                                Alter_info *alter_info,
+				Alter_table_ctx *alter_ctx,
+				int create_table_mode,
                                 KEY **key_info, uint *key_count,
                                 LEX_CUSTRING *frm);
 
 int mysql_discard_or_import_tablespace(THD *thd, TABLE_LIST *table_list,
                                        bool discard);
 
+class Share_acquire_vec;
 bool mysql_prepare_alter_table(THD *thd, TABLE *table,
                                Table_specification_st *create_info,
                                Alter_info *alter_info,
@@ -191,8 +204,8 @@ int mysql_rm_table_no_locks(THD *thd, TABLE_LIST *tables,
                             DDL_LOG_STATE *ddl_log_state,
                             bool if_exists,
                             bool drop_temporary, bool drop_view,
-                            bool drop_sequence,
-                            bool dont_log_query, bool dont_free_locks);
+                            bool drop_sequence, bool drop_db,
+                            bool dont_log_query /* MERGE: recheck calls */, bool dont_free_locks);
 bool log_drop_table(THD *thd, const LEX_CSTRING *db_name,
                     const LEX_CSTRING *table_name, const LEX_CSTRING *handler,
                     bool partitioned, const LEX_CUSTRING *id,
@@ -212,6 +225,10 @@ int write_bin_log(THD *thd, bool clear_error,
 int write_bin_log_with_if_exists(THD *thd, bool clear_error,
                                  bool is_trans, bool add_if_exists,
                                  bool commit_alter= false);
+
+bool fk_handle_rename(THD *thd, TABLE_LIST *old_table, const Lex_ident_db *new_db,
+                      const Lex_ident_table *new_table_name,
+                      FK_rename_vector &fk_rename_backup);
 
 void promote_first_timestamp_column(List<Create_field> *column_definitions);
 

@@ -166,7 +166,9 @@
 LEX_CUSTRING build_frm_image(THD *thd, const LEX_CSTRING &table,
                              HA_CREATE_INFO *create_info,
                              List<Create_field> &create_fields,
-                             uint keys, KEY *key_info, handler *db_file);
+                             uint keys, KEY *key_info, FK_list &foreign_keys,
+                             FK_list &referenced_keys,
+                             handler *db_file);
 
 static inline bool is_binary_frm_header(const uchar *head)
 {
@@ -175,5 +177,112 @@ static inline bool is_binary_frm_header(const uchar *head)
       && head[2] >= FRM_VER
       && head[2] <= FRM_VER_CURRENT;
 }
+
+
+class Key;
+class Foreign_key;
+class Foreign_key_io: public BinaryStringBuffer<512>
+{
+  TABLE_SHARE *share;
+  KEY *key_info;
+
+public:
+  static const ulonglong fk_io_version= 0;
+
+  struct Pos
+  {
+    uchar *pos;
+    const uchar *end;
+    Pos(LEX_CUSTRING& image)
+    {
+      pos= const_cast<uchar *>(image.str);
+      end= pos + image.length;
+    }
+  };
+
+  /* read */
+private:
+  static bool read_length(size_t &out, Pos &p)
+  {
+    ulonglong num= safe_net_field_length_ll(&p.pos, p.end - p.pos);
+    if (!p.pos || num > UINT_MAX32)
+      return true;
+    out= (uint32_t) num;
+    return false;
+  }
+  static bool read_ll(longlong &out, Pos &p)
+  {
+    longlong num= (longlong) safe_net_field_length_ll(&p.pos, p.end - p.pos);
+    if (!p.pos || num > INT_MAX32 || num < INT_MIN32)
+      return true;
+    out= (int32_t) num;
+    return false;
+  }
+  static bool read_string(Lex_cstring &to, MEM_ROOT *mem_root, Pos &p)
+  {
+    if (read_length(to.length, p) || p.pos + to.length > p.end)
+      return true; // Not enough data
+    if (!to.length)
+      return false;
+    to.str= strmake_root(mem_root, (char *) p.pos, to.length);
+    if (!to.str)
+    {
+      my_error(ER_OUT_OF_RESOURCES, MYF(0));
+      return true;
+    }
+    p.pos+= to.length;
+    DBUG_ASSERT(p.pos <= p.end);
+    return false;
+  }
+  static void read_uuid(uchar *to, Pos &p)
+  {
+    memcpy(to, p.pos, MY_UUID_SIZE);
+    p.pos+= MY_UUID_SIZE;
+    DBUG_ASSERT(p.pos <= p.end);
+  }
+public:
+  Foreign_key_io(TABLE_SHARE *share) :
+    share{share}, key_info{share->key_info} {}
+  bool parse(THD *thd, LEX_CUSTRING &image);
+
+  /* write */
+private:
+  static uchar *store_length(uchar *pos, ulonglong length)
+  {
+    return net_store_length(pos, length);
+  }
+  static uchar *store_ll(uchar *pos, longlong data)
+  {
+    return net_store_length(pos, (ulonglong) data);
+  }
+  static uchar *store_string(uchar *pos, const LEX_CSTRING &str, bool nullable= false)
+  {
+    DBUG_ASSERT(nullable || str.length);
+    pos= store_length(pos, str.length);
+    if (str.length)
+      memcpy(pos, str.str, str.length);
+    return pos + str.length;
+  }
+  static uchar *store_uuid(uchar *pos, uchar *uuid)
+  {
+    memcpy(pos, uuid, MY_UUID_SIZE);
+    return pos + MY_UUID_SIZE;
+  }
+  static ulonglong string_size(Lex_cstring str)
+  {
+    return net_length_size(str.length) + str.length;
+  }
+  static ulonglong ll_size(longlong num)
+  {
+    return net_length_size((ulonglong) num);
+  }
+public:
+  Foreign_key_io(KEY *key_info) :
+    share{NULL}, key_info{key_info} {}
+  ulonglong fk_size(FK_info &fk);
+  ulonglong hint_size(FK_info &rk);
+  void store_fk(FK_info &fk, uchar *&pos);
+  bool store(THD *thd, FK_list &foreign_keys, FK_list &referenced_keys);
+};
 
 #endif

@@ -1163,7 +1163,7 @@ show create table t2;
 create index id2 on t2 (id);
 show create table t2;
 drop index id2 on t2;
---error ER_DROP_INDEX_FK
+--error ER_FK_NO_INDEX_CHILD
 drop index id on t2;
 show create table t2;
 drop table t2;
@@ -1636,7 +1636,6 @@ drop table t1;
 set foreign_key_checks=0;
 create table t2 (a varchar(10), foreign key (a) references t1(a)) engine = innodb;
 create table t1(a varchar(10) primary key) engine = innodb;
---error ER_FK_COLUMN_CANNOT_CHANGE_CHILD
 alter table t1 modify column a int;
 set foreign_key_checks=1;
 drop table t2,t1;
@@ -1646,7 +1645,6 @@ drop table t2,t1;
 set foreign_key_checks=0;
 create table t2 (a varchar(10), foreign key (a) references t1(a)) engine = innodb DEFAULT CHARSET=latin1;
 create table t1(a varchar(10) primary key) engine = innodb DEFAULT CHARSET=latin1;
---error ER_FK_COLUMN_CANNOT_CHANGE_CHILD
 alter table t1 convert to character set utf8;
 set foreign_key_checks=1;
 drop table t2,t1;

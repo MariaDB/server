@@ -134,6 +134,8 @@ public:
 };
 
 extern MYSQL_PLUGIN_IMPORT CHARSET_INFO *table_alias_charset;
+typedef Lex_ident<Compare_table_names> Lex_ident_names;
+
 
 /*
   Identifiers for the database objects stored on disk,
@@ -142,7 +144,7 @@ extern MYSQL_PLUGIN_IMPORT CHARSET_INFO *table_alias_charset;
   - the datadir filesystem case sensitivity, and
   - the value of --lower-case-table-names
 */
-class Lex_ident_fs: public Lex_ident<Compare_table_names>
+class Lex_ident_fs: public Lex_ident_names
 {
 protected:
   static bool check_body(const char *name, size_t length,
@@ -666,6 +668,49 @@ public:
   LEX_CSTRING make_qname_casedn_part1(MEM_ROOT *mem_root) const
   {
     return make_sep_name_opt_casedn_part1(mem_root, '.', true);
+  }
+};
+
+
+static inline int cmp_ident(const Lex_ident_column a, const Lex_ident_column b)
+{
+  /*
+    NB: no my_strncasecmp() and therefore the below assertions must pass.
+  */
+  DBUG_ASSERT(strlen(a.str) == a.length);
+  DBUG_ASSERT(strlen(b.str) == b.length);
+  int ret= cmp_any(a.length, b.length);
+  if (ret)
+    return ret;
+  return my_strcasecmp_8bit(a.charset_info(), a.str, b.str);
+}
+
+static inline int cmp_table(const LEX_CSTRING a, const LEX_CSTRING b)
+{
+  /*
+    NB: no my_strncasecmp() and therefore the below assertions must pass.
+  */
+  DBUG_ASSERT(strlen(a.str) == a.length);
+  DBUG_ASSERT(strlen(b.str) == b.length);
+  int ret= cmp_any(a.length, b.length);
+  if (ret)
+    return ret;
+  return my_strcasecmp_8bit(table_alias_charset, a.str, b.str);
+}
+
+struct Lex_ident_lt
+{
+  bool operator() (const Lex_ident_column &lhs, const Lex_ident_column &rhs) const
+  {
+    return cmp_ident(lhs, rhs) < 0;
+  }
+};
+
+struct UUID_lt
+{
+  bool operator() (const uchar *lhs, const uchar *rhs) const
+  {
+    return memcmp(lhs, rhs, MY_UUID_SIZE) < 0;
   }
 };
 

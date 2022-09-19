@@ -243,7 +243,7 @@ lock_tables_check(THD *thd, TABLE **tables, uint count, uint flags)
     locking a mix of system and non-system tables in the same lock
     is prohibited, to prevent contention.
   */
-  if ((system_count > 0) && (system_count < count))
+  if (!opt_bootstrap && (system_count > 0) && (system_count < count))
   {
     my_error(ER_WRONG_LOCK_OF_SYSTEM_TABLE, MYF(0));
     DBUG_RETURN(1);

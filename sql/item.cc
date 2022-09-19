@@ -40,6 +40,7 @@
 #include "sql_expression_cache.h"
 #include "sql_lex.h"                   // empty_clex_str
 #include "my_json_writer.h"            // for dbug_print_opt_trace()
+#include "table.h"
 
 const String my_null_string("NULL", 4, default_charset_info);
 const String my_default_string("DEFAULT", 7, default_charset_info);
@@ -11632,7 +11633,7 @@ table_map Item_ref_null_helper::used_tables() const
 #ifndef DBUG_OFF
 
 /* Debugger help function */
-static char dbug_item_print_buf[2048];
+static char dbug_item_print_buf[4096];
 
 const char *dbug_print_item(Item *item)
 {
@@ -11723,9 +11724,26 @@ const char *dbug_print_unit(SELECT_LEX_UNIT *un)
     return "Couldn't fit into buffer";
 }
 
+const char *dbug_print_fk(FK_info *fk)
+{
+  char *buf= dbug_item_print_buf;
+  String str(buf, sizeof(dbug_item_print_buf), &my_charset_bin);
+  str.length(0);
+  if (!fk)
+    return "(FK_info *) NULL";
+
+  fk->print(str);
+
+  if (str.c_ptr() == buf)
+    return buf;
+  else
+    return "Couldn't fit into buffer";
+}
+
 const char *dbug_print(Item *x)            { return dbug_print_item(x);   }
 const char *dbug_print(SELECT_LEX *x)      { return dbug_print_select(x); }
 const char *dbug_print(SELECT_LEX_UNIT *x) { return dbug_print_unit(x);   }
+const char *dbug_print(FK_info *x)         { return dbug_print_fk(x); }
 
 #endif /*DBUG_OFF*/
 

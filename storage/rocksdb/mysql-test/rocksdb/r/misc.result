@@ -51,7 +51,9 @@ help_category	name	NULL	NULL
 help_keyword	help_keyword_id	NULL	NULL
 help_keyword	name	NULL	NULL
 help_relation	help_keyword_id	NULL	NULL
+help_relation	help_keyword_id	help_keyword	help_keyword_id
 help_relation	help_topic_id	NULL	NULL
+help_relation	help_topic_id	help_topic	help_topic_id
 help_topic	help_topic_id	NULL	NULL
 help_topic	name	NULL	NULL
 index_stats	db_name	NULL	NULL

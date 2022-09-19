@@ -347,14 +347,6 @@ bool Type_handler_geometry::Key_part_spec_init_multiple(Key_part_spec *part,
 }
 
 
-bool Type_handler_geometry::Key_part_spec_init_foreign(Key_part_spec *part,
-                                               const Column_definition &def,
-                                               const handler *file) const
-{
-  return part->check_foreign_key_for_blob(file);
-}
-
-
 bool Type_handler_geometry::Key_part_spec_init_spatial(Key_part_spec *part,
                                                   const Column_definition &def)
                                                   const
@@ -413,15 +405,6 @@ bool Type_handler_point::Key_part_spec_init_unique(Key_part_spec *part,
 
 
 bool Type_handler_point::Key_part_spec_init_multiple(Key_part_spec *part,
-                                              const Column_definition &def,
-                                              const handler *file) const
-{
-  part->length= octet_length();
-  return part->check_key_for_blob(file);
-}
-
-
-bool Type_handler_point::Key_part_spec_init_foreign(Key_part_spec *part,
                                               const Column_definition &def,
                                               const handler *file) const
 {

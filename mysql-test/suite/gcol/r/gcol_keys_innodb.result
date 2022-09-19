@@ -150,10 +150,10 @@ ERROR HY000: Cannot define foreign key with ON DELETE SET NULL clause on a gener
 drop table t1;
 create table t1 (a int, b int generated always as (a+1) virtual,
 foreign key (b) references t2(a));
-ERROR HY000: Can't create table `test`.`t1` (errno: 150 "Foreign key constraint is incorrectly formed")
+ERROR 42S02: Table 'test.t2' doesn't exist
 create table t1 (a int, b int generated always as (a+1) virtual);
 alter table t1 add foreign key (b) references t2(a);
-ERROR HY000: Can't create table `test`.`t1` (errno: 150 "Foreign key constraint is incorrectly formed")
+ERROR 42S02: Table 'test.t2' doesn't exist
 drop table t1;
 # Allowed FK options.
 create table t2 (a int primary key, b char(5));

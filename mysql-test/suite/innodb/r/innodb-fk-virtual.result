@@ -25,7 +25,7 @@ b	CREATE TABLE `b` (
   `p_cola` int(10) DEFAULT NULL,
   `c_cola` int(10) GENERATED ALWAYS AS (`cola` + 2) VIRTUAL,
   KEY `p_cola_fk` (`p_cola`),
-  CONSTRAINT `p_cola_fk` FOREIGN KEY (`p_cola`) REFERENCES `a` (`p_cola`)
+  CONSTRAINT `p_cola_fk` FOREIGN KEY (`p_cola`) REFERENCES `a` (`p_cola`) ON DELETE RESTRICT ON UPDATE RESTRICT
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 alter table b add constraint `v_cola_fk`
 foreign key (v_cola) references a (v_cola)
@@ -42,8 +42,8 @@ b	CREATE TABLE `b` (
   `c_cola` int(10) GENERATED ALWAYS AS (`cola` + 2) VIRTUAL,
   KEY `p_cola_fk` (`p_cola`),
   KEY `v_cola_fk` (`v_cola`),
-  CONSTRAINT `p_cola_fk` FOREIGN KEY (`p_cola`) REFERENCES `a` (`p_cola`),
-  CONSTRAINT `v_cola_fk` FOREIGN KEY (`v_cola`) REFERENCES `a` (`v_cola`)
+  CONSTRAINT `p_cola_fk` FOREIGN KEY (`p_cola`) REFERENCES `a` (`p_cola`) ON DELETE RESTRICT ON UPDATE RESTRICT,
+  CONSTRAINT `v_cola_fk` FOREIGN KEY (`v_cola`) REFERENCES `a` (`v_cola`) ON DELETE RESTRICT ON UPDATE RESTRICT
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 alter table b add constraint `c_cola_fk`
 foreign key (c_cola) references a (cola)
@@ -61,9 +61,9 @@ b	CREATE TABLE `b` (
   KEY `p_cola_fk` (`p_cola`),
   KEY `v_cola_fk` (`v_cola`),
   KEY `c_cola_fk` (`c_cola`),
-  CONSTRAINT `c_cola_fk` FOREIGN KEY (`c_cola`) REFERENCES `a` (`cola`),
-  CONSTRAINT `p_cola_fk` FOREIGN KEY (`p_cola`) REFERENCES `a` (`p_cola`),
-  CONSTRAINT `v_cola_fk` FOREIGN KEY (`v_cola`) REFERENCES `a` (`v_cola`)
+  CONSTRAINT `p_cola_fk` FOREIGN KEY (`p_cola`) REFERENCES `a` (`p_cola`) ON DELETE RESTRICT ON UPDATE RESTRICT,
+  CONSTRAINT `v_cola_fk` FOREIGN KEY (`v_cola`) REFERENCES `a` (`v_cola`) ON DELETE RESTRICT ON UPDATE RESTRICT,
+  CONSTRAINT `c_cola_fk` FOREIGN KEY (`c_cola`) REFERENCES `a` (`cola`) ON DELETE RESTRICT ON UPDATE RESTRICT
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into a(cola) values (12);
 select * from a;

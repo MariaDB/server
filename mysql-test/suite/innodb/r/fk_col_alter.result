@@ -10,7 +10,7 @@ CREATE TABLE t2(
 id SERIAL,
 msg varchar(100) CHARACTER SET utf8mb4,
 CONSTRAINT fk_t1 FOREIGN KEY (msg) REFERENCES t1 (msg))ENGINE=InnoDB;
-ERROR HY000: Can't create table `test`.`t2` (errno: 150 "Foreign key constraint is incorrectly formed")
+ERROR 42000: Incorrect foreign key definition for 'msg': foreign-referenced fields type mismatch
 CREATE TABLE t2(
 id SERIAL,
 msg varchar(100) CHARACTER SET utf8mb3,
@@ -41,16 +41,16 @@ ALTER TABLE t2 MODIFY COLUMN msg VARCHAR(100) CHARACTER SET utf8mb4,ALGORITHM=IN
 ERROR HY000: Cannot change column 'msg': used in a foreign key constraint 'fk_t1'
 SET FOREIGN_KEY_CHECKS=1;
 ALTER TABLE t2 ADD CONSTRAINT FOREIGN KEY(msg_1) REFERENCES t1(msg),MODIFY COLUMN msg_1 VARCHAR(100) CHARACTER SET utf8mb4, ALGORITHM=COPY;
-ERROR HY000: Can't create table `test`.`t2` (errno: 150 "Foreign key constraint is incorrectly formed")
+ERROR 42000: Incorrect foreign key definition for 'msg_1': foreign-referenced fields type mismatch
 ALTER TABLE t2 ADD CONSTRAINT FOREIGN KEY(msg_1) REFERENCES t1(msg),MODIFY COLUMN msg_1 VARCHAR(100) CHARACTER SET utf8mb4, ALGORITHM=INPLACE;
-ERROR 0A000: ALGORITHM=INPLACE is not supported. Reason: Adding foreign keys needs foreign_key_checks=OFF. Try ALGORITHM=COPY
+ERROR 42000: Incorrect foreign key definition for 'msg_1': foreign-referenced fields type mismatch
 SET FOREIGN_KEY_CHECKS=0;
 ALTER TABLE t2 ADD CONSTRAINT FOREIGN KEY(msg_1) REFERENCES t1(msg),MODIFY COLUMN msg_1 VARCHAR(100) CHARACTER SET utf8mb4, ALGORITHM=COPY;
 ERROR HY000: Can't create table `test`.`t2` (errno: 150 "Foreign key constraint is incorrectly formed")
 ALTER TABLE t2 ADD CONSTRAINT FOREIGN KEY(msg_1) REFERENCES t1(msg),MODIFY COLUMN msg_1 VARCHAR(100) CHARACTER SET utf8mb4, ALGORITHM=INPLACE;
-ERROR HY000: Cannot change column 'msg_1': used in a foreign key constraint '0'
+ERROR HY000: Cannot change column 'msg_1': used in a foreign key constraint '1'
 ALTER TABLE t2 ADD CONSTRAINT FOREIGN KEY(msg_1) REFERENCES t1(msg),MODIFY COLUMN msg_1 VARCHAR(200) CHARACTER SET utf8mb3, ALGORITHM=INPLACE;
-ERROR HY000: Cannot change column 'msg_1': used in a foreign key constraint '0'
+ERROR HY000: Cannot change column 'msg_1': used in a foreign key constraint '1'
 SET FOREIGN_KEY_CHECKS=1;
 ALTER TABLE t1 MODIFY msg VARCHAR(200) CHARSET utf8mb3, ALGORITHM=COPY;
 ERROR HY000: Cannot change column 'msg': used in a foreign key constraint 'fk_t1' of table 'test.t2'

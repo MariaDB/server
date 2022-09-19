@@ -6136,8 +6136,8 @@ column_def:
           { $$= $1; }
         | field_spec opt_constraint references
           {
-            if (unlikely(Lex->add_column_foreign_key(&($1->field_name), &$2,
-                                                     $3, DDL_options())))
+            if (unlikely(Lex->add_column_foreign_key($1->field_name, $2,
+                                                     *$3, DDL_options())))
               MYSQL_YYABORT;
             $$= $1;
           }
@@ -6194,19 +6194,17 @@ key_def:
           '(' key_list opt_without_overlaps ')' normal_key_options { }
         | opt_constraint FOREIGN KEY_SYM opt_if_not_exists opt_ident
           {
-            if (unlikely(Lex->check_add_key($4)) ||
-                unlikely(!(Lex->last_key= (new (thd->mem_root)
-                                           Key(Key::MULTIPLE,
-                                           $1.str ? &$1 : &$5,
-                                           HA_KEY_ALG_UNDEF, true, $4)))))
+            if (unlikely(Lex->check_add_key($4)))
               MYSQL_YYABORT;
+            if (unlikely(Lex->add_table_foreign_key($5.str ? $5 : $1,
+                                                    $1.str ? $1 : $5, $4)))
+               MYSQL_YYABORT;
             Lex->option_list= NULL;
           }
           '(' key_list ')' references
           {
-            if (unlikely(Lex->add_table_foreign_key($5.str ? &$5 : &$1,
-                                                    $1.str ? &$1 : &$5, $10, $4)))
-               MYSQL_YYABORT;
+            Foreign_key &fk= static_cast<Foreign_key &>(*Lex->last_key);
+            fk.init($10->db, $10->table, Lex);
           }
 	;
 
