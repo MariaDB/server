@@ -2364,7 +2364,8 @@ xb_read_delta_metadata(const char *filepath, xb_delta_info_t *info)
 		msg("page_size is required in %s", filepath);
 		r = FALSE;
 	} else {
-		info->page_size = zip_size ? zip_size : page_size;
+		info->page_size = page_size;
+		info->zip_size = zip_size;
 	}
 
 	if (info->space_id == ULINT_UNDEFINED) {

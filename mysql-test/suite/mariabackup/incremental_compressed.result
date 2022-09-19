@@ -1,0 +1,18 @@
+#
+# MDEV-18589 Assertion ...physical_size(flags) == info.page_size
+#            failed in xb_delta_open_matching_space
+#
+CREATE TABLE t (pk INT PRIMARY KEY) ENGINE=InnoDB ROW_FORMAT=COMPRESSED;
+ALTER TABLE t PARTITION BY KEY(pk);
+# shutdown server
+# remove datadir
+# xtrabackup move back
+# restart
+SHOW CREATE TABLE t;
+Table	Create Table
+t	CREATE TABLE `t` (
+  `pk` int(11) NOT NULL,
+  PRIMARY KEY (`pk`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci ROW_FORMAT=COMPRESSED
+ PARTITION BY KEY (`pk`)
+DROP TABLE t;
