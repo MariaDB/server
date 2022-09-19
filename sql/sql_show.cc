@@ -6446,10 +6446,25 @@ static inline void copy_field_as_string(Field *to_field, Field *from_field)
   to_field->store(tmp_str.ptr(), tmp_str.length(), system_charset_info);
 }
 
+
+bool proc_name_doesnt_match_lookup(CHARSET_INFO *charset_info,
+                                   LOOKUP_FIELD_VALUES *lookup,
+                                   const LEX_CSTRING &name)
+{
+  if (lookup->table_value.str)
+  {
+    return (my_ci_strnncoll(charset_info,
+                            (const uchar *) lookup->table_value.str,
+                            lookup->table_value.length,
+                            (const uchar *) name.str, name.length, 0)) != 0;
+  }
+  return false;
+}
+
 /**
   @brief Determine whether mysql.proc table scanning should continue or finish
 
-  @param[in]      proc_table            'mysql.proc' table
+  @param[in]      name_field_charset    mysql.proc.name field charset info
   @param[in]      lookup                values from the WHERE clause which are
                                         used for the index lookup
   @param[in]      db                    mysql.proc.db field value of
@@ -6461,7 +6476,7 @@ static inline void copy_field_as_string(Field *to_field, Field *from_field)
     @retval       true                  scanning must continue
     @retval       false                 scanning must finish
 */
-bool continue_proc_table_scanning(TABLE *proc_table,
+bool continue_proc_table_scanning(CHARSET_INFO *name_field_charset,
                                   LOOKUP_FIELD_VALUES *lookup,
                                   const LEX_CSTRING &db,
                                   const LEX_CSTRING &name)
@@ -6470,14 +6485,8 @@ bool continue_proc_table_scanning(TABLE *proc_table,
   {
     if (cmp(lookup->db_value, db))
       return false;
-    if (lookup->table_value.str)
-    {
-      auto cs= proc_table->field[MYSQL_PROC_FIELD_NAME]->charset();
-      if (my_ci_strnncoll(cs, (const uchar *) lookup->table_value.str,
-                          lookup->table_value.length, (const uchar *) name.str,
-                          name.length, 0))
-        return false;
-    }
+
+    return !proc_name_doesnt_match_lookup(name_field_charset, lookup, name);
   }
   return true;
 }
@@ -6524,8 +6533,14 @@ int store_schema_params(THD *thd, TABLE *table, TABLE *proc_table,
   proc_table->field[MYSQL_PROC_FIELD_DB]->val_str_nopad(thd->mem_root, &db);
   proc_table->field[MYSQL_PROC_FIELD_NAME]->val_str_nopad(thd->mem_root, &name);
 
-  if (!continue_proc_table_scanning(proc_table, lookup, db, name))
+  if (!continue_proc_table_scanning(
+          proc_table->field[MYSQL_PROC_FIELD_NAME]->charset(), lookup, db,
+          name))
     DBUG_RETURN(HA_ERR_END_OF_FILE);
+
+  if (proc_name_doesnt_match_lookup(
+          proc_table->field[MYSQL_PROC_FIELD_NAME]->charset(), lookup, name))
+    DBUG_RETURN(0);
 
   proc_table->field[MYSQL_PROC_FIELD_DEFINER]->val_str_nopad(thd->mem_root, &definer);
   sql_mode= (sql_mode_t) proc_table->field[MYSQL_PROC_FIELD_SQL_MODE]->val_int();
@@ -6643,8 +6658,14 @@ int store_schema_proc(THD *thd, TABLE *table, TABLE *proc_table,
   proc_table->field[MYSQL_PROC_FIELD_DB]->val_str_nopad(thd->mem_root, &db);
   proc_table->field[MYSQL_PROC_FIELD_NAME]->val_str_nopad(thd->mem_root, &name);
 
-  if (!continue_proc_table_scanning(proc_table, lookup, db, name))
+  if (!continue_proc_table_scanning(
+          proc_table->field[MYSQL_PROC_FIELD_NAME]->charset(), lookup, db,
+          name))
     return HA_ERR_END_OF_FILE;
+
+  if (proc_name_doesnt_match_lookup(
+          proc_table->field[MYSQL_PROC_FIELD_NAME]->charset(), lookup, name))
+    return 0;
 
   proc_table->field[MYSQL_PROC_FIELD_DEFINER]->val_str_nopad(thd->mem_root, &definer);
   sph= Sp_handler::handler_mysql_proc((enum_sp_type)

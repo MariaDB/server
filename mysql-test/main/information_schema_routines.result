@@ -860,11 +860,11 @@ USE i_s_routines_test;
 CREATE FUNCTION test_func5 (s CHAR(20)) RETURNS VARCHAR(30)
 RETURN CONCAT('XYZ, ' ,s);
 #
-# We cannot use the index due to CONCAT()
+# We cannot use the index due to missing condition on SPECIFIC_SCHEMA,
+# but we will use ROUTINE_NAME for filtering records from mysql.proc
 FLUSH STATUS;
 SELECT * FROM INFORMATION_SCHEMA.ROUTINES
-WHERE CONCAT(ROUTINE_SCHEMA) = 'i_s_routines_test'
-  AND ROUTINE_NAME = 'test_func5';
+WHERE ROUTINE_NAME = 'test_func5';
 SPECIFIC_NAME	test_func5
 ROUTINE_CATALOG	def
 ROUTINE_SCHEMA	i_s_routines_test
@@ -899,7 +899,19 @@ DATABASE_COLLATION	latin1_swedish_ci
 SHOW STATUS LIKE 'handler_read%next';
 Variable_name	Value
 Handler_read_next	54
-Handler_read_rnd_next	55
+Handler_read_rnd_next	2
+#
+# We cannot use the index due to CONCAT(), and filtering by ROUTINE_NAME
+# does not work either since ROUTINE_NAME = 'not_existing_proc'. See
+# the difference in counters in comparison to the previous test
+FLUSH STATUS;
+SELECT * FROM INFORMATION_SCHEMA.ROUTINES
+WHERE CONCAT(ROUTINE_SCHEMA) = 'i_s_routines_test'
+  AND ROUTINE_NAME = 'not_existing_proc';
+SHOW STATUS LIKE 'handler_read%next';
+Variable_name	Value
+Handler_read_next	54
+Handler_read_rnd_next	1
 #
 # Now the index must be used
 FLUSH STATUS;
