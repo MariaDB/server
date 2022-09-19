@@ -3242,4 +3242,619 @@ o_orderkey	o_totalprice
 3139	40975.96
 4903	34363.63
 5607	24660.06
+CREATE TABLE partsupp_small (
+ps_partkey int(11) NOT NULL DEFAULT '0',
+ps_suppkey int(11) NOT NULL DEFAULT '0',
+ps_availqty int(11) DEFAULT NULL,
+ps_supplycost double DEFAULT NULL,
+ps_comment varchar(199) DEFAULT NULL,
+PRIMARY KEY (ps_partkey,ps_suppkey),
+KEY i_ps_partkey (ps_partkey),
+KEY i_ps_suppkey (ps_suppkey)
+);
+create index i_ps_sup_part on partsupp_small(ps_suppkey, ps_partkey);
+insert into partsupp_small select * from partsupp where ps_partkey <50;
+analyze table partsupp_small  persistent for all;
+Table	Op	Msg_type	Msg_text
+dbt3_s001.partsupp_small	analyze	status	Engine-independent statistics collected
+dbt3_s001.partsupp_small	analyze	status	OK
+# LooseScan
+# =========
+explain
+select count(*) from lineitem where l_suppkey in
+(select ps_suppkey from partsupp_small
+where ps_partkey in (1,2,3));
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	partsupp_small	index	PRIMARY,i_ps_partkey,i_ps_suppkey,i_ps_sup_part	i_ps_sup_part	8	NULL	176	Using where; Using index; LooseScan
+1	PRIMARY	lineitem	ref	i_l_suppkey	i_l_suppkey	5	dbt3_s001.partsupp_small.ps_suppkey	600	Using index
+explain format=json
+select count(*) from lineitem where l_suppkey in
+(select ps_suppkey from partsupp_small
+where ps_partkey in (1,2,3));
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": 0.776623555,
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "partsupp_small",
+          "access_type": "index",
+          "possible_keys": [
+            "PRIMARY",
+            "i_ps_partkey",
+            "i_ps_suppkey",
+            "i_ps_sup_part"
+          ],
+          "key": "i_ps_sup_part",
+          "key_length": "8",
+          "used_key_parts": ["ps_suppkey", "ps_partkey"],
+          "loops": 1,
+          "rows": 176,
+          "cost": 0.019403477,
+          "filtered": 5.113636494,
+          "attached_condition": "partsupp_small.ps_partkey in (1,2,3)",
+          "using_index": true,
+          "loose_scan": true
+        }
+      },
+      {
+        "table": {
+          "table_name": "lineitem",
+          "access_type": "ref",
+          "possible_keys": ["i_l_suppkey"],
+          "key": "i_l_suppkey",
+          "key_length": "5",
+          "used_key_parts": ["l_suppkey"],
+          "ref": ["dbt3_s001.partsupp_small.ps_suppkey"],
+          "loops": 9,
+          "rows": 600,
+          "cost": 0.757220078,
+          "filtered": 11.11111069,
+          "using_index": true
+        }
+      }
+    ]
+  }
+}
+select count(*) from lineitem where l_suppkey in
+(select ps_suppkey from partsupp_small
+where ps_partkey in (1,2,3));
+count(*)
+5373
+select  5373 as count, 136458704.22 as old_sum;
+count	old_sum
+5373	136458704.22
+explain
+update  lineitem set l_extendedprice=l_extendedprice+10 where l_suppkey in
+(select ps_suppkey from partsupp_small
+where ps_partkey in (1,2,3));
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	lineitem	ALL	i_l_suppkey	NULL	NULL	NULL	6005	
+1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	4	func	1	
+2	MATERIALIZED	partsupp_small	range	PRIMARY,i_ps_partkey,i_ps_suppkey,i_ps_sup_part	PRIMARY	4	NULL	9	Using where; Using index
+explain format=json
+update  lineitem set l_extendedprice=l_extendedprice+10 where l_suppkey in
+(select ps_suppkey from partsupp_small
+where ps_partkey in (1,2,3));
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": 2.191459679,
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "lineitem",
+          "access_type": "ALL",
+          "possible_keys": ["i_l_suppkey"],
+          "loops": 1,
+          "rows": 6005,
+          "cost": 0.988432825,
+          "filtered": 100
+        }
+      },
+      {
+        "table": {
+          "table_name": "<subquery2>",
+          "access_type": "eq_ref",
+          "possible_keys": ["distinct_key"],
+          "key": "distinct_key",
+          "key_length": "4",
+          "used_key_parts": ["ps_suppkey"],
+          "ref": ["func"],
+          "rows": 1,
+          "filtered": 100,
+          "materialized": {
+            "unique": 1,
+            "query_block": {
+              "select_id": 2,
+              "nested_loop": [
+                {
+                  "table": {
+                    "table_name": "partsupp_small",
+                    "access_type": "range",
+                    "possible_keys": [
+                      "PRIMARY",
+                      "i_ps_partkey",
+                      "i_ps_suppkey",
+                      "i_ps_sup_part"
+                    ],
+                    "key": "PRIMARY",
+                    "key_length": "4",
+                    "used_key_parts": ["ps_partkey"],
+                    "loops": 1,
+                    "rows": 9,
+                    "cost": 0.003756598,
+                    "filtered": 100,
+                    "attached_condition": "partsupp_small.ps_partkey in (1,2,3)",
+                    "using_index": true
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
+    ]
+  }
+}
+update  lineitem set l_extendedprice=l_extendedprice+10 where l_suppkey in
+(select ps_suppkey from partsupp_small
+where ps_partkey in (1,2,3));
+select ROUND(sum(l_extendedprice),2), 5373 as count,
+(136458704.22+10*5373) as 'old_sum+10*count'
+        from lineitem where l_suppkey in
+(select ps_suppkey from partsupp_small
+where ps_partkey in (1,2,3));
+ROUND(sum(l_extendedprice),2)	count	old_sum+10*count
+136512434.22	5373	136512434.22
+update  lineitem set l_extendedprice=l_extendedprice-10 where l_suppkey in
+(select ps_suppkey from partsupp_small
+where ps_partkey in (1,2,3));
+select  ROUND(sum(l_extendedprice),2), 5373 as count,
+136458704.22 as old_sum from lineitem where l_suppkey in
+(select ps_suppkey from partsupp_small
+where ps_partkey in (1,2,3));
+ROUND(sum(l_extendedprice),2)	count	old_sum
+136458704.22	5373	136458704.22
+# LooseScan PS
+# ============
+prepare stmt from "
+update  lineitem set l_extendedprice=l_extendedprice+? where l_suppkey in
+(select ps_suppkey from partsupp_small
+where ps_partkey in (1,2,3));
+";
+select  5373 as count, 136458704.22 as old_sum;
+count	old_sum
+5373	136458704.22
+set @a1=20;
+execute stmt using @a1;
+select ROUND(sum(l_extendedprice),2), 5373 as count,
+(136458704.22+20*5373) as 'old_sum+20*count'
+        from lineitem where l_suppkey in
+(select ps_suppkey from partsupp_small
+where ps_partkey in (1,2,3));
+ROUND(sum(l_extendedprice),2)	count	old_sum+20*count
+136566164.22	5373	136566164.22
+set @a2=10;
+execute stmt using @a2;
+select ROUND(sum(l_extendedprice),2), 5373 as count,
+(136458704.22+30*5373) as 'old_sum+30*count'
+        from lineitem where l_suppkey in
+(select ps_suppkey from partsupp_small
+where ps_partkey in (1,2,3));
+ROUND(sum(l_extendedprice),2)	count	old_sum+30*count
+136619894.22	5373	136619894.22
+execute stmt using -(@a1+@a2);
+select  ROUND(sum(l_extendedprice),2), 5373 as count,
+136458704.22 as old_sum from lineitem where l_suppkey in
+(select ps_suppkey from partsupp_small
+where ps_partkey in (1,2,3));
+ROUND(sum(l_extendedprice),2)	count	old_sum
+136458704.22	5373	136458704.22
+deallocate prepare stmt;
+# LooseScan SP
+# ============
+create procedure p(d int)
+update  lineitem set l_extendedprice=l_extendedprice+d where l_suppkey in
+(select ps_suppkey from partsupp_small
+where ps_partkey in (1,2,3));
+select  5373 as count, 136458704.22 as old_sum;
+count	old_sum
+5373	136458704.22
+call p(10);
+select ROUND(sum(l_extendedprice),2), 5373 as count,
+(136458704.22+10*5373) as 'old_sum+10*count'
+        from lineitem where l_suppkey in
+(select ps_suppkey from partsupp_small
+where ps_partkey in (1,2,3));
+ROUND(sum(l_extendedprice),2)	count	old_sum+10*count
+136512434.22	5373	136512434.22
+call p(20);
+select ROUND(sum(l_extendedprice),2), 5373 as count,
+(136458704.22+30*5373) as 'old_sum+30*count'
+        from lineitem where l_suppkey in
+(select ps_suppkey from partsupp_small
+where ps_partkey in (1,2,3));
+ROUND(sum(l_extendedprice),2)	count	old_sum+30*count
+136619894.22	5373	136619894.22
+call p(-(10+20));
+select  ROUND(sum(l_extendedprice),2), 5373 as count,
+136458704.22 as old_sum from lineitem where l_suppkey in
+(select ps_suppkey from partsupp_small
+where ps_partkey in (1,2,3));
+ROUND(sum(l_extendedprice),2)	count	old_sum
+136458704.22	5373	136458704.22
+drop procedure p;
+# DuplicateWeedout
+# ================
+set @tmp_optimizer_switch= @@optimizer_switch;
+set optimizer_switch='materialization=off';
+analyze table lineitem;
+Table	Op	Msg_type	Msg_text
+dbt3_s001.lineitem	analyze	status	Engine-independent statistics collected
+dbt3_s001.lineitem	analyze	status	OK
+analyze table orders;
+Table	Op	Msg_type	Msg_text
+dbt3_s001.orders	analyze	status	Engine-independent statistics collected
+dbt3_s001.orders	analyze	status	OK
+explain
+select count(*) from lineitem where l_partkey in (
+select ps_partkey
+from partsupp_small join lineitem on ps_partkey=l_partkey
+where ps_suppkey in (
+select s_suppkey from supplier  where  s_suppkey < 2
+)
+);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	supplier	range	PRIMARY	PRIMARY	4	NULL	1	Using where; Using index; Start temporary
+1	PRIMARY	partsupp_small	ref	PRIMARY,i_ps_partkey,i_ps_suppkey,i_ps_sup_part	i_ps_sup_part	4	dbt3_s001.supplier.s_suppkey	17	Using where; Using index
+1	PRIMARY	lineitem	ref	i_l_suppkey_partkey,i_l_partkey	i_l_suppkey_partkey	5	dbt3_s001.partsupp_small.ps_partkey	30	Using index
+1	PRIMARY	lineitem	ref	i_l_suppkey_partkey,i_l_partkey	i_l_partkey	5	dbt3_s001.partsupp_small.ps_partkey	30	Using index; End temporary
+explain format=json
+select count(*) from lineitem where l_partkey in (
+select ps_partkey
+from partsupp_small join lineitem on ps_partkey=l_partkey
+where ps_suppkey in (
+select s_suppkey from supplier  where  s_suppkey < 2
+)
+);
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": 4.129940741,
+    "nested_loop": [
+      {
+        "duplicates_removal": [
+          {
+            "table": {
+              "table_name": "supplier",
+              "access_type": "range",
+              "possible_keys": ["PRIMARY"],
+              "key": "PRIMARY",
+              "key_length": "4",
+              "used_key_parts": ["s_suppkey"],
+              "loops": 1,
+              "rows": 1,
+              "cost": 0.001478954,
+              "filtered": 100,
+              "attached_condition": "supplier.s_suppkey < 2",
+              "using_index": true
+            }
+          },
+          {
+            "table": {
+              "table_name": "partsupp_small",
+              "access_type": "ref",
+              "possible_keys": [
+                "PRIMARY",
+                "i_ps_partkey",
+                "i_ps_suppkey",
+                "i_ps_sup_part"
+              ],
+              "key": "i_ps_sup_part",
+              "key_length": "4",
+              "used_key_parts": ["ps_suppkey"],
+              "ref": ["dbt3_s001.supplier.s_suppkey"],
+              "loops": 1,
+              "rows": 17,
+              "cost": 0.003160332,
+              "filtered": 79.54545593,
+              "attached_condition": "partsupp_small.ps_partkey is not null",
+              "using_index": true
+            }
+          },
+          {
+            "table": {
+              "table_name": "lineitem",
+              "access_type": "ref",
+              "possible_keys": ["i_l_suppkey_partkey", "i_l_partkey"],
+              "key": "i_l_suppkey_partkey",
+              "key_length": "5",
+              "used_key_parts": ["l_partkey"],
+              "ref": ["dbt3_s001.partsupp_small.ps_partkey"],
+              "loops": 14,
+              "rows": 30,
+              "cost": 0.069152188,
+              "filtered": 100,
+              "using_index": true
+            }
+          },
+          {
+            "table": {
+              "table_name": "lineitem",
+              "access_type": "ref",
+              "possible_keys": ["i_l_suppkey_partkey", "i_l_partkey"],
+              "key": "i_l_partkey",
+              "key_length": "5",
+              "used_key_parts": ["l_partkey"],
+              "ref": ["dbt3_s001.partsupp_small.ps_partkey"],
+              "loops": 420.35,
+              "rows": 30,
+              "cost": 1.994712365,
+              "filtered": 0.237896994,
+              "using_index": true
+            }
+          }
+        ]
+      }
+    ]
+  }
+}
+select count(*) from lineitem where l_partkey in (
+select ps_partkey
+from partsupp_small join lineitem on ps_partkey=l_partkey
+where ps_suppkey in (
+select s_suppkey from supplier  where  s_suppkey < 2
+)
+);
+count(*)
+471
+select  471 as count, 10751458.66 as old_sum;
+count	old_sum
+471	10751458.66
+explain
+update  lineitem set l_extendedprice=l_extendedprice+10 where l_partkey in (
+select ps_partkey
+from partsupp_small join lineitem on ps_partkey=l_partkey
+where ps_suppkey in (
+select s_suppkey from supplier  where  s_suppkey < 2
+)
+);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	supplier	range	PRIMARY	PRIMARY	4	NULL	1	Using where; Using index; Start temporary
+1	PRIMARY	partsupp_small	ref	PRIMARY,i_ps_partkey,i_ps_suppkey,i_ps_sup_part	i_ps_sup_part	4	dbt3_s001.supplier.s_suppkey	17	Using where; Using index
+1	PRIMARY	lineitem	ref	i_l_suppkey_partkey,i_l_partkey	i_l_suppkey_partkey	5	dbt3_s001.partsupp_small.ps_partkey	30	
+1	PRIMARY	lineitem	ref	i_l_suppkey_partkey,i_l_partkey	i_l_partkey	5	dbt3_s001.partsupp_small.ps_partkey	30	Using index; End temporary
+explain format=json
+update  lineitem set l_extendedprice=l_extendedprice+10 where l_partkey in (
+select ps_partkey
+from partsupp_small join lineitem on ps_partkey=l_partkey
+where ps_suppkey in (
+select s_suppkey from supplier  where  s_suppkey < 2
+)
+);
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": 4.590092321,
+    "nested_loop": [
+      {
+        "duplicates_removal": [
+          {
+            "table": {
+              "table_name": "supplier",
+              "access_type": "range",
+              "possible_keys": ["PRIMARY"],
+              "key": "PRIMARY",
+              "key_length": "4",
+              "used_key_parts": ["s_suppkey"],
+              "loops": 1,
+              "rows": 1,
+              "cost": 0.001478954,
+              "filtered": 100,
+              "attached_condition": "supplier.s_suppkey < 2",
+              "using_index": true
+            }
+          },
+          {
+            "table": {
+              "table_name": "partsupp_small",
+              "access_type": "ref",
+              "possible_keys": [
+                "PRIMARY",
+                "i_ps_partkey",
+                "i_ps_suppkey",
+                "i_ps_sup_part"
+              ],
+              "key": "i_ps_sup_part",
+              "key_length": "4",
+              "used_key_parts": ["ps_suppkey"],
+              "ref": ["dbt3_s001.supplier.s_suppkey"],
+              "loops": 1,
+              "rows": 17,
+              "cost": 0.003160332,
+              "filtered": 79.54545593,
+              "attached_condition": "partsupp_small.ps_partkey is not null",
+              "using_index": true
+            }
+          },
+          {
+            "table": {
+              "table_name": "lineitem",
+              "access_type": "ref",
+              "possible_keys": ["i_l_suppkey_partkey", "i_l_partkey"],
+              "key": "i_l_suppkey_partkey",
+              "key_length": "5",
+              "used_key_parts": ["l_partkey"],
+              "ref": ["dbt3_s001.partsupp_small.ps_partkey"],
+              "loops": 14,
+              "rows": 30,
+              "cost": 0.529303768,
+              "filtered": 100
+            }
+          },
+          {
+            "table": {
+              "table_name": "lineitem",
+              "access_type": "ref",
+              "possible_keys": ["i_l_suppkey_partkey", "i_l_partkey"],
+              "key": "i_l_partkey",
+              "key_length": "5",
+              "used_key_parts": ["l_partkey"],
+              "ref": ["dbt3_s001.partsupp_small.ps_partkey"],
+              "loops": 420.35,
+              "rows": 30,
+              "cost": 1.994712365,
+              "filtered": 0.237896994,
+              "using_index": true
+            }
+          }
+        ]
+      }
+    ]
+  }
+}
+update  lineitem set l_extendedprice=l_extendedprice+10 where l_partkey in (
+select ps_partkey
+from partsupp_small join lineitem on ps_partkey=l_partkey
+where ps_suppkey in (
+select s_suppkey from supplier  where  s_suppkey < 2
+)
+);
+select ROUND(sum(l_extendedprice),2), 471 as count,
+(10751458.66+10*471) as 'old_sum+10*count'
+        from lineitem where l_partkey in (
+select ps_partkey
+from partsupp_small join lineitem on ps_partkey=l_partkey
+where ps_suppkey in (
+select s_suppkey from supplier  where  s_suppkey < 2
+)
+);
+ROUND(sum(l_extendedprice),2)	count	old_sum+10*count
+10756168.66	471	10756168.66
+update  lineitem set l_extendedprice=l_extendedprice-10 where l_partkey in (
+select ps_partkey
+from partsupp_small join lineitem on ps_partkey=l_partkey
+where ps_suppkey in (
+select s_suppkey from supplier  where  s_suppkey < 2
+)
+);
+select  ROUND(sum(l_extendedprice),2), 471 as count,
+10751458.66 as old_sum from lineitem where l_partkey in (
+select ps_partkey
+from partsupp_small join lineitem on ps_partkey=l_partkey
+where ps_suppkey in (
+select s_suppkey from supplier  where  s_suppkey < 2
+)
+);
+ROUND(sum(l_extendedprice),2)	count	old_sum
+10751458.66	471	10751458.66
+# DuplicateWeedout PS
+# ===================
+prepare stmt from "
+update  lineitem set l_extendedprice=l_extendedprice+? where l_partkey in (
+select ps_partkey
+from partsupp_small join lineitem on ps_partkey=l_partkey
+where ps_suppkey in (
+select s_suppkey from supplier  where  s_suppkey < 2
+)
+);
+";
+select  471 as count, 10751458.66 as old_sum;
+count	old_sum
+471	10751458.66
+set @a1=20;
+execute stmt using @a1;
+select ROUND(sum(l_extendedprice),2), 471 as count,
+(10751458.66+20*471) as 'old_sum+20*count'
+        from lineitem where l_partkey in (
+select ps_partkey
+from partsupp_small join lineitem on ps_partkey=l_partkey
+where ps_suppkey in (
+select s_suppkey from supplier  where  s_suppkey < 2
+)
+);
+ROUND(sum(l_extendedprice),2)	count	old_sum+20*count
+10760878.66	471	10760878.66
+set @a2=10;
+execute stmt using @a2;
+select ROUND(sum(l_extendedprice),2), 471 as count,
+(10751458.66+30*471) as 'old_sum+30*count'
+        from lineitem where l_partkey in (
+select ps_partkey
+from partsupp_small join lineitem on ps_partkey=l_partkey
+where ps_suppkey in (
+select s_suppkey from supplier  where  s_suppkey < 2
+)
+);
+ROUND(sum(l_extendedprice),2)	count	old_sum+30*count
+10765588.66	471	10765588.66
+execute stmt using -(@a1+@a2);
+select  ROUND(sum(l_extendedprice),2), 471 as count,
+10751458.66 as old_sum from lineitem where l_partkey in (
+select ps_partkey
+from partsupp_small join lineitem on ps_partkey=l_partkey
+where ps_suppkey in (
+select s_suppkey from supplier  where  s_suppkey < 2
+)
+);
+ROUND(sum(l_extendedprice),2)	count	old_sum
+10751458.66	471	10751458.66
+deallocate prepare stmt;
+# DuplicateWeedout SP
+# ===================
+create procedure p(d int)
+update  lineitem set l_extendedprice=l_extendedprice+d where l_partkey in (
+select ps_partkey
+from partsupp_small join lineitem on ps_partkey=l_partkey
+where ps_suppkey in (
+select s_suppkey from supplier  where  s_suppkey < 2
+)
+);
+select  471 as count, 10751458.66 as old_sum;
+count	old_sum
+471	10751458.66
+call p(10);
+select ROUND(sum(l_extendedprice),2), 471 as count,
+(10751458.66+10*471) as 'old_sum+10*count'
+        from lineitem where l_partkey in (
+select ps_partkey
+from partsupp_small join lineitem on ps_partkey=l_partkey
+where ps_suppkey in (
+select s_suppkey from supplier  where  s_suppkey < 2
+)
+);
+ROUND(sum(l_extendedprice),2)	count	old_sum+10*count
+10756168.66	471	10756168.66
+call p(20);
+select ROUND(sum(l_extendedprice),2), 471 as count,
+(10751458.66+30*471) as 'old_sum+30*count'
+        from lineitem where l_partkey in (
+select ps_partkey
+from partsupp_small join lineitem on ps_partkey=l_partkey
+where ps_suppkey in (
+select s_suppkey from supplier  where  s_suppkey < 2
+)
+);
+ROUND(sum(l_extendedprice),2)	count	old_sum+30*count
+10765588.66	471	10765588.66
+call p(-(10+20));
+select  ROUND(sum(l_extendedprice),2), 471 as count,
+10751458.66 as old_sum from lineitem where l_partkey in (
+select ps_partkey
+from partsupp_small join lineitem on ps_partkey=l_partkey
+where ps_suppkey in (
+select s_suppkey from supplier  where  s_suppkey < 2
+)
+);
+ROUND(sum(l_extendedprice),2)	count	old_sum
+10751458.66	471	10751458.66
+drop procedure p;
+set @@optimizer_switch=@tmp_optimizer_switch;
+drop table partsupp_small;
 DROP DATABASE dbt3_s001;
