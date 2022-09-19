@@ -5231,6 +5231,12 @@ public:
   {
     return charset ? charset : derived_attr->charset();
   }
+
+  /* Universal interface with Field */
+  CHARSET_INFO *fk_charset() const
+  {
+    return charset;
+  }
 };
 
 
@@ -5547,6 +5553,8 @@ public:
       return Lex_column_charset_collation_attrs(Lex_context_collation(charset));
     return Lex_column_charset_collation_attrs(Lex_exact_collation(charset));
   }
+  /* Universal interface with Field */
+  uint32 fk_pack_length() const { return pack_length; }
 };
 
 

@@ -61,6 +61,7 @@ int readfrm(const char *name, const uchar **frmdata, size_t *len)
   *frmdata= NULL;      // In case of errors
   *len= 0;
   error= 1;
+  // TODO: Why MY_WME not everywhere?
   if ((file= mysql_file_open(key_file_frm,
                              fn_format(index_file, name, "", reg_ext,
                                MY_UNPACK_FILENAME|MY_APPEND_EXT),

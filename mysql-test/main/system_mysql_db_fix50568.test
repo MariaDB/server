@@ -48,10 +48,10 @@ CREATE TABLE IF NOT EXISTS help_topic ( help_topic_id int unsigned not null, nam
 CREATE TABLE IF NOT EXISTS help_category ( help_category_id smallint unsigned not null, name  char(64) not null, parent_category_id smallint unsigned null, url text not null, primary key (help_category_id), unique index (name) ) engine=MyISAM CHARACTER SET utf8 comment='help categories';
 
 
-CREATE TABLE IF NOT EXISTS help_relation ( help_topic_id int unsigned not null references help_topic, help_keyword_id  int unsigned not null references help_keyword, primary key (help_keyword_id, help_topic_id) ) engine=MyISAM CHARACTER SET utf8 comment='keyword-topic relation';
-
-
 CREATE TABLE IF NOT EXISTS help_keyword (   help_keyword_id  int unsigned not null, name char(64) not null, primary key (help_keyword_id), unique index (name) ) engine=MyISAM CHARACTER SET utf8 comment='help keywords';
+
+
+CREATE TABLE IF NOT EXISTS help_relation ( help_topic_id int unsigned not null references help_topic, help_keyword_id  int unsigned not null references help_keyword, primary key (help_keyword_id, help_topic_id) ) engine=MyISAM CHARACTER SET utf8 comment='keyword-topic relation';
 
 
 CREATE TABLE IF NOT EXISTS time_zone_name (   Name char(64) NOT NULL, Time_zone_id int unsigned NOT NULL, PRIMARY KEY Name (Name) ) engine=MyISAM CHARACTER SET utf8   comment='Time zone names';
@@ -91,7 +91,7 @@ CREATE TABLE IF NOT EXISTS proxies_priv (Host char(60) binary DEFAULT '' NOT NUL
 
 # Drop all tables created by this test
 DROP VIEW user;
-DROP TABLE db, host, func, plugin, tables_priv, columns_priv, procs_priv, servers, help_category, help_keyword, help_relation, help_topic, proc, time_zone, time_zone_leap_second, time_zone_name, time_zone_transition, time_zone_transition_type, event, proxies_priv, general_log, slow_log, innodb_index_stats, innodb_table_stats, transaction_registry, table_stats, column_stats, index_stats, roles_mapping, gtid_slave_pos, global_priv, ndb_binlog_index;
+DROP TABLE db, host, func, plugin, tables_priv, columns_priv, procs_priv, servers, help_category, help_relation, help_keyword, help_topic, proc, time_zone, time_zone_leap_second, time_zone_name, time_zone_transition, time_zone_transition_type, event, proxies_priv, general_log, slow_log, innodb_index_stats, innodb_table_stats, transaction_registry, table_stats, column_stats, index_stats, roles_mapping, gtid_slave_pos, global_priv, ndb_binlog_index;
 
 # check that we dropped all system tables
 show tables;

@@ -251,7 +251,7 @@ truncate table mysql.index_stats;
 ANALYZE TABLE t1 PERSISTENT FOR ALL;
 SELECT index_name FROM mysql.index_stats WHERE table_name = 't1' order by index_name;
 
---error ER_DROP_INDEX_FK
+--error ER_FK_NO_INDEX_CHILD
 ALTER TABLE t1 DROP KEY idx;
 DROP TABLE t1;
 

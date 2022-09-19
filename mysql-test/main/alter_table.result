@@ -3074,15 +3074,13 @@ CREATE TABLE t1 (
 KEY `altcol1` (`altcol1`(2300))
 ) ROW_FORMAT=PAGE, ENGINE=Aria;
 ALTER TABLE t1 ADD FOREIGN KEY h (`altcol1`) REFERENCES t1 (`altcol1`) ON UPDATE SET DEFAULT, ALGORITHM=COPY;
-Warnings:
-Note	1071	Specified key was too long; max key length is 2300 bytes
+ERROR 42000: Incorrect foreign key definition for 'altcol1': foreign key by blob or geometry is not supported
 create or replace table t2 like t1;
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `altcol1` blob DEFAULT '',
-  KEY `altcol1` (`altcol1`(2300)),
-  KEY `h` (`altcol1`(2300))
+  KEY `altcol1` (`altcol1`(2300))
 ) ENGINE=Aria DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1 ROW_FORMAT=PAGE
 show create table t2;
 Table	Create Table
@@ -3094,6 +3092,7 @@ drop table t1,t2;
 # Another test for MDEV-32449
 CREATE TABLE t1 (a POINT, b POINT, KEY(a)) ENGINE=Aria;
 ALTER TABLE t1 ADD FOREIGN KEY (a) REFERENCES t (b);
+ERROR 42S02: Table 'test.t' doesn't exist
 CREATE TEMPORARY TABLE t2 LIKE t1;
 DROP TEMPORARY TABLE t2;
 DROP TABLE t1;

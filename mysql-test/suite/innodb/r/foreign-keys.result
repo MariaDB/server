@@ -217,8 +217,8 @@ t2	CREATE TABLE `t2` (
   CONSTRAINT `fk_fid` FOREIGN KEY (`fid`) REFERENCES `t1` (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 drop table t1,t2;
-ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails
-drop table t1,t2;
+ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails (fk_fid)
+drop table t2, t1;
 ERROR 42S02: Unknown table 'test.t2'
 #
 # MDEV-23470 InnoDB: Failing assertion: cmp < 0 in
