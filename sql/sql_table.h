@@ -20,6 +20,8 @@
 #include <my_sys.h>                             // pthread_mutex_t
 #include "m_string.h"                           // LEX_CUSTRING
 #include "lex_charset.h"
+#include "mdl.h"                                // MDL_request_list
+#include "handler.h"
 
 #define ERROR_INJECT(code) \
   ((DBUG_IF("crash_" code) && (DBUG_SUICIDE(), 0)) || \
@@ -29,6 +31,7 @@ class Alter_info;
 class Alter_table_ctx;
 class Column_definition;
 class Create_field;
+class FK_rename_vector;
 struct TABLE_LIST;
 class THD;
 struct TABLE;
@@ -76,6 +79,8 @@ static const uint NO_FK_CHECKS=    1 << 6;
 /* Don't delete .par table in quick_rm_table() */
 static const uint NO_PAR_TABLE=   1 << 7;
 
+constexpr LEX_CSTRING FK_INFIX= { C_STRING_WITH_LEN("_ibfk_") };
+
 uint filename_to_tablename(const char *from, char *to, size_t to_length,
                            bool stay_quiet = false);
 uint tablename_to_filename(const char *from, char *to, size_t to_length);
@@ -84,7 +89,7 @@ bool check_mysql50_prefix(const char *name);
 uint build_table_filename(char *buff, size_t bufflen, const char *db,
                           const char *table, const char *ext, uint flags);
 uint build_table_shadow_filename(char *buff, size_t bufflen,
-                                 ALTER_PARTITION_PARAM_TYPE *lpt,
+                                 const char *db, const char *table_name,
                                  bool backup= false);
 void build_lower_case_table_filename(char *buff, size_t bufflen,
                                      const LEX_CSTRING *db,
@@ -140,8 +145,7 @@ int mysql_create_table_no_lock(THD *thd,
                                int create_table_mode, TABLE_LIST *table);
 
 handler *mysql_create_frm_image(THD *thd,
-                                const LEX_CSTRING &db,
-                                const LEX_CSTRING &table_name,
+                                Alter_table_ctx *alter_ctx,
                                 HA_CREATE_INFO *create_info,
                                 Alter_info *alter_info,
                                 int create_table_mode,
@@ -153,6 +157,7 @@ int mysql_discard_or_import_tablespace(THD *thd,
                                        TABLE_LIST *table_list,
                                        bool discard);
 
+class Share_acquire_vec;
 bool mysql_prepare_alter_table(THD *thd, TABLE *table,
                                Table_specification_st *create_info,
                                Alter_info *alter_info,
@@ -192,8 +197,8 @@ int mysql_rm_table_no_locks(THD *thd, TABLE_LIST *tables,
                             DDL_LOG_STATE *ddl_log_state,
                             bool if_exists,
                             bool drop_temporary, bool drop_view,
-                            bool drop_sequence,
-                            bool dont_log_query, bool dont_free_locks);
+                            bool drop_sequence, bool drop_db,
+                            bool dont_log_query /* MERGE: recheck calls */, bool dont_free_locks);
 bool log_drop_table(THD *thd, const LEX_CSTRING *db_name,
                     const LEX_CSTRING *table_name, const LEX_CSTRING *handler,
                     bool partitioned, const LEX_CUSTRING *id,
@@ -210,6 +215,10 @@ int write_bin_log(THD *thd, bool clear_error,
 int write_bin_log_with_if_exists(THD *thd, bool clear_error,
                                  bool is_trans, bool add_if_exists,
                                  bool commit_alter= false);
+
+bool fk_handle_rename(THD *thd, TABLE_LIST *old_table, const LEX_CSTRING *new_db,
+                      const LEX_CSTRING *new_table_name,
+                      FK_rename_vector &fk_rename_backup);
 
 void promote_first_timestamp_column(List<Create_field> *column_definitions);
 

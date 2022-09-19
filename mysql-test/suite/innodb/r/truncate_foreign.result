@@ -84,7 +84,7 @@ SET FOREIGN_KEY_CHECKS=1;
 TRUNCATE t1;
 ERROR HY000: Cannot add foreign key constraint for `t1`
 INSERT INTO t1 VALUES (2,2);
-ERROR HY000: Table 't1' was not locked with LOCK TABLES
+ERROR 23000: Cannot add or update a child row: a foreign key constraint fails (`test`.`t1`, CONSTRAINT `t1_ibfk_1` FOREIGN KEY (`a`) REFERENCES `t1` (`a`))
 SELECT * FROM t1;
 pk	a
 1	1

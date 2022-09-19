@@ -1072,7 +1072,7 @@ TABLE_SHARE *mrn_create_tmp_table_share(TABLE_LIST *table_list, const char *path
     *error = ER_CANT_OPEN_FILE;
     DBUG_RETURN(NULL);
   }
-  share->tmp_table = NO_TMP_TABLE; // TODO: is this right?
+  share->tmp_table = INTERNAL_TMP_TABLE;
   share->path.str = (char *) path;
   share->path.length = strlen(share->path.str);
   share->normalized_path.str = mrn_my_strdup(path, MYF(MY_WME));

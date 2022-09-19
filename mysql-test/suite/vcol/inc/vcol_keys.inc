@@ -123,11 +123,11 @@ alter table t1 add foreign key (b) references t2(a) on delete set null;
 drop table t1;
 
 if ($with_foreign_keys) {
---error ER_CANT_CREATE_TABLE
+--error ER_NO_SUCH_TABLE
 create table t1 (a int, b int as (a+1), foreign key (b) references t2(a));
 
 create table t1 (a int, b int as (a+1));
---error ER_CANT_CREATE_TABLE
+--error ER_NO_SUCH_TABLE
 alter table t1 add foreign key (b) references t2(a);
 drop table t1;
 }
