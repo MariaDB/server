@@ -997,3 +997,97 @@ COLUMNS
 --echo #
 --echo # End of 10.9 tests
 --echo #
+
+--echo #
+--echo # MDEV-29390: Improve coverage for UPDATE and DELETE statements in MTR test suites
+--echo #
+
+--echo # Multi-update with JSON_TABLE
+
+create table  t1 ( name  varchar(10), 
+   color varchar(10),
+   price decimal(8,2),
+   instock BOOLEAN);
+
+insert into t1 values ("Laptop", "black", 20000, 1);
+insert into t1 values ("Jacket", "brown", 5000, 1);
+insert into t1 values ("Jeans", "blue", 5000, 1);
+
+select * from t1;
+
+set @json='
+[
+  {"name":"Laptop", "color":"black", "price":"1000", "ordered":"3"},
+  {"name":"Jeans",  "color":"blue",  "ordered":"0"},
+  {"name":"Phone",  "color":"red",  "ordered":"0"}
+]';
+
+select * from json_table(@json, '$[*]' 
+  columns(
+   name  varchar(10) path '$.name', 
+   color varchar(10) path '$.color',
+   price decimal(8,2) path '$.price',
+   ordered boolean path '$.ordered' ) 
+) as jt;
+
+explain update t1, JSON_TABLE(@json,'$[*]'  
+    COLUMNS (
+        name  varchar(10) path '$.name',
+        color varchar(10) path '$.color',
+        price decimal(8,2) path '$.price',
+        ordered boolean path '$.ordered'
+    )) AS jt1
+  SET t1.instock=0 where t1.name=jt1.name and jt1.ordered=3;
+
+update t1, JSON_TABLE(@json,'$[*]'  
+    COLUMNS (
+        name  varchar(10) path '$.name',
+        color varchar(10) path '$.color',
+        price decimal(8,2) path '$.price',
+        ordered boolean path '$.ordered'
+    )) AS jt1
+  SET t1.instock=0 where t1.name=jt1.name and jt1.ordered=2;
+
+select * from t1;
+
+explain update t1
+  SET t1.instock=2 where t1.name in (
+    select jt1.name from json_table(@json, '$[*]' 
+      columns(
+      name  varchar(10) path '$.name', 
+      color varchar(10) path '$.color',
+      price decimal(8,2) path '$.price',
+      ordered boolean path '$.ordered' ) 
+    ) as jt1);
+
+
+update t1
+  SET t1.instock=2 where t1.name in (
+    select jt1.name from json_table(@json, '$[*]' 
+      columns(
+      name  varchar(10) path '$.name', 
+      color varchar(10) path '$.color',
+      price decimal(8,2) path '$.price',
+      ordered boolean path '$.ordered' ) 
+    ) as jt1);
+
+select * from t1;
+
+
+-- error ER_NON_UPDATABLE_TABLE
+update t1, JSON_TABLE(@json,'$[*]'  
+    COLUMNS (
+        name  varchar(10) path '$.name',
+        color varchar(10) path '$.color',
+        price decimal(8,2) path '$.price',
+        ordered boolean path '$.ordered'
+    )) AS jt1
+  SET t1.instock=0, jt1.ordered=1  where t1.name=jt1.name;
+
+select * from t1;
+
+drop table t1;
+
+--echo #
+--echo # End of 11.0 tests
+--echo #

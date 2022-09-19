@@ -587,4 +587,246 @@ update orders set o_totalprice = o_totalprice+50 where $c11;
 eval
 select o_orderkey, o_totalprice from orders where $c11;
 
+CREATE TABLE partsupp_small (
+  ps_partkey int(11) NOT NULL DEFAULT '0',
+  ps_suppkey int(11) NOT NULL DEFAULT '0',
+  ps_availqty int(11) DEFAULT NULL,
+  ps_supplycost double DEFAULT NULL,
+  ps_comment varchar(199) DEFAULT NULL,
+  PRIMARY KEY (ps_partkey,ps_suppkey),
+  KEY i_ps_partkey (ps_partkey),
+  KEY i_ps_suppkey (ps_suppkey)
+);
+
+create index i_ps_sup_part on partsupp_small(ps_suppkey, ps_partkey);
+insert into partsupp_small select * from partsupp where ps_partkey <50;
+analyze table partsupp_small  persistent for all;
+
+--echo # LooseScan
+--echo # =========
+
+let $c12 = l_suppkey in
+                (select ps_suppkey from partsupp_small
+                        where ps_partkey in (1,2,3));
+
+eval
+explain
+select count(*) from lineitem where $c12;
+eval
+explain format=json
+select count(*) from lineitem where $c12;
+eval
+select count(*) from lineitem where $c12;
+let $l_count =
+        query_get_value('select count(*) as a from lineitem where $c12;', a, 1);
+let $l_old_sum =
+        query_get_value('select ROUND(sum(l_extendedprice),2) as a
+                from lineitem where $c12;', a, 1
+        );
+eval select  $l_count as count, $l_old_sum as old_sum;
+
+eval
+explain
+update  lineitem set l_extendedprice=l_extendedprice+10 where $c12;
+eval
+explain format=json
+update  lineitem set l_extendedprice=l_extendedprice+10 where $c12;
+eval
+update  lineitem set l_extendedprice=l_extendedprice+10 where $c12;
+eval
+select ROUND(sum(l_extendedprice),2), $l_count as count,
+        ($l_old_sum+10*$l_count) as 'old_sum+10*count'
+        from lineitem where $c12;
+
+eval
+update  lineitem set l_extendedprice=l_extendedprice-10 where $c12;
+eval
+select  ROUND(sum(l_extendedprice),2), $l_count as count,
+        $l_old_sum as old_sum from lineitem where $c12;
+
+
+--echo # LooseScan PS
+--echo # ============
+
+eval
+prepare stmt from "
+update  lineitem set l_extendedprice=l_extendedprice+? where $c12;
+";
+
+let $l_count = query_get_value('select count(*) as a
+        from lineitem where $c12;', a, 1 );
+let $l_old_sum = query_get_value('select ROUND(sum(l_extendedprice),2) as a
+        from lineitem where $c12;', a, 1 );
+eval select  $l_count as count, $l_old_sum as old_sum;
+eval
+set @a1=20;
+execute stmt using @a1;
+eval
+select ROUND(sum(l_extendedprice),2), $l_count as count,
+        ($l_old_sum+20*$l_count) as 'old_sum+20*count'
+        from lineitem where $c12;
+set @a2=10;
+execute stmt using @a2;
+eval
+select ROUND(sum(l_extendedprice),2), $l_count as count,
+        ($l_old_sum+30*$l_count) as 'old_sum+30*count'
+        from lineitem where $c12;
+execute stmt using -(@a1+@a2);
+eval
+select  ROUND(sum(l_extendedprice),2), $l_count as count,
+        $l_old_sum as old_sum from lineitem where $c12;
+
+deallocate prepare stmt;
+
+--echo # LooseScan SP
+--echo # ============
+
+eval
+create procedure p(d int)
+update  lineitem set l_extendedprice=l_extendedprice+d where $c12;
+
+let $l_count = query_get_value('select count(*) as a
+        from lineitem where $c12;', a, 1 );
+let $l_old_sum = query_get_value('select ROUND(sum(l_extendedprice),2) as a
+        from lineitem where $c12;', a, 1 );
+eval select  $l_count as count, $l_old_sum as old_sum;
+eval
+call p(10);
+eval
+select ROUND(sum(l_extendedprice),2), $l_count as count,
+        ($l_old_sum+10*$l_count) as 'old_sum+10*count'
+        from lineitem where $c12;
+call p(20);
+eval
+select ROUND(sum(l_extendedprice),2), $l_count as count,
+        ($l_old_sum+30*$l_count) as 'old_sum+30*count'
+        from lineitem where $c12;
+call p(-(10+20));
+eval
+select  ROUND(sum(l_extendedprice),2), $l_count as count,
+        $l_old_sum as old_sum from lineitem where $c12;
+
+drop procedure p;
+
+--echo # DuplicateWeedout
+--echo # ================
+
+set @tmp_optimizer_switch= @@optimizer_switch;
+set optimizer_switch='materialization=off';
+
+analyze table lineitem;
+analyze table orders;
+
+let $c13 = l_partkey in (
+   select ps_partkey
+   from partsupp_small join lineitem on ps_partkey=l_partkey
+   where ps_suppkey in (
+    select s_suppkey from supplier  where  s_suppkey < 2
+  )
+);
+
+eval
+explain
+select count(*) from lineitem where $c13;
+eval
+explain format=json
+select count(*) from lineitem where $c13;
+eval
+select count(*) from lineitem where $c13;
+
+let $l_count = query_get_value('select count(*) as a
+        from lineitem where $c13;', a, 1 );
+let $l_old_sum = query_get_value('select ROUND(sum(l_extendedprice),2) as a
+        from lineitem where $c13;', a, 1 );
+eval select  $l_count as count, $l_old_sum as old_sum;
+
+eval
+explain
+update  lineitem set l_extendedprice=l_extendedprice+10 where $c13;
+eval
+explain format=json
+update  lineitem set l_extendedprice=l_extendedprice+10 where $c13;
+eval
+update  lineitem set l_extendedprice=l_extendedprice+10 where $c13;
+eval
+select ROUND(sum(l_extendedprice),2), $l_count as count,
+        ($l_old_sum+10*$l_count) as 'old_sum+10*count'
+        from lineitem where $c13;
+
+eval
+update  lineitem set l_extendedprice=l_extendedprice-10 where $c13;
+eval
+select  ROUND(sum(l_extendedprice),2), $l_count as count,
+        $l_old_sum as old_sum from lineitem where $c13;
+
+
+--echo # DuplicateWeedout PS
+--echo # ===================
+
+eval
+prepare stmt from "
+update  lineitem set l_extendedprice=l_extendedprice+? where $c13;
+";
+
+let $l_count =
+        query_get_value('select count(*) as a
+                from lineitem where $c13;', a, 1 );
+let $l_old_sum =
+        query_get_value('select ROUND(sum(l_extendedprice),2) as a
+                from lineitem where $c13;', a, 1);
+eval select  $l_count as count, $l_old_sum as old_sum;
+eval
+set @a1=20;
+execute stmt using @a1;
+eval
+select ROUND(sum(l_extendedprice),2), $l_count as count,
+        ($l_old_sum+20*$l_count) as 'old_sum+20*count'
+        from lineitem where $c13;
+set @a2=10;
+execute stmt using @a2;
+eval
+select ROUND(sum(l_extendedprice),2), $l_count as count,
+        ($l_old_sum+30*$l_count) as 'old_sum+30*count'
+        from lineitem where $c13;
+execute stmt using -(@a1+@a2);
+eval
+select  ROUND(sum(l_extendedprice),2), $l_count as count,
+        $l_old_sum as old_sum from lineitem where $c13;
+
+deallocate prepare stmt;
+
+--echo # DuplicateWeedout SP
+--echo # ===================
+
+eval
+create procedure p(d int)
+update  lineitem set l_extendedprice=l_extendedprice+d where $c13;
+
+let $l_count = query_get_value('select count(*) as a
+        from lineitem where $c13;', a, 1 );
+let $l_old_sum = query_get_value('select ROUND(sum(l_extendedprice),2) as a
+        from lineitem where $c13;', a, 1 );
+eval select  $l_count as count, $l_old_sum as old_sum;
+eval
+call p(10);
+
+eval
+select ROUND(sum(l_extendedprice),2), $l_count as count,
+        ($l_old_sum+10*$l_count) as 'old_sum+10*count'
+        from lineitem where $c13;
+call p(20);
+eval
+select ROUND(sum(l_extendedprice),2), $l_count as count,
+        ($l_old_sum+30*$l_count) as 'old_sum+30*count'
+        from lineitem where $c13;
+call p(-(10+20));
+eval
+select  ROUND(sum(l_extendedprice),2), $l_count as count,
+        $l_old_sum as old_sum from lineitem where $c13;
+
+drop procedure p;
+set @@optimizer_switch=@tmp_optimizer_switch;
+
+drop table partsupp_small;
+
 DROP DATABASE dbt3_s001;
