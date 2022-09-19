@@ -118,7 +118,7 @@ public:
     {
       const bool has_delete_triggers= use_triggers &&
                                 table->triggers->has_delete_triggers();
-      const bool referenced_by_fk= table->file->referenced_by_foreign_key();
+      const bool referenced_by_fk= table->s->referenced_by_foreign_key();
       can_optimize= !referenced_by_fk && !has_delete_triggers &&
                     !table->versioned(VERS_TRX_ID);
     }

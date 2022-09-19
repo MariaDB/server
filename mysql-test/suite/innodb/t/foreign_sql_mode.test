@@ -106,17 +106,11 @@ DELETE FROM `t#2`;
 SELECT * FROM `t#1`;
 DROP TABLE `t#2`, `t#1`;
 
-let $error_code= 0;
-if ($sql_mode == "STRICT_TRANS_TABLES")
-{
-  let $error_code = ER_CANT_CREATE_TABLE;
-}
-
 CREATE TABLE t1(f1 INT NOT NULL AUTO_INCREMENT,
                 f2 INT DEFAULT NULL,
 		PRIMARY KEY(f1),
 		FOREIGN KEY(f2) REFERENCES t1(f1))ENGINE=InnoDB;
---error $error_code
+--error ER_FK_NO_INDEX_PARENT
 CREATE TABLE t2 (f1 INT NOT NULL,
 		 f2 INT NOT NULL,
 		 f3 INT DEFAULT NULL,

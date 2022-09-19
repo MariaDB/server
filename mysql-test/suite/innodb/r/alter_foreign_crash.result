@@ -31,7 +31,7 @@ select * from child;
 a
 1
 drop table parent;
-ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails
+ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails (fk)
 drop table child;
 drop table parent;
 drop database bug;

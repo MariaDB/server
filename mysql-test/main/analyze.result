@@ -379,7 +379,7 @@ index_name
 b
 idx
 ALTER TABLE t1 DROP KEY idx;
-ERROR HY000: Cannot drop index 'idx': needed in a foreign key constraint
+ERROR HY000: Missing index for constraint '1' in the foreign table 't1'
 DROP TABLE t1;
 #
 # Check index rename where name is not changed

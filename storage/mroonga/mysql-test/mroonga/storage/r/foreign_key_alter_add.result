@@ -15,10 +15,12 @@ articles	CREATE TABLE `articles` (
   `content` text NOT NULL,
   `comment` int(10) unsigned DEFAULT NULL,
   KEY `comment` (`comment`),
-  CONSTRAINT `comment` FOREIGN KEY (`comment`) REFERENCES `test`.`comments` (`comment`) ON DELETE RESTRICT ON UPDATE RESTRICT
+  CONSTRAINT `articles_ibfk_1` FOREIGN KEY (`comment`) REFERENCES `comments` (`comment`)
 ) ENGINE=Mroonga DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 SELECT * FROM information_schema.referential_constraints;
 CONSTRAINT_CATALOG	CONSTRAINT_SCHEMA	CONSTRAINT_NAME	UNIQUE_CONSTRAINT_CATALOG	UNIQUE_CONSTRAINT_SCHEMA	UNIQUE_CONSTRAINT_NAME	MATCH_OPTION	UPDATE_RULE	DELETE_RULE	TABLE_NAME	REFERENCED_TABLE_NAME
-def	test	comment	def	test	PRIMARY	NONE	RESTRICT	RESTRICT	articles	comments
+def	test	articles_ibfk_1	def	test	PRIMARY	NONE	RESTRICT	RESTRICT	articles	comments
+def	mysql	help_relation_ibfk_1	def	mysql	PRIMARY	NONE	RESTRICT	RESTRICT	help_relation	help_topic
+def	mysql	help_relation_ibfk_2	def	mysql	PRIMARY	NONE	RESTRICT	RESTRICT	help_relation	help_keyword
 DROP TABLE articles;
 DROP TABLE comments;

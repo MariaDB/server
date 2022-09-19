@@ -32,6 +32,7 @@
 #include <my_rnd.h>
 #include "my_pthread.h"
 #include "my_rdtsc.h"
+#include "lex_ident.h"
 
 class THD;
 class CONNECT;

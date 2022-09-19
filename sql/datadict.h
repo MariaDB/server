@@ -53,13 +53,14 @@ enum extra2_frm_value_type
   EXTRA2_APPLICATION_TIME_PERIOD=3,
   EXTRA2_PERIOD_FOR_SYSTEM_TIME=4,
   EXTRA2_INDEX_FLAGS=5,
+  EXTRA2_FOREIGN_KEY_INFO=6,
 
 #define EXTRA2_ENGINE_IMPORTANT 128
 
   EXTRA2_ENGINE_TABLEOPTS=128,
   EXTRA2_FIELD_FLAGS=129,
   EXTRA2_FIELD_DATA_TYPE_INFO=130,
-  EXTRA2_PERIOD_WITHOUT_OVERLAPS=131,
+  EXTRA2_PERIOD_WITHOUT_OVERLAPS=131
 };
 
 enum extra2_field_flags
@@ -164,6 +165,7 @@ struct Extra2_info
   LEX_CUSTRING application_period;
   LEX_CUSTRING field_data_type_info;
   LEX_CUSTRING without_overlaps;
+  LEX_CUSTRING foreign_key_info;
   LEX_CUSTRING index_flags;
 
   uint read_size;
@@ -195,6 +197,7 @@ struct Extra2_info
       store_size(application_period) +
       store_size(field_data_type_info) +
       store_size(without_overlaps) +
+      store_size(foreign_key_info) +
       store_size(index_flags);
   }
 
@@ -208,9 +211,12 @@ struct Extra2_info
   }
 
   bool read(const uchar* frm_image, size_t frm_size);
-  uchar * write(uchar* frm_image, size_t frm_size);
+  uchar * write(uchar* frm_image);
 };
 
+class Table_name;
+bool fk_install_shadow_frm(THD *thd, Table_name old_name, Table_name new_name);
+void fk_drop_shadow_frm(THD *thd, Table_name table);
 
 /*
   Take extra care when using dd_frm_type() - it only checks the .frm file,
@@ -229,5 +235,4 @@ static inline bool dd_frm_is_view(THD *thd, char *path)
 }
 
 bool dd_recreate_table(THD *thd, const char *db, const char *table_name);
-
 #endif // DATADICT_INCLUDED
