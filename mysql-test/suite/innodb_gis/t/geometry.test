@@ -643,7 +643,7 @@ FROM gis_geometrycollection g1, gis_geometrycollection g2 ORDER BY first, second
 --echo # check support of Foreign Key constraint
 CREATE TABLE parent (id GEOMETRY NOT NULL,PRIMARY KEY (id(10))) ENGINE=INNODB;
 
---error ER_CANT_CREATE_TABLE
+--error ER_WRONG_FK_DEF
 CREATE TABLE child (id GEOMETRY, parent_id GEOMETRY,
                     INDEX par_ind (parent_id(10)),
                     FOREIGN KEY (parent_id(10)) REFERENCES parent(id)

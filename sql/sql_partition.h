@@ -335,6 +335,5 @@ bool set_up_table_before_create(THD *thd,
                                 const char *partition_name_with_path,
                                 HA_CREATE_INFO *info,
                                 partition_element *part_elem);
-
 #endif /* SQL_PARTITION_INCLUDED */
 

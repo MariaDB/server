@@ -670,13 +670,11 @@ SHOW INDEX FROM parent;
 --replace_column 7 #
 SHOW INDEX FROM child;
 
-# --error ER_CANNOT_ADD_FOREIGN
 --disable_result_log
---error ER_CANT_CREATE_TABLE
+--error ER_WRONG_FK_DEF
 ALTER TABLE child ADD FOREIGN KEY(parent_id) REFERENCES parent(id) ;
 
-# --error ER_CANNOT_ADD_FOREIGN
---error ER_CANT_CREATE_TABLE
+--error ER_WRONG_FK_DEF
 ALTER TABLE child ADD FOREIGN KEY(parent_id) REFERENCES parent(id) ON DELETE CASCADE ;
 --enable_result_log
 
@@ -703,8 +701,7 @@ SHOW INDEX FROM parent;
 SHOW INDEX FROM child;
 
 --disable_result_log
-# --error ER_BLOB_KEY_WITHOUT_LENGTH
---error ER_CANT_CREATE_TABLE
+--error ER_WRONG_FK_DEF
 ALTER TABLE child ADD FOREIGN KEY(parent_id) REFERENCES parent(id) ;
 --enable_result_log
 

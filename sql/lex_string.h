@@ -18,11 +18,12 @@
 #ifndef LEX_STRING_INCLUDED
 #define LEX_STRING_INCLUDED
 
+#include "sql_alloc.h"
 
 typedef struct st_mysql_const_lex_string LEX_CSTRING;
 
 
-class Lex_cstring : public LEX_CSTRING
+class Lex_cstring : public LEX_CSTRING, public Sql_alloc
 {
   public:
   constexpr Lex_cstring()
@@ -34,6 +35,11 @@ class Lex_cstring : public LEX_CSTRING
   constexpr Lex_cstring(const char *_str, size_t _len)
    :LEX_CSTRING({_str, _len})
   { }
+  Lex_cstring(const char *_str)
+  {
+    str= _str;
+    length= strlen(str);
+  }
   Lex_cstring(const char *start, const char *end)
   {
     DBUG_ASSERT(start <= end);
@@ -46,6 +52,38 @@ class Lex_cstring : public LEX_CSTRING
     return length == rhs.length && !memcmp(str, rhs.str, length);
   }
 
+  bool strdup(MEM_ROOT *mem_root, const char *_str, size_t _len)
+  {
+    if (!_str)
+    {
+      str= NULL;
+      length= 0;
+      return false;
+    }
+    length= _len;
+    str= strmake_root(mem_root, _str, length);
+    return !str;
+  }
+  bool strdup(MEM_ROOT *mem_root, const char *_str)
+  {
+    if (!_str)
+    {
+      str= NULL;
+      length= 0;
+      return false;
+    }
+    return strdup(mem_root, _str, strlen(_str));
+  }
+  bool strdup(MEM_ROOT *mem_root, const Lex_cstring &_str)
+  {
+    if (!_str.str)
+    {
+      str= NULL;
+      length= 0;
+      return false;
+    }
+    return strdup(mem_root, _str.str, _str.length);;
+  }
   void set(const char *_str, size_t _len)
   {
     str= _str;
@@ -130,6 +168,31 @@ class Lex_cstring : public LEX_CSTRING
     DBUG_ASSERT(rhs.str);
     return length >= rhs.length && !memcmp(str, rhs.str, rhs.length);
   }
+  Lex_cstring print() const
+  {
+    return str ? *this : "(NULL)";
+  }
+  int cmp(const Lex_cstring& rhs) const
+  {
+    if (length < rhs.length)
+      return -1;
+    if (length > rhs.length)
+      return 1;
+    return memcmp(str, rhs.str, length);
+  }
+  int cmp(const char* rhs) const
+  {
+    if (!str)
+      return -1;
+    if (!rhs)
+      return 1;
+    return strcmp(str, rhs);
+  }
+  bool is_empty() const
+  {
+    DBUG_ASSERT(!length || str);
+    return length == 0;
+  }
 };
 
 
@@ -141,8 +204,43 @@ public:
   { }
 };
 
+class Scope_malloc
+{
+  void * addr;
+
+public:
+  template <class PTR>
+  Scope_malloc(PTR alloced) : addr((void *)alloced)
+  {
+    DBUG_ASSERT(addr);
+  }
+  template <class PTR>
+  Scope_malloc(PTR &assign, size_t Size, myf MyFlags= 0)
+  {
+    addr= my_malloc(PSI_NOT_INSTRUMENTED, Size, MyFlags);
+    assign= (PTR) addr;
+  }
+  ~Scope_malloc()
+  {
+    my_free(addr);
+  }
+};
 
 /* Functions to compare if two lex strings are equal */
+
+/*
+  This should be replaced by C++20 "spaceship" operator (<=>)
+*/
+template <typename T>
+inline int
+cmp_any(T a, T b)
+{
+  if (a < b)
+    return -1;
+  if (b < a)
+    return 1;
+  return 0;
+}
 
 /*
   Compare to LEX_CSTRING's and return 0 if equal
@@ -157,6 +255,15 @@ static inline bool cmp(const LEX_CSTRING a, const LEX_CSTRING b)
 {
   return a.length != b.length || (a.length && memcmp(a.str, b.str, a.length));
 }
+static inline bool cmp_prefix(const LEX_CSTRING a, const LEX_CSTRING b)
+{
+  int ret= cmp_any(a.length, b.length);
+  if (!a.length || !b.length)
+    return ret;
+
+  return memcmp(a.str, b.str, ret > 0 ? b.length : a.length);
+}
+
 
 /*
   Compare if two LEX_CSTRING are equal. Assumption is that
@@ -180,6 +287,38 @@ static inline bool lex_string_eq(const LEX_CSTRING *a, const char *b, size_t b_l
   if (a->length != b_length)
     return 0;                                   /* Different */
   return strcasecmp(a->str, b) == 0;
+}
+
+inline
+LEX_CSTRING *make_clex_string(MEM_ROOT *mem_root, const char* str, size_t length)
+{
+  LEX_CSTRING *lex_str;
+  char *tmp;
+  if (unlikely(!(lex_str= (LEX_CSTRING *)alloc_root(mem_root,
+                                                    sizeof(LEX_CSTRING) +
+                                                    (str ? (length + 1) : 0)))))
+    return 0;
+  if (str)
+  {
+    tmp= (char*) (lex_str+1);
+    lex_str->str= tmp;
+    memcpy(tmp, str, length);
+    tmp[length]= 0;
+    lex_str->length= length;
+  }
+  else
+  {
+    DBUG_ASSERT(!length);
+    lex_str->str= NULL;
+    lex_str->length= 0;
+  }
+  return lex_str;
+}
+
+inline
+LEX_CSTRING *make_clex_string(MEM_ROOT *mem_root, const LEX_CSTRING from)
+{
+  return make_clex_string(mem_root, from.str, from.length);
 }
 
 #endif /* LEX_STRING_INCLUDED */

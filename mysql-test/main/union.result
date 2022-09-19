@@ -580,6 +580,10 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 2	UNION	t1	ref	b	b	5	const	1	
 NULL	UNION RESULT	<union1,2>	ALL	NULL	NULL	NULL	NULL	NULL	
 drop table t1,t2;
+create table users (id int primary key);
+create table groups (id int primary key);
+insert into users values (1);
+insert into groups values (1);
 create table t1 (   id int not null auto_increment, primary key (id)   ,user_name text );
 create table t2 (    id int not null auto_increment, primary key (id)   ,group_name text );
 create table t3 (    id int not null auto_increment, primary key (id)   ,user_id int   ,index user_idx (user_id)   ,foreign key (user_id) references users(id)   ,group_id int   ,index group_idx (group_id)   ,foreign key (group_id) references groups(id) );
@@ -592,7 +596,7 @@ is_in_group	user_name	group_name	id
 1	Tester	Group A	1
 0	Tester	Group A	NULL
 0	Tester	Group B	NULL
-drop table t1, t2, t3;
+drop table t1, t2, t3, groups, users;
 create table t1 (mat_id MEDIUMINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY, matintnum CHAR(6) NOT NULL, test MEDIUMINT UNSIGNED NULL);
 create table t2 (mat_id MEDIUMINT UNSIGNED NOT NULL, pla_id MEDIUMINT UNSIGNED NOT NULL);
 insert into t1 values (NULL, 'a', 1), (NULL, 'b', 2), (NULL, 'c', 3), (NULL, 'd', 4), (NULL, 'e', 5), (NULL, 'f', 6), (NULL, 'g', 7), (NULL, 'h', 8), (NULL, 'i', 9);
