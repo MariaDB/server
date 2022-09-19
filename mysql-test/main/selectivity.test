@@ -67,7 +67,9 @@ customer, lineitem, nation, orders, part, partsupp, region, supplier;
 --enable_query_log
 
 --echo === Q2 ===
-
+#  "or p_size =19999" is added to avoid symmetry between
+#     region (5 rows * 20% selectivity) = 1 and
+#     part (200 rows * 0.5% selectivity) = 1
 set optimizer_use_condition_selectivity=5;
 explain extended
 select
@@ -77,7 +79,7 @@ from
 where
 	p_partkey = ps_partkey
 	and s_suppkey = ps_suppkey
-	and p_size = 9
+	and (p_size = 9 or p_size =19999)
 	and p_type like '%TIN'
 	and s_nationkey = n_nationkey
 	and n_regionkey = r_regionkey
