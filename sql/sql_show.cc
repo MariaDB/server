@@ -6452,40 +6452,63 @@ static inline void copy_field_as_string(Field *to_field, Field *from_field)
   to_field->store(tmp_str.ptr(), tmp_str.length(), system_charset_info);
 }
 
+
 /**
-  @brief Determine whether mysql.proc table scanning should continue or finish
+  @brief When scanning mysql.proc check if we should skip this record or even
+         stop the scan
 
-  @param[in]      proc_table            'mysql.proc' table
-  @param[in]      lookup                values from the WHERE clause which are
-                                        used for the index lookup
-  @param[in]      db                    mysql.proc.db field value of
-                                        the current record
-  @param[in]      name                  mysql.proc.name field value of
-                                        the current record
+  @param      name_field_charset    mysql.proc.name field charset info
+  @param      lookup                values from the WHERE clause which are
+                                    used for the index lookup
+  @param      db                    mysql.proc.db field value of
+                                    the current record
+  @param      name                  mysql.proc.name field value of
+                                    the current record
 
-  @return         Result
-    @retval       true                  scanning must continue
-    @retval       false                 scanning must finish
+  @return  Result
+    @retval  -1                    The record is match (do further processing)
+    @retval   0                    Skip this record, it doesn't match.
+    @retval   HA_ERR_END_OF_FILE   Stop scanning, no further matches possible
 */
-bool continue_proc_table_scanning(TABLE *proc_table,
-                                  LOOKUP_FIELD_VALUES *lookup,
-                                  const LEX_CSTRING &db,
-                                  const LEX_CSTRING &name)
+
+int check_proc_record(const CHARSET_INFO *name_field_charset,
+                      const LOOKUP_FIELD_VALUES *lookup,
+                      const LEX_CSTRING &db,
+                      const LEX_CSTRING &name)
 {
-  if (lookup->db_value.str)
+  if (lookup->db_value.str && cmp(lookup->db_value, db))
   {
-    if (cmp(lookup->db_value, db))
-      return false;
-    if (lookup->table_value.str)
+    /*
+      We have the name of target database. If we got a non-matching
+      record, this means we've finished reading matching mysql.proc records
+    */
+    return HA_ERR_END_OF_FILE;
+  }
+
+  if (lookup->table_value.str)
+  {
+    if ((my_ci_strnncoll(name_field_charset,
+                         (const uchar *) lookup->table_value.str,
+                         lookup->table_value.length,
+                         (const uchar *) name.str, name.length, 0)))
     {
-      auto cs= proc_table->field[MYSQL_PROC_FIELD_NAME]->charset();
-      if (my_ci_strnncoll(cs, (const uchar *) lookup->table_value.str,
-                          lookup->table_value.length, (const uchar *) name.str,
-                          name.length, 0))
-        return false;
+      /* Routine name doesn't match. */
+      if (lookup->db_value.str)
+      {
+        /*
+          We're using index lookup. A non-matching record means we've
+          finished reading matches.
+        */
+        return HA_ERR_END_OF_FILE;
+      }
+      else
+      {
+        /* The routine name doesn't match, but we're scanning all databases */
+        return 0; /* Continue scanning */
+      }
     }
   }
-  return true;
+  return -1; /* This is a match */
 }
 
 /**
@@ -6521,6 +6544,7 @@ int store_schema_params(THD *thd, TABLE *table, TABLE *proc_table,
   bool free_sp_head;
   bool error= 0;
   sql_mode_t sql_mode;
+  int rc;
   DBUG_ENTER("store_schema_params");
 
   bzero((char*) &tbl, sizeof(TABLE));
@@ -6530,8 +6554,10 @@ int store_schema_params(THD *thd, TABLE *table, TABLE *proc_table,
   proc_table->field[MYSQL_PROC_FIELD_DB]->val_str_nopad(thd->mem_root, &db);
   proc_table->field[MYSQL_PROC_FIELD_NAME]->val_str_nopad(thd->mem_root, &name);
 
-  if (!continue_proc_table_scanning(proc_table, lookup, db, name))
-    DBUG_RETURN(HA_ERR_END_OF_FILE);
+  CHARSET_INFO *name_cs= proc_table->field[MYSQL_PROC_FIELD_NAME]->charset();
+
+  if ((rc= check_proc_record(name_cs, lookup, db, name)) != -1)
+    DBUG_RETURN(rc); /* either HA_ERR_END_OF_FILE or 0 if name didn't match */
 
   proc_table->field[MYSQL_PROC_FIELD_DEFINER]->val_str_nopad(thd->mem_root, &definer);
   sql_mode= (sql_mode_t) proc_table->field[MYSQL_PROC_FIELD_SQL_MODE]->val_int();
@@ -6645,12 +6671,14 @@ int store_schema_proc(THD *thd, TABLE *table, TABLE *proc_table,
   const Sp_handler *sph;
   LEX_CSTRING db, name, definer, returns= empty_clex_str;
   const char *wild= thd->lex->wild ? thd->lex->wild->ptr() : NullS;
+  int rc;
 
   proc_table->field[MYSQL_PROC_FIELD_DB]->val_str_nopad(thd->mem_root, &db);
   proc_table->field[MYSQL_PROC_FIELD_NAME]->val_str_nopad(thd->mem_root, &name);
 
-  if (!continue_proc_table_scanning(proc_table, lookup, db, name))
-    return HA_ERR_END_OF_FILE;
+  CHARSET_INFO *name_cs= proc_table->field[MYSQL_PROC_FIELD_NAME]->charset();
+  if ((rc= check_proc_record(name_cs, lookup, db, name)) != -1)
+    return rc; /* either HA_ERR_END_OF_FILE or 0 if name didn't match */
 
   proc_table->field[MYSQL_PROC_FIELD_DEFINER]->val_str_nopad(thd->mem_root, &definer);
   sph= Sp_handler::handler_mysql_proc((enum_sp_type)

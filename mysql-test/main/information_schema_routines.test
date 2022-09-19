@@ -263,13 +263,24 @@ USE i_s_routines_test;
 CREATE FUNCTION test_func5 (s CHAR(20)) RETURNS VARCHAR(30)
   RETURN CONCAT('XYZ, ' ,s);
 
+
 --echo #
---echo # We cannot use the index due to CONCAT()
+--echo # We cannot use the index due to missing condition on SPECIFIC_SCHEMA,
+--echo # but we will use ROUTINE_NAME for filtering records from mysql.proc
 FLUSH STATUS;
 --replace_column 24 <created> 25 <modified>
 query_vertical SELECT * FROM INFORMATION_SCHEMA.ROUTINES
+  WHERE ROUTINE_NAME = 'test_func5';
+SHOW STATUS LIKE 'handler_read%next';
+
+--echo #
+--echo # We cannot use the index due to CONCAT(), and filtering by ROUTINE_NAME
+--echo # does not work either since ROUTINE_NAME = 'not_existing_proc'. See
+--echo # the difference in counters in comparison to the previous test
+FLUSH STATUS;
+query_vertical SELECT * FROM INFORMATION_SCHEMA.ROUTINES
   WHERE CONCAT(ROUTINE_SCHEMA) = 'i_s_routines_test'
-  AND ROUTINE_NAME = 'test_func5';
+  AND ROUTINE_NAME = 'not_existing_proc';
 SHOW STATUS LIKE 'handler_read%next';
 
 --echo #
