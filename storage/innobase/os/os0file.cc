@@ -4923,10 +4923,11 @@ os_file_io(
 @param[in]	type		IO context
 @param[in]	file		handle to an open file
 @param[out]	buf		buffer from which to write
-@param[in]	n		number of bytes to read, starting from offset
-@param[in]	offset		file offset from the start where to read
+@param[in]	n		number of bytes to write, starting from offset
+@param[in]	offset		file offset from the start where to write
 @param[out]	err		DB_SUCCESS or error code
-@return number of bytes written, -1 if error */
+@return number of bytes written
+@retval -1 on error */
 static MY_ATTRIBUTE((warn_unused_result))
 ssize_t
 os_file_pwrite(
