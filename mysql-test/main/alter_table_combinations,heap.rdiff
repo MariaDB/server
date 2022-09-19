@@ -1,5 +1,5 @@
---- main/alter_table_combinations.result
-+++ main/alter_table_combinations.reject
+--- alter_table_combinations.result
++++ alter_table_combinations,heap.reject
 @@ -11,7 +11,7 @@
  alter table t1 change x xx int, algorithm=inplace;
  check table t1;
@@ -9,27 +9,7 @@
  drop table t1;
  #
  # End of 10.3 tests
-@@ -173,8 +173,7 @@
- t3	CREATE TABLE `t3` (
-   `a` int(11) DEFAULT NULL,
-   `b` int(11) DEFAULT NULL,
--  KEY `b` (`b`),
--  CONSTRAINT `1` FOREIGN KEY (`b`) REFERENCES `t1` (`bb`)
-+  KEY `b` (`b`)
- ) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
- ALTER TABLE t1 RENAME COLUMN bb TO b;
- SHOW CREATE TABLE t1;
-@@ -190,8 +189,7 @@
- t3	CREATE TABLE `t3` (
-   `a` int(11) DEFAULT NULL,
-   `c` int(11) DEFAULT NULL,
--  KEY `b` (`c`),
--  CONSTRAINT `1` FOREIGN KEY (`c`) REFERENCES `t1` (`b`)
-+  KEY `b` (`c`)
- ) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
- CREATE TABLE t4(a int);
- ALTER TABLE t4 RENAME COLUMN a TO aa, ALGORITHM = INPLACE;
-@@ -231,36 +229,6 @@
+@@ -231,36 +231,6 @@
  ERROR 42S22: Unknown column 'd' in 'field list'
  DROP TRIGGER trg1;
  DROP PROCEDURE sp1;
@@ -66,7 +46,7 @@
  SHOW CREATE TABLE t1;
  Table	Create Table
  t1	CREATE TABLE `t1` (
-@@ -316,7 +284,7 @@
+@@ -316,7 +286,7 @@
  alter table t1 change x xx int, algorithm=inplace;
  check table t1;
  Table	Op	Msg_type	Msg_text

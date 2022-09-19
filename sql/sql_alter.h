@@ -17,11 +17,70 @@
 #ifndef SQL_ALTER_TABLE_H
 #define SQL_ALTER_TABLE_H
 
+#include "sql_class.h"
+#include "table_cache.h"
+
 class Alter_drop;
 class Alter_column;
 class Alter_rename_key;
 class Alter_index_ignorability;
 class Key;
+
+
+/* Backup for the table we altering */
+class FK_table_backup
+{
+public:
+  TABLE_SHARE *share;
+  FK_list foreign_keys;
+  FK_list referenced_keys;
+
+  FK_table_backup() : share(NULL) {}
+  virtual ~FK_table_backup()
+  {
+    if (share)
+      rollback();
+  }
+  bool init(TABLE_SHARE *);
+  void commit()
+  {
+    share= NULL;
+  }
+  void rollback()
+  {
+    DBUG_ASSERT(share);
+    share->foreign_keys= foreign_keys;
+    share->referenced_keys= referenced_keys;
+    share= NULL;
+  }
+};
+
+
+/* Backup for the table we refering or which referes us */
+class FK_ref_backup : public FK_table_backup
+{
+public:
+  bool install_shadow;
+  FK_ref_backup() : install_shadow(false) {}
+  virtual ~FK_ref_backup()
+  {
+    commit();
+  }
+};
+
+
+/* DROP FK does not fail for non-existent ref (but other commands do) */
+struct FK_table_to_lock
+{
+  Table_name table;
+  bool fail; // fail on non-existent foreign/referenced table
+  FK_table_to_lock(Table_name _table) : table(_table), fail(false) {}
+  bool operator< (const FK_table_to_lock &rhs) const
+  {
+    return table.cmp(rhs.table) < 0;
+  }
+};
+
 
 /**
   Data describing the table being created by CREATE TABLE or
@@ -90,6 +149,9 @@ public:
 
   // Columns and keys to be dropped.
   List<Alter_drop>              drop_list;
+  // FIXME: these two to be removed in MDEV-21052
+  List<Alter_drop>              tmp_drop_list;
+  uint                          tmp_old_fkeys;
   // Columns for ALTER_CHANGE_COLUMN_DEFAULT.
   List<Alter_column>            alter_list;
   // List of keys, used by both CREATE and ALTER TABLE.
@@ -199,6 +261,7 @@ public:
 
 
   Alter_info() :
+  tmp_old_fkeys(0),
   select_field_count(0),
   flags(0), partition_flags(0),
     keys_onoff(LEAVE_AS_IS),
@@ -211,6 +274,8 @@ public:
   void reset()
   {
     drop_list.empty();
+    tmp_drop_list.empty();
+    tmp_old_fkeys= 0;
     alter_list.empty();
     key_list.empty();
     alter_rename_key_list.empty();
@@ -350,6 +415,15 @@ public:
 
   Alter_table_ctx(THD *thd, TABLE_LIST *table_list, uint tables_opened_arg,
                   const LEX_CSTRING *new_db_arg, const LEX_CSTRING *new_name_arg);
+  /* Ctor for mysql_create_table_no_lock() */
+  Alter_table_ctx(const Lex_ident_db *db, const Lex_ident_table *table_name)
+  {
+    this->db= *db;
+    this->table_name= *table_name;
+    this->new_db= *db;
+    this->tmp_name= *table_name;
+    this->new_name= *table_name;
+  }
 
   /**
      @return true if the table is moved to another database or a new table
@@ -398,6 +472,11 @@ public:
   const char *get_tmp_path() const
   { return tmp_path; }
 
+  static constexpr size_t max_tmp_path()
+  {
+    return sizeof(tmp_path) - 1;
+  }
+
   const LEX_CSTRING get_tmp_cstring_path() const
   {
     LEX_CSTRING tmp= { tmp_path, strlen(tmp_path) };
@@ -411,8 +490,8 @@ public:
   void set_fk_error_if_delete_row(FOREIGN_KEY_INFO *fk)
   {
     fk_error_if_delete_row= true;
-    fk_error_id= fk->foreign_id->str;
-    fk_error_table= fk->foreign_table->str;
+    fk_error_id= fk->name.str;
+    fk_error_table= fk->foreign_table.str;
   }
 
   void report_implicit_default_value_error(THD *thd, const TABLE_SHARE *) const;
@@ -426,8 +505,8 @@ public:
   LEX_CSTRING  alias;
   Lex_ident_db new_db;
   Lex_ident_table new_name;
-  LEX_CSTRING  new_alias;
-  LEX_CSTRING  tmp_name;
+  LEX_CSTRING  new_alias; // TODO: why new_alias is needed?
+  Lex_ident_table tmp_name;
   LEX_CSTRING  tmp_storage_engine_name;
   LEX_CUSTRING tmp_id, id;
   char         tmp_buff[80];
@@ -435,6 +514,9 @@ public:
   char         storage_engine_buff[NAME_LEN], tmp_storage_engine_buff[NAME_LEN];
   bool         storage_engine_partitioned;
   bool         tmp_storage_engine_name_partitioned;
+  // TODO: remove key_info_buffer, key_count args from mysql_prepare_create_table(), etc
+  KEY          *key_info;
+  uint         keys;
 
   /**
     Indicates that if a row is deleted during copying of data from old version
@@ -450,6 +532,67 @@ public:
   bool fast_alter_partition= false;
   /** Indicates that we are altering temporary table */
   bool tmp_table= false;
+  struct FK_rename_col
+  {
+    Table_name table;
+    Table_name altered_table;
+    Lex_cstring col_name;
+    Lex_cstring new_name;
+    // NB: "operator<" is required for std::set
+    bool operator< (const FK_rename_col &rhs) const
+    {
+      int ref_cmp= table.cmp(rhs.table);
+      if (ref_cmp < 0)
+        return true;
+      if (ref_cmp > 0)
+        return false;
+      return col_name.cmp(rhs.col_name) < 0;
+    }
+  };
+  struct FK_add_new
+  {
+    Table_name ref;
+    Foreign_key *fk;
+    bool self_ref() const
+    {
+      return ref.name.is_empty();
+    }
+  };
+  struct FK_drop_old
+  {
+    Table_name ref;
+    const FK_info *fk;
+  };
+  mbd::vector<FK_add_new> fk_added; /* can contain self-refs */
+  /*
+    These five contain only non-self-refs. They are used to update info in
+    referenced tables.
+  */
+  // NB: multiple foreign keys can utilize same column (see fk_prepare_rename())
+  mbd::set<FK_rename_col> fk_renamed_cols;
+  mbd::set<FK_rename_col> rk_renamed_cols;
+  mbd::vector<FK_drop_old> fk_dropped;
+  mbd::vector<Table_name> fk_renamed_table;
+  mbd::vector<Table_name> rk_renamed_table;
+  /** FK list prepared by prepare_create_table() */
+  FK_list            foreign_keys;
+  /** RK list inherited from old table + self-refs from prepare_create_table() */
+  FK_list            referenced_keys;
+  MDL_request_list fk_mdl_reqs;
+  mbd::map<Table_name, Share_acquire, Table_name_lt> fk_shares;
+
+  bool fk_prepare_rename(THD *thd, TABLE *table, Create_field *def,
+                         mbd::set<FK_table_to_lock> &fk_tables_to_lock);
+  bool fk_handle_alter(THD *thd);
+  void fk_release_locks(THD *thd);
+
+  FK_table_backup fk_table_backup;
+  // NB: share is owned and released by fk_shares
+  mbd::map<TABLE_SHARE *, FK_ref_backup> fk_ref_backup;
+  // NB: backup is added only if not exists
+  FK_ref_backup* fk_add_backup(TABLE_SHARE *share);
+  void fk_rollback(THD *thd);
+  bool fk_install_frms(THD *thd);
 
 private:
   char new_filename[FN_REFLEN + 1];

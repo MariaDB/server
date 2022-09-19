@@ -458,7 +458,8 @@ db1.t1
 CREATE TABLE IF NOT EXISTS `t2` (
   `id` int(11) DEFAULT NULL,
   `address` varchar(10) DEFAULT NULL,
-  KEY `fk_id` (`id`)
+  KEY `fk_id` (`id`),
+  CONSTRAINT `fk_id` FOREIGN KEY (`id`) REFERENCES `t1` (`id`)
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci;
 
 CREATE TABLE IF NOT EXISTS `t1` (

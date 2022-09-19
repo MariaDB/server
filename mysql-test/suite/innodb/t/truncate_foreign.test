@@ -96,6 +96,9 @@ LOCK TABLES t1 WRITE;
 SET FOREIGN_KEY_CHECKS=1;
 --error ER_CANNOT_ADD_FOREIGN
 TRUNCATE t1;
+# Whether TRUNCATE succeeds or fails, it will reload FOREIGN KEY constraints.
+# As a result, ha_innobase::referenced_by_foreign_key() will retun TRUE
+# (for the self-referential key), and the statement will fail.
 --error ER_NO_REFERENCED_ROW_2
 INSERT INTO t1 VALUES (2,2);
 SELECT * FROM t1;

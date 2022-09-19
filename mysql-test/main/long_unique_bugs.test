@@ -752,6 +752,7 @@ drop table t1;
 --echo # MDEV-36852 Table definition gets corrupt after adding unique hash key
 --echo #
 
+set statement foreign_key_checks=0 for
 create table t1 (a text, b int, foreign key(a) references x(x)) engine=myisam;
 show create table t1;
 alter table t1 add unique(a), add key(a);

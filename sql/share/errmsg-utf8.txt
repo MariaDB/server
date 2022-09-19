@@ -9760,16 +9760,16 @@ ER_MUST_CHANGE_PASSWORD
         sw "Lazima uweke nenosiri kwa kutumia SET PASSWORD kabla ya kutekeleza taarifa hii"
 
 ER_FK_NO_INDEX_CHILD
-        chi "无法添加外键约束。外表'%s'中的约束'%s'缺少索引"
-        eng "Failed to add the foreign key constraint. Missing index for constraint '%s' in the foreign table '%s'"
-        spa "No pude añadir la restricción de clave foránea. Falta índice para restricción '%s' en la tabla foránea '%s'"
-        sw "Imeshindwa kuongeza kizuizi cha ufunguo wa kigeni. Faharasa haipo ya kizuizi '%s' katika jedwali la kigeni '%s'"
+        chi "外表'%s'中的约束'%s'缺少索引"
+        eng "Missing index for constraint '%s' in the foreign table '%s'"
+        spa "Falta índice para restricción '%s' en la tabla foránea '%s'"
+        sw "Faharasa haipo ya kizuizi '%s' katika jedwali la kigeni '%s'"
 
 ER_FK_NO_INDEX_PARENT
-        chi "无法添加外键约束。引用的表'%s'中的约束'%s'缺少索引"
-        eng "Failed to add the foreign key constraint. Missing index for constraint '%s' in the referenced table '%s'"
-        spa "No pude añadir la restricción de clave foránea. Falta índice para restricción '%s' en la tabla referenciada '%s'"
-        sw "Imeshindwa kuongeza kizuizi cha kigeni cha ufunguo. Faharasa haipo ya kizuizi '%s' katika jedwali la marejeleo '%s'"
+        chi "引用的表'%s.%s'中的约束'%s'缺少索引"
+        eng "Missing index for constraint '%s.%s' in the referenced table '%s'"
+        spa "Falta índice para restricción '%s.%s' en la tabla referenciada '%s'"
+        sw "Faharasa haipo ya kizuizi '%s.%s' katika jedwali la marejeleo '%s'"
 
 ER_FK_FAIL_ADD_SYSTEM
         chi "无法将外键约束'%s'添加到系统表"

@@ -152,6 +152,8 @@ EXPECT_0
 #
 select * from information_schema.table_constraints;
 CONSTRAINT_CATALOG	CONSTRAINT_SCHEMA	CONSTRAINT_NAME	TABLE_SCHEMA	TABLE_NAME	CONSTRAINT_TYPE
+def	mysql	1	mysql	help_relation	FOREIGN KEY
+def	mysql	2	mysql	help_relation	FOREIGN KEY
 def	mysql	Host	mysql	roles_mapping	UNIQUE
 def	mysql	Options	mysql	servers	CHECK
 def	mysql	PRIMARY	mysql	column_stats	PRIMARY KEY

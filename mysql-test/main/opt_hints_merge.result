@@ -642,5 +642,5 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 Warnings:
 Note	1003	/* select#1 */ select /*+ MERGE(@`qb4`) MERGE(@`qb2`) */ `dw`.`emp_id` AS `emp_id` from (/* select#2 */ select /*+ QB_NAME(`qb2`) */ `du`.`emp_id` AS `emp_id` from (/* select#4 */ select /*+ QB_NAME(`qb4`) */ `test`.`employees`.`emp_id` AS `emp_id` from `test`.`employees`) `du`) `dw`
 set session optimizer_switch='derived_merge=on';
-DROP TABLE employees, salaries;
+DROP TABLE salaries, employees;
 # End of 12.1 tests
