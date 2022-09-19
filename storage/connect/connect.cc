@@ -546,7 +546,8 @@ int CntCloseTable(PGLOBAL g, PTDB tdbp, bool nox, bool abort)
 	if (!tdbp)
 		return rc;                           // Nothing to do
 	else if (tdbp->GetUse() != USE_OPEN) {
-		if (tdbp->GetAmType() == TYPE_AM_XML)
+		if (tdbp->GetAmType() == TYPE_AM_XML ||
+			tdbp->GetAmType() == TYPE_AM_JSN)
 			tdbp->CloseDB(g);                  // Opened by GetMaxSize
 
 		return rc;
