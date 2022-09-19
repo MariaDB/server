@@ -29642,7 +29642,7 @@ static bool get_range_limit_read_cost(const JOIN_TAB *tab,
       
       if (kp > 0)
       {
-        ha_rows ref_rows;
+        double ref_rows;
         /*
           Two possible cases:
           1. ref(const) uses the same #key parts as range access. 
@@ -29652,17 +29652,17 @@ static bool get_range_limit_read_cost(const JOIN_TAB *tab,
         if (kp == table->opt_range[keynr].key_parts)
           ref_rows= best_rows;
         else
-          ref_rows= (ha_rows) table->key_info[keynr].actual_rec_per_key(kp-1);
+          ref_rows= table->key_info[keynr].actual_rec_per_key(kp-1);
 
         if (ref_rows > 0)
         {
           double tmp= cost_for_index_read(tab->join->thd, table, keynr,
-                                          ref_rows,
+                                          (ha_rows) ref_rows,
                                           (ha_rows) tab->worst_seeks);
           if (tmp < best_cost)
           {
             best_cost= tmp;
-            best_rows= (double)ref_rows;
+            best_rows= ref_rows;
           }
         }
       }
