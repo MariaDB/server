@@ -1548,10 +1548,11 @@ class User_table_json: public User_table
   {
     privilege_t mask= ALL_KNOWN_ACL_100304;
     ulonglong orig_access= access;
-    if (version_id >= 100800) /* TODO(cvicentiu) change this to 100900 when rebasing. */
+    if (version_id >= 101100)
     {
-      mask= ALL_KNOWN_ACL_100900;
-    } else if (version_id >= 100509)
+      mask= ALL_KNOWN_ACL_101100;
+    }
+    else if (version_id >= 100509)
     {
       mask= ALL_KNOWN_ACL_100509;
     }
@@ -1592,6 +1593,12 @@ class User_table_json: public User_table
       */
       if (access & BINLOG_MONITOR_ACL || access & REPL_SLAVE_ACL)
         access|= SLAVE_MONITOR_ACL;
+    }
+    if (version_id < 101100)
+    {
+      /* Super privilege gives the user IGNORE DENIES too. */
+      if (access & SUPER_ACL)
+        access|= IGNORE_DENIES_ACL;
     }
 
     if (orig_access & ~mask)
