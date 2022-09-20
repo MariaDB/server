@@ -2920,7 +2920,7 @@ public:
   bool is_zero() const
   {
     return io_count == 0.0 && idx_io_count == 0.0 && cpu_cost == 0.0 &&
-      import_cost == 0.0 && mem_cost == 0.0 && comp_cost;
+      import_cost == 0.0 && mem_cost == 0.0 && comp_cost == 0.0;
   }
 
   void reset()
