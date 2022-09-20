@@ -1,0 +1,234 @@
+--source include/not_embedded.inc
+
+#
+# This test covers show databases command interacting with DENY command.
+# A user is able to see a database in `show databases` if:
+# 1. They have globally granted any of the *DB_ACLS* (see privilege sets)
+#    or they have SHOW DATABASES privilege
+# 2. They have on the database level granted any privilege.
+# 3. They have grants on any of the underlying database objects:
+#    a. Tables
+#    b. Columns
+#    c. Stored Procedures
+# A deny masking rights should affect all levels of this chain.
+#
+
+create user foo;
+create database some_db;
+
+create table some_db.t1 (a int, secret int);
+
+
+#TODO(cvicentiu) -- this DBUG ASSERTS!!!
+#deny select on some_db to foo;
+
+
+show databases;
+
+grant select on *.* to foo;
+show grants for foo;
+
+--echo #############################
+--echo # Test global level denies. #
+--echo #############################
+
+--echo #
+--echo # Test masking global level denies.
+--echo #
+--connect (con1,localhost,foo,,)
+show databases;
+disconnect con1;
+connection default;
+
+--echo #
+--echo # Mask all rigths.
+--echo #
+deny select on *.* to foo;
+
+--connect (con1,localhost,foo,,)
+show databases;
+disconnect con1;
+connection default;
+
+--echo #
+--echo # Not all rights masked.
+--echo #
+grant insert on *.* to foo;
+
+--echo #
+--echo # some_db should now show up in the list because insert is not masked.
+--echo #
+--connect (con1,localhost,foo,,)
+show databases;
+disconnect con1;
+connection default;
+
+deny insert on *.* to foo;
+
+--echo #
+--echo # some_db should not be present now.
+--echo #
+--connect (con1,localhost,foo,,)
+show databases;
+disconnect con1;
+connection default;
+
+grant show databases on *.* to foo;
+
+--connect (con1,localhost,foo,,)
+show databases;
+disconnect con1;
+connection default;
+
+deny show databases on *.* to foo;
+
+--connect (con1,localhost,foo,,)
+show databases;
+disconnect con1;
+connection default;
+
+--echo #
+--echo # Test masking database level grants with global denies.
+--echo #
+grant select on some_db.* to foo;
+
+--connect (con1,localhost,foo,,)
+show databases;
+disconnect con1;
+connection default;
+
+grant update on some_db.* to foo;
+
+--connect (con1,localhost,foo,,)
+--echo #
+--echo # Update not masked via global deny, some_db should show up.
+--echo #
+show databases;
+disconnect con1;
+connection default;
+
+deny update on *.* to foo;
+
+--connect (con1,localhost,foo,,)
+--echo #
+--echo # Now it should show up.
+--echo #
+show databases;
+disconnect con1;
+connection default;
+
+--echo #
+--echo # Test masking table level grants with global denies.
+--echo #
+
+connection default;
+grant insert on some_db.t1 to foo;
+show grants for foo;
+
+--connect (con1,localhost,foo,,)
+show databases;
+disconnect con1;
+
+connection default;
+grant delete on some_db.t1 to foo;
+show grants for foo;
+
+--connect (con1,localhost,foo,,)
+--echo #
+--echo # some_db should show up because we have delete rights on t1.
+--echo #
+show databases;
+disconnect con1;
+connection default;
+
+deny delete on *.* to foo;
+
+--connect (con1,localhost,foo,,)
+show databases;
+disconnect con1;
+connection default;
+
+--echo #
+--echo # Test masking column level grants with global denies.
+--echo #
+grant references (a) on some_db.t1 to foo;
+show grants for foo;
+
+--connect (con1,localhost,foo,,)
+show databases;
+disconnect con1;
+connection default;
+
+deny references on *.* to foo;
+show grants for foo;
+
+--connect (con1,localhost,foo,,)
+show databases;
+disconnect con1;
+connection default;
+
+delimiter |;
+
+--echo #
+--echo # Test masking procedure / function / package level grants with global
+--echo # denies.
+--echo #
+
+create procedure some_db.proc_1()
+begin
+select 1;
+end|
+
+create function some_db.func_1() returns int
+begin
+return 3;
+end|
+
+set @old_sql_mode=@@sql_mode|
+set sql_mode=ORACLE|
+
+create package some_db.util_functions as
+  function f1(id int) return int;
+end|
+
+create package body some_db.util_functions as
+  function f1(id int) return int as result int;
+  begin
+    return 10;
+  end;
+end|
+
+
+delimiter ;|
+
+grant execute on procedure some_db.proc_1 to foo;
+
+grant execute on function some_db.func_1 to foo;
+
+grant execute on package some_db.util_functions to foo;
+
+set sql_mode=@old_sql_mode;
+
+--connect (con1,localhost,foo,,)
+show databases;
+disconnect con1;
+connection default;
+
+deny execute on *.* to foo;
+
+--connect (con1,localhost,foo,,)
+show databases;
+disconnect con1;
+connection default;
+
+
+--echo # TODO(cvicentiu) -- When database level denies are implemented, check
+--echo # the following:
+--echo # If we still have show databases ACL, yet we have
+--echo # DENY all on some_db.* to foo, show databases should still show some_db,
+--echo # simply because we *do* have show databases ACL.
+--echo # NOTE: Currently we still have show databases ACL. This means
+--echo # That even if all rights are denie
+
+drop user foo;
+drop database some_db;
