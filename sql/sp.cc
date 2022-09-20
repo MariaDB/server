@@ -1074,8 +1074,11 @@ sp_returns_type(THD *thd, String &result, const sp_head *sp)
   {
     result.append(STRING_WITH_LEN(" CHARSET "));
     result.append(field->charset()->csname);
-    result.append(STRING_WITH_LEN(" COLLATE "));
-    result.append(field->charset()->name);
+    if (Charset(field->charset()).can_have_collate_clause())
+    {
+      result.append(STRING_WITH_LEN(" COLLATE "));
+      result.append(field->charset()->name);
+    }
   }
 
   delete field;

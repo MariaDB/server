@@ -50,7 +50,7 @@ Created 10/25/1995 Heikki Tuuri
 #include "sync0sync.h"
 #include "buf0flu.h"
 #include "log.h"
-#ifdef UNIV_LINUX
+#ifdef __linux__
 # include <sys/types.h>
 # include <sys/sysmacros.h>
 # include <dirent.h>
@@ -1248,7 +1248,7 @@ void fil_system_t::create(ulint hash_size)
 	spaces.create(hash_size);
 
 	fil_space_crypt_init();
-#ifdef UNIV_LINUX
+#ifdef __linux__
 	ssd.clear();
 	char fn[sizeof(dirent::d_name)
 		+ sizeof "/sys/block/" "/queue/rotational"];
@@ -1328,10 +1328,10 @@ void fil_system_t::close()
 
   ut_ad(!spaces.array);
 
-#ifdef UNIV_LINUX
+#ifdef __linux__
   ssd.clear();
   ssd.shrink_to_fit();
-#endif /* UNIV_LINUX */
+#endif /* __linux__ */
 }
 
 /** Extend all open data files to the recovered size */

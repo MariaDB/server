@@ -7907,7 +7907,7 @@ CREATE TABLE t1(c ENUM('aaaaaaaa') CHARACTER SET 'Binary',d JSON);
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c` enum('\0a\0a\0a\0a\0a\0a\0a\0a') CHARACTER SET binary COLLATE binary DEFAULT NULL,
+  `c` enum('\0a\0a\0a\0a\0a\0a\0a\0a') CHARACTER SET binary DEFAULT NULL,
   `d` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL CHECK (json_valid(`d`))
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 INSERT INTO t1 (c) VALUES (1);
@@ -7919,7 +7919,7 @@ CREATE OR REPLACE TABLE t1(c ENUM('aaaaaaaaa') CHARACTER SET 'Binary',d JSON);
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c` enum('\0a\0a\0a\0a\0a\0a\0a\0a\0a') CHARACTER SET binary COLLATE binary DEFAULT NULL,
+  `c` enum('\0a\0a\0a\0a\0a\0a\0a\0a\0a') CHARACTER SET binary DEFAULT NULL,
   `d` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL CHECK (json_valid(`d`))
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 INSERT INTO t1 (c) VALUES (1);
@@ -7931,7 +7931,7 @@ CREATE OR REPLACE TABLE t1(c ENUM('aaaaaaaaaa') CHARACTER SET 'Binary',d JSON);
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c` enum('\0a\0a\0a\0a\0a\0a\0a\0a\0a\0a') CHARACTER SET binary COLLATE binary DEFAULT NULL,
+  `c` enum('\0a\0a\0a\0a\0a\0a\0a\0a\0a\0a') CHARACTER SET binary DEFAULT NULL,
   `d` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL CHECK (json_valid(`d`))
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 INSERT INTO t1 (c) VALUES (1);

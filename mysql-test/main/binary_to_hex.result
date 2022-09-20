@@ -21,7 +21,7 @@ t1	CREATE TABLE `t1` (
   `c7` binary(1) DEFAULT NULL,
   `c8` varbinary(10) DEFAULT NULL,
   `c9` geometry DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=binary COLLATE=binary
+) ENGINE=MyISAM DEFAULT CHARSET=binary
 INSERT INTO t1 VALUES ('tinyblob-text readable', 'blob-text readable',
 'mediumblob-text readable', 'longblob-text readable',
 'text readable', b'1', 'c', 'variable',

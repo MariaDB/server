@@ -193,6 +193,10 @@ public:
   LEX_CSTRING collation_specific_name() const;
   bool encoding_allows_reinterpret_as(CHARSET_INFO *cs) const;
   bool eq_collation_specific_names(CHARSET_INFO *cs) const;
+  bool can_have_collate_clause() const
+  {
+    return m_charset != &my_charset_bin;
+  }
 };
 
 
