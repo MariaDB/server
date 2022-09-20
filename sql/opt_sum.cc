@@ -383,6 +383,11 @@ int opt_sum_query(THD *thd,
           Item_field *item_field= (Item_field*) (expr->real_item());
           TABLE *table= item_field->field->table;
 
+#ifdef WITH_PARTITION_STORAGE_ENGINE
+          if (table->all_partitions_pruned_away)
+            DBUG_RETURN(HA_ERR_KEY_NOT_FOUND); // No rows matching WHERE
+#endif
+
           /* 
             Look for a partial key that can be used for optimization.
             If we succeed, ref.key_length will contain the length of

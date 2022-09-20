@@ -1,0 +1,11 @@
+#
+# MDEV-24283 Assertion `bitmap_is_set(&m_part_info->read_partitions, m_part_spec.start_part)' failed in ha_partition::handle_ordered_index_scan
+#
+--source include/have_partition.inc
+ 
+CREATE TABLE t (c INT KEY) PARTITION BY LIST (c) (PARTITION p VALUES IN (0));
+#SELECT MAX(c) FROM t WHERE c >= 0;
+SELECT MAX(c) FROM t WHERE c>0;
+
+# Cleanup
+DROP TABLE t;
