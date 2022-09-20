@@ -1553,8 +1553,11 @@ bool mysqld_show_create_db(THD *thd, LEX_CSTRING *dbname,
     buffer.append(STRING_WITH_LEN(" /*!40100"));
     buffer.append(STRING_WITH_LEN(" DEFAULT CHARACTER SET "));
     buffer.append(create.default_table_charset->csname);
-    buffer.append(STRING_WITH_LEN(" COLLATE "));
-    buffer.append(create.default_table_charset->name);
+    if (Charset(create.default_table_charset).can_have_collate_clause())
+    {
+      buffer.append(STRING_WITH_LEN(" COLLATE "));
+      buffer.append(create.default_table_charset->name);
+    }
     buffer.append(STRING_WITH_LEN(" */"));
   }
   protocol->store(buffer.ptr(), buffer.length(), buffer.charset());
@@ -2001,8 +2004,11 @@ static void add_table_options(THD *thd, TABLE *table,
     {
       packet->append(STRING_WITH_LEN(" DEFAULT CHARSET="));
       packet->append(share->table_charset->csname);
-      packet->append(STRING_WITH_LEN(" COLLATE="));
-      packet->append(table->s->table_charset->name);
+      if (Charset(table->s->table_charset).can_have_collate_clause())
+      {
+        packet->append(STRING_WITH_LEN(" COLLATE="));
+        packet->append(table->s->table_charset->name);
+      }
     }
   }
 
@@ -2259,10 +2265,13 @@ int show_create_table(THD *thd, TABLE_LIST *table_list, String *packet,
     {
       if (field->charset() != share->table_charset)
       {
-	packet->append(STRING_WITH_LEN(" CHARACTER SET "));
-	packet->append(field->charset()->csname);
-	packet->append(STRING_WITH_LEN(" COLLATE "));
-	packet->append(field->charset()->name);
+        packet->append(STRING_WITH_LEN(" CHARACTER SET "));
+        packet->append(field->charset()->csname);
+        if (Charset(field->charset()).can_have_collate_clause())
+        {
+          packet->append(STRING_WITH_LEN(" COLLATE "));
+          packet->append(field->charset()->name);
+        }
       }
     }
 
@@ -3611,6 +3620,7 @@ union Any_pointer {
   @param variable    [in]     Details of the variable.
   @param value_type  [in]     Variable type.
   @param show_type   [in]     Variable show type.
+  @param status_var  [in]     Status variable pointer
   @param charset     [out]    Character set of the value.
   @param buff        [in,out] Buffer to store the value.
                               (Needs to have enough memory

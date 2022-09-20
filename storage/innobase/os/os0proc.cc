@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2019, 2020, MariaDB Corporation.
+Copyright (c) 2019, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -180,11 +180,11 @@ os_mem_free_large(
 #elif !defined OS_MAP_ANON
 	ut_free(ptr);
 #else
-# if defined(UNIV_SOLARIS)
+# if defined(__sun__)
 	if (munmap(static_cast<caddr_t>(ptr), size)) {
 # else
 	if (munmap(ptr, size)) {
-# endif /* UNIV_SOLARIS */
+# endif /* __sun__ */
 		ib::error() << "munmap(" << ptr << ", " << size << ") failed;"
 			" errno " << errno;
 	} else {

@@ -34,7 +34,7 @@ Created 10/25/1995 Heikki Tuuri
 #include "log0recv.h"
 #include "dict0types.h"
 #include "ilist.h"
-#ifdef UNIV_LINUX
+#ifdef __linux__
 # include <set>
 #endif
 
@@ -938,7 +938,7 @@ struct fil_system_t {
 
 private:
   bool m_initialised;
-#ifdef UNIV_LINUX
+#ifdef __linux__
   /** available block devices that reside on non-rotational storage */
   std::vector<dev_t> ssd;
 public:

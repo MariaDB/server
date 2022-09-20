@@ -5099,7 +5099,6 @@ Sys_var_rpl_filter::global_value_ptr(THD *thd,
   }
 
   rpl_filter= mi->rpl_filter;
-  tmp.length(0);
 
   mysql_mutex_lock(&LOCK_active_mi);
   switch (opt_id) {

@@ -68,7 +68,7 @@ Created 11/5/1995 Heikki Tuuri
 #include <sstream>
 #include "log.h"
 
-#ifdef UNIV_LINUX
+#ifdef __linux__
 #include <stdlib.h>
 #endif
 

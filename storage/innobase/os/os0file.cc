@@ -37,7 +37,7 @@ Created 10/21/1995 Heikki Tuuri
 #include "os0file.h"
 #include "sql_const.h"
 
-#ifdef UNIV_LINUX
+#ifdef __linux__
 # include <sys/types.h>
 # include <sys/stat.h>
 #endif
@@ -63,7 +63,7 @@ Created 10/21/1995 Heikki Tuuri
 # include <linux/falloc.h>
 #endif /* HAVE_FALLOC_PUNCH_HOLE_AND_KEEP_SIZE */
 
-#if defined(UNIV_LINUX) && defined(HAVE_SYS_IOCTL_H)
+#if defined(__linux__) && defined(HAVE_SYS_IOCTL_H)
 # include <sys/ioctl.h>
 # ifndef DFS_IOCTL_ATOMIC_WRITE_SET
 #  define DFS_IOCTL_ATOMIC_WRITE_SET _IOW(0x95, 2, uint)
@@ -1516,7 +1516,7 @@ os_file_punch_hole_posix(
 
 	return(DB_IO_ERROR);
 
-#elif defined(UNIV_SOLARIS)
+#elif defined __sun__
 
 	// Use F_FREESP
 
@@ -4533,10 +4533,11 @@ os_file_io(
 @param[in]	type		IO context
 @param[in]	file		handle to an open file
 @param[out]	buf		buffer from which to write
-@param[in]	n		number of bytes to read, starting from offset
-@param[in]	offset		file offset from the start where to read
+@param[in]	n		number of bytes to write, starting from offset
+@param[in]	offset		file offset from the start where to write
 @param[out]	err		DB_SUCCESS or error code
-@return number of bytes written, -1 if error */
+@return number of bytes written
+@retval -1 on error */
 static MY_ATTRIBUTE((warn_unused_result))
 ssize_t
 os_file_pwrite(
@@ -4815,7 +4816,7 @@ os_file_set_nocache(
 	const char*	operation_name	MY_ATTRIBUTE((unused)))
 {
 	/* some versions of Solaris may not have DIRECTIO_ON */
-#if defined(UNIV_SOLARIS) && defined(DIRECTIO_ON)
+#if defined(__sun__) && defined(DIRECTIO_ON)
 	if (directio(fd, DIRECTIO_ON) == -1) {
 		int	errno_save = errno;
 
@@ -4832,7 +4833,7 @@ os_file_set_nocache(
 		if (errno_save == EINVAL) {
 			if (!warning_message_printed) {
 				warning_message_printed = true;
-# ifdef UNIV_LINUX
+# ifdef __linux__
 				ib::warn()
 					<< "Failed to set O_DIRECT on file"
 					<< file_name << "; " << operation_name
@@ -4841,12 +4842,12 @@ os_file_set_nocache(
 					"known to result in 'Invalid argument' "
 					"on Linux on tmpfs, "
 					"see MySQL Bug#26662.";
-# else /* UNIV_LINUX */
+# else /* __linux__ */
 				goto short_warning;
-# endif /* UNIV_LINUX */
+# endif /* __linux__ */
 			}
 		} else {
-# ifndef UNIV_LINUX
+# ifndef __linux__
 short_warning:
 # endif
 			ib::warn()
@@ -4856,7 +4857,7 @@ short_warning:
 				<< ", continuing anyway.";
 		}
 	}
-#endif /* defined(UNIV_SOLARIS) && defined(DIRECTIO_ON) */
+#endif /* defined(__sun__) && defined(DIRECTIO_ON) */
 }
 
 #endif /* _WIN32 */
@@ -7465,7 +7466,7 @@ void fil_node_t::find_metadata(os_file_t file
 		block_size = statbuf->st_blksize;
 	}
 	on_ssd = space->atomic_write_supported
-# ifdef UNIV_LINUX
+# ifdef __linux__
 		|| (statbuf && fil_system.is_ssd(statbuf->st_dev))
 # endif
 		;
@@ -7576,7 +7577,7 @@ invalid:
 
 	if (first) {
 		ut_ad(space->id != TRX_SYS_SPACE);
-#ifdef UNIV_LINUX
+#ifdef __linux__
 		find_metadata(handle, &statbuf);
 #else
 		find_metadata();

@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2019, MariaDB Corporation.
+Copyright (c) 2017, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -30,7 +30,7 @@ Created 9/30/1995 Heikki Tuuri
 
 #include "univ.i"
 
-#ifdef UNIV_LINUX
+#ifdef __linux__
 #include <sys/ipc.h>
 #include <sys/shm.h>
 #endif

@@ -3180,7 +3180,7 @@ CREATE TABLE t1(a ENUM(0x6100,0x6200,0x6300) CHARACTER SET 'Binary');
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` enum('a\0','b\0','c\0') CHARACTER SET binary COLLATE binary DEFAULT NULL
+  `a` enum('a\0','b\0','c\0') CHARACTER SET binary DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 INSERT INTO t1 VALUES (1),(2),(3);
 SELECT HEX(a) FROM t1 ORDER BY a;
@@ -3281,7 +3281,7 @@ CREATE TABLE t1(c ENUM(0x0061) CHARACTER SET 'Binary', d JSON);
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c` enum('\0a') CHARACTER SET binary COLLATE binary DEFAULT NULL,
+  `c` enum('\0a') CHARACTER SET binary DEFAULT NULL,
   `d` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL CHECK (json_valid(`d`))
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 INSERT INTO t1 (c) VALUES (1);
@@ -3296,7 +3296,7 @@ d INT DEFAULT NULL CHECK (d>0)
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c` enum('\0a') CHARACTER SET binary COLLATE binary DEFAULT NULL,
+  `c` enum('\0a') CHARACTER SET binary DEFAULT NULL,
   `d` int(11) DEFAULT NULL CHECK (`d` > 0)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 INSERT INTO t1 VALUES (1,1);
@@ -3308,7 +3308,7 @@ CREATE TABLE t1(c ENUM(0x0061) CHARACTER SET 'Binary' CHECK (c>0));
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c` enum('\0a') CHARACTER SET binary COLLATE binary DEFAULT NULL CHECK (`c` > 0)
+  `c` enum('\0a') CHARACTER SET binary DEFAULT NULL CHECK (`c` > 0)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 INSERT INTO t1 VALUES (1);
 SELECT HEX(c) FROM t1;
@@ -3317,4 +3317,48 @@ HEX(c)
 DROP TABLE t1;
 #
 # End of 10.2 tests
+#
+#
+# Start of 10.3 tests
+#
+#
+# MDEV-29561 SHOW CREATE TABLE produces syntactically incorrect structure
+#
+CREATE TABLE t1 (a ENUM('x') CHARACTER SET BINARY);
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` enum('x') CHARACTER SET binary DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+DROP TABLE t1;
+CREATE TABLE `t1` (
+  `a` enum('x') CHARACTER SET binary DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci;
+DROP TABLE t1;
+CREATE TABLE t1 (a INT ) CHARSET=binary;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=binary
+DROP TABLE t1;
+CREATE DATABASE db1 CHARACTER SET BINARY;
+SHOW CREATE DATABASE db1;
+Database	Create Database
+db1	CREATE DATABASE `db1` /*!40100 DEFAULT CHARACTER SET binary */
+DROP DATABASE db1;
+CREATE FUNCTION f1() RETURNS ENUM('a') CHARACTER SET binary RETURN NULL;
+SHOW CREATE FUNCTION f1;
+Function	sql_mode	Create Function	character_set_client	collation_connection	Database Collation
+f1	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	CREATE DEFINER=`root`@`localhost` FUNCTION `f1`() RETURNS enum('a') CHARSET binary
+RETURN NULL	latin1	latin1_swedish_ci	latin1_swedish_ci
+DROP FUNCTION f1;
+CREATE FUNCTION f1(a ENUM('a') CHARACTER SET binary) RETURNS INT RETURN NULL;
+SHOW CREATE FUNCTION f1;
+Function	sql_mode	Create Function	character_set_client	collation_connection	Database Collation
+f1	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	CREATE DEFINER=`root`@`localhost` FUNCTION `f1`(a ENUM('a') CHARACTER SET binary) RETURNS int(11)
+RETURN NULL	latin1	latin1_swedish_ci	latin1_swedish_ci
+DROP FUNCTION f1;
+#
+# End of 10.3 tests
 #

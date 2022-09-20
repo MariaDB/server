@@ -604,12 +604,12 @@ srv_undo_tablespace_create(
 
 	} else if (ret == FALSE) {
 		if (os_file_get_last_error(false) != OS_FILE_ALREADY_EXISTS
-#ifdef UNIV_AIX
+#ifdef _AIX
 			/* AIX 5.1 after security patch ML7 may have
 			errno set to 0 here, which causes our function
 			to return 100; work around that AIX problem */
 		    && os_file_get_last_error(false) != 100
-#endif /* UNIV_AIX */
+#endif
 		) {
 			ib::error() << "Can't create UNDO tablespace "
 				<< name;
@@ -1569,10 +1569,10 @@ dberr_t srv_start(bool create_new_db)
 			buf_flush_set_page_cleaner_thread_cnt(srv_n_page_cleaners);
 		}
 
-#ifdef UNIV_LINUX
+#ifdef __linux__
 		/* Wait for the setpriority() call to finish. */
 		os_event_wait(recv_sys.flush_end);
-#endif /* UNIV_LINUX */
+#endif /* __linux__ */
 		srv_start_state_set(SRV_START_STATE_IO);
 	}
 

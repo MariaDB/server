@@ -7969,7 +7969,7 @@ CREATE TABLE t1(c1 SET('a') COLLATE 'Binary',c2 JSON);
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` set('\0\0\0a') CHARACTER SET binary COLLATE binary DEFAULT NULL,
+  `c1` set('\0\0\0a') CHARACTER SET binary DEFAULT NULL,
   `c2` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL CHECK (json_valid(`c2`))
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t1;
