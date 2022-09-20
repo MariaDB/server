@@ -174,28 +174,10 @@ cd "$OLD_PWD"
 
 BINLOG_TAR_FILE="$DATA_DIR/wsrep_sst_binlog.tar"
 
-ar_log_dir="$DATA_DIR"
-ib_log_dir="$DATA_DIR"
-ib_home_dir="$DATA_DIR"
-ib_undo_dir="$DATA_DIR"
-
-# if no command line argument and INNODB_LOG_GROUP_HOME is not set,
-# then try to get it from the my.cnf:
-if [ -z "$INNODB_LOG_GROUP_HOME" ]; then
-    INNODB_LOG_GROUP_HOME=$(parse_cnf '--mysqld' 'innodb-log-group-home-dir')
-    INNODB_LOG_GROUP_HOME=$(trim_dir "$INNODB_LOG_GROUP_HOME")
-fi
-
-if [ -n "$INNODB_LOG_GROUP_HOME" -a "$INNODB_LOG_GROUP_HOME" != '.' -a \
-     "$INNODB_LOG_GROUP_HOME" != "$DATA_DIR" ]
-then
-    # handle both relative and absolute paths:
-    cd "$DATA"
-    [ ! -d "$INNODB_LOG_GROUP_HOME" ] && mkdir -p "$INNODB_LOG_GROUP_HOME"
-    cd "$INNODB_LOG_GROUP_HOME"
-    ib_log_dir="$(pwd)"
-    cd "$OLD_PWD"
-fi
+ib_home_dir=""
+ib_log_dir=""
+ib_undo_dir=""
+ar_log_dir=""
 
 # if no command line argument and INNODB_DATA_HOME_DIR environment
 # variable is not set, try to get it from the my.cnf:
@@ -213,6 +195,26 @@ then
     cd "$INNODB_DATA_HOME_DIR"
     ib_home_dir="$(pwd)"
     cd "$OLD_PWD"
+    [ "$ib_home_dir" = "$DATA_DIR" ] && ib_home_dir=""
+fi
+
+# if no command line argument and INNODB_LOG_GROUP_HOME is not set,
+# then try to get it from the my.cnf:
+if [ -z "$INNODB_LOG_GROUP_HOME" ]; then
+    INNODB_LOG_GROUP_HOME=$(parse_cnf '--mysqld' 'innodb-log-group-home-dir')
+    INNODB_LOG_GROUP_HOME=$(trim_dir "$INNODB_LOG_GROUP_HOME")
+fi
+
+if [ -n "$INNODB_LOG_GROUP_HOME" -a "$INNODB_LOG_GROUP_HOME" != '.' -a \
+     "$INNODB_LOG_GROUP_HOME" != "$DATA_DIR" ]
+then
+    # handle both relative and absolute paths:
+    cd "$DATA"
+    [ ! -d "$INNODB_LOG_GROUP_HOME" ] && mkdir -p "$INNODB_LOG_GROUP_HOME"
+    cd "$INNODB_LOG_GROUP_HOME"
+    ib_log_dir="$(pwd)"
+    cd "$OLD_PWD"
+    [ "$ib_log_dir" = "$DATA_DIR" ] && ib_log_dir=""
 fi
 
 # if no command line argument and INNODB_UNDO_DIR is not set,
@@ -231,6 +233,7 @@ then
     cd "$INNODB_UNDO_DIR"
     ib_undo_dir="$(pwd)"
     cd "$OLD_PWD"
+    [ "$ib_undo_dir" = "$DATA_DIR" ] && ib_undo_dir=""
 fi
 
 # if no command line argument then try to get it from the my.cnf:
@@ -248,6 +251,7 @@ then
     cd "$ARIA_LOG_DIR"
     ar_log_dir="$(pwd)"
     cd "$OLD_PWD"
+    [ "$ar_log_dir" = "$DATA_DIR" ] && ar_log_dir=""
 fi
 
 encgroups='--mysqld|sst'
@@ -559,7 +563,6 @@ EOF
 
 # New filter - exclude everything except dirs (schemas) and innodb files
 FILTER="-f '- /lost+found'
-        -f '- /.zfs'
         -f '- /.fseventsd'
         -f '- /.Trashes'
         -f '- /.pid'
@@ -579,6 +582,10 @@ FILTER="-f '- /lost+found'
         eval rsync ${STUNNEL:+"--rsh='$STUNNEL'"} \
               --owner --group --perms --links --specials \
               --ignore-times --inplace --dirs --delete --quiet \
+              ${ib_home_dir:+"-f '- $ib_home_dir'"} \
+              ${ib_log_dir:+"-f '- $ib_log_dir'"} \
+              ${ib_undo_dir:+"-f '- $ib_undo_dir'"} \
+              ${ar_log_dir:+"-f '- $ar_log_dir'"} \
               $WHOLE_FILE_OPT $FILTER "'$WSREP_SST_OPT_DATA/'" \
               "'rsync://$WSREP_SST_OPT_ADDR'" >&2 || RC=$?
 
@@ -601,65 +608,61 @@ FILTER="-f '- /lost+found'
 
         wsrep_log_info "Transfer of normal directories done"
 
-        # Transfer InnoDB data files
-        rsync ${STUNNEL:+--rsh="$STUNNEL"} \
-              --owner --group --perms --links --specials \
-              --ignore-times --inplace --quiet --dirs --delete \
-              $WHOLE_FILE_OPT -f '+ /ibdata*' -f '+ /ib_lru_dump' \
-              -f '- **' "$ib_home_dir/" \
-              "rsync://$WSREP_SST_OPT_ADDR-data_dir" >&2 || RC=$?
-
-        if [ $RC -ne 0 ]; then
-            wsrep_log_error "rsync innodb_data_home_dir returned code $RC:"
-            exit 255 # unknown error
+        if [ -n "$ib_home_dir" ]; then
+            # Transfer InnoDB data files
+            rsync ${STUNNEL:+--rsh="$STUNNEL"} \
+                  --owner --group --perms --links --specials \
+                  --ignore-times --inplace --recursive --delete --quiet \
+                  $WHOLE_FILE_OPT "$ib_home_dir/" \
+                  "rsync://$WSREP_SST_OPT_ADDR-data_dir" >&2 || RC=$?
+            if [ $RC -ne 0 ]; then
+                wsrep_log_error "rsync innodb_data_home_dir returned code $RC:"
+                exit 255 # unknown error
+            fi
+            wsrep_log_info "Transfer of InnoDB data files done"
         fi
 
-        wsrep_log_info "Transfer of InnoDB data files done"
-
-        # second, we transfer InnoDB log files
-        rsync ${STUNNEL:+--rsh="$STUNNEL"} \
-              --owner --group --perms --links --specials \
-              --ignore-times --inplace --quiet --dirs --delete \
-              $WHOLE_FILE_OPT -f '+ /ib_logfile[0-9]*' \
-              -f '- **' "$ib_log_dir/" \
-              "rsync://$WSREP_SST_OPT_ADDR-log_dir" >&2 || RC=$?
-
-        if [ $RC -ne 0 ]; then
-            wsrep_log_error "rsync innodb_log_group_home_dir returned code $RC:"
-            exit 255 # unknown error
+        if [ -n "$ib_log_dir" ]; then
+            # second, we transfer InnoDB log files
+            rsync ${STUNNEL:+--rsh="$STUNNEL"} \
+                  --owner --group --perms --links --specials \
+                  --ignore-times --inplace --recursive --delete --quiet \
+                  $WHOLE_FILE_OPT "$ib_log_dir/" \
+                  "rsync://$WSREP_SST_OPT_ADDR-log_dir" >&2 || RC=$?
+            if [ $RC -ne 0 ]; then
+                wsrep_log_error "rsync innodb_log_group_home_dir returned code $RC:"
+                exit 255 # unknown error
+            fi
+            wsrep_log_info "Transfer of InnoDB log files done"
         fi
 
-        wsrep_log_info "Transfer of InnoDB log files done"
-
-        # third, we transfer InnoDB undo logs
-        rsync ${STUNNEL:+--rsh="$STUNNEL"} \
-              --owner --group --perms --links --specials \
-              --ignore-times --inplace --quiet --dirs --delete \
-              $WHOLE_FILE_OPT -f '+ /undo*' \
-              -f '- **' "$ib_undo_dir/" \
-              "rsync://$WSREP_SST_OPT_ADDR-undo_dir" >&2 || RC=$?
-
-        if [ $RC -ne 0 ]; then
-            wsrep_log_error "rsync innodb_undo_dir returned code $RC:"
-            exit 255 # unknown error
+        if [ -n "$ib_undo_dir" ]; then
+            # third, we transfer InnoDB undo logs
+            rsync ${STUNNEL:+--rsh="$STUNNEL"} \
+                  --owner --group --perms --links --specials \
+                  --ignore-times --inplace --recursive --delete --quiet \
+                  $WHOLE_FILE_OPT "$ib_undo_dir/" \
+                  "rsync://$WSREP_SST_OPT_ADDR-undo_dir" >&2 || RC=$?
+            if [ $RC -ne 0 ]; then
+                wsrep_log_error "rsync innodb_undo_dir returned code $RC:"
+                exit 255 # unknown error
+            fi
+            wsrep_log_info "Transfer of InnoDB undo logs done"
         fi
 
-        wsrep_log_info "Transfer of InnoDB undo logs done"
-
-        # fourth, we transfer Aria logs
-        rsync ${STUNNEL:+--rsh="$STUNNEL"} \
-              --owner --group --perms --links --specials \
-              --ignore-times --inplace --quiet --dirs --delete \
-              $WHOLE_FILE_OPT -f '+ /aria_log_control' -f '+ /aria_log.*' \
-              -f '- **' "$ar_log_dir/" \
-              "rsync://$WSREP_SST_OPT_ADDR-aria_log" >&2 || RC=$?
-
-        if [ $RC -ne 0 ]; then
-            wsrep_log_error "rsync aria_log_dir_path returned code $RC:"
-            exit 255 # unknown error
+        if [ -n "$ar_log_dir" ]; then
+            # fourth, we transfer Aria logs
+            rsync ${STUNNEL:+--rsh="$STUNNEL"} \
+                  --owner --group --perms --links --specials \
+                  --ignore-times --inplace --recursive --delete --quiet \
+                  $WHOLE_FILE_OPT "$ar_log_dir/" \
+                  "rsync://$WSREP_SST_OPT_ADDR-aria_log" >&2 || RC=$?
+            if [ $RC -ne 0 ]; then
+                wsrep_log_error "rsync aria_log_dir_path returned code $RC:"
+                exit 255 # unknown error
+            fi
+            wsrep_log_info "Transfer of Aria logs done"
         fi
-
-        wsrep_log_info "Transfer of Aria logs done"
 
         # then, we parallelize the transfer of database directories,
         # use '.' so that path concatenation works:
@@ -673,19 +676,17 @@ FILTER="-f '- /lost+found'
         cd "$DATA"
 
         find . -maxdepth 1 -mindepth 1 -type d -not -name 'lost+found' \
+             ${ib_home_dir:+-not -samefile "$ib_home_dir"} \
+             ${ib_log_dir:+-not -samefile "$ib_log_dir"} \
+             ${ib_undo_dir:+-not -samefile "$ib_undo_dir"} \
+             ${ar_log_dir:+-not -samefile "$ar_log_dir"} \
              -not -name '.zfs' -print0 | xargs -I{} -0 -P $backup_threads \
              rsync ${STUNNEL:+--rsh="$STUNNEL"} \
              --owner --group --perms --links --specials \
              --ignore-times --inplace --recursive --delete --quiet \
              $WHOLE_FILE_OPT \
-             -f '- $ib_home_dir/ib_lru_dump' \
-             -f '- $ib_home_dir/ibdata*' \
-             -f '- $ib_undo_dir/undo*' \
-             -f '- $ib_log_dir/ib_logfile[0-9]*' \
-             -f '- $ar_log_dir/aria_log_control' \
-             -f '- $ar_log_dir/aria_log.*' \
              "$WSREP_SST_OPT_DATA/{}/" \
-             "rsync://$WSREP_SST_OPT_ADDR/{}" >&2 || RC=$?
+             "rsync://$WSREP_SST_OPT_ADDR-main/{}" >&2 || RC=$?
 
         cd "$OLD_PWD"
 
@@ -766,7 +767,11 @@ read only = no
 timeout = 300
 $SILENT
 [$MODULE]
-    path = $WSREP_SST_OPT_DATA
+    path = $DATA_DIR
+    exclude = .zfs
+    post-xfer exec = [ -d  "$ar_log_dir" ]  || mkdir -p "$ar_log_dir"; [ -d  "$ib_log_dir" ]  || mkdir -p "$ib_log_dir"; [ -d  "$ib_home_dir" ] || mkdir -p "$ib_home_dir"; [ -d  "$ib_undo_dir" ] || mkdir -p "$ib_undo_dir"
+[$MODULE-main]
+    path = $DATA_DIR
     exclude = .zfs
 [$MODULE-log_dir]
     path = $ib_log_dir

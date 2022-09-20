@@ -1287,6 +1287,7 @@ else # joiner
         cd "$ARIA_LOG_DIR"
         ar_log_dir="$(pwd)"
         cd "$OLD_PWD"
+        [ "$ar_log_dir" = "$DATA_DIR" ] && ar_log_dir=""
     fi
 
     if [ -n "$backup_threads" ]; then
