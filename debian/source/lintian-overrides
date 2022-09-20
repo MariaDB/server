@@ -11,12 +11,20 @@ version-substvar-for-external-package mariadb-client-10.5 -> mysql-client-core-8
 version-substvar-for-external-package libmariadbd-dev -> libmariadbclient-dev
 # ColumnStore not used in Debian, safe to ignore. Reported upstream in https://jira.mariadb.org/browse/MDEV-24124
 source-is-missing storage/columnstore/columnstore/utils/jemalloc/libjemalloc.so.2
+source-is-missing [storage/columnstore/columnstore/utils/jemalloc/libjemalloc.so.2]
 # Must be fixed upstream
 source-is-missing storage/mroonga/vendor/groonga/examples/dictionary/html/js/jquery-ui-*.custom.js
+# New Lintian syntax (from version 2.115)
+source-is-missing [sql/share/charsets/languages.html]
+source-is-missing [storage/rocksdb/rocksdb/docs/_includes/footer.html]
 # Intentional control relationships
 version-substvar-for-external-package Replaces * libmariadbd-dev -> libmariadbclient-dev
 version-substvar-for-external-package Replaces * libmariadb-dev -> libmysqlclient-dev
 version-substvar-for-external-package Replaces * libmariadb-dev -> libmysqld-dev
+# New Lintian syntax (from version 2.115)
+version-substvar-for-external-package Replaces * libmariadb-dev -> libmysqlclient-dev [debian/control:*]
+version-substvar-for-external-package Replaces * libmariadb-dev -> libmysqld-dev [debian/control:*]
+version-substvar-for-external-package Replaces * libmariadbd-dev -> libmariadbclient-dev [debian/control:*]
 # We can't change build dependencies on a stable branch (10.5..10.8) so just override this
 missing-build-dependency-for-dh-addon systemd *
 # Data or test files where long lines are justified
