@@ -3347,11 +3347,12 @@ static int check_user_can_set_role(THD *thd, const char *user,
   }
 
   if (access)
-  {
     *access = acl_user->access | role->access;
-  }
 
 end:
+  if (acl_public && access)
+    *access|= acl_public->access;
+
   mysql_mutex_unlock(&acl_cache->lock);
 
   /* We present different error messages depending if the user has sufficient
@@ -3433,10 +3434,6 @@ int acl_setrole(THD *thd, const char *rolename, privilege_t access)
   if (thd->db.str)
     sctx->db_access= acl_get_all3(sctx, thd->db.str, FALSE);
 
-  // PUBLIC magic
-  if (acl_public)
-    sctx->master_access|= acl_public->access;
-
   return 0;
 }
 
@@ -3454,8 +3451,7 @@ static void acl_update_role(const char *rolename, const privilege_t privileges)
   if (role)
   {
     role->initial_role_access= role->access= privileges;
-    if (strcasecmp(rolename, public_name.str) == 0)
-      acl_public= role;
+    DBUG_ASSERT(strcasecmp(rolename, public_name.str) || acl_public == role);
   }
 }
 
@@ -3711,8 +3707,7 @@ privilege_t acl_get(const char *host, const char *ip,
     if (acl_db->host.hostname)
       goto exit; // Fully specified. Take it
     /* the host table is not used for roles */
-    if ((!host || !host[0]) &&
-        !acl_db->host.hostname &&
+    if ((!host || !host[0]) && !acl_db->host.hostname &&
         find_acl_role(user, false))
       goto exit;
   }
@@ -4365,7 +4360,7 @@ wsrep_error_label:
 
 
 /*
-  Find user in ACL
+  Find user in ACL. Uses to check a definer
 
   SYNOPSIS
     is_acl_user()
@@ -4373,8 +4368,8 @@ wsrep_error_label:
     user                 user name
 
   RETURN
-   FALSE  user not fond
-   TRUE   there is such user
+   FALSE  definer not fond
+   TRUE   there is such definer
 */
 
 bool is_acl_user(const char *host, const char *user)
@@ -4449,17 +4444,17 @@ static ACL_ROLE *find_acl_role(const char *role, bool allow_public)
 
   mysql_mutex_assert_owner(&acl_cache->lock);
 
-  if (!length || (!allow_public &&
-                  length == public_name.length &&
+  if (!length || (!allow_public && length == public_name.length &&
                   strcasecmp(role, public_name.str) == 0))
     DBUG_RETURN(NULL);
 
-  ACL_ROLE *r= (ACL_ROLE *)my_hash_search(&acl_roles, (uchar *)role,
-                                          length);
+  ACL_ROLE *r= (ACL_ROLE *)my_hash_search(&acl_roles, (uchar *)role, length);
   DBUG_RETURN(r);
 }
 
-
+/*
+  Finds a grantee - something that privileges or roles can be granted to.
+*/
 static ACL_USER_BASE *find_acl_user_base(const char *user, const char *host)
 {
   if (*host)
@@ -5945,9 +5940,7 @@ static int replace_table_table(THD *thd, GRANT_TABLE *grant_table,
   uchar user_key[MAX_KEY_LENGTH];
   DBUG_ENTER("replace_table_table");
   DBUG_PRINT("eneter", ("User: '%s'  Host: '%s'  Revoke:'%d'",
-                        (combo.user.length ? combo.user.str : ""),
-                        (combo.host.length ? combo.host.str : ""),
-                        (int) revoke_grant));
+                        combo.user.str, combo.host.str, (int) revoke_grant));
 
   get_grantor(thd, grantor);
   /*
@@ -7261,10 +7254,10 @@ int mysql_table_grant(THD *thd, TABLE_LIST *table_list,
       continue;
     }
     /* Create user if needed */
-    error= copy_and_check_auth(Str, tmp_Str, thd) ||
+    error= copy_and_check_auth(Str, Str, thd) ||
            replace_user_table(thd, tables.user_table(), Str,
                                NO_ACL, revoke_grant, create_new_users,
-                               MY_TEST(tmp_Str->is_public ||
+                               MY_TEST(!Str->is_public &&
                                        (thd->variables.sql_mode &
                                         MODE_NO_AUTO_CREATE_USER)));
     if (unlikely(error))
@@ -7445,7 +7438,7 @@ bool mysql_routine_grant(THD *thd, TABLE_LIST *table_list,
     if (copy_and_check_auth(Str, tmp_Str, thd) ||
         replace_user_table(thd, tables.user_table(), Str,
 			   NO_ACL, revoke_grant, create_new_users,
-                           MY_TEST(thd->variables.sql_mode &
+                           !Str->is_public && (thd->variables.sql_mode &
                                      MODE_NO_AUTO_CREATE_USER)))
     {
       result= TRUE;
@@ -7612,8 +7605,7 @@ bool mysql_grant_role(THD *thd, List <LEX_USER> &list, bool revoke)
   rolename= granted_role->user;
 
   create_new_user= test_if_create_new_users(thd);
-  no_auto_create_user= MY_TEST(thd->variables.sql_mode &
-                               MODE_NO_AUTO_CREATE_USER);
+  no_auto_create_user= thd->variables.sql_mode & MODE_NO_AUTO_CREATE_USER;
 
   Grant_tables tables;
   if ((result= tables.open_and_lock(thd, Table_user | Table_roles_mapping, TL_WRITE)))
@@ -7652,8 +7644,7 @@ bool mysql_grant_role(THD *thd, List <LEX_USER> &list, bool revoke)
         result= 1;
         continue;
       }
-      if (!(role_as_user= find_acl_role(thd->security_ctx->priv_role,
-                                        true)))
+      if (!(role_as_user= find_acl_role(thd->security_ctx->priv_role, true)))
       {
         LEX_CSTRING ls= { thd->security_ctx->priv_role,
                           strlen(thd->security_ctx->priv_role) };
@@ -7690,13 +7681,21 @@ bool mysql_grant_role(THD *thd, List <LEX_USER> &list, bool revoke)
         hostname= empty_clex_str;
       else
       {
-        if (check_role_name(username.str, true) == ROLE_NAME_INVALID)
-        {
+        switch (check_role_name(username.str, true)) {
+        case ROLE_NAME_INVALID:
           append_user(thd, &wrong_users, &username, &empty_clex_str);
           result= 1;
           continue;
+        case ROLE_NAME_PUBLIC:
+          user->user= username= public_name; // fix the letter case
+          user->host= hostname= empty_clex_str;
+          user->is_public= true;
+          role_as_user= acl_public;
+          break;
+        case ROLE_NAME_OK:
+          hostname= host_not_specified;
+          break;
         }
-        hostname= host_not_specified;
       }
     }
 
@@ -7713,16 +7712,7 @@ bool mysql_grant_role(THD *thd, List <LEX_USER> &list, bool revoke)
     {
       LEX_USER user_combo = *user;
       user_combo.user = username;
-      user_combo.is_public= (user->host.length == 0 &&
-                             // it is also can be that
-                             // hostname.length= 1 && hostname.str[0] == '%'
-                             // if the PUBLIC was absent
-                             username.length == public_name.length &&
-                             (strcasecmp(username.str, public_name.str) == 0));
-      if (user_combo.is_public)
-        user_combo.host= hostname= empty_clex_str;
-      else
-        user_combo.host = hostname;
+      user_combo.host = hostname;
 
       if (copy_and_check_auth(&user_combo, &user_combo, thd) ||
           replace_user_table(thd, tables.user_table(), &user_combo, NO_ACL,
@@ -9583,6 +9573,12 @@ bool mysql_show_grants(THD *thd, LEX_USER *lex_user)
         DBUG_RETURN(TRUE);
       }
     }
+  }
+
+  if (username && rolename) // show everything, incl. PUBLIC
+  {
+    if (acl_public)
+      traverse_role_graph_down(acl_public, thd, show_grants_callback, NULL);
   }
 
   if (username)
@@ -12400,8 +12396,7 @@ SHOW_VAR acl_statistics[] = {
    hostname == NULL means we are looking for a role as a starting point,
    otherwise a user.
 */
-bool check_role_is_granted(const char *username,
-                           const char *hostname,
+bool check_role_is_granted(const char *username, const char *hostname,
                            const char *rolename)
 {
   DBUG_ENTER("check_role_is_granted");
@@ -12985,6 +12980,8 @@ LEX_USER *get_current_user(THD *thd, LEX_USER *user, bool lock)
     if (!dup)
       return 0;
 
+    dup->is_public= false;
+
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
     if (has_auth(user, thd->lex))
     {
@@ -12997,11 +12994,16 @@ LEX_USER *get_current_user(THD *thd, LEX_USER *user, bool lock)
     if (result == ROLE_NAME_INVALID)
       return 0;
     if (result == ROLE_NAME_PUBLIC)
+    {
       dup->is_public= true;
+      dup->user= public_name; // fix the letter case
+      dup->host= empty_clex_str;
+      return dup;
+    }
 
     if (lock)
       mysql_mutex_lock(&acl_cache->lock);
-    if (find_acl_role(dup->user.str, false) || dup->is_public)
+    if (find_acl_role(dup->user.str, false))
       dup->host= empty_clex_str;
     else
       dup->host= host_not_specified;

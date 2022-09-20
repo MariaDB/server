@@ -7,39 +7,6 @@ create user PUBLIC@localhost;
 GRANT SELECT on test.* to PUBLIC@localhost;
 drop user PUBLIC@localhost;
 drop user PUBLIC;
-# preinstalled PUBLIC
-GRANT SELECT on test.* to PUBLIC;
-GRANT SELECT on mysql.db to PUBLIC;
-select * from mysql.global_priv where user="PUBLIC" ;
-Host	User	Priv
-	PUBLIC	{"access":0,"version_id":VERSION,"is_role":true}
-SHOW GRANTS FOR PUBLIC;
-Grants for PUBLIC
-GRANT SELECT ON `test`.* TO `PUBLIC`
-GRANT SELECT ON `mysql`.`db` TO `PUBLIC`
-GRANT UPDATE on test.* to PUBLIC;
-GRANT UPDATE on mysql.db to PUBLIC;
-SHOW GRANTS FOR PUBLIC;
-Grants for PUBLIC
-GRANT SELECT, UPDATE ON `test`.* TO `PUBLIC`
-GRANT SELECT, UPDATE ON `mysql`.`db` TO `PUBLIC`
-REVOKE SELECT on test.* from PUBLIC;
-REVOKE SELECT on mysql.db from PUBLIC;
-SHOW GRANTS FOR PUBLIC;
-Grants for PUBLIC
-GRANT UPDATE ON `test`.* TO `PUBLIC`
-GRANT UPDATE ON `mysql`.`db` TO `PUBLIC`
-REVOKE UPDATE on test.* from PUBLIC;
-REVOKE UPDATE on mysql.db from PUBLIC;
-REVOKE UPDATE on test.* from PUBLIC;
-ERROR 42000: There is no such grant defined for user 'PUBLIC' on host ''
-REVOKE UPDATE on mysql.db from PUBLIC;
-ERROR 42000: There is no such grant defined for user 'PUBLIC' on host '' on table 'db'
-SHOW GRANTS FOR PUBLIC;
-Grants for PUBLIC
-# automaticly added PUBLIC
-delete from mysql.global_priv where user="PUBLIC";
-flush privileges;
 select * from mysql.global_priv where user="PUBLIC" ;
 Host	User	Priv
 GRANT SELECT on test.* to PUBLIC;
@@ -52,12 +19,12 @@ Grants for PUBLIC
 GRANT SELECT ON `test`.* TO `PUBLIC`
 GRANT SELECT ON `mysql`.`db` TO `PUBLIC`
 GRANT UPDATE on test.* to PUBLIC;
-GRANT UPDATE on mysql.db to PUBLIC;
-SHOW GRANTS FOR PUBLIC;
+grant update on mysql.db to public;
+show grants for public;
 Grants for PUBLIC
 GRANT SELECT, UPDATE ON `test`.* TO `PUBLIC`
 GRANT SELECT, UPDATE ON `mysql`.`db` TO `PUBLIC`
-REVOKE SELECT on test.* from PUBLIC;
+revoke select on test.* from public;
 REVOKE SELECT on mysql.db from PUBLIC;
 SHOW GRANTS FOR PUBLIC;
 Grants for PUBLIC
@@ -72,15 +39,15 @@ ERROR OP000: Invalid role specification `XXXXXX`
 # following should fail with the same error as above
 GRANT PUBLIC TO CURRENT_USER;
 ERROR OP000: Invalid role specification `PUBLIC`
-REVOKE XXXXXX FROM CURRENT_USER;
-ERROR OP000: Invalid role specification `XXXXXX`
+revoke xxxxxx from current_user;
+ERROR OP000: Invalid role specification `xxxxxx`
 # following should fail with the same error as above
-REVOKE PUBLIC FROM CURRENT_USER;
-ERROR OP000: Invalid role specification `PUBLIC`
+revoke public from current_user;
+ERROR OP000: Invalid role specification `public`
 drop role XXXXXX;
 ERROR HY000: Operation DROP ROLE failed for 'XXXXXX'
 # following should fail with the same error as above
-drop role PUBLIC;
+drop role public;
 ERROR HY000: Operation DROP ROLE failed for PUBLIC
 SET ROLE XXXXXX;
 ERROR OP000: Invalid role specification `XXXXXX`
@@ -92,6 +59,8 @@ ERROR OP000: Invalid role specification `XXXXXX`
 # following should fail with the same error as above
 SET DEFAULT ROLE PUBLIC;
 ERROR OP000: Invalid role specification `PUBLIC`
+set default role public;
+ERROR OP000: Invalid role specification `public`
 #
 # check prohibition of change security context to PUBLIC
 #
@@ -100,30 +69,13 @@ GRANT SELECT on test.* to PUBLIC;
 # try with a view
 create table t1( a int);
 create definer = PUBLIC view v1 as select * from t1;
-Warnings:
-Note	1449	The user specified as a definer ('PUBLIC'@'') does not exist
-show create view v1;
-View	Create View	character_set_client	collation_connection
-v1	CREATE ALGORITHM=UNDEFINED DEFINER=`PUBLIC` SQL SECURITY DEFINER VIEW `v1` AS select `t1`.`a` AS `a` from `t1`	latin1	latin1_swedish_ci
-Warnings:
-Note	1449	The user specified as a definer ('PUBLIC'@'') does not exist
-select * from v1;
-ERROR HY000: The user specified as a definer ('PUBLIC'@'') does not exist
-drop view v1;
+ERROR OP000: Invalid role specification `PUBLIC`
 drop table t1;
-# try with a view
+# try with a stored procedure
 create definer='PUBLIC' PROCEDURE p1() SELECT 1;
-Warnings:
-Note	1449	The user specified as a definer ('PUBLIC'@'') does not exist
-show create procedure p1;
-Procedure	sql_mode	Create Procedure	character_set_client	collation_connection	Database Collation
-p1	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	CREATE DEFINER=`PUBLIC` PROCEDURE `p1`()
-SELECT 1	latin1	latin1_swedish_ci	latin1_swedish_ci
-call p1();
-ERROR HY000: The user specified as a definer ('PUBLIC'@'') does not exist
-drop procedure p1;
+ERROR OP000: Invalid role specification `PUBLIC`
 # this test cleanup
-REVOKE SELECT on test.* from PUBLIC;
+revoke select on test.* from public;
 #
 # check autocreation of PUBLIC on GRAND role TO PUBLIC
 #
@@ -131,8 +83,20 @@ REVOKE SELECT on test.* from PUBLIC;
 delete from mysql.global_priv where user="PUBLIC";
 flush privileges;
 create role roletest;
-GRANT roletest TO PUBLIC;
+grant roletest to public;
 drop role roletest;
+delete from mysql.global_priv where user="PUBLIC";
+flush privileges;
+grant select on mysql.global_priv to public;
+revoke select on mysql.global_priv from public;
+delete from mysql.global_priv where user="PUBLIC";
+flush privileges;
+grant select (user) on mysql.global_priv to public;
+revoke select (user) on mysql.global_priv from public;
+delete from mysql.global_priv where user="PUBLIC";
+flush privileges;
+grant execute on procedure mtr.add_suppression to public;
+revoke execute on procedure mtr.add_suppression from public;
 # clean up
 delete from mysql.global_priv where user="PUBLIC";
 flush privileges;

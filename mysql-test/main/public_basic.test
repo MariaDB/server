@@ -8,37 +8,6 @@ GRANT SELECT on test.* to PUBLIC@localhost;
 drop user PUBLIC@localhost;
 drop user PUBLIC;
 
---echo # preinstalled PUBLIC
-GRANT SELECT on test.* to PUBLIC;
-GRANT SELECT on mysql.db to PUBLIC;
---replace_regex /"version_id"\:[0-9]+/"version_id":VERSION/
-select * from mysql.global_priv where user="PUBLIC" ;
-
-SHOW GRANTS FOR PUBLIC;
-
-GRANT UPDATE on test.* to PUBLIC;
-GRANT UPDATE on mysql.db to PUBLIC;
-
-SHOW GRANTS FOR PUBLIC;
-
-REVOKE SELECT on test.* from PUBLIC;
-REVOKE SELECT on mysql.db from PUBLIC;
-
-SHOW GRANTS FOR PUBLIC;
-
-REVOKE UPDATE on test.* from PUBLIC;
-REVOKE UPDATE on mysql.db from PUBLIC;
-
---error ER_NONEXISTING_GRANT
-REVOKE UPDATE on test.* from PUBLIC;
---error ER_NONEXISTING_TABLE_GRANT
-REVOKE UPDATE on mysql.db from PUBLIC;
-
-SHOW GRANTS FOR PUBLIC;
-
---echo # automaticly added PUBLIC
-delete from mysql.global_priv where user="PUBLIC";
-flush privileges;
 select * from mysql.global_priv where user="PUBLIC" ;
 GRANT SELECT on test.* to PUBLIC;
 GRANT SELECT on mysql.db to PUBLIC;
@@ -48,11 +17,11 @@ select * from mysql.global_priv where user="PUBLIC" ;
 SHOW GRANTS FOR PUBLIC;
 
 GRANT UPDATE on test.* to PUBLIC;
-GRANT UPDATE on mysql.db to PUBLIC;
+grant update on mysql.db to public;
 
-SHOW GRANTS FOR PUBLIC;
+show grants for public;
 
-REVOKE SELECT on test.* from PUBLIC;
+revoke select on test.* from public;
 REVOKE SELECT on mysql.db from PUBLIC;
 
 SHOW GRANTS FOR PUBLIC;
@@ -69,16 +38,16 @@ GRANT XXXXXX TO CURRENT_USER;
 GRANT PUBLIC TO CURRENT_USER;
 
 --error ER_INVALID_ROLE
-REVOKE XXXXXX FROM CURRENT_USER;
+revoke xxxxxx from current_user;
 --echo # following should fail with the same error as above
 --error ER_INVALID_ROLE
-REVOKE PUBLIC FROM CURRENT_USER;
---error ER_CANNOT_USER
+revoke public from current_user;
 
+--error ER_CANNOT_USER
 drop role XXXXXX;
 --echo # following should fail with the same error as above
 --error ER_CANNOT_USER
-drop role PUBLIC;
+drop role public;
 
 --error ER_INVALID_ROLE
 SET ROLE XXXXXX;
@@ -91,6 +60,8 @@ SET DEFAULT ROLE XXXXXX;
 --echo # following should fail with the same error as above
 --error ER_INVALID_ROLE
 SET DEFAULT ROLE PUBLIC;
+--error ER_INVALID_ROLE
+set default role public;
 
 --echo #
 --echo # check prohibition of change security context to PUBLIC
@@ -99,20 +70,14 @@ SET DEFAULT ROLE PUBLIC;
 GRANT SELECT on test.* to PUBLIC;
 --echo # try with a view
 create table t1( a int);
+--error ER_INVALID_ROLE
 create definer = PUBLIC view v1 as select * from t1;
-show create view v1;
---error ER_NO_SUCH_USER
-select * from v1;
-drop view v1;
 drop table t1;
---echo # try with a view
+--echo # try with a stored procedure
+--error ER_INVALID_ROLE
 create definer='PUBLIC' PROCEDURE p1() SELECT 1;
-show create procedure p1;
---error ER_NO_SUCH_USER
-call p1();
-drop procedure p1;
 --echo # this test cleanup
-REVOKE SELECT on test.* from PUBLIC;
+revoke select on test.* from public;
 
 --echo #
 --echo # check autocreation of PUBLIC on GRAND role TO PUBLIC
@@ -121,9 +86,23 @@ REVOKE SELECT on test.* from PUBLIC;
 delete from mysql.global_priv where user="PUBLIC";
 flush privileges;
 create role roletest;
-GRANT roletest TO PUBLIC;
+grant roletest to public;
 drop role roletest;
 
+delete from mysql.global_priv where user="PUBLIC";
+flush privileges;
+grant select on mysql.global_priv to public;
+revoke select on mysql.global_priv from public;
+
+delete from mysql.global_priv where user="PUBLIC";
+flush privileges;
+grant select (user) on mysql.global_priv to public;
+revoke select (user) on mysql.global_priv from public;
+
+delete from mysql.global_priv where user="PUBLIC";
+flush privileges;
+grant execute on procedure mtr.add_suppression to public;
+revoke execute on procedure mtr.add_suppression from public;
 
 -- echo # clean up
 delete from mysql.global_priv where user="PUBLIC";
