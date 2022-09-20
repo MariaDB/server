@@ -3076,8 +3076,7 @@ check_access(THD *thd, privilege_t want_access,
     }
   }
 
-  if (unlikely(((want_access & ~sctx->master_access) & ~DB_ACLS) ||
-               (! db && dont_check_global_grants)))
+  if (unlikely(((want_access & ~sctx->master_access) & ~DB_ACLS) != NO_ACL))
   {						// We can never grant this
     DBUG_PRINT("error",("No possible access"));
     if (!no_errors)
