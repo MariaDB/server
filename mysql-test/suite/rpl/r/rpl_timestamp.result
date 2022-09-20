@@ -9,14 +9,14 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `f1` timestamp NULL DEFAULT NULL,
   `f2` timestamp NULL DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 connection slave;
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `f1` timestamp NULL DEFAULT NULL,
   `f2` timestamp NULL DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 connection master;
 drop table t1;
 flush binary logs;

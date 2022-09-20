@@ -17,17 +17,17 @@ create definer=definer@localhost view mysqltest3.v3ps as select user from perfor
 create definer=definer@localhost view mysqltest3.v3nt as select 1;
 create definer=definer@localhost sql security invoker view mysqltest3.v3i as select * from mysqltest1.t1;
 
-CREATE DATABASE /*!32312 IF NOT EXISTS*/ `mysqltest1` /*!40100 DEFAULT CHARACTER SET latin1 */;
+CREATE DATABASE /*!32312 IF NOT EXISTS*/ `mysqltest1` /*!40100 DEFAULT CHARACTER SET latin1 COLLATE latin1_swedish_ci */;
 
 USE `mysqltest1`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1;
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
-CREATE DATABASE /*!32312 IF NOT EXISTS*/ `mysqltest2` /*!40100 DEFAULT CHARACTER SET latin1 */;
+CREATE DATABASE /*!32312 IF NOT EXISTS*/ `mysqltest2` /*!40100 DEFAULT CHARACTER SET latin1 COLLATE latin1_swedish_ci */;
 
 USE `mysqltest2`;
 SET @saved_cs_client     = @@character_set_client;
@@ -36,7 +36,7 @@ SET character_set_client = utf8;
  1 AS `a` */;
 SET character_set_client = @saved_cs_client;
 
-CREATE DATABASE /*!32312 IF NOT EXISTS*/ `mysqltest3` /*!40100 DEFAULT CHARACTER SET latin1 */;
+CREATE DATABASE /*!32312 IF NOT EXISTS*/ `mysqltest3` /*!40100 DEFAULT CHARACTER SET latin1 COLLATE latin1_swedish_ci */;
 
 USE `mysqltest3`;
 SET @saved_cs_client     = @@character_set_client;

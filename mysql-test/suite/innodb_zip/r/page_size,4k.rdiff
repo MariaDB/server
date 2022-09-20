@@ -337,7 +337,7 @@
 -  `d` text NOT NULL,
 -  PRIMARY KEY (`a`,`b`(255),`c`(255)),
 -  KEY `b` (`b`(767))
--) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3 STATS_PERSISTENT=0
+-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_general_ci STATS_PERSISTENT=0
 -CHECK TABLE t1;
 -Table	Op	Msg_type	Msg_text
 -test.t1	check	status	OK
@@ -429,7 +429,7 @@
 -  KEY `t1st` (`s`(767),`t`(767))
 +  KEY `t1ut` (`u`(767)),
 +  KEY `t1st` (`s`(767))
- ) ENGINE=InnoDB DEFAULT CHARSET=latin1 ROW_FORMAT=DYNAMIC
+ ) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci ROW_FORMAT=DYNAMIC
  DROP TABLE t1;
  # Bug#12547647 UPDATE LOGGING COULD EXCEED LOG PAGE SIZE
 @@ -569,27 +389,25 @@

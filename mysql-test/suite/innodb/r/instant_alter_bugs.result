@@ -147,7 +147,7 @@ t1	CREATE TABLE `t1` (
   `f1` int(11) NOT NULL,
   `f3` varchar(255) DEFAULT NULL,
   PRIMARY KEY (`f1`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 SHOW CREATE TABLE t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
@@ -157,7 +157,7 @@ t2	CREATE TABLE `t2` (
   PRIMARY KEY (`f1`),
   KEY `idx1` (`f2`),
   CONSTRAINT `t2_ibfk_1` FOREIGN KEY (`f2`) REFERENCES `t1` (`f1`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 ALTER TABLE t2 CHANGE status status VARCHAR(20) DEFAULT NULL;
 DROP TABLE t2, t1;
 #
@@ -201,11 +201,42 @@ t1	CREATE TABLE `t1` (
   `c1` int(11) NOT NULL,
   `c2` int(11) NOT NULL,
   `c3` int(11) DEFAULT 10
-) ENGINE=InnoDB DEFAULT CHARSET=latin1
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 SELECT * FROM t1;
 c1	c2	c3
 1	0	10
 DROP TABLE t1;
+#
+# MDEV-23801 Assertion index->table->instant... failed
+#            in btr_pcur_store_position()
+#
+SET GLOBAL innodb_purge_rseg_truncate_frequency = 1;
+CREATE TABLE t (
+pk int auto_increment,
+c01 char(255) not null default repeat('a',255),
+c02 char(255) default repeat('a',255),
+c03 char(255) default repeat('a',255),
+c04 char(255) default repeat('a',255),
+c05 char(255) not null default repeat('a',255),
+c06 char(255) default repeat('a',255),
+c07 char(255) default repeat('a',255),
+c08 char(255) not null default repeat('a',255),
+c09 char(255) default repeat('a',255),
+c10 char(255) default repeat('a',255),
+c11 char(255) default repeat('a',255),
+c12 char(255) not null default repeat('a',255),
+primary key (pk)
+) ENGINE=InnoDB CHARACTER SET ucs2;
+INSERT INTO t () VALUES ();
+ALTER TABLE t ADD c INT;
+BEGIN;
+INSERT INTO t () VALUES (),();
+ROLLBACK;
+DELETE FROM t;
+InnoDB		0 transactions not purged
+SET GLOBAL innodb_purge_rseg_truncate_frequency = @save_frequency;
+CREATE TABLE tt ENGINE=InnoDB AS SELECT c FROM t;
+DROP TABLE t, tt;
 # End of 10.3 tests
 create table t (
 a varchar(9),
@@ -370,7 +401,7 @@ ALTER TABLE t1 ADD COLUMN b INT NOT NULL, MODIFY a CHAR, ALGORITHM=INSTANT;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` char(1) COLLATE latin1_general_cs DEFAULT NULL,
+  `a` char(1) DEFAULT NULL,
   `b` int(11) NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_general_cs
 DROP TABLE t1;
@@ -380,7 +411,7 @@ ALTER TABLE t1 MODIFY a CHAR, ALGORITHM=INSTANT;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` char(1) COLLATE latin1_general_cs DEFAULT NULL
+  `a` char(1) DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_general_cs ROW_FORMAT=REDUNDANT
 DROP TABLE t1;
 CREATE TABLE t1 (a CHAR NOT NULL) CHARSET latin2 COLLATE latin2_bin
@@ -391,7 +422,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` char(1) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin2 ROW_FORMAT=REDUNDANT
+) ENGINE=InnoDB DEFAULT CHARSET=latin2 COLLATE=latin2_general_ci ROW_FORMAT=REDUNDANT
 DROP TABLE t1;
 #
 # MDEV-21645 SIGSEGV in innobase_get_computed_value

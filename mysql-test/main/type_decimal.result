@@ -711,14 +711,14 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `d` decimal(5,0) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 drop table t1;
 create table t1 (d decimal);
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `d` decimal(10,0) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 drop table t1;
 create table t1 (d decimal(66,0));
 ERROR 42000: Too big precision 66 specified for 'd'. Maximum is 65
@@ -891,7 +891,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` decimal(10,0) DEFAULT NULL,
   `b` int(11) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 select round(a,b) as c from t1 order by c;
 c
 1000
@@ -1004,7 +1004,7 @@ SHOW CREATE TABLE t1dec102;
 Table	Create Table
 t1dec102	CREATE TABLE `t1dec102` (
   `a` decimal(10,2)/*old*/ DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 SHOW COLUMNS FROM t1dec102;
 Field	Type	Null	Key	Default	Extra
 a	decimal(10,2)/*old*/	YES		NULL	
@@ -1058,7 +1058,7 @@ SHOW CREATE TABLE t1dec102;
 Table	Create Table
 t1dec102	CREATE TABLE `t1dec102` (
   `a` decimal(10,2)/*old*/ DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 CREATE TABLE t1 AS SELECT a, MAX(a), COALESCE(a) FROM t1dec102;
 SHOW CREATE TABLE t1;
 Table	Create Table
@@ -1066,14 +1066,14 @@ t1	CREATE TABLE `t1` (
   `a` decimal(10,2) DEFAULT NULL,
   `MAX(a)` decimal(10,2) DEFAULT NULL,
   `COALESCE(a)` decimal(10,2) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t1;
 CREATE TABLE t1 AS SELECT a FROM t1dec102 UNION SELECT a FROM t1dec102;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` decimal(10,2) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t1;
 DROP TABLE t1dec102;
 #
@@ -1175,14 +1175,14 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `MAX(a)` decimal(10,2) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t1;
 CREATE TABLE t1 AS SELECT COALESCE(a) FROM t1dec102;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `COALESCE(a)` decimal(10,2) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t1;
 CREATE TABLE t1 (a BIGINT);
 CREATE TABLE t2 AS SELECT a FROM t1dec102 UNION SELECT a FROM t1;
@@ -1190,7 +1190,7 @@ SHOW CREATE TABLE t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `a` decimal(21,2) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t2;
 DROP TABLE t1;
 CREATE TABLE t1 (a MEDIUMINT);
@@ -1199,7 +1199,7 @@ SHOW CREATE TABLE t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `a` decimal(10,2) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t2;
 DROP TABLE t1;
 CREATE TABLE t1 (a YEAR);
@@ -1208,7 +1208,7 @@ SHOW CREATE TABLE t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `a` decimal(10,2) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t2;
 DROP TABLE t1;
 DROP TABLE t1dec102;

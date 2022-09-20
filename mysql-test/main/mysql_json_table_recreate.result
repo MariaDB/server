@@ -25,7 +25,7 @@ show create table tempty;
 Table	Create Table
 tempty	CREATE TABLE `tempty` (
   `t` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 show create table mysql_json_test;
 ERROR HY000: Table rebuild required. Please do "ALTER TABLE `test.mysql_json_test` FORCE" or dump/reload to fix it!
 select * from mysql_json_test;
@@ -146,8 +146,8 @@ Total_Number_of_Tests	Succesful_Tests
 show create table mysql_json_test;
 Table	Create Table
 mysql_json_test	CREATE TABLE `mysql_json_test` (
-  `description` varchar(100) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-  `expected` longtext COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `description` varchar(100) DEFAULT NULL,
+  `expected` longtext DEFAULT NULL,
   `actual` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
 show create table mysql_json_test_big;

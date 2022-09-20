@@ -114,7 +114,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `åäö表\a'``"` int(11) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 INSERT INTO t1 VALUES(1);
 # Columns(`åäö表\\a\'`"` INT)
 DROP TABLE t1;

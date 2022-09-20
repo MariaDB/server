@@ -450,7 +450,7 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
  PARTITION BY KEY (`a`)
 drop table t1;
 create table t1 (a int)
@@ -464,7 +464,7 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
  PARTITION BY LIST (`a`)
 (PARTITION `p0` VALUES IN (0) ENGINE = InnoDB)
 drop table t1;
@@ -543,7 +543,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `int_column` int(11) DEFAULT NULL,
   `char_column` char(5) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
  PARTITION BY RANGE (`int_column`)
 SUBPARTITION BY KEY (`char_column`)
 SUBPARTITIONS 2
@@ -590,7 +590,7 @@ t1	CREATE TABLE `t1` (
   `a` bigint(20) NOT NULL,
   `b` int(11) NOT NULL,
   PRIMARY KEY (`a`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
  PARTITION BY KEY (`a`)
 PARTITIONS 2
 SELECT * FROM t1;
@@ -618,7 +618,7 @@ t1	CREATE TABLE `t1` (
   `a` bigint(20) NOT NULL,
   `b` int(11) NOT NULL,
   PRIMARY KEY (`a`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
  PARTITION BY KEY (`a`)
 PARTITIONS 2
 SELECT * FROM t1;

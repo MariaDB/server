@@ -51,7 +51,7 @@ CREATE TABLE t1 (a VARCHAR(10) PRIMARY KEY) COLLATE 'cp932_japanese_nopad_ci';
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` varchar(10) COLLATE cp932_japanese_nopad_ci NOT NULL,
+  `a` varchar(10) NOT NULL,
   PRIMARY KEY (`a`)
 ) ENGINE=MyISAM DEFAULT CHARSET=cp932 COLLATE=cp932_japanese_nopad_ci
 INSERT INTO t1 VALUES ('abc'),('abc  '),(' a'),(' a '),('a   ');
@@ -189,7 +189,7 @@ CREATE TABLE t1 (a VARCHAR(10) PRIMARY KEY) COLLATE 'cp932_japanese_nopad_ci';
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` varchar(10) COLLATE cp932_japanese_nopad_ci NOT NULL,
+  `a` varchar(10) NOT NULL,
   PRIMARY KEY (`a`)
 ) ENGINE=MEMORY DEFAULT CHARSET=cp932 COLLATE=cp932_japanese_nopad_ci
 INSERT INTO t1 VALUES ('abc'),('abc  '),(' a'),(' a '),('a   ');
@@ -328,7 +328,7 @@ CREATE TABLE t1 (a VARCHAR(10) PRIMARY KEY) COLLATE 'cp932_nopad_bin';
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` varchar(10) COLLATE cp932_nopad_bin NOT NULL,
+  `a` varchar(10) NOT NULL,
   PRIMARY KEY (`a`)
 ) ENGINE=MyISAM DEFAULT CHARSET=cp932 COLLATE=cp932_nopad_bin
 INSERT INTO t1 VALUES ('abc'),('abc  '),(' a'),(' a '),('a   ');
@@ -466,7 +466,7 @@ CREATE TABLE t1 (a VARCHAR(10) PRIMARY KEY) COLLATE 'cp932_nopad_bin';
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` varchar(10) COLLATE cp932_nopad_bin NOT NULL,
+  `a` varchar(10) NOT NULL,
   PRIMARY KEY (`a`)
 ) ENGINE=MEMORY DEFAULT CHARSET=cp932 COLLATE=cp932_nopad_bin
 INSERT INTO t1 VALUES ('abc'),('abc  '),(' a'),(' a '),('a   ');

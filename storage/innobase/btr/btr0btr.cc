@@ -3341,6 +3341,7 @@ btr_lift_page_up(
 
 	ut_ad(!page_has_siblings(page));
 	ut_ad(mtr->memo_contains_flagged(block, MTR_MEMO_PAGE_X_FIX));
+	ut_ad(!page_is_empty(page));
 
 	page_level = btr_page_get_level(page);
 	root_page_no = dict_index_get_page(index);
@@ -3427,10 +3428,20 @@ btr_lift_page_up(
 	if (index->is_instant()
 	    && father_block->page.id().page_no() == root_page_no) {
 		ut_ad(!father_page_zip);
+
+		if (page_is_leaf(page)) {
+			const rec_t* rec = page_rec_get_next(
+				page_get_infimum_rec(page));
+			ut_ad(rec_is_metadata(rec, *index));
+			if (rec_is_add_metadata(rec, *index)
+			    && page_get_n_recs(page) == 1) {
+				index->clear_instant_add();
+				goto copied;
+			}
+		}
+
 		btr_set_instant(father_block, *index, mtr);
 	}
-
-	page_level++;
 
 	/* Copy the records to the father page one by one. */
 	if (0
@@ -3475,6 +3486,7 @@ btr_lift_page_up(
 		}
 	}
 
+copied:
 	if (index->has_locking()) {
 		const page_id_t id{block->page.id()};
 		/* Free predicate page locks on the block */
@@ -3484,6 +3496,8 @@ btr_lift_page_up(
 			lock_update_copy_and_discard(*father_block, id);
 		}
 	}
+
+	page_level++;
 
 	/* Go upward to root page, decrementing levels by one. */
 	for (i = lift_father_up ? 1 : 0; i < n_blocks; i++, page_level++) {

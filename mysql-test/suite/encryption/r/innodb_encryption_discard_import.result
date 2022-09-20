@@ -81,7 +81,7 @@ t1	CREATE TABLE `t1` (
   `id` int(11) NOT NULL,
   `a` varchar(255) DEFAULT NULL,
   PRIMARY KEY (`id`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 `encrypted`=yes
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci `encrypted`=yes
 ALTER TABLE t2 ENGINE InnoDB;
 SHOW CREATE TABLE t2;
 Table	Create Table
@@ -89,7 +89,7 @@ t2	CREATE TABLE `t2` (
   `id` int(11) NOT NULL,
   `a` varchar(255) DEFAULT NULL,
   PRIMARY KEY (`id`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 ALTER TABLE t3 ENGINE InnoDB;
 SHOW CREATE TABLE t3;
 Table	Create Table
@@ -97,7 +97,7 @@ t3	CREATE TABLE `t3` (
   `id` int(11) NOT NULL,
   `a` varchar(255) DEFAULT NULL,
   PRIMARY KEY (`id`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 ROW_FORMAT=COMPRESSED `encrypted`=yes
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci ROW_FORMAT=COMPRESSED `encrypted`=yes
 # Restarting server
 # restart
 # Done restarting server

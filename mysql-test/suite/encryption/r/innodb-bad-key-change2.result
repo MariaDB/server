@@ -60,7 +60,7 @@ t1	CREATE TABLE `t1` (
   `pk` int(11) NOT NULL,
   `f` varchar(8) DEFAULT NULL,
   PRIMARY KEY (`pk`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 `ENCRYPTED`=YES `ENCRYPTION_KEY_ID`=4
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci `ENCRYPTED`=YES `ENCRYPTION_KEY_ID`=4
 # restart: --innodb-encrypt-tables --plugin-load-add=file_key_management --file-key-management --file-key-management-filename=MYSQL_TEST_DIR/std_data/keys3.txt
 RENAME TABLE t1 TO t1new;
 ERROR HY000: Error on rename of './test/t1' to './test/t1new' (errno: 155 "The table does not exist in the storage engine")

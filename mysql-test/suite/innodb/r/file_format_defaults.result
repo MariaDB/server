@@ -14,7 +14,7 @@ Table	Create Table
 tab0	CREATE TABLE `tab0` (
   `c1` varchar(65530) DEFAULT NULL,
   KEY `c1` (`c1`(3072))
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 ROW_FORMAT=COMPRESSED
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci ROW_FORMAT=COMPRESSED
 DROP TABLE tab0;
 CREATE TABLE tab0 (c1 VARCHAR(65530), KEY(c1(3073))) ENGINE=InnoDB KEY_BLOCK_SIZE=2;
 ERROR 42000: Row size too large (> 8126). Changing some columns to TEXT or BLOB may help. In current row format, BLOB prefix of 0 bytes is stored inline.

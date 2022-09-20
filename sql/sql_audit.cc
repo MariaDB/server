@@ -113,8 +113,6 @@ void mysql_audit_acquire_plugins(THD *thd, ulong *event_class_mask)
 {
   DBUG_ENTER("mysql_audit_acquire_plugins");
   DBUG_ASSERT(thd);
-  DBUG_ASSERT(!check_audit_mask(mysql_global_audit_mask, event_class_mask));
-
   if (check_audit_mask(thd->audit_class_mask, event_class_mask))
   {
     plugin_foreach(thd, acquire_plugins, MYSQL_AUDIT_PLUGIN, event_class_mask);

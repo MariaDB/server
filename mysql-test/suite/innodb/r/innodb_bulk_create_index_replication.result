@@ -151,7 +151,7 @@ t1	CREATE TABLE `t1` (
   `title` varchar(100) DEFAULT NULL,
   KEY `idx_id` (`id`),
   KEY `idx_title` (`title`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 SHOW CREATE TABLE t_part;
 Table	Create Table
 t_part	CREATE TABLE `t_part` (
@@ -159,7 +159,7 @@ t_part	CREATE TABLE `t_part` (
   `id` int(11) DEFAULT NULL,
   `title` varchar(30) DEFAULT NULL,
   KEY `idx` (`class`,`id`,`title`(10))
-) ENGINE=InnoDB DEFAULT CHARSET=latin1
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
  PARTITION BY RANGE (`id`)
 SUBPARTITION BY KEY (`id`)
 SUBPARTITIONS 4
