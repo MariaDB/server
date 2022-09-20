@@ -936,7 +936,7 @@ bool Table_triggers_list::create_trigger(THD *thd, TABLE_LIST *tables,
   */
   old_field= new_field= table->field;
 
-  for (trg_field= lex->trg_table_fields.first;
+  for (trg_field= lex->sphead->m_trg_table_fields.first;
        trg_field; trg_field= trg_field->next_trg_field)
   {
     /*
@@ -1785,7 +1785,7 @@ bool Table_triggers_list::check_n_load(THD *thd, const LEX_CSTRING *db,
           in old/new versions of row in trigger into lists containing all such
           objects for the trigger_list with same action and timing.
         */
-        trigger->trigger_fields= lex.trg_table_fields.first;
+        trigger->trigger_fields= sp->m_trg_table_fields.first;
         /*
           Also let us bind these objects to Field objects in table being
           opened.
@@ -1795,7 +1795,7 @@ bool Table_triggers_list::check_n_load(THD *thd, const LEX_CSTRING *db,
           SELECT)...
           Anyway some things can be checked only during trigger execution.
         */
-        for (Item_trigger_field *trg_field= lex.trg_table_fields.first;
+        for (Item_trigger_field *trg_field= sp->m_trg_table_fields.first;
              trg_field;
              trg_field= trg_field->next_trg_field)
         {
