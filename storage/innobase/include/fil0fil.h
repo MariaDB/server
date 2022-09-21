@@ -1404,7 +1404,7 @@ struct fil_system_t
 
 private:
   bool m_initialised;
-#ifdef UNIV_LINUX
+#ifdef __linux__
   /** available block devices that reside on non-rotational storage */
   std::vector<dev_t> ssd;
 public:

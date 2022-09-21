@@ -12,3 +12,13 @@ CREATE TEMPORARY TABLE t1 (c POINT NOT NULL,SPATIAL (c)) ENGINE=InnoDB;
 INSERT INTO t1 SELECT POINT(0,0) FROM seq_1_to_366;
 INSERT INTO t1 VALUES (POINT(1e-270,1e-130));
 DROP TABLE t1;
+#
+# MDEV-29507 InnoDB: Failing assertion: table->n_rec_locks == 0
+#
+connect con1,localhost,root,,;
+CREATE TEMPORARY TABLE t (c POINT NOT NULL,SPATIAL (c)) ENGINE=InnoDB;
+INSERT INTO t SELECT POINTFROMTEXT ('POINT(0 0)') FROM seq_1_to_500;
+XA BEGIN 'a';
+DELETE FROM t ORDER BY c;
+disconnect con1;
+# End of 10.3 tests

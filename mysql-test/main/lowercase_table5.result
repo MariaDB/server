@@ -1,13 +1,13 @@
 CREATE DATABASE mysql_TEST CHARACTER SET utf8;
 SHOW CREATE DATABASE mysql_TEST;
 Database	Create Database
-mysql_TEST	CREATE DATABASE `mysql_TEST` /*!40100 DEFAULT CHARACTER SET utf8mb3 */
+mysql_TEST	CREATE DATABASE `mysql_TEST` /*!40100 DEFAULT CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci */
 CREATE DATABASE mysql_test CHARACTER SET latin2;
 SHOW CREATE DATABASE mysql_test;
 Database	Create Database
-mysql_test	CREATE DATABASE `mysql_test` /*!40100 DEFAULT CHARACTER SET latin2 */
+mysql_test	CREATE DATABASE `mysql_test` /*!40100 DEFAULT CHARACTER SET latin2 COLLATE latin2_general_ci */
 SHOW CREATE DATABASE mysql_TEST;
 Database	Create Database
-mysql_TEST	CREATE DATABASE `mysql_TEST` /*!40100 DEFAULT CHARACTER SET utf8mb3 */
+mysql_TEST	CREATE DATABASE `mysql_TEST` /*!40100 DEFAULT CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci */
 DROP DATABASE mysql_test;
 DROP DATABASE mysql_TEST;

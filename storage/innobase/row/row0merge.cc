@@ -2140,8 +2140,6 @@ corrupted_metadata:
 		row_ext_t*	ext;
 		page_cur_t*	cur	= btr_pcur_get_page_cur(&pcur);
 
-		mem_heap_empty(row_heap);
-
 		stage->n_pk_recs_inc();
 
 		if (!page_cur_move_to_next(cur)) {
@@ -2174,6 +2172,8 @@ corrupted_rec:
 			if (err != DB_SUCCESS) {
 				goto func_exit;
 			}
+
+			mem_heap_empty(row_heap);
 
 			if (!mtr_started) {
 				goto scan_next;
@@ -2260,6 +2260,8 @@ end_of_index:
 					goto corrupted_rec;
 				}
 			}
+		} else {
+			mem_heap_empty(row_heap);
 		}
 
 		rec = page_cur_get_rec(cur);
@@ -3563,12 +3565,12 @@ row_merge_sort(
 	is used. MDEV-9356: innodb.innodb_bug53290 fails (crashes) on
 	sol10-64 in buildbot.
 	*/
-#ifndef UNIV_SOLARIS
+#ifndef __sun__
 	/* Progress report only for "normal" indexes. */
 	if (dup && !(dup->index->type & DICT_FTS)) {
 		thd_progress_init(trx->mysql_thd, 1);
 	}
-#endif /* UNIV_SOLARIS */
+#endif /* __sun__ */
 
 	if (global_system_variables.log_warnings > 2) {
 		sql_print_information("InnoDB: Online DDL : merge-sorting"
@@ -3581,11 +3583,11 @@ row_merge_sort(
 		/* Report progress of merge sort to MySQL for
 		show processlist progress field */
 		/* Progress report only for "normal" indexes. */
-#ifndef UNIV_SOLARIS
+#ifndef __sun__
 		if (dup && !(dup->index->type & DICT_FTS)) {
 			thd_progress_report(trx->mysql_thd, file->offset - num_runs, file->offset);
 		}
-#endif /* UNIV_SOLARIS */
+#endif /* __sun__ */
 
 		error = row_merge(trx, dup, file, block, tmpfd,
 				  &num_runs, run_offset, stage,
@@ -3611,11 +3613,11 @@ row_merge_sort(
 	ut_free(run_offset);
 
 	/* Progress report only for "normal" indexes. */
-#ifndef UNIV_SOLARIS
+#ifndef __sun__
 	if (dup && !(dup->index->type & DICT_FTS)) {
 		thd_progress_end(trx->mysql_thd);
 	}
-#endif /* UNIV_SOLARIS */
+#endif /* __sun__ */
 
 	DBUG_RETURN(error);
 }

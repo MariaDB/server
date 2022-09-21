@@ -7,4 +7,4 @@ INNODB_CMP_RESET	CREATE TEMPORARY TABLE `INNODB_CMP_RESET` (
   `compress_time` int(11) NOT NULL,
   `uncompress_ops` int(11) NOT NULL,
   `uncompress_time` int(11) NOT NULL
-) ENGINE=MEMORY DEFAULT CHARSET=utf8mb3
+) ENGINE=MEMORY DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_general_ci

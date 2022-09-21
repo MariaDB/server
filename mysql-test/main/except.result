@@ -536,7 +536,7 @@ t3	CREATE TABLE `t3` (
   `a` int(11) DEFAULT NULL,
   `b` blob DEFAULT NULL,
   `b1` blob DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 drop tables t1,t2,t3;
 #
 # MDEV-13723: Server crashes in ha_heap::find_unique_row or

@@ -27,12 +27,12 @@ Table	Create Table
 t3	CREATE TABLE `t3` (
   `a` mediumtext DEFAULT NULL,
   `b` mediumblob DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 show create TABLE t4;
 Table	Create Table
 t4	CREATE TABLE `t4` (
-  `c` mediumtext CHARACTER SET utf8mb3 NOT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+  `c` mediumtext CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci NOT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 drop table t1,t2,t3,t4;
 CREATE TABLE t1 (a char(257) default "hello");
 ERROR 42000: Column length too big for column 'a' (max = 255); use BLOB or TEXT instead
@@ -46,13 +46,13 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` mediumtext DEFAULT 'hello'
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 CREATE TABLE t2 (a blob default "hello");
 SHOW CREATE TABLE t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `a` blob DEFAULT 'hello'
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 drop table t1,t2;
 create table t1 (nr int(5) not null auto_increment,b blob,str char(10), primary key (nr));
 insert into t1 values (null,"a","A");
@@ -377,7 +377,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` text DEFAULT NULL,
   KEY `a` (`a`(1000))
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 drop table t1;
 CREATE TABLE t1 (
 t1_id bigint(21) NOT NULL auto_increment,
@@ -737,7 +737,7 @@ t1	CREATE TABLE `t1` (
   `e` int(11) DEFAULT NULL,
   PRIMARY KEY (`a`,`b`,`c`(255),`d`),
   KEY `a` (`a`,`b`,`d`,`e`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 drop table t1;
 CREATE table t1 (a blob);
 insert into t1 values ('b'),('a\0'),('a'),('a '),('aa'),(NULL);
@@ -814,7 +814,7 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` text DEFAULT ''
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 insert into t1 values (default);
 select * from t1;
 a
@@ -826,7 +826,7 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` text DEFAULT ''
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 drop table t1;
 set @@sql_mode='';
 CREATE TABLE t (c TEXT CHARSET ASCII);
@@ -912,7 +912,7 @@ SHOW CREATE TABLE b15776;
 Table	Create Table
 b15776	CREATE TABLE `b15776` (
   `a` year(4) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE b15776;
 CREATE TABLE b15776 (a year(0));
 Warnings:
@@ -939,7 +939,7 @@ SHOW CREATE TABLE b15776;
 Table	Create Table
 b15776	CREATE TABLE `b15776` (
   `a` year(4) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE b15776;
 CREATE TABLE b15776 select cast(null as char(4294967295));
 show columns from b15776;
@@ -1081,8 +1081,8 @@ CREATE TABLE t1 (a TEXT(1431655798) CHARACTER SET utf8);
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` longtext CHARACTER SET utf8mb3 DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+  `a` longtext CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t1;
 create table t1 (a int);
 alter table t1 add column b blob, alter column b set default "foo";
@@ -1091,7 +1091,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` blob DEFAULT 'foo'
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 drop table t1;
 #
 # End of 10.2 test

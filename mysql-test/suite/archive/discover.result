@@ -3,7 +3,7 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL
-) ENGINE=ARCHIVE DEFAULT CHARSET=latin1
+) ENGINE=ARCHIVE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 insert t1 values (1);
 show tables;
 Tables_in_test
@@ -75,7 +75,7 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL
-) ENGINE=ARCHIVE DEFAULT CHARSET=latin1
+) ENGINE=ARCHIVE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 #
 # discover on drop
 #
@@ -102,7 +102,7 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL
-) ENGINE=ARCHIVE DEFAULT CHARSET=latin1
+) ENGINE=ARCHIVE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 insert into t1 values (1);
 optimize table t1;
 Table	Op	Msg_type	Msg_text
@@ -117,7 +117,7 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL
-) ENGINE=ARCHIVE DEFAULT CHARSET=latin1
+) ENGINE=ARCHIVE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 drop table t1;
 #
 # BUG#58205 - Valgrind failure in fn_format when called from

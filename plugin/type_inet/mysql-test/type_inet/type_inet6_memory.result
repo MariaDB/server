@@ -14,7 +14,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` inet6 DEFAULT NULL,
   KEY `a` (`a`)
-) ENGINE=MEMORY DEFAULT CHARSET=latin1
+) ENGINE=MEMORY DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 FOR i IN 0..255
 DO
 INSERT INTO t1 VALUES (CONCAT('::', HEX(i)));

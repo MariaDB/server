@@ -14,7 +14,7 @@ set timestamp=default;
 /*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `t1` (
   `x` int(11) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING;
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci WITH SYSTEM VERSIONING;
 /*!40101 SET character_set_client = @saved_cs_client */;
 INSERT INTO `t1` VALUES
 (3);
@@ -23,7 +23,7 @@ INSERT INTO `t1` VALUES
 /*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `t1` (
   `x` int(11) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING;
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci WITH SYSTEM VERSIONING;
 /*!40101 SET character_set_client = @saved_cs_client */;
 INSERT INTO `t1` VALUES
 (1),
@@ -31,14 +31,14 @@ INSERT INTO `t1` VALUES
 (3);
 #MYSQL_DUMP --compact --as-of="1990-08-02 00:00" --databases test
 
-CREATE DATABASE /*!32312 IF NOT EXISTS*/ `test` /*!40100 DEFAULT CHARACTER SET latin1 */;
+CREATE DATABASE /*!32312 IF NOT EXISTS*/ `test` /*!40100 DEFAULT CHARACTER SET latin1 COLLATE latin1_swedish_ci */;
 
 USE `test`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `t1` (
   `x` int(11) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING;
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci WITH SYSTEM VERSIONING;
 /*!40101 SET character_set_client = @saved_cs_client */;
 INSERT INTO `t1` VALUES
 (1),
@@ -49,7 +49,7 @@ INSERT INTO `t1` VALUES
 /*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `t1` (
   `x` int(11) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING;
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci WITH SYSTEM VERSIONING;
 /*!40101 SET character_set_client = @saved_cs_client */;
 INSERT INTO `t1` VALUES
 (2),

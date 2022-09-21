@@ -141,3 +141,9 @@ DROP TABLE child;
 
 DROP TABLE parent;
 SET GLOBAL innodb_purge_rseg_truncate_frequency=@save_frequency;
+
+--echo #
+--echo # MDEV-29479  I_S.INNODB_SYS_TABLESPACES doesn't have
+--echo #		temporary tablespace information
+--echo #
+SELECT SPACE FROM INFORMATION_SCHEMA.INNODB_SYS_TABLESPACES WHERE name like 'innodb_temporary';

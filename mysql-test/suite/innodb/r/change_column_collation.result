@@ -105,7 +105,7 @@ t1	CREATE TABLE `t1` (
   UNIQUE KEY `f2_2` (`f2`,`msg`,`f3`,`msg_1`,`f1`),
   UNIQUE KEY `f3` (`f3`,`f2`,`msg`,`msg_1`,`f1`),
   UNIQUE KEY `f3_2` (`f3`,`msg`,`msg_1`,`f1`,`f2`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 INSERT INTO t1 VALUES(3, 3, 3, 3, 'ccc', 'ccc');
 DROP TABLE t1;
 CREATE TABLE t1(id INT PRIMARY KEY, msg VARCHAR(100),
@@ -130,7 +130,7 @@ ALTER TABLE t MODIFY COLUMN a VARCHAR(512);
 SHOW CREATE TABLE t;
 Table	Create Table
 t	CREATE TABLE `t` (
-  `a` varchar(512) COLLATE utf8mb3_unicode_520_ci DEFAULT NULL,
+  `a` varchar(512) DEFAULT NULL,
   FULLTEXT KEY `a` (`a`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_unicode_520_ci
 DROP TABLE t;

@@ -1383,7 +1383,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `id` bigint(20) unsigned DEFAULT NULL,
   `value` bigint(20) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t1;
 #
 # Bug#28255453: VIEW USING JSON_TABLE FAILS IF NO SCHEMA IS SELECTED
@@ -1446,8 +1446,8 @@ PATH '$')) AS jt1;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `x` varchar(10) CHARACTER SET utf8mb4 DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+  `x` varchar(10) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t1;
 #
 # Bug#28643862 JSON_TABLE'S "COLUMNS" CLAUSE USES
@@ -1459,16 +1459,16 @@ FROM JSON_TABLE('"test"', '$' COLUMNS(col VARCHAR(10) PATH '$')) AS a;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `col` varchar(10) CHARACTER SET utf8mb4 DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+  `col` varchar(10) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 SET @@SESSION.collation_connection = latin1_bin;
 CREATE TABLE t2 SELECT a.col
 FROM JSON_TABLE('"test"', '$' COLUMNS(col VARCHAR(10) PATH '$')) AS a;
 SHOW CREATE TABLE t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
-  `col` varchar(10) CHARACTER SET utf8mb4 DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+  `col` varchar(10) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t1, t2;
 SET @@SESSION.character_set_connection = DEFAULT;
 #

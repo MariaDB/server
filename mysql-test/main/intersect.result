@@ -562,7 +562,7 @@ Table	Create Table
 t4	CREATE TABLE `t4` (
   `a` int(11) DEFAULT NULL,
   `b` blob DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 drop tables t1,t2,t3,t4;
 create table t1 (a int, b blob) engine=MyISAM;
 create table t2 (c int, d blob) engine=MyISAM;

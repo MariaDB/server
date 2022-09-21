@@ -7,7 +7,7 @@ CREATE DATABASE db1;
 connection node_2;
 SHOW CREATE DATABASE db1;
 Database	Create Database
-db1	CREATE DATABASE `db1` /*!40100 DEFAULT CHARACTER SET latin1 */
+db1	CREATE DATABASE `db1` /*!40100 DEFAULT CHARACTER SET latin1 COLLATE latin1_swedish_ci */
 DROP DATABASE db1;
 connection node_1;
 CREATE PROCEDURE p1 () SELECT 1 FROM DUAL;

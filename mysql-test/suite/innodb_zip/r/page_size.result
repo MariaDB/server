@@ -44,6 +44,7 @@ test/t1	DEFAULT	DEFAULT	MYSQLD_DATADIR/test/t1.ibd
 test/t2	DEFAULT	DEFAULT	MYSQLD_DATADIR/test/t2.ibd
 test/t3	DEFAULT	8192	MYSQLD_DATADIR/test/t3.ibd
 test/t4	DEFAULT	DEFAULT	MYSQLD_DATADIR/test/t4.ibd
+innodb_temporary	DEFAULT	DEFAULT	MYSQLD_DATADIR/ibtmp1
 DROP TABLE t1, t2, t3, t4;
 # Test 4) The maximum row size is dependent upon the page size.
 #         Each row format has its own amount of overhead that
@@ -367,7 +368,7 @@ t1	CREATE TABLE `t1` (
   `d` text NOT NULL,
   PRIMARY KEY (`a`,`b`(255),`c`(255)),
   KEY `b` (`b`(767))
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3 STATS_PERSISTENT=0
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_general_ci STATS_PERSISTENT=0
 CHECK TABLE t1;
 Table	Op	Msg_type	Msg_text
 test.t1	check	status	OK
@@ -485,7 +486,7 @@ t1	CREATE TABLE `t1` (
   KEY `t1u` (`u`(767)),
   KEY `t1ut` (`u`(767),`t`(767)),
   KEY `t1st` (`s`(767),`t`(767))
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 ROW_FORMAT=DYNAMIC
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci ROW_FORMAT=DYNAMIC
 DROP TABLE t1;
 # Bug#12547647 UPDATE LOGGING COULD EXCEED LOG PAGE SIZE
 CREATE TABLE bug12547647(

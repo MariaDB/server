@@ -16,7 +16,7 @@ CREATE TABLE t1 (a VARCHAR(10) PRIMARY KEY) COLLATE 'ucs2_unicode_nopad_ci';
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` varchar(10) COLLATE ucs2_unicode_nopad_ci NOT NULL,
+  `a` varchar(10) NOT NULL,
   PRIMARY KEY (`a`)
 ) ENGINE=MyISAM DEFAULT CHARSET=ucs2 COLLATE=ucs2_unicode_nopad_ci
 INSERT INTO t1 VALUES ('abc'),('abc  '),(' a'),(' a '),('a   ');
@@ -154,7 +154,7 @@ CREATE TABLE t1 (a VARCHAR(10) PRIMARY KEY) COLLATE 'ucs2_unicode_nopad_ci';
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` varchar(10) COLLATE ucs2_unicode_nopad_ci NOT NULL,
+  `a` varchar(10) NOT NULL,
   PRIMARY KEY (`a`)
 ) ENGINE=MEMORY DEFAULT CHARSET=ucs2 COLLATE=ucs2_unicode_nopad_ci
 INSERT INTO t1 VALUES ('abc'),('abc  '),(' a'),(' a '),('a   ');
@@ -293,7 +293,7 @@ CREATE TABLE t1 (a VARCHAR(10) PRIMARY KEY) COLLATE 'ucs2_unicode_520_nopad_ci';
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` varchar(10) COLLATE ucs2_unicode_520_nopad_ci NOT NULL,
+  `a` varchar(10) NOT NULL,
   PRIMARY KEY (`a`)
 ) ENGINE=MyISAM DEFAULT CHARSET=ucs2 COLLATE=ucs2_unicode_520_nopad_ci
 INSERT INTO t1 VALUES ('abc'),('abc  '),(' a'),(' a '),('a   ');
@@ -431,7 +431,7 @@ CREATE TABLE t1 (a VARCHAR(10) PRIMARY KEY) COLLATE 'ucs2_unicode_520_nopad_ci';
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` varchar(10) COLLATE ucs2_unicode_520_nopad_ci NOT NULL,
+  `a` varchar(10) NOT NULL,
   PRIMARY KEY (`a`)
 ) ENGINE=MEMORY DEFAULT CHARSET=ucs2 COLLATE=ucs2_unicode_520_nopad_ci
 INSERT INTO t1 VALUES ('abc'),('abc  '),(' a'),(' a '),('a   ');
@@ -572,7 +572,7 @@ t1	CREATE TABLE `t1` (
   `b` varchar(50) CHARACTER SET ucs2 COLLATE ucs2_unicode_520_nopad_ci DEFAULT NULL,
   KEY `a` (`a`),
   KEY `b` (`b`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 INSERT INTO t1 VALUES ('111', '111');
 INSERT INTO t1 VALUES ('222', '222');
 INSERT INTO t1 VALUES ('333', '333');
