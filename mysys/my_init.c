@@ -170,7 +170,17 @@ my_bool my_init(void)
 
   my_progname_short= "unknown";
   if (my_progname)
+  {
+    char link_name[FN_REFLEN];
     my_progname_short= my_progname + dirname_length(my_progname);
+    /*
+      If its a link a different program that doesn't begin with mariadb
+      like mariadb-repair might link to mariadb-check.
+    */
+    if (strncmp(my_progname_short, "mariadb", 7)
+        && my_readlink(link_name, my_progname, MYF(0)) == 0)
+      my_error(EE_NAME_DEPRECATED, MYF(MY_WME), my_progname, link_name);
+  }
 
   /* Initialize our mutex handling */
   my_mutex_init();
