@@ -1420,7 +1420,8 @@ TRANSACTIONAL_TARGET void trx_t::commit_low(mtr_t *mtr)
 
   if (mtr)
   {
-    apply_log();
+    if (UNIV_UNLIKELY(apply_online_log))
+      apply_log();
     trx_write_serialisation_history(this, mtr);
 
     /* The following call commits the mini-transaction, making the

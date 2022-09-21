@@ -108,6 +108,7 @@ global_value_path	NULL
 connection default;
 select global_value_path from information_schema.system_variables where variable_name='plugin_maturity';
 global_value_path	var/my.cnf
+disconnect foo;
 drop user foo@localhost;
 set global low_priority_updates=default;
 uninstall soname 'sql_errlog';

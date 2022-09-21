@@ -58,7 +58,7 @@ Table	Create Table
 t2	CREATE TABLE `t2` (
   `c` varchar(30) CHARACTER SET latin1 COLLATE latin1_bin DEFAULT NULL,
   `NATURAL_SORT_KEY(c)` varchar(45) CHARACTER SET latin1 COLLATE latin1_bin DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t1,t2;
 CREATE TABLE t1(c VARCHAR(1), k VARCHAR(2) AS (NATURAL_SORT_KEY(c)) STORED);
 ERROR HY000: Function or expression 'natural_sort_key()' cannot be used in the GENERATED ALWAYS AS clause of `k`

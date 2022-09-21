@@ -55,7 +55,7 @@ t1	CREATE TABLE `t1` (
   `pk` int(11) NOT NULL,
   `i` int(11) DEFAULT NULL,
   PRIMARY KEY (`pk`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 OPTIMIZE TABLE t1;
 Table	Op	Msg_type	Msg_text
 test.t1	optimize	status	OK
@@ -67,7 +67,7 @@ t1	CREATE TABLE `t1` (
   `pk` int(11) NOT NULL,
   `i` int(11) DEFAULT NULL,
   PRIMARY KEY (`pk`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 OPTIMIZE TABLE t1;
 Table	Op	Msg_type	Msg_text
 test.t1	optimize	status	Table is already up to date
@@ -79,7 +79,7 @@ t1	CREATE TABLE `t1` (
   `pk` int(11) NOT NULL,
   `i` int(11) DEFAULT NULL,
   PRIMARY KEY (`pk`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 OPTIMIZE TABLE t1;
 Table	Op	Msg_type	Msg_text
 test.t1	optimize	status	Table is already up to date
@@ -95,7 +95,7 @@ t1	CREATE TABLE `t1` (
   `pk` int(11) NOT NULL,
   `i` int(11) DEFAULT NULL,
   PRIMARY KEY (`pk`)
-) ENGINE=Aria DEFAULT CHARSET=latin1 PAGE_CHECKSUM=1
+) ENGINE=Aria DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1
 OPTIMIZE TABLE t1;
 Table	Op	Msg_type	Msg_text
 test.t1	optimize	status	OK
@@ -107,7 +107,7 @@ t1	CREATE TABLE `t1` (
   `pk` int(11) NOT NULL,
   `i` int(11) DEFAULT NULL,
   PRIMARY KEY (`pk`)
-) ENGINE=Aria DEFAULT CHARSET=latin1 PAGE_CHECKSUM=1
+) ENGINE=Aria DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1
 OPTIMIZE TABLE t1;
 Table	Op	Msg_type	Msg_text
 test.t1	optimize	status	Table is already up to date
@@ -119,7 +119,7 @@ t1	CREATE TABLE `t1` (
   `pk` int(11) NOT NULL,
   `i` int(11) DEFAULT NULL,
   PRIMARY KEY (`pk`)
-) ENGINE=Aria DEFAULT CHARSET=latin1 PAGE_CHECKSUM=1
+) ENGINE=Aria DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1
 OPTIMIZE TABLE t1;
 Table	Op	Msg_type	Msg_text
 test.t1	optimize	status	Table is already up to date

@@ -6207,6 +6207,8 @@ static int i_s_sys_tablespaces_fill_table(THD *thd, TABLE_LIST *tables, Item*)
 
   fil_system.freeze_space_list--;
   mysql_mutex_unlock(&fil_system.mutex);
+  if (err == DB_SUCCESS)
+    err= i_s_sys_tablespaces_fill(thd, *fil_system.temp_space, tables->table);
   DBUG_RETURN(err);
 }
 

@@ -360,10 +360,8 @@ inline void UndorecApplier::apply_undo_rec()
 /** Apply any changes to tables for which online DDL is in progress. */
 ATTRIBUTE_COLD void trx_t::apply_log()
 {
-  if (undo_no == 0 || apply_online_log == false)
-    return;
   const trx_undo_t *undo= rsegs.m_redo.undo;
-  if (!undo)
+  if (!undo || !undo_no)
     return;
   page_id_t page_id{rsegs.m_redo.rseg->space->id, undo->hdr_page_no};
   page_id_t next_page_id(page_id);

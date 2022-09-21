@@ -35,7 +35,7 @@ slow_log	CREATE TABLE `slow_log` (
   `insert_id` int(11) NOT NULL,
   `server_id` int(10) unsigned NOT NULL,
   `sql_text` mediumtext NOT NULL
-) ENGINE=CSV DEFAULT CHARSET=utf8mb3 COMMENT='Slow log'
+) ENGINE=CSV DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_general_ci COMMENT='Slow log'
 connection master;
 connection master;
 Master position has been changed
@@ -57,7 +57,7 @@ slow_log	CREATE TABLE `slow_log` (
   `sql_text` mediumtext NOT NULL,
   `thread_id` bigint(21) unsigned NOT NULL,
   `rows_affected` int(11) NOT NULL
-) ENGINE=CSV DEFAULT CHARSET=utf8mb3 COMMENT='Slow log'
+) ENGINE=CSV DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_general_ci COMMENT='Slow log'
 SET GLOBAL general_log = 'OFF';
 SET GLOBAL slow_query_log = 'OFF';
 truncate mysql.slow_log;

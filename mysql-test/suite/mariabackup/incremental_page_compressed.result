@@ -1,0 +1,13 @@
+#
+# MDEV-26794 MariaBackup does not recognize added providers upon prepare of incremental backup
+#
+CREATE TABLE t (a INT) ENGINE=InnoDB;
+INSERT INTO t VALUES (1),(2);
+INSTALL SONAME 'provider_snappy';
+SET GLOBAL innodb_compression_algorithm= snappy;
+CREATE TABLE t_snappy (a INT) ENGINE=InnoDB page_compressed=1;
+INSERT INTO t_snappy VALUES (3),(4);
+# restart: --innodb_buffer_pool_load_at_startup=0
+# Prepare initial backup
+# Prepare incremental backup
+DROP TABLE t;
