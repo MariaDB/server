@@ -22,9 +22,9 @@ test.t1	check	status	OK
 SHOW CREATE table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` varchar(800) CHARACTER SET ucs2 DEFAULT NULL,
+  `a` varchar(800) CHARACTER SET ucs2 COLLATE ucs2_general_ci DEFAULT NULL,
   KEY `a` (`a`)
-) ENGINE=Aria DEFAULT CHARSET=latin1 PAGE_CHECKSUM=1
+) ENGINE=Aria DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1
 DROP TABLE t1;
 CREATE TABLE t1 (a VARCHAR(1200),KEY(a)) ENGINE=Aria CHARACTER SET ucs2;
 Warnings:

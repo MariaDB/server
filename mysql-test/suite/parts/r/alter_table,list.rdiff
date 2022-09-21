@@ -1,6 +1,4 @@
---- alter_table.result
-+++ alter_table,list.reject
-@@ -62,13 +62,13 @@
+@@ -142,13 +142,13 @@
  partition pn values less than maxvalue);
  ERROR HY000: Partitioned tables do not support CREATE TEMPORARY TABLE
  create or replace table t1 (x int)
@@ -21,10 +19,10 @@
  insert into t1 values (2), (12), (22), (32), (42), (52);
  create or replace table tp2 (y int);
  insert tp2 values (88);
-@@ -108,12 +108,12 @@
+@@ -188,12 +188,12 @@
  t1	CREATE TABLE `t1` (
    `x` int(11) DEFAULT NULL
- ) ENGINE=X DEFAULT CHARSET=latin1
+ ) ENGINE=X DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 - PARTITION BY RANGE (`x`)
 -(PARTITION `p1` VALUES LESS THAN (10) ENGINE = X,
 - PARTITION `p3` VALUES LESS THAN (30) ENGINE = X,
@@ -40,10 +38,10 @@
  select * from t1 order by x;
  x
  2
-@@ -138,11 +138,11 @@
+@@ -218,11 +218,11 @@
  t1	CREATE TABLE `t1` (
    `x` int(11) DEFAULT NULL
- ) ENGINE=X DEFAULT CHARSET=latin1
+ ) ENGINE=X DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 - PARTITION BY RANGE (`x`)
 -(PARTITION `p1` VALUES LESS THAN (10) ENGINE = X,
 - PARTITION `p4` VALUES LESS THAN (40) ENGINE = X,
@@ -57,10 +55,10 @@
  select * from t1 order by x;
  x
  2
-@@ -168,10 +168,10 @@
+@@ -248,10 +248,10 @@
  t1	CREATE TABLE `t1` (
    `x` int(11) DEFAULT NULL
- ) ENGINE=X DEFAULT CHARSET=latin1
+ ) ENGINE=X DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 - PARTITION BY RANGE (`x`)
 -(PARTITION `p1` VALUES LESS THAN (10) ENGINE = X,
 - PARTITION `p5` VALUES LESS THAN (50) ENGINE = X,
@@ -72,10 +70,10 @@
  select * from t1 order by x;
  x
  2
-@@ -193,9 +193,9 @@
+@@ -273,9 +273,9 @@
  t1	CREATE TABLE `t1` (
    `x` int(11) DEFAULT NULL
- ) ENGINE=X DEFAULT CHARSET=latin1
+ ) ENGINE=X DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 - PARTITION BY RANGE (`x`)
 -(PARTITION `p1` VALUES LESS THAN (10) ENGINE = X,
 - PARTITION `pn` VALUES LESS THAN MAXVALUE ENGINE = X)

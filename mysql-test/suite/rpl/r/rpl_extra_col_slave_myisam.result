@@ -663,7 +663,7 @@ t16	CREATE TABLE `t16` (
   `c4` blob DEFAULT NULL,
   `c5` char(5) DEFAULT NULL,
   PRIMARY KEY (`c1`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
  PARTITION BY KEY (`c1`)
 PARTITIONS 4
 *** Show table on Slave ****
@@ -679,7 +679,7 @@ t16	CREATE TABLE `t16` (
   `c6` int(11) DEFAULT 1,
   `c7` timestamp NULL DEFAULT current_timestamp(),
   PRIMARY KEY (`c1`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
  PARTITION BY KEY (`c1`)
 PARTITIONS 4
 *** DROP TABLE t16 ***

@@ -21,6 +21,7 @@ exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf --history --backup --t
 rmdir $targetdir;
 
 SELECT COUNT(*) FROM mysql.mariadb_backup_history;
+--sorted_result
 SELECT name FROM mysql.mariadb_backup_history;
 
 DROP TABLE mysql.mariadb_backup_history;

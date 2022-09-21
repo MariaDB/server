@@ -81,6 +81,7 @@ test/t_redundant	DEFAULT	DEFAULT	MYSQLD_DATADIR/test/t_redundant.ibd
 test/t_compact	DEFAULT	DEFAULT	MYSQLD_DATADIR/test/t_compact.ibd
 test/t_compressed	DEFAULT	2048	MYSQLD_DATADIR/test/t_compressed.ibd
 test/t_dynamic	DEFAULT	DEFAULT	MYSQLD_DATADIR/test/t_dynamic.ibd
+innodb_temporary	DEFAULT	DEFAULT	MYSQLD_DATADIR/ibtmp1
 DROP TABLE t_redundant, t_compact, t_compressed, t_dynamic;
 SELECT count(*) FROM INFORMATION_SCHEMA.INNODB_SYS_TABLESTATS;
 count(*)
@@ -168,3 +169,10 @@ test/parent	1	2
 DROP TABLE child;
 DROP TABLE parent;
 SET GLOBAL innodb_purge_rseg_truncate_frequency=@save_frequency;
+#
+# MDEV-29479  I_S.INNODB_SYS_TABLESPACES doesn't have
+#		temporary tablespace information
+#
+SELECT SPACE FROM INFORMATION_SCHEMA.INNODB_SYS_TABLESPACES WHERE name like 'innodb_temporary';
+SPACE
+4294967294

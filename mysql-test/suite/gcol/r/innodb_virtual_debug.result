@@ -46,7 +46,7 @@ t	CREATE TABLE `t` (
   `c` int(11) GENERATED ALWAYS AS (`a` + `b`) VIRTUAL,
   `h` varchar(10) DEFAULT NULL,
   KEY `idx` (`c`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 SELECT * FROM t;
 a	b	c	h
 0	3	3	mm
@@ -85,7 +85,7 @@ t	CREATE TABLE `t` (
   `c` int(11) GENERATED ALWAYS AS (`a` + `b`) VIRTUAL,
   `h` varchar(10) DEFAULT NULL,
   KEY `idx_1` (`c`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 SELECT c FROM t;
 c
 NULL

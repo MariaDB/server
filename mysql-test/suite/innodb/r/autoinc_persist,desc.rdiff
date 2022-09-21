@@ -361,7 +361,7 @@
    `a` int(11) NOT NULL AUTO_INCREMENT,
 -  PRIMARY KEY (`a`)
 +  PRIMARY KEY (`a` DESC)
- ) ENGINE=InnoDB AUTO_INCREMENT=1234 DEFAULT CHARSET=latin1
+ ) ENGINE=InnoDB AUTO_INCREMENT=1234 DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
  INSERT INTO t13 VALUES(0);
  SELECT a AS `Expect 1234` FROM t13;
 @@ -464,28 +464,28 @@
@@ -487,7 +487,7 @@
    `a` smallint(6) NOT NULL AUTO_INCREMENT,
 -  PRIMARY KEY (`a`)
 +  PRIMARY KEY (`a` DESC)
- ) ENGINE=InnoDB AUTO_INCREMENT=201 DEFAULT CHARSET=latin1
+ ) ENGINE=InnoDB AUTO_INCREMENT=201 DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
  INSERT INTO t3 VALUES(0);
  SELECT MAX(a) AS `Expect 201` FROM t3;
 @@ -579,7 +579,7 @@
@@ -496,7 +496,7 @@
    `a` smallint(6) NOT NULL AUTO_INCREMENT,
 -  PRIMARY KEY (`a`)
 +  PRIMARY KEY (`a` DESC)
- ) ENGINE=InnoDB AUTO_INCREMENT=500 DEFAULT CHARSET=latin1
+ ) ENGINE=InnoDB AUTO_INCREMENT=500 DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
  INSERT INTO t3 VALUES(0);
  SELECT MAX(a) AS `Expect 500` FROM t3;
 @@ -591,13 +591,13 @@
@@ -505,7 +505,7 @@
    `a` smallint(6) NOT NULL AUTO_INCREMENT,
 -  PRIMARY KEY (`a`)
 +  PRIMARY KEY (`a` DESC)
- ) ENGINE=InnoDB AUTO_INCREMENT=100 DEFAULT CHARSET=latin1
+ ) ENGINE=InnoDB AUTO_INCREMENT=100 DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
  INSERT INTO t3 VALUES(0), (0);
  SELECT * FROM t3;
  a
@@ -521,7 +521,7 @@
    `a` smallint(6) NOT NULL AUTO_INCREMENT,
 -  PRIMARY KEY (`a`)
 +  PRIMARY KEY (`a` DESC)
- ) ENGINE=InnoDB AUTO_INCREMENT=221 DEFAULT CHARSET=latin1
+ ) ENGINE=InnoDB AUTO_INCREMENT=221 DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
  INSERT INTO t3 VALUES(0);
  SELECT MAX(a) AS `Expect 221` FROM t3;
 @@ -619,7 +619,7 @@
@@ -530,7 +530,7 @@
    `a` smallint(6) NOT NULL AUTO_INCREMENT,
 -  PRIMARY KEY (`a`)
 +  PRIMARY KEY (`a` DESC)
- ) ENGINE=InnoDB AUTO_INCREMENT=120 DEFAULT CHARSET=latin1
+ ) ENGINE=InnoDB AUTO_INCREMENT=120 DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
  # MDEV-6076: Test adding an AUTO_INCREMENT COLUMN
  CREATE TABLE mdev6076a (b INT) ENGINE=InnoDB;
 @@ -669,18 +669,18 @@
@@ -556,7 +556,7 @@
    `a` smallint(6) NOT NULL AUTO_INCREMENT,
 -  PRIMARY KEY (`a`)
 +  PRIMARY KEY (`a` DESC)
- ) ENGINE=InnoDB AUTO_INCREMENT=211 DEFAULT CHARSET=latin1
+ ) ENGINE=InnoDB AUTO_INCREMENT=211 DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
  # This will keep the autoinc counter
  ALTER TABLE t_inplace AUTO_INCREMENT = 250, ALGORITHM = INPLACE;
 @@ -689,7 +689,7 @@
@@ -565,7 +565,7 @@
    `a` smallint(6) NOT NULL AUTO_INCREMENT,
 -  PRIMARY KEY (`a`)
 +  PRIMARY KEY (`a` DESC)
- ) ENGINE=InnoDB AUTO_INCREMENT=250 DEFAULT CHARSET=latin1
+ ) ENGINE=InnoDB AUTO_INCREMENT=250 DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
  # This should keep the autoinc counter as well
  ALTER TABLE t_inplace ADD COLUMN b INT, ALGORITHM = INPLACE;
 @@ -699,16 +699,16 @@
@@ -574,7 +574,7 @@
    `b` int(11) DEFAULT NULL,
 -  PRIMARY KEY (`a`)
 +  PRIMARY KEY (`a` DESC)
- ) ENGINE=InnoDB AUTO_INCREMENT=250 DEFAULT CHARSET=latin1
+ ) ENGINE=InnoDB AUTO_INCREMENT=250 DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
  DELETE FROM t_inplace WHERE a > 150;
  SELECT * FROM t_inplace;
  a	b
@@ -596,7 +596,7 @@
    `b` int(11) DEFAULT NULL,
 -  PRIMARY KEY (`a`)
 +  PRIMARY KEY (`a` DESC)
- ) ENGINE=InnoDB AUTO_INCREMENT=180 DEFAULT CHARSET=latin1
+ ) ENGINE=InnoDB AUTO_INCREMENT=180 DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
  # This should reset the autoinc counter to the next value of
  # current max counter in the table, since the specified value
 @@ -730,7 +730,7 @@
@@ -605,7 +605,7 @@
    `a` smallint(6) NOT NULL AUTO_INCREMENT,
 -  PRIMARY KEY (`a`)
 +  PRIMARY KEY (`a` DESC)
- ) ENGINE=InnoDB AUTO_INCREMENT=123 DEFAULT CHARSET=latin1
+ ) ENGINE=InnoDB AUTO_INCREMENT=123 DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
  INSERT INTO t_inplace VALUES(0), (0);
  SELECT MAX(a) AS `Expect 124` FROM t_inplace;
 @@ -757,18 +757,18 @@
@@ -631,7 +631,7 @@
    `a` smallint(6) NOT NULL AUTO_INCREMENT,
 -  PRIMARY KEY (`a`)
 +  PRIMARY KEY (`a` DESC)
- ) ENGINE=InnoDB AUTO_INCREMENT=211 DEFAULT CHARSET=latin1
+ ) ENGINE=InnoDB AUTO_INCREMENT=211 DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
  # This will keep the autoinc counter
  ALTER TABLE t_copy AUTO_INCREMENT = 250, ALGORITHM = COPY;
 @@ -777,7 +777,7 @@
@@ -640,7 +640,7 @@
    `a` smallint(6) NOT NULL AUTO_INCREMENT,
 -  PRIMARY KEY (`a`)
 +  PRIMARY KEY (`a` DESC)
- ) ENGINE=InnoDB AUTO_INCREMENT=250 DEFAULT CHARSET=latin1
+ ) ENGINE=InnoDB AUTO_INCREMENT=250 DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
  # This should keep the autoinc counter as well
  ALTER TABLE t_copy ADD COLUMN b INT, ALGORITHM = COPY;
 @@ -787,16 +787,16 @@
@@ -649,7 +649,7 @@
    `b` int(11) DEFAULT NULL,
 -  PRIMARY KEY (`a`)
 +  PRIMARY KEY (`a` DESC)
- ) ENGINE=InnoDB AUTO_INCREMENT=250 DEFAULT CHARSET=latin1
+ ) ENGINE=InnoDB AUTO_INCREMENT=250 DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
  DELETE FROM t_copy WHERE a > 150;
  SELECT * FROM t_copy;
  a	b
@@ -671,7 +671,7 @@
    `b` int(11) DEFAULT NULL,
 -  PRIMARY KEY (`a`)
 +  PRIMARY KEY (`a` DESC)
- ) ENGINE=InnoDB AUTO_INCREMENT=180 DEFAULT CHARSET=latin1
+ ) ENGINE=InnoDB AUTO_INCREMENT=180 DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
  # This should reset the autoinc counter to the next value of
  # current max counter in the table, since the specified value
 @@ -818,7 +818,7 @@
@@ -680,7 +680,7 @@
    `a` smallint(6) NOT NULL AUTO_INCREMENT,
 -  PRIMARY KEY (`a`)
 +  PRIMARY KEY (`a` DESC)
- ) ENGINE=InnoDB AUTO_INCREMENT=123 DEFAULT CHARSET=latin1
+ ) ENGINE=InnoDB AUTO_INCREMENT=123 DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
  INSERT INTO t_copy VALUES(0), (0);
  SELECT MAX(a) AS `Expect 124` FROM t_copy;
 @@ -842,7 +842,7 @@

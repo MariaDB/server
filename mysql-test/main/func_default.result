@@ -181,7 +181,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `v1` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
   `x` varchar(1) NOT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 select default(v1) from (select v1 from t1) dt;
 default(v1)
 2001-01-01 10:20:30

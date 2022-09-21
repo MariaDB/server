@@ -1514,7 +1514,7 @@ Query_log_event::Query_log_event(const uchar *buf, uint event_len,
     switch (*pos++) {
     case Q_FLAGS2_CODE:
       CHECK_SPACE(pos, end, 4);
-      flags2_inited= 1;
+      flags2_inited= description_event->options_written_to_bin_log;
       flags2= uint4korr(pos);
       DBUG_PRINT("info",("In Query_log_event, read flags2: %lu", (ulong) flags2));
       pos+= 4;

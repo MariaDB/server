@@ -21,7 +21,7 @@ CREATE TABLE `t1` (
   `pk` int(11) NOT NULL,
   `a` int(11) DEFAULT NULL,
   PRIMARY KEY (`pk`)
-) ENGINE=Aria DEFAULT CHARSET=latin1 PAGE_CHECKSUM=1;
+) ENGINE=Aria DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1;
 /*!40101 SET character_set_client = @saved_cs_client */;
 INSERT INTO `t1` VALUES
 (1,1),

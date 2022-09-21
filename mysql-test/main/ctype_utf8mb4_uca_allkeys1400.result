@@ -11,7 +11,7 @@ Table	Create Table
 allchars	CREATE TABLE `allchars` (
   `code` int(1) NOT NULL,
   `str` varchar(1) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 CREATE TABLE t1tmp (a INT NOT NULL);
 FOR i IN 0..0xFFF
 DO

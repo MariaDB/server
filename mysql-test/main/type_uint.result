@@ -25,7 +25,7 @@ show create table t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `a` bigint(20) unsigned DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 select * from t2;
 a
 1

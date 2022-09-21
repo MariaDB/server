@@ -29,7 +29,7 @@ t2	CREATE TABLE `t2` (
   `target` geometry DEFAULT point(1,1),
   `source` int(11) DEFAULT 0,
   PRIMARY KEY (`id`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 CREATE TABLE t3 LIKE t2;
 INSERT INTO t3 VALUES
 (1,
@@ -199,7 +199,7 @@ t2	CREATE TABLE `t2` (
   `target` int(11) DEFAULT 0,
   `source` geometry DEFAULT point(1,1),
   PRIMARY KEY (`id`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 CREATE TABLE t3 LIKE t2;
 INSERT INTO t3 VALUES
 (1,

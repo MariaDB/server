@@ -16,7 +16,7 @@ t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
   KEY `a` (`a`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 connection slave;
 SHOW TABLES;
 Tables_in_test
@@ -27,7 +27,7 @@ t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
   KEY `a` (`a`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 connection master;
 drop temporary table if exists tmp;
 drop table t1;
@@ -49,7 +49,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) NOT NULL,
   PRIMARY KEY (`a`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 show create table t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
@@ -57,7 +57,7 @@ t2	CREATE TABLE `t2` (
   `a` int(11) DEFAULT NULL,
   KEY `t1_a` (`a`),
   CONSTRAINT `t1_a` FOREIGN KEY (`a`) REFERENCES `t1` (`a`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 select * from t2;
 c	a
 2	2

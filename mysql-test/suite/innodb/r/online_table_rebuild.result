@@ -41,7 +41,7 @@ t1	CREATE TABLE `t1` (
   `f2` char(200) DEFAULT NULL,
   `f3` char(200) DEFAULT NULL,
   PRIMARY KEY (`f1`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t1;
 disconnect con1;
 SET DEBUG_SYNC=reset;

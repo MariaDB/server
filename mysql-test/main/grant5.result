@@ -301,7 +301,7 @@ show create table db.t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 delete from db.t1 returning *;
 ERROR 42000: SELECT command denied to user 'foo'@'localhost' for column 'a' in table 't1'
 disconnect con1;

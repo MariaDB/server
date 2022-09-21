@@ -1,38 +1,26 @@
---echo #
---echo # MDEV-26794 MariaBackup does not recognize added providers upon prepare of incremental backup
---echo #
-
-if (!$PROVIDER_SNAPPY_SO) {
-  skip "Needs provider_snappy plugin";
-}
-
 --source include/have_innodb.inc
+--source include/have_partition.inc
 
---let $targetdir=$MYSQLTEST_VARDIR/tmp/backup
---let $incdir=$MYSQLTEST_VARDIR/tmp/inc
+let $basedir=$MYSQLTEST_VARDIR/tmp/backup;
+let $incremental_dir=$MYSQLTEST_VARDIR/tmp/backup_inc1;
 
-CREATE TABLE t (a INT) ENGINE=InnoDB;
-INSERT INTO t VALUES (1),(2);
+--echo #
+--echo # MDEV-18589 Assertion ...physical_size(flags) == info.page_size
+--echo #            failed in xb_delta_open_matching_space
+--echo #
 
---exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf --backup --target-dir=$targetdir
+CREATE TABLE t (pk INT PRIMARY KEY) ENGINE=InnoDB ROW_FORMAT=COMPRESSED;
 
-INSTALL SONAME 'provider_snappy';
+--exec $XTRABACKUP --backup --target-dir=$basedir --protocol=tcp --port=$MASTER_MYPORT --user=root
 
-SET GLOBAL innodb_compression_algorithm= snappy;
+ALTER TABLE t PARTITION BY KEY(pk);
 
-CREATE TABLE t_snappy (a INT) ENGINE=InnoDB page_compressed=1;
-INSERT INTO t_snappy VALUES (3),(4);
+--exec $XTRABACKUP --backup --target-dir=$incremental_dir --incremental-basedir=$basedir --protocol=tcp --port=$MASTER_MYPORT --user=root > $incremental_dir.log 2>&1
+--exec $XTRABACKUP --prepare --target-dir=$basedir --user=root > $MYSQL_TMP_DIR/backup_prepare_0.log 2>&1
+--exec $XTRABACKUP --prepare --target-dir=$basedir --incremental-dir=$incremental_dir --user=root >  $MYSQL_TMP_DIR/backup_prepare_1.log
+--cat_file $MYSQL_TMP_DIR/backup_prepare_1.log
+let $targetdir=$basedir;
+-- source include/restart_and_restore.inc
 
-# disable buffer pool load to avoid MDEV-26794 warnings
---let $restart_parameters= --innodb_buffer_pool_load_at_startup=0
---source include/restart_mysqld.inc
-
---exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf --backup --incremental-basedir=$targetdir --target-dir=$incdir
-
---echo # Prepare initial backup
---exec $XTRABACKUP --prepare --target-dir=$targetdir
-
---echo # Prepare incremental backup
---exec $XTRABACKUP --prepare --target-dir=$targetdir --incremental-dir=$incdir > $MYSQLTEST_VARDIR/prepare.log 2>&1
-
+SHOW CREATE TABLE t;
 DROP TABLE t;

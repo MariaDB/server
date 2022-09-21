@@ -35,7 +35,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `c` char(5) NOT NULL,
   `d` char(10) NOT NULL
-) ENGINE=CONNECT DEFAULT CHARSET=latin1
+) ENGINE=CONNECT DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 SELECT * FROM t1;
 c	d
 1	One
@@ -61,7 +61,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `c` int(11) NOT NULL,
   `d` char(10) NOT NULL
-) ENGINE=CONNECT DEFAULT CHARSET=latin1 `TABLE_TYPE`=CSV `HEADER`=1 `QUOTED`=1
+) ENGINE=CONNECT DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci `TABLE_TYPE`=CSV `HEADER`=1 `QUOTED`=1
 # create an outward table used to see the t1 file
 CREATE TABLE t2 (line VARCHAR(100) NOT NULL) ENGINE=CONNECT FILE_NAME='t1.csv';
 Warnings:
@@ -90,7 +90,7 @@ t1	CREATE TABLE `t1` (
   `d` char(10) NOT NULL,
   KEY `xc` (`c`),
   KEY `xd` (`d`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 SHOW INDEX FROM t1;
 Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
 t1	1	xc	1	c	A	NULL	NULL	NULL		BTREE			NO
@@ -108,7 +108,7 @@ t1	CREATE TABLE `t1` (
   `d` char(10) NOT NULL,
   KEY `xc` (`c`),
   KEY `xd` (`d`)
-) ENGINE=CONNECT DEFAULT CHARSET=latin1 `TABLE_TYPE`=DBF
+) ENGINE=CONNECT DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci `TABLE_TYPE`=DBF
 SHOW INDEX FROM t1;
 Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
 t1	1	xc	1	c	A	NULL	NULL	NULL		XINDEX			NO
@@ -167,7 +167,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `c` char(5) NOT NULL,
   `d` char(10) NOT NULL
-) ENGINE=CONNECT DEFAULT CHARSET=latin1 `TABLE_TYPE`=fix `FILE_NAME`='tf1.txt' `ENDING`=1
+) ENGINE=CONNECT DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci `TABLE_TYPE`=fix `FILE_NAME`='tf1.txt' `ENDING`=1
 SELECT * FROM t1;
 ERROR HY000: Got error 174 'File tf1.txt is not fixed length, len=66 lrecl=16' from CONNECT
 ALTER TABLE t1 MODIFY COLUMN c INT NOT NULL;
@@ -189,7 +189,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `d` char(10) NOT NULL,
   `c` int(11) NOT NULL
-) ENGINE=CONNECT DEFAULT CHARSET=latin1 `TABLE_TYPE`=fix `FILE_NAME`='tf1.txt' `ENDING`=1
+) ENGINE=CONNECT DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci `TABLE_TYPE`=fix `FILE_NAME`='tf1.txt' `ENDING`=1
 # Wrong result
 SELECT * FROM t1;
 d	c
@@ -208,7 +208,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `d` char(10) NOT NULL `FLAG`=11,
   `c` int(11) NOT NULL `FLAG`=0
-) ENGINE=CONNECT DEFAULT CHARSET=latin1 `TABLE_TYPE`=fix `FILE_NAME`='tf1.txt' `ENDING`=1
+) ENGINE=CONNECT DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci `TABLE_TYPE`=fix `FILE_NAME`='tf1.txt' `ENDING`=1
 SELECT * FROM t1;
 d	c
 One	1
@@ -224,7 +224,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `d` char(10) NOT NULL /* `FLAG`=11 */,
   `c` int(11) NOT NULL /* `FLAG`=0 */
-) ENGINE=Aria DEFAULT CHARSET=latin1 PAGE_CHECKSUM=1 /* `TABLE_TYPE`=fix `FILE_NAME`='tf1.txt' `ENDING`=1 */
+) ENGINE=Aria DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1 /* `TABLE_TYPE`=fix `FILE_NAME`='tf1.txt' `ENDING`=1 */
 set @old_sql_mode=@@sql_mode;
 set sql_mode=ignore_bad_table_options;
 SHOW CREATE TABLE t1;
@@ -232,7 +232,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `d` char(10) NOT NULL `FLAG`=11,
   `c` int(11) NOT NULL `FLAG`=0
-) ENGINE=Aria DEFAULT CHARSET=latin1 PAGE_CHECKSUM=1 `TABLE_TYPE`=fix `FILE_NAME`='tf1.txt' `ENDING`=1
+) ENGINE=Aria DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1 `TABLE_TYPE`=fix `FILE_NAME`='tf1.txt' `ENDING`=1
 set sql_mode=@old_sql_mode;
 SELECT * from t1;
 d	c
@@ -260,7 +260,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `d` char(10) NOT NULL `FLAG`=11,
   `c` int(11) NOT NULL `FLAG`=0
-) ENGINE=CONNECT DEFAULT CHARSET=latin1 PAGE_CHECKSUM=1 `TABLE_TYPE`=fix `FILE_NAME`='tf1.txt' `ENDING`=1
+) ENGINE=CONNECT DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1 `TABLE_TYPE`=fix `FILE_NAME`='tf1.txt' `ENDING`=1
 SELECT * from t1;
 d	c
 One	1
