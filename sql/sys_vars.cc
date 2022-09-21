@@ -3030,7 +3030,8 @@ static Sys_var_on_access_global<Sys_var_mybool,
 Sys_readonly(
        "read_only",
        "Make all non-temporary tables read-only, with the exception for "
-       "replication (slave) threads and users with the SUPER privilege",
+       "replication (slave) threads and users with the 'READ ONLY ADMIN' "
+       "privilege",
        GLOBAL_VAR(read_only), CMD_LINE(OPT_ARG), DEFAULT(FALSE),
        NO_MUTEX_GUARD, NOT_IN_BINLOG,
        ON_CHECK(check_read_only), ON_UPDATE(fix_read_only));

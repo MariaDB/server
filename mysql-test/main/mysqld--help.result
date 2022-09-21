@@ -1003,7 +1003,7 @@ The following specify which files/extra groups are read (specified before remain
  value
  --read-only         Make all non-temporary tables read-only, with the
  exception for replication (slave) threads and users with
- the SUPER privilege
+ the 'READ ONLY ADMIN' privilege
  --read-rnd-buffer-size=# 
  When reading rows in sorted order after a sort, the rows
  are read through this buffer to avoid a disk seeks
