@@ -5,7 +5,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `col1` bigint(20) DEFAULT NULL,
   `col2` varchar(30) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 insert into test.t1 values(1,'One');
 set default_storage_engine=InnoDB;
 drop table if exists test.marker;

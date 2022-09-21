@@ -10,7 +10,7 @@ t	CREATE TABLE `t` (
   `e` date NOT NULL,
   PERIOD FOR `p` (`s`, `e`),
   PRIMARY KEY (`id`,`p` WITHOUT OVERLAPS)
-) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1
+) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
  PARTITION BY KEY (`id`)
 insert into t values (1, '2003-01-01', '2003-03-01'),
 (1, '2003-05-01', '2003-07-01');
@@ -148,7 +148,7 @@ t	CREATE TABLE `t` (
   PERIOD FOR `p` (`s`, `e`),
   PRIMARY KEY (`id`,`p` WITHOUT OVERLAPS),
   UNIQUE KEY `u` (`u`)
-) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1
+) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 insert into t values (1, 1, '2003-03-01', '2003-05-01');
 insert into t values (1, 2, '2003-05-01', '2003-07-01');
 insert into t values (1, 3, '2003-04-01', '2003-05-01');
@@ -167,7 +167,7 @@ t	CREATE TABLE `t` (
   PERIOD FOR `p` (`s`, `e`),
   PRIMARY KEY (`id`,`p` WITHOUT OVERLAPS),
   UNIQUE KEY `u` (`u`,`p` WITHOUT OVERLAPS)
-) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1
+) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 insert into t values (2, NULL, '2003-03-01', '2003-05-01');
 insert into t values (2, NULL, '2003-03-01', '2003-05-01');
 ERROR 23000: Duplicate entry '2-2003-05-01-2003-03-01' for key 'PRIMARY'
@@ -211,7 +211,7 @@ t	CREATE TABLE `t` (
   `y` int(11) DEFAULT NULL,
   PERIOD FOR `p` (`s`, `e`),
   PRIMARY KEY (`id`,`p` WITHOUT OVERLAPS)
-) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
+) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci WITH SYSTEM VERSIONING
 alter table t drop y;
 create or replace table t1 like t;
 show create table t1;
@@ -222,7 +222,7 @@ t1	CREATE TABLE `t1` (
   `e` date NOT NULL,
   PERIOD FOR `p` (`s`, `e`),
   PRIMARY KEY (`id`,`p` WITHOUT OVERLAPS)
-) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
+) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci WITH SYSTEM VERSIONING
 create or replace table t1 (x int, s date, e date,
 period for p(s,e),
 primary key(x, p without overlaps));
@@ -313,7 +313,7 @@ t1	CREATE TABLE `t1` (
   `e` date NOT NULL,
   PERIOD FOR `p` (`s`, `e`),
   UNIQUE KEY `f` (`f`,`p` WITHOUT OVERLAPS)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci WITH SYSTEM VERSIONING
  PARTITION BY SYSTEM_TIME LIMIT 1000
 (PARTITION `p1` HISTORY ENGINE = InnoDB,
  PARTITION `p2` HISTORY ENGINE = InnoDB,

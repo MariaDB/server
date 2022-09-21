@@ -173,7 +173,7 @@ t2i_c	CREATE TABLE `t2i_c` (
   KEY `it2i1` (`b1`),
   KEY `it2i2` (`b2`),
   KEY `it2i3` (`b1`,`b2`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 explain extended
 select * from t1 where (a1, a2) in (select b1, max(b2) from t2i_c group by b1);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra

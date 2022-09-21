@@ -1,6 +1,4 @@
---- partition.result
-+++ partition,heap.reject
-@@ -2120,85 +2120,6 @@
+@@ -2132,85 +2132,6 @@
  (PARTITION `p0` HISTORY ENGINE = X,
   PARTITION `pn` CURRENT ENGINE = X)
  drop tables t1, tp1;
@@ -35,7 +33,7 @@
 -  `x` int(11) NOT NULL AUTO_INCREMENT,
 -  `t` timestamp(6) NOT NULL DEFAULT '2001-11-11 11:11:11.000000',
 -  `b` blob /*!100301 COMPRESSED*/ DEFAULT NULL,
--  `c` varchar(1033) CHARACTER SET utf8mb3 NOT NULL,
+-  `c` varchar(1033) CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci NOT NULL,
 -  `u` int(11) DEFAULT NULL,
 -  `m` enum('a','b','c') NOT NULL DEFAULT 'a' COMMENT 'absolute',
 -  `i1` tinyint(4) DEFAULT NULL,
@@ -53,14 +51,14 @@
 -  KEY `three` (`i1`,`i2`,`i3`),
 -  PERIOD FOR SYSTEM_TIME (`s`, `e`),
 -  CONSTRAINT `check_constr` CHECK (`u` > -1)
--) ENGINE=X DEFAULT CHARSET=ucs2 WITH SYSTEM VERSIONING
+-) ENGINE=X DEFAULT CHARSET=ucs2 COLLATE=ucs2_general_ci WITH SYSTEM VERSIONING
 -show create table t1;
 -Table	Create Table
 -t1	CREATE TABLE `t1` (
 -  `x` int(11) NOT NULL AUTO_INCREMENT,
 -  `t` timestamp(6) NOT NULL DEFAULT '2001-11-11 11:11:11.000000',
 -  `b` blob /*!100301 COMPRESSED*/ DEFAULT NULL,
--  `c` varchar(1033) CHARACTER SET utf8mb3 NOT NULL,
+-  `c` varchar(1033) CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci NOT NULL,
 -  `u` int(11) DEFAULT NULL,
 -  `m` enum('a','b','c') NOT NULL DEFAULT 'a' COMMENT 'absolute',
 -  `i1` tinyint(4) DEFAULT NULL,
@@ -78,7 +76,7 @@
 -  KEY `three` (`i1`,`i2`,`i3`),
 -  PERIOD FOR SYSTEM_TIME (`s`, `e`),
 -  CONSTRAINT `check_constr` CHECK (`u` > -1)
--) ENGINE=X DEFAULT CHARSET=ucs2 WITH SYSTEM VERSIONING
+-) ENGINE=X DEFAULT CHARSET=ucs2 COLLATE=ucs2_general_ci WITH SYSTEM VERSIONING
 - PARTITION BY RANGE (`x`)
 -(PARTITION `p0` VALUES LESS THAN (10) ENGINE = X,
 - PARTITION `pn` VALUES LESS THAN MAXVALUE ENGINE = X)
@@ -86,7 +84,7 @@
  #
  # End of 10.7 tests
  #
-@@ -2753,134 +2674,6 @@
+@@ -2765,134 +2686,6 @@
  Warning	4114	Versioned table `test`.`t1`: last HISTORY partition (`p0`) is out of INTERVAL, need more HISTORY partitions
  drop prepare s;
  affected rows: 0
@@ -121,7 +119,7 @@
 -  `x` int(11) NOT NULL AUTO_INCREMENT,
 -  `t` timestamp(6) NOT NULL DEFAULT '2001-11-11 11:11:11.000000',
 -  `b` blob /*!100301 COMPRESSED*/ DEFAULT NULL,
--  `c` varchar(1033) CHARACTER SET utf8mb3 NOT NULL,
+-  `c` varchar(1033) CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci NOT NULL,
 -  `u` int(11) DEFAULT NULL,
 -  `m` enum('a','b','c') NOT NULL DEFAULT 'a' COMMENT 'absolute',
 -  `i1` tinyint(4) DEFAULT NULL,
@@ -139,7 +137,7 @@
 -  KEY `three` (`i1`,`i2`,`i3`),
 -  PERIOD FOR SYSTEM_TIME (`s`, `e`),
 -  CONSTRAINT `check_constr` CHECK (`u` > -1)
--) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=ucs2 WITH SYSTEM VERSIONING
+-) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=ucs2 COLLATE=ucs2_general_ci WITH SYSTEM VERSIONING
 - PARTITION BY SYSTEM_TIME INTERVAL 1 HOUR STARTS TIMESTAMP'2000-01-01 00:00:00' AUTO
 -(PARTITION `p2` HISTORY ENGINE = DEFAULT_ENGINE,
 - PARTITION `pn` CURRENT ENGINE = DEFAULT_ENGINE)
@@ -158,7 +156,7 @@
 -  `x` int(11) NOT NULL AUTO_INCREMENT,
 -  `t` timestamp(6) NOT NULL DEFAULT '2001-11-11 11:11:11.000000',
 -  `b` blob /*!100301 COMPRESSED*/ DEFAULT NULL,
--  `c` varchar(1033) CHARACTER SET utf8mb3 NOT NULL,
+-  `c` varchar(1033) CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci NOT NULL,
 -  `u` int(11) DEFAULT NULL,
 -  `m` enum('a','b','c') NOT NULL DEFAULT 'a' COMMENT 'absolute',
 -  `i1` tinyint(4) DEFAULT NULL,
@@ -176,7 +174,7 @@
 -  KEY `three` (`i1`,`i2`,`i3`),
 -  PERIOD FOR SYSTEM_TIME (`s`, `e`),
 -  CONSTRAINT `check_constr` CHECK (`u` > -1)
--) ENGINE=DEFAULT_ENGINE AUTO_INCREMENT=10 DEFAULT CHARSET=ucs2 WITH SYSTEM VERSIONING
+-) ENGINE=DEFAULT_ENGINE AUTO_INCREMENT=10 DEFAULT CHARSET=ucs2 COLLATE=ucs2_general_ci WITH SYSTEM VERSIONING
 - PARTITION BY SYSTEM_TIME INTERVAL 1 HOUR STARTS TIMESTAMP'2000-01-01 00:00:00' AUTO
 -(PARTITION `p2` HISTORY ENGINE = DEFAULT_ENGINE,
 - PARTITION `p1` HISTORY ENGINE = DEFAULT_ENGINE,
@@ -193,7 +191,7 @@
 -  `x` int(11) NOT NULL AUTO_INCREMENT,
 -  `t` timestamp(6) NOT NULL DEFAULT '2001-11-11 11:11:11.000000',
 -  `b` blob /*!100301 COMPRESSED*/ DEFAULT NULL,
--  `c` varchar(1033) CHARACTER SET utf8mb3 NOT NULL,
+-  `c` varchar(1033) CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci NOT NULL,
 -  `u` int(11) DEFAULT NULL,
 -  `m` enum('a','b','c') NOT NULL DEFAULT 'a' COMMENT 'absolute',
 -  `i1` tinyint(4) DEFAULT NULL,
@@ -211,7 +209,7 @@
 -  KEY `three` (`i1`,`i2`,`i3`),
 -  PERIOD FOR SYSTEM_TIME (`s`, `e`),
 -  CONSTRAINT `check_constr` CHECK (`u` > -1)
--) ENGINE=DEFAULT_ENGINE AUTO_INCREMENT=10 DEFAULT CHARSET=ucs2 WITH SYSTEM VERSIONING
+-) ENGINE=DEFAULT_ENGINE AUTO_INCREMENT=10 DEFAULT CHARSET=ucs2 COLLATE=ucs2_general_ci WITH SYSTEM VERSIONING
 - PARTITION BY SYSTEM_TIME INTERVAL 1 HOUR STARTS TIMESTAMP'2000-01-01 00:00:00' AUTO
 -(PARTITION `p2` HISTORY ENGINE = DEFAULT_ENGINE,
 - PARTITION `p1` HISTORY ENGINE = DEFAULT_ENGINE,

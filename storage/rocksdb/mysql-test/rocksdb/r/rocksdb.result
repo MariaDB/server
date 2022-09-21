@@ -47,7 +47,7 @@ Table	Create Table
 t0	CREATE TABLE `t0` (
   `a` int(11) NOT NULL,
   PRIMARY KEY (`a`)
-) ENGINE=ROCKSDB DEFAULT CHARSET=latin1
+) ENGINE=ROCKSDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 drop table t0;
 create table t1 (a int primary key, b int) engine=rocksdb;
 insert into t1 values (1,1);
@@ -2485,7 +2485,7 @@ r2	CREATE TABLE `r2` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `value` int(11) DEFAULT NULL,
   PRIMARY KEY (`id`)
-) ENGINE=ROCKSDB DEFAULT CHARSET=latin1
+) ENGINE=ROCKSDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 begin;
 insert into r1 values (10, 1);
 commit;
@@ -2509,7 +2509,7 @@ r2	CREATE TABLE `r2` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `value` int(11) DEFAULT NULL,
   KEY `i` (`id`)
-) ENGINE=ROCKSDB DEFAULT CHARSET=latin1
+) ENGINE=ROCKSDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 begin;
 insert into r1 values (10, 1);
 commit;

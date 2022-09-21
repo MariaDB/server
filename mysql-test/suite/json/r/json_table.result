@@ -269,8 +269,8 @@ from t1, json_table(t1.json, '$' columns (value varchar(32) PATH '$.value')) T;
 show create table tj1;
 Table	Create Table
 tj1	CREATE TABLE `tj1` (
-  `value` varchar(32) CHARACTER SET utf8mb4 DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+  `value` varchar(32) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 drop table t1;
 drop table tj1;
 CREATE TABLE t1(id INT, f1 JSON);

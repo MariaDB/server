@@ -4421,7 +4421,7 @@ t1	CREATE TABLE `t1` (
   `a` varchar(10) DEFAULT NULL,
   `mn` varchar(10) DEFAULT like_range_min(`a`,10),
   `mx` varchar(10) DEFAULT like_range_max(`a`,10)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 INSERT INTO t1 (a) VALUES ('a'),('a_'),('a%');
 SELECT a, HEX(mn), HEX(mx) FROM t1;
 a	HEX(mn)	HEX(mx)

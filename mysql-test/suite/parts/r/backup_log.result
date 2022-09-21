@@ -80,7 +80,7 @@ Table	Create Table
 t42	CREATE TABLE `t42` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
  PARTITION BY HASH (`a`)
 PARTITIONS 2
 drop table t40, t41, t42;

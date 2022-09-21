@@ -128,5 +128,5 @@ shops	CREATE TABLE `shops` (
   `location` geometry NOT NULL,
   PRIMARY KEY (`id`),
   SPATIAL KEY `location_index` (`location`)
-) ENGINE=Mroonga AUTO_INCREMENT=37 DEFAULT CHARSET=latin1
+) ENGINE=Mroonga AUTO_INCREMENT=37 DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE shops;

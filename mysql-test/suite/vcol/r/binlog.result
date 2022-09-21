@@ -89,7 +89,7 @@ show create table t1;
 Table	Create Table
 t1	CREATE TEMPORARY TABLE `t1` (
   `UUID()` uuid DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 CREATE TABLE t2 (a INT PRIMARY KEY, b TEXT, c INT GENERATED ALWAYS AS(b));
 INSERT INTO t2 (a,b) VALUES (1,1);
 SET SESSION binlog_row_image= default;

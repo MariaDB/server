@@ -5,14 +5,14 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE "t1" (
   "select" int(11) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
  PARTITION BY RANGE ("select")
 (PARTITION "select" VALUES LESS THAN MAXVALUE ENGINE = MyISAM)
 show create table t2;
 Table	Create Table
 t2	CREATE TABLE "t2" (
   "f1" int(11) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
  PARTITION BY RANGE ("f1")
 (PARTITION "p1" VALUES LESS THAN MAXVALUE ENGINE = MyISAM)
 set sql_quote_show_create=0;
@@ -20,14 +20,14 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE t1 (
   "select" int(11) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
  PARTITION BY RANGE ("select")
 (PARTITION "select" VALUES LESS THAN MAXVALUE ENGINE = MyISAM)
 show create table t2;
 Table	Create Table
 t2	CREATE TABLE t2 (
   f1 int(11) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
  PARTITION BY RANGE (f1)
 (PARTITION p1 VALUES LESS THAN MAXVALUE ENGINE = MyISAM)
 set sql_mode=default;
@@ -35,14 +35,14 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE t1 (
   `select` int(11) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
  PARTITION BY RANGE (`select`)
 (PARTITION `select` VALUES LESS THAN MAXVALUE ENGINE = MyISAM)
 show create table t2;
 Table	Create Table
 t2	CREATE TABLE t2 (
   f1 int(11) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
  PARTITION BY RANGE (f1)
 (PARTITION p1 VALUES LESS THAN MAXVALUE ENGINE = MyISAM)
 set sql_quote_show_create=1;
@@ -50,14 +50,14 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `select` int(11) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
  PARTITION BY RANGE (`select`)
 (PARTITION `select` VALUES LESS THAN MAXVALUE ENGINE = MyISAM)
 show create table t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `f1` int(11) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
  PARTITION BY RANGE (`f1`)
 (PARTITION `p1` VALUES LESS THAN MAXVALUE ENGINE = MyISAM)
 flush tables;
@@ -65,14 +65,14 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `select` int(11) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
  PARTITION BY RANGE (`select`)
 (PARTITION `select` VALUES LESS THAN MAXVALUE ENGINE = MyISAM)
 show create table t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `f1` int(11) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
  PARTITION BY RANGE (`f1`)
 (PARTITION `p1` VALUES LESS THAN MAXVALUE ENGINE = MyISAM)
 set sql_mode=ansi_quotes;
@@ -80,14 +80,14 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE "t1" (
   "select" int(11) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
  PARTITION BY RANGE ("select")
 (PARTITION "select" VALUES LESS THAN MAXVALUE ENGINE = MyISAM)
 show create table t2;
 Table	Create Table
 t2	CREATE TABLE "t2" (
   "f1" int(11) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
  PARTITION BY RANGE ("f1")
 (PARTITION "p1" VALUES LESS THAN MAXVALUE ENGINE = MyISAM)
 drop table t1, t2;
@@ -99,7 +99,7 @@ show create table t_partition;
 Table	Create Table
 t_partition	CREATE TABLE `t_partition` (
   `f1` int(11) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
  PARTITION BY HASH (`f1`)
 PARTITIONS 2
 drop table t_partition;

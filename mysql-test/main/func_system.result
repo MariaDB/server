@@ -46,10 +46,10 @@ create table t1 (version char(60)) select database(), user(), version() as 'vers
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `database()` varchar(64) CHARACTER SET utf8mb3 DEFAULT NULL,
-  `user()` varchar(384) CHARACTER SET utf8mb3 DEFAULT NULL,
+  `database()` varchar(64) CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci DEFAULT NULL,
+  `user()` varchar(384) CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci DEFAULT NULL,
   `version` char(60) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 drop table t1;
 select charset(charset(_utf8'a')), charset(collation(_utf8'a'));
 charset(charset(_utf8'a'))	charset(collation(_utf8'a'))
@@ -61,9 +61,9 @@ create table t1 select charset(_utf8'a'), collation(_utf8'a');
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `charset(_utf8'a')` varchar(64) CHARACTER SET utf8mb3 DEFAULT NULL,
-  `collation(_utf8'a')` varchar(64) CHARACTER SET utf8mb3 DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+  `charset(_utf8'a')` varchar(64) CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci DEFAULT NULL,
+  `collation(_utf8'a')` varchar(64) CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 drop table t1;
 select TRUE,FALSE,NULL;
 TRUE	FALSE	NULL

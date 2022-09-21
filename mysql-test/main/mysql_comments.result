@@ -14,11 +14,11 @@ drop trigger if exists t1_bi;
 foofct("call 1")
 call 1
 Function	sql_mode	Create Function	character_set_client	collation_connection	Database Collation
-foofct		CREATE DEFINER=`root`@`localhost` FUNCTION `foofct`(x char(20)) RETURNS char(20) CHARSET latin1\nreturn\n\n\n\nx	latin1	latin1_swedish_ci	latin1_swedish_ci
+foofct		CREATE DEFINER=`root`@`localhost` FUNCTION `foofct`(x char(20)) RETURNS char(20) CHARSET latin1 COLLATE latin1_swedish_ci\nreturn\n\n\n\nx	latin1	latin1_swedish_ci	latin1_swedish_ci
 foofct("call 2")
 call 2
 Function	sql_mode	Create Function	character_set_client	collation_connection	Database Collation
-foofct		CREATE DEFINER=`root`@`localhost` FUNCTION `foofct`(x char(20)) RETURNS char(20) CHARSET latin1\nbegin\n  \n  \n  \n\n  \n\n  \n  return x;\nend	latin1	latin1_swedish_ci	latin1_swedish_ci
+foofct		CREATE DEFINER=`root`@`localhost` FUNCTION `foofct`(x char(20)) RETURNS char(20) CHARSET latin1 COLLATE latin1_swedish_ci\nbegin\n  \n  \n  \n\n  \n\n  \n  return x;\nend	latin1	latin1_swedish_ci	latin1_swedish_ci
 Procedure	sql_mode	Create Procedure	character_set_client	collation_connection	Database Collation
 empty		CREATE DEFINER=`root`@`localhost` PROCEDURE `empty`()\nbegin\nend	latin1	latin1_swedish_ci	latin1_swedish_ci
 id	data
@@ -41,11 +41,11 @@ trig	12
 foofct("call 1")
 call 1
 Function	sql_mode	Create Function	character_set_client	collation_connection	Database Collation
-foofct		CREATE DEFINER=`root`@`localhost` FUNCTION `foofct`(x char(20)) RETURNS char(20) CHARSET latin1\nreturn\n-- comment 1a\n# comment 1b\n/* comment 1c */\nx # after body, on same line	latin1	latin1_swedish_ci	latin1_swedish_ci
+foofct		CREATE DEFINER=`root`@`localhost` FUNCTION `foofct`(x char(20)) RETURNS char(20) CHARSET latin1 COLLATE latin1_swedish_ci\nreturn\n-- comment 1a\n# comment 1b\n/* comment 1c */\nx # after body, on same line	latin1	latin1_swedish_ci	latin1_swedish_ci
 foofct("call 2")
 call 2
 Function	sql_mode	Create Function	character_set_client	collation_connection	Database Collation
-foofct		CREATE DEFINER=`root`@`localhost` FUNCTION `foofct`(x char(20)) RETURNS char(20) CHARSET latin1\nbegin\n  -- comment 1a\n  # comment 1b\n  /*\n     comment 1c\n  */\n\n  -- empty line below\n\n  -- empty line above\n  return x;\nend	latin1	latin1_swedish_ci	latin1_swedish_ci
+foofct		CREATE DEFINER=`root`@`localhost` FUNCTION `foofct`(x char(20)) RETURNS char(20) CHARSET latin1 COLLATE latin1_swedish_ci\nbegin\n  -- comment 1a\n  # comment 1b\n  /*\n     comment 1c\n  */\n\n  -- empty line below\n\n  -- empty line above\n  return x;\nend	latin1	latin1_swedish_ci	latin1_swedish_ci
 Procedure	sql_mode	Create Procedure	character_set_client	collation_connection	Database Collation
 empty		CREATE DEFINER=`root`@`localhost` PROCEDURE `empty`()\nbegin\nend	latin1	latin1_swedish_ci	latin1_swedish_ci
 id	data

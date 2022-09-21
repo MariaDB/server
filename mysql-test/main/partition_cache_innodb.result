@@ -22,7 +22,7 @@ t1	CREATE TABLE `t1` (
   `id` int(11) NOT NULL,
   `created_at` datetime NOT NULL,
   `cool` tinyint(4) DEFAULT 0
-) ENGINE=InnoDB DEFAULT CHARSET=latin1
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
  PARTITION BY RANGE (to_days(`created_at`))
 (PARTITION `month_2010_4` VALUES LESS THAN (734258) ENGINE = InnoDB,
  PARTITION `month_2010_5` VALUES LESS THAN (734289) ENGINE = InnoDB,
@@ -71,7 +71,7 @@ t1	CREATE TABLE `t1` (
   `id` int(11) NOT NULL,
   `created_at` datetime NOT NULL,
   `cool` tinyint(4) DEFAULT 0
-) ENGINE=InnoDB DEFAULT CHARSET=latin1
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
  PARTITION BY RANGE (to_days(`created_at`))
 SUBPARTITION BY HASH (`cool`)
 SUBPARTITIONS 3

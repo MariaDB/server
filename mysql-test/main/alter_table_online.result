@@ -18,7 +18,7 @@ t1	CREATE TABLE `t1` (
   `c` varchar(80) DEFAULT 'X',
   `e` enum('a','b','c') DEFAULT NULL,
   PRIMARY KEY (`a`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COMMENT='new comment'
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci COMMENT='new comment'
 drop table t1;
 create temporary table t1 (a int not null primary key, b int, c varchar(80), e enum('a','b'));
 insert into t1 (a) values (1),(2),(3);
@@ -35,7 +35,7 @@ t2	CREATE TEMPORARY TABLE `t2` (
   `c` varchar(80) DEFAULT 'X',
   `e` enum('a','b','c') DEFAULT NULL,
   PRIMARY KEY (`a`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COMMENT='new comment'
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci COMMENT='new comment'
 drop table t2;
 create table t1 (a int not null primary key, b int, c varchar(80), e enum('a','b')) engine=aria;
 insert into t1 (a) values (1),(2),(3);
@@ -51,7 +51,7 @@ t1	CREATE TABLE `t1` (
   `c` varchar(80) DEFAULT NULL,
   `e` enum('a','b','c') DEFAULT NULL,
   PRIMARY KEY (`a`)
-) ENGINE=Aria DEFAULT CHARSET=latin1 PAGE_CHECKSUM=1 COMMENT='new comment'
+) ENGINE=Aria DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1 COMMENT='new comment'
 alter online table t1 page_checksum=1;
 alter online table t1 page_checksum=0;
 ERROR 0A000: LOCK=NONE is not supported for this operation. Try LOCK=SHARED
@@ -92,7 +92,7 @@ t1	CREATE TABLE `t1` (
   `e` enum('a','b') DEFAULT NULL,
   PRIMARY KEY (`a`),
   KEY `c` (`c`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COMMENT='new comment'
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci COMMENT='new comment'
 drop table t1;
 create temporary table t1 (a int not null primary key, b int, c varchar(80), e enum('a','b'));
 insert into t1 (a) values (1),(2),(3);

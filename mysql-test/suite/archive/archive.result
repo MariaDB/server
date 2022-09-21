@@ -11140,7 +11140,7 @@ t2	CREATE TABLE `t2` (
   `fld3` char(30) NOT NULL DEFAULT '',
   `fld4` char(35) NOT NULL DEFAULT '',
   `fld5` char(35) NOT NULL DEFAULT ''
-) ENGINE=ARCHIVE DEFAULT CHARSET=latin1
+) ENGINE=ARCHIVE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 SELECT * FROM t2 WHERE auto != 100000;
 auto	fld1	companynr	fld3	fld4	fld5
 1	000001	00	Omaha	teethe	neat
@@ -12666,7 +12666,7 @@ t6	CREATE TABLE `t6` (
   `b` tinyblob DEFAULT NULL,
   `c` int(11) DEFAULT NULL,
   KEY `a` (`a`)
-) ENGINE=ARCHIVE AUTO_INCREMENT=36 DEFAULT CHARSET=latin1
+) ENGINE=ARCHIVE AUTO_INCREMENT=36 DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t1, t2, t4, t5, t6;
 create table t1 (i int) engine=archive;
 insert into t1 values (1);
@@ -12733,7 +12733,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `col1` int(11) DEFAULT NULL,
   `col2` varchar(20) DEFAULT NULL
-) ENGINE=ARCHIVE DEFAULT CHARSET=latin1
+) ENGINE=ARCHIVE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 SELECT * FROM t1;
 col1	col2
 INSERT INTO t1 (col1, col2) VALUES (1, "value");
@@ -12795,7 +12795,7 @@ t1	CREATE TABLE `t1` (
   `c` varchar(255) DEFAULT NULL,
   `d` blob DEFAULT NULL,
   `e` blob DEFAULT NULL
-) ENGINE=ARCHIVE DEFAULT CHARSET=latin1
+) ENGINE=ARCHIVE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 SELECT * FROM t1;
 a	b	c	d	e
 1	text	varchar	blob1	blob2
@@ -12894,7 +12894,7 @@ show create table t1;
 Table	Create Table
 t1	CREATE TEMPORARY TABLE `t1` (
   `a` int(11) DEFAULT NULL
-) ENGINE=ARCHIVE DEFAULT CHARSET=latin1
+) ENGINE=ARCHIVE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 alter table t1 add column b varchar(10);
 select * from t1;
 a	b
@@ -12906,7 +12906,7 @@ Table	Create Table
 t1	CREATE TEMPORARY TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(10) DEFAULT NULL
-) ENGINE=ARCHIVE DEFAULT CHARSET=latin1
+) ENGINE=ARCHIVE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 drop table t1;
 #
 # End of 10.0 tests
