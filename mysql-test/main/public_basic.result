@@ -77,7 +77,7 @@ ERROR OP000: Invalid role specification `PUBLIC`
 # this test cleanup
 revoke select on test.* from public;
 #
-# check autocreation of PUBLIC on GRAND role TO PUBLIC
+# check autocreation of PUBLIC on GRANT role TO PUBLIC
 #
 # make sure that the privilege will be added automatically
 delete from mysql.global_priv where user="PUBLIC";

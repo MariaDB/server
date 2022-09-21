@@ -80,7 +80,7 @@ create definer='PUBLIC' PROCEDURE p1() SELECT 1;
 revoke select on test.* from public;
 
 --echo #
---echo # check autocreation of PUBLIC on GRAND role TO PUBLIC
+--echo # check autocreation of PUBLIC on GRANT role TO PUBLIC
 --echo #
 --echo # make sure that the privilege will be added automatically
 delete from mysql.global_priv where user="PUBLIC";
