@@ -1252,7 +1252,7 @@ $$
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE "t1" (
-  "var" tinytext CHARACTER SET utf8mb3 DEFAULT NULL
+  "var" tinytext CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci DEFAULT NULL
 )
 DROP TABLE t1;
 BEGIN NOT ATOMIC
@@ -1263,7 +1263,7 @@ $$
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE "t1" (
-  "var" text CHARACTER SET utf8mb3 DEFAULT NULL
+  "var" text CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci DEFAULT NULL
 )
 DROP TABLE t1;
 BEGIN NOT ATOMIC
@@ -1274,7 +1274,7 @@ $$
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE "t1" (
-  "var" mediumtext CHARACTER SET utf8mb3 DEFAULT NULL
+  "var" mediumtext CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci DEFAULT NULL
 )
 DROP TABLE t1;
 BEGIN NOT ATOMIC
@@ -1285,7 +1285,7 @@ $$
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE "t1" (
-  "var" longtext CHARACTER SET utf8mb3 DEFAULT NULL
+  "var" longtext CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci DEFAULT NULL
 )
 DROP TABLE t1;
 BEGIN NOT ATOMIC

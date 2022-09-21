@@ -36,7 +36,7 @@ t	CREATE TABLE `t` (
   `c` int(11) NOT NULL,
   `d` int(11) NOT NULL,
   UNIQUE KEY `a` (`a`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 ROW_FORMAT=COMPRESSED
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci ROW_FORMAT=COMPRESSED
 SELECT variable_value-@old_instant instants
 FROM information_schema.global_status
 WHERE variable_name = 'innodb_instant_alter_column';
@@ -175,7 +175,7 @@ t1	CREATE TABLE `t1` (
   PRIMARY KEY (`id`),
   UNIQUE KEY `c2` (`c2`),
   SPATIAL KEY `c3` (`c3`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 ROW_FORMAT=REDUNDANT
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci ROW_FORMAT=REDUNDANT
 ALTER TABLE t1
 CHANGE c2 c2 INT DEFAULT 42,
 CHANGE d1 d1 INT DEFAULT 1,
@@ -206,7 +206,7 @@ t1	CREATE TABLE `t1` (
   `d8` varchar(20) DEFAULT 'omnopq',
   PRIMARY KEY (`id`),
   UNIQUE KEY `c2` (`c2`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 ROW_FORMAT=REDUNDANT
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci ROW_FORMAT=REDUNDANT
 SELECT * FROM t1;
 id	c2	d1	d2	d3	dfour	e1	e2	e3	d5	d6	d7	f1	d8
 1	1	NULL	10	yyyyy	1970-01-01 03:00:42	3	yyyyy	2	hijkl	-12345	NULL	xyyyyy	omnopq
@@ -1109,7 +1109,7 @@ t1	CREATE TABLE `t1` (
   PRIMARY KEY (`id`),
   UNIQUE KEY `c2` (`c2`),
   SPATIAL KEY `c3` (`c3`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 ROW_FORMAT=COMPACT
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci ROW_FORMAT=COMPACT
 ALTER TABLE t1
 CHANGE c2 c2 INT DEFAULT 42,
 CHANGE d1 d1 INT DEFAULT 1,
@@ -1140,7 +1140,7 @@ t1	CREATE TABLE `t1` (
   `d8` varchar(20) DEFAULT 'omnopq',
   PRIMARY KEY (`id`),
   UNIQUE KEY `c2` (`c2`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 ROW_FORMAT=COMPACT
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci ROW_FORMAT=COMPACT
 SELECT * FROM t1;
 id	c2	d1	d2	d3	dfour	e1	e2	e3	d5	d6	d7	f1	d8
 1	1	NULL	10	yyyyy	1970-01-01 03:00:42	3	yyyyy	2	hijkl	-12345	NULL	xyyyyy	omnopq
@@ -2043,7 +2043,7 @@ t1	CREATE TABLE `t1` (
   PRIMARY KEY (`id`),
   UNIQUE KEY `c2` (`c2`),
   SPATIAL KEY `c3` (`c3`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 ROW_FORMAT=DYNAMIC
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci ROW_FORMAT=DYNAMIC
 ALTER TABLE t1
 CHANGE c2 c2 INT DEFAULT 42,
 CHANGE d1 d1 INT DEFAULT 1,
@@ -2074,7 +2074,7 @@ t1	CREATE TABLE `t1` (
   `d8` varchar(20) DEFAULT 'omnopq',
   PRIMARY KEY (`id`),
   UNIQUE KEY `c2` (`c2`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 ROW_FORMAT=DYNAMIC
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci ROW_FORMAT=DYNAMIC
 SELECT * FROM t1;
 id	c2	d1	d2	d3	dfour	e1	e2	e3	d5	d6	d7	f1	d8
 1	1	NULL	10	yyyyy	1970-01-01 03:00:42	3	yyyyy	2	hijkl	-12345	NULL	xyyyyy	omnopq
@@ -2887,7 +2887,7 @@ t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
   KEY `i1` (`a`) COMMENT 'comment2'
-) ENGINE=InnoDB DEFAULT CHARSET=latin1
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t1;
 #
 # MDEV-25057 Assertion `n_fields < dtuple_get_n_fields(entry)'
@@ -2927,5 +2927,5 @@ t1	CREATE TABLE `t1` (
   `f4` int(11) NOT NULL,
   PRIMARY KEY (`f1`,`f4`),
   KEY `f2` (`f2`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t1, t2;

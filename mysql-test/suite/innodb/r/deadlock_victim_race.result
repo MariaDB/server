@@ -1,3 +1,6 @@
+connect cancel_purge,localhost,root,,;
+START TRANSACTION WITH CONSISTENT SNAPSHOT;
+connection default;
 CREATE TABLE t (a int PRIMARY KEY, b int) engine = InnoDB;
 CREATE TABLE t2 (a int PRIMARY KEY) engine = InnoDB;
 INSERT INTO t VALUES (10, 10), (20, 20), (30, 30);
@@ -24,11 +27,11 @@ connection default;
 SET DEBUG_SYNC='now WAIT_FOR sel_locked';
 ROLLBACK;
 SET DEBUG_SYNC='now SIGNAL upd_cont';
-SET innodb_lock_wait_timeout=1;
 SET DEBUG_SYNC="now WAIT_FOR upd_locked";
-SET DEBUG_SYNC="lock_wait_end SIGNAL upd_cont";
+SET SESSION innodb_lock_wait_timeout=1;
 SELECT * FROM t WHERE a = 10 FOR UPDATE;
 ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+SET DEBUG_SYNC="now SIGNAL upd_cont";
 connection con_3;
 a	b
 20	20
@@ -40,3 +43,4 @@ connection default;
 SET DEBUG_SYNC = 'RESET';
 DROP TABLE t;
 DROP TABLE t2;
+disconnect cancel_purge;

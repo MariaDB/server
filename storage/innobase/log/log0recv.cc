@@ -393,7 +393,7 @@ page_corrupted:
             rlen-= ll;
             l+= ll;
             ll= mlog_decode_varint_length(*l);
-            if (UNIV_UNLIKELY(ll > 3 || ll >= rlen))
+            if (UNIV_UNLIKELY(ll > 3 || ll > rlen))
               goto record_corrupted;
             size_t data_c= mlog_decode_varint(l);
             ut_ad(data_c != MLOG_DECODE_ERROR);
@@ -420,7 +420,7 @@ page_corrupted:
             rlen-= ll;
             l+= ll;
             ll= mlog_decode_varint_length(*l);
-            if (UNIV_UNLIKELY(ll > 2 || ll >= rlen))
+            if (UNIV_UNLIKELY(ll > 2 || ll > rlen))
               goto record_corrupted;
             size_t data_c= mlog_decode_varint(l);
             rlen-= ll;

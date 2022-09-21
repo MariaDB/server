@@ -434,8 +434,8 @@ create table t1 as select sformat(_ucs2 x'003D007B007D003D', _ucs2 x'04420435044
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `x` varchar(8) CHARACTER SET ucs2 DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+  `x` varchar(8) CHARACTER SET ucs2 COLLATE ucs2_general_ci DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 drop table t1;
 set names latin1;
 #

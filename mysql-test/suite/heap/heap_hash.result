@@ -481,7 +481,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   KEY `a` (`a`)
-) ENGINE=MEMORY DEFAULT CHARSET=latin1
+) ENGINE=MEMORY DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 drop table t1;
 #
 # End of 10.8 tests

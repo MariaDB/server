@@ -25,7 +25,7 @@ Table	Create Table
 t2	CREATE TABLE `t2` (
   `a` timestamp NULL DEFAULT NULL,
   `b` int(11) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 connection slave;
 include/start_slave.inc
 include/stop_slave.inc
@@ -84,7 +84,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `f1` timestamp NULL DEFAULT NULL,
   `f2` timestamp NULL DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 set statement time_zone='+2:00' for select * from t1;
 f1	f2
 NULL	NULL
@@ -97,7 +97,7 @@ Table	Create Table
 t2	CREATE TABLE `t2` (
   `a` timestamp NULL DEFAULT NULL,
   `b` int(11) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 include/diff_tables.inc [master:t2,slave:t2]
 connection master;
 drop table t2;
@@ -118,7 +118,7 @@ Table	Create Table
 t2	CREATE TABLE `t2` (
   `a` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
   `b` int(11) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 connection slave;
 include/start_slave.inc
 include/stop_slave.inc
@@ -177,7 +177,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `f1` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
   `f2` timestamp NOT NULL DEFAULT '0000-00-00 00:00:00'
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 set statement time_zone='+2:00' for select * from t1;
 f1	f2
 2022-07-23 16:24:48	2022-07-23 16:24:48
@@ -190,7 +190,7 @@ Table	Create Table
 t2	CREATE TABLE `t2` (
   `a` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
   `b` int(11) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 include/diff_tables.inc [master:t2,slave:t2]
 connection master;
 drop table t2;
@@ -210,7 +210,7 @@ Table	Create Table
 t2	CREATE TABLE `t2` (
   `a` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
   `b` int(11) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 connection slave;
 include/start_slave.inc
 include/stop_slave.inc
@@ -223,7 +223,7 @@ Table	Create Table
 t2	CREATE TABLE `t2` (
   `a` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
   `b` int(11) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 include/diff_tables.inc [master:t2,slave:t2]
 connection master;
 drop table t2;

@@ -50,7 +50,7 @@ tbl_a	CREATE TABLE `tbl_a` (
   `col_b` varchar(20) DEFAULT 'defg',
   `col_c` int(11) NOT NULL DEFAULT 100,
   PRIMARY KEY (`col_a`)
-) ENGINE=SPIDER AUTO_INCREMENT=20 DEFAULT CHARSET=latin1 COMMENT='database "auto_test_remote", table "tbl_a", srv "s_2_1", aim "0"'
+) ENGINE=SPIDER AUTO_INCREMENT=20 DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci COMMENT='database "auto_test_remote", table "tbl_a", srv "s_2_1", aim "0"'
 INSERT INTO tbl_a () VALUES ();
 INSERT INTO tbl_a () VALUES ();
 SHOW CREATE TABLE tbl_a;
@@ -60,7 +60,7 @@ tbl_a	CREATE TABLE `tbl_a` (
   `col_b` varchar(20) DEFAULT 'defg',
   `col_c` int(11) NOT NULL DEFAULT 100,
   PRIMARY KEY (`col_a`)
-) ENGINE=SPIDER DEFAULT CHARSET=latin1 COMMENT='database "auto_test_remote", table "tbl_a", srv "s_2_1", aim "0"'
+) ENGINE=SPIDER DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci COMMENT='database "auto_test_remote", table "tbl_a", srv "s_2_1", aim "0"'
 ALTER TABLE tbl_a MODIFY col_c MEDIUMINT NOT NULL DEFAULT 100;
 SHOW CREATE TABLE tbl_a;
 Table	Create Table
@@ -69,7 +69,7 @@ tbl_a	CREATE TABLE `tbl_a` (
   `col_b` varchar(20) DEFAULT 'defg',
   `col_c` mediumint(9) NOT NULL DEFAULT 100,
   PRIMARY KEY (`col_a`)
-) ENGINE=SPIDER AUTO_INCREMENT=20 DEFAULT CHARSET=latin1 COMMENT='database "auto_test_remote", table "tbl_a", srv "s_2_1", aim "0"'
+) ENGINE=SPIDER AUTO_INCREMENT=20 DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci COMMENT='database "auto_test_remote", table "tbl_a", srv "s_2_1", aim "0"'
 RENAME TABLE tbl_a TO tbl_x;
 SHOW CREATE TABLE tbl_x;
 Table	Create Table
@@ -78,7 +78,7 @@ tbl_x	CREATE TABLE `tbl_x` (
   `col_b` varchar(20) DEFAULT 'defg',
   `col_c` mediumint(9) NOT NULL DEFAULT 100,
   PRIMARY KEY (`col_a`)
-) ENGINE=SPIDER AUTO_INCREMENT=20 DEFAULT CHARSET=latin1 COMMENT='database "auto_test_remote", table "tbl_a", srv "s_2_1", aim "0"'
+) ENGINE=SPIDER AUTO_INCREMENT=20 DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci COMMENT='database "auto_test_remote", table "tbl_a", srv "s_2_1", aim "0"'
 RENAME TABLE tbl_x TO tbl_a;
 SHOW CREATE TABLE tbl_a;
 Table	Create Table
@@ -87,7 +87,7 @@ tbl_a	CREATE TABLE `tbl_a` (
   `col_b` varchar(20) DEFAULT 'defg',
   `col_c` mediumint(9) NOT NULL DEFAULT 100,
   PRIMARY KEY (`col_a`)
-) ENGINE=SPIDER AUTO_INCREMENT=20 DEFAULT CHARSET=latin1 COMMENT='database "auto_test_remote", table "tbl_a", srv "s_2_1", aim "0"'
+) ENGINE=SPIDER AUTO_INCREMENT=20 DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci COMMENT='database "auto_test_remote", table "tbl_a", srv "s_2_1", aim "0"'
 INSERT INTO tbl_a () VALUES ();
 INSERT INTO tbl_a () VALUES ();
 SHOW CREATE TABLE tbl_a;
@@ -97,7 +97,7 @@ tbl_a	CREATE TABLE `tbl_a` (
   `col_b` varchar(20) DEFAULT 'defg',
   `col_c` mediumint(9) NOT NULL DEFAULT 100,
   PRIMARY KEY (`col_a`)
-) ENGINE=SPIDER AUTO_INCREMENT=3 DEFAULT CHARSET=latin1 COMMENT='database "auto_test_remote", table "tbl_a", srv "s_2_1", aim "0"'
+) ENGINE=SPIDER AUTO_INCREMENT=3 DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci COMMENT='database "auto_test_remote", table "tbl_a", srv "s_2_1", aim "0"'
 MASTER_1_AUTO_INCREMENT1
 SHOW CREATE TABLE tbl_a;
 Table	Create Table
@@ -106,7 +106,7 @@ tbl_a	CREATE TABLE `tbl_a` (
   `col_b` varchar(20) DEFAULT 'defg',
   `col_c` mediumint(9) NOT NULL DEFAULT 100,
   PRIMARY KEY (`col_a`)
-) ENGINE=SPIDER AUTO_INCREMENT=30 DEFAULT CHARSET=latin1 COMMENT='database "auto_test_remote", table "tbl_a", srv "s_2_1", aim "0"'
+) ENGINE=SPIDER AUTO_INCREMENT=30 DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci COMMENT='database "auto_test_remote", table "tbl_a", srv "s_2_1", aim "0"'
 INSERT INTO tbl_a () VALUES ();
 INSERT INTO tbl_a () VALUES ();
 SHOW CREATE TABLE tbl_a;
@@ -116,7 +116,7 @@ tbl_a	CREATE TABLE `tbl_a` (
   `col_b` varchar(20) DEFAULT 'defg',
   `col_c` mediumint(9) NOT NULL DEFAULT 100,
   PRIMARY KEY (`col_a`)
-) ENGINE=SPIDER AUTO_INCREMENT=5 DEFAULT CHARSET=latin1 COMMENT='database "auto_test_remote", table "tbl_a", srv "s_2_1", aim "0"'
+) ENGINE=SPIDER AUTO_INCREMENT=5 DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci COMMENT='database "auto_test_remote", table "tbl_a", srv "s_2_1", aim "0"'
 MASTER_1_AUTO_INCREMENT2
 SHOW CREATE TABLE tbl_a;
 Table	Create Table
@@ -125,7 +125,7 @@ tbl_a	CREATE TABLE `tbl_a` (
   `col_b` varchar(20) DEFAULT 'defg',
   `col_c` mediumint(9) NOT NULL DEFAULT 100,
   PRIMARY KEY (`col_a`)
-) ENGINE=SPIDER AUTO_INCREMENT=20 DEFAULT CHARSET=latin1 COMMENT='database "auto_test_remote", table "tbl_a", srv "s_2_1", aim "0"'
+) ENGINE=SPIDER AUTO_INCREMENT=20 DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci COMMENT='database "auto_test_remote", table "tbl_a", srv "s_2_1", aim "0"'
 INSERT INTO tbl_a () VALUES ();
 INSERT INTO tbl_a () VALUES ();
 SHOW CREATE TABLE tbl_a;
@@ -135,7 +135,7 @@ tbl_a	CREATE TABLE `tbl_a` (
   `col_b` varchar(20) DEFAULT 'defg',
   `col_c` mediumint(9) NOT NULL DEFAULT 100,
   PRIMARY KEY (`col_a`)
-) ENGINE=SPIDER AUTO_INCREMENT=7 DEFAULT CHARSET=latin1 COMMENT='database "auto_test_remote", table "tbl_a", srv "s_2_1", aim "0"'
+) ENGINE=SPIDER AUTO_INCREMENT=7 DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci COMMENT='database "auto_test_remote", table "tbl_a", srv "s_2_1", aim "0"'
 
 select test
 connection child2_1;

@@ -6,17 +6,17 @@ set @@character_set_server=latin5;
 create database mysqltest3;
 show create database mysqltest2;
 Database	Create Database
-mysqltest2	CREATE DATABASE `mysqltest2` /*!40100 DEFAULT CHARACTER SET latin2 */
+mysqltest2	CREATE DATABASE `mysqltest2` /*!40100 DEFAULT CHARACTER SET latin2 COLLATE latin2_general_ci */
 show create database mysqltest3;
 Database	Create Database
-mysqltest3	CREATE DATABASE `mysqltest3` /*!40100 DEFAULT CHARACTER SET latin5 */
+mysqltest3	CREATE DATABASE `mysqltest3` /*!40100 DEFAULT CHARACTER SET latin5 COLLATE latin5_turkish_ci */
 connection slave;
 show create database mysqltest2;
 Database	Create Database
-mysqltest2	CREATE DATABASE `mysqltest2` /*!40100 DEFAULT CHARACTER SET latin2 */
+mysqltest2	CREATE DATABASE `mysqltest2` /*!40100 DEFAULT CHARACTER SET latin2 COLLATE latin2_general_ci */
 show create database mysqltest3;
 Database	Create Database
-mysqltest3	CREATE DATABASE `mysqltest3` /*!40100 DEFAULT CHARACTER SET latin5 */
+mysqltest3	CREATE DATABASE `mysqltest3` /*!40100 DEFAULT CHARACTER SET latin5 COLLATE latin5_turkish_ci */
 connection master;
 set @@collation_server=armscii8_bin;
 drop database mysqltest3;
@@ -135,7 +135,7 @@ connection slave;
 SHOW CREATE TABLE db1.t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `CHR(0x60)` varchar(4) COLLATE latin1_bin DEFAULT NULL
+  `CHR(0x60)` varchar(4) DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_bin
 connection master;
 USE test;

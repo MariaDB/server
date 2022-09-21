@@ -23,12 +23,12 @@ test mysql.proxies_priv;
 SHOW CREATE TABLE mysql.proxies_priv;
 Table	Create Table
 proxies_priv	CREATE TABLE `proxies_priv` (
-  `Host` char(255) COLLATE utf8mb3_bin NOT NULL DEFAULT '',
-  `User` char(128) COLLATE utf8mb3_bin NOT NULL DEFAULT '',
-  `Proxied_host` char(255) COLLATE utf8mb3_bin NOT NULL DEFAULT '',
-  `Proxied_user` char(128) COLLATE utf8mb3_bin NOT NULL DEFAULT '',
+  `Host` char(255) NOT NULL DEFAULT '',
+  `User` char(128) NOT NULL DEFAULT '',
+  `Proxied_host` char(255) NOT NULL DEFAULT '',
+  `Proxied_user` char(128) NOT NULL DEFAULT '',
   `With_grant` tinyint(1) NOT NULL DEFAULT 0,
-  `Grantor` varchar(384) COLLATE utf8mb3_bin NOT NULL DEFAULT '',
+  `Grantor` varchar(384) NOT NULL DEFAULT '',
   `Timestamp` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
   PRIMARY KEY (`Host`,`User`,`Proxied_host`,`Proxied_user`),
   KEY `Grantor` (`Grantor`)

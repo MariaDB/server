@@ -101,7 +101,7 @@ tfk	CREATE TABLE `tfk` (
   `c2` int(11) DEFAULT NULL,
   KEY `sid` (`c1`),
   CONSTRAINT `sid` FOREIGN KEY (`c1`) REFERENCES `tpk` (`id`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 ALTER TABLE tfk ADD CONSTRAINT sid CHECK (c2>15);
 ERROR HY000: Duplicate CHECK constraint name 'sid'
 ALTER TABLE tfk ADD CONSTRAINT sid UNIQUE(c2);
