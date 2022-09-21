@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2013, 2015, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2019, MariaDB Corporation.
+Copyright (c) 2017, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -146,7 +146,7 @@ private:
 };
 
 
-#ifdef HAVE_IB_LINUX_FUTEX
+#ifdef __linux__
 
 #include <linux/futex.h>
 #include <sys/syscall.h>
@@ -260,7 +260,7 @@ private:
 	int32			m_lock_word;
 };
 
-#endif /* HAVE_IB_LINUX_FUTEX */
+#endif /* __linux__ */
 
 template <template <typename> class Policy = NoPolicy>
 struct TTASMutex {

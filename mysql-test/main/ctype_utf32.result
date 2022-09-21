@@ -2878,7 +2878,7 @@ CREATE TABLE t1(c1 ENUM('a','b','ac') CHARACTER SET 'Binary',c2 JSON,c3 INT);
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` enum('\0\0\0a','\0\0\0b','\0\0\0a\0\0\0c') CHARACTER SET binary COLLATE binary DEFAULT NULL,
+  `c1` enum('\0\0\0a','\0\0\0b','\0\0\0a\0\0\0c') CHARACTER SET binary DEFAULT NULL,
   `c2` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL,
   `c3` int(11) DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci

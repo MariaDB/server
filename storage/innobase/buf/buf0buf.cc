@@ -76,7 +76,7 @@ Created 11/5/1995 Heikki Tuuri
 #include "ut0byte.h"
 #include <new>
 
-#ifdef UNIV_LINUX
+#ifdef __linux__
 #include <stdlib.h>
 #endif
 
