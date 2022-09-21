@@ -45,7 +45,7 @@ int (*mysys_test_invalid_symlink)(const char *filename)= always_valid;
 int my_readlink(char *to, const char *filename, myf MyFlags)
 {
 #ifndef HAVE_READLINK
-  strmov(to,filename);
+  strnmov(to, filename, FN_REFLEN);
   return 1;
 #else
   int result=0;
@@ -54,11 +54,13 @@ int my_readlink(char *to, const char *filename, myf MyFlags)
 
   if ((length=readlink(filename, to, FN_REFLEN-1)) < 0)
   {
+    if (my_thread_var)
+      my_errno= errno;
     /* Don't give an error if this wasn't a symlink */
-    if ((my_errno=errno) == EINVAL)
+    if (errno == EINVAL)
     {
       result= 1;
-      strmov(to,filename);
+      strnmov(to, filename, FN_REFLEN);
     }
     else
     {

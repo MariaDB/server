@@ -46,6 +46,12 @@ extra_file=""
 dirname0=`dirname $0 2>/dev/null`
 dirname0=`dirname $dirname0 2>/dev/null`
 
+case "$0" in
+  *mysql*)
+    echo "Notice: $0 is deprecated and will be removed in a future release, use command mariadb-install-db" 1>&2
+    ;;
+esac
+
 usage()
 {
   cat <<EOF

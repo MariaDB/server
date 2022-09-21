@@ -29,6 +29,12 @@ defaults_file=
 defaults_extra_file=
 no_defaults=
 
+case "$0" in
+  *mysql*)
+    echo "Notice: $0 is deprecated and will be removed in a future release, use command mariadb-secure-installation" 1>&2
+    ;;
+esac
+
 parse_arg()
 {
   echo "$1" | sed -e 's/^[^=]*=//'
