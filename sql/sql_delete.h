@@ -53,7 +53,7 @@ public:
     return orig_multitable ? SQLCOM_DELETE_MULTI : SQLCOM_DELETE;
   }
 
-  DML_prelocking_strategy *get_dml_prelocking_strategy()
+  DML_prelocking_strategy *get_dml_prelocking_strategy() override
   {
     return &dml_prelocking_strategy;
   }

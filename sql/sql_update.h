@@ -54,7 +54,7 @@ public:
     return orig_multitable ? SQLCOM_UPDATE_MULTI : SQLCOM_UPDATE;
   }
 
-  DML_prelocking_strategy *get_dml_prelocking_strategy()
+  DML_prelocking_strategy *get_dml_prelocking_strategy() override
   {
     return &multiupdate_prelocking_strategy;
   }
