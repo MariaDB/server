@@ -3195,7 +3195,7 @@ COMMAND_LINE_ARGUMENT	REQUIRED
 VARIABLE_NAME	READ_ONLY
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	BOOLEAN
-VARIABLE_COMMENT	Make all non-temporary tables read-only, with the exception for replication (slave) threads and users with the SUPER privilege
+VARIABLE_COMMENT	Make all non-temporary tables read-only, with the exception for replication (slave) threads and users with the 'READ ONLY ADMIN' privilege
 NUMERIC_MIN_VALUE	NULL
 NUMERIC_MAX_VALUE	NULL
 NUMERIC_BLOCK_SIZE	NULL
