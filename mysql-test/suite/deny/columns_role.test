@@ -1,0 +1,70 @@
+--source include/not_embedded.inc
+
+create database some_db;
+create view some_db.v1 as (select 1 as col);
+
+create user foo;
+create role bar;
+grant select on *.* to foo;
+
+grant show view on *.* to foo;
+grant bar to foo;
+grant select(col) on some_db.v1 to foo;
+revoke ignore denies on *.* from foo;
+
+
+
+deny select (col) on some_db.v1 to bar;
+
+--connect (con1,localhost,foo,,)
+describe some_db.v1;
+set role bar;
+
+--error ER_TABLEACCESS_DENIED_ERROR
+describe some_db.v1;
+
+# We have show view privilege
+show create view some_db.v1;
+
+disconnect con1;
+
+connection default;
+drop user foo;
+drop role bar;
+drop database some_db;
+
+
+
+--echo #
+--echo # Test if only role level denies are active.
+--echo #
+
+create database some_db;
+create view some_db.v1 as (select 1 as col);
+
+create user foo;
+create role bar;
+
+grant bar to foo;
+grant select(col) on some_db.v1 to foo;
+deny select (col) on some_db.v1 to bar;
+
+--connect (con1,localhost,foo,,)
+
+--echo #
+--echo # Due to select(col) privilege on v1 we can see some_db here.
+--echo #
+show databases;
+set role bar;
+
+--echo #
+--echo # Now the role's denies take effect and we can no longer see some_db.
+--echo #
+show databases;
+
+disconnect con1;
+
+connection default;
+drop user foo;
+drop role bar;
+drop database some_db;

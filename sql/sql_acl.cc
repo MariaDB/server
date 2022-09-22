@@ -10346,10 +10346,12 @@ bool grant_reload(THD *thd)
 
 
 static
-bool check_some_grants_remain(const Deny_spec &denies,
+bool check_some_grants_remain(const Deny_spec *denies,
                               const Deny_spec *role_denies,
                               privilege_t table_deny_mask, GRANT_TABLE *table)
 {
+  mysql_mutex_assert_owner(&acl_cache->lock);
+
   if (!table)
     return false;
 
@@ -10363,8 +10365,10 @@ bool check_some_grants_remain(const Deny_spec &denies,
     const LEX_CSTRING column_name{grant_column->column,
                                   grant_column->key_length};
 
-    privilege_t col_deny_mask=
-      table_deny_mask | denies.get_column_deny(db, table_name, column_name);
+    privilege_t col_deny_mask= table_deny_mask;
+
+    if (denies)
+      col_deny_mask|= denies->get_column_deny(db, table_name, column_name);
 
     if (role_denies)
       col_deny_mask|= role_denies->get_column_deny(db, table_name, column_name);
@@ -10393,17 +10397,21 @@ bool check_some_grants_remain(Security_context *sctx,
      mysql_mutex_unlock(&acl_cache->lock);
      return false;
   }
-
-  DBUG_ASSERT(sctx->denies_active() && acl_user->denies);
-  const Deny_spec &denies= *acl_user->denies;
-  const Deny_spec *role_denies= nullptr;
-
-  privilege_t deny_mask= denies.get_global() |
-                         denies.get_db_deny(db) |
-                         denies.get_table_deny(db, table);
-
   ACL_ROLE *role= find_acl_role(sctx->priv_role);
-  if (role && role->denies)
+
+  DBUG_ASSERT(sctx->denies_active());
+  const Deny_spec *user_denies= acl_user->denies;
+  const Deny_spec *role_denies= role ? role->denies : nullptr;
+  privilege_t deny_mask;
+
+  if (user_denies)
+  {
+    deny_mask= user_denies->get_global() |
+               user_denies->get_db_deny(db) |
+               user_denies->get_table_deny(db, table);
+  }
+
+  if (role_denies)
   {
     role_denies= role->denies;
     deny_mask|= role_denies->get_global() |
@@ -10411,9 +10419,9 @@ bool check_some_grants_remain(Security_context *sctx,
                 role_denies->get_table_deny(db, table);
   }
 
-  result= check_some_grants_remain(denies, role_denies,
+  result= check_some_grants_remain(user_denies, role_denies,
                                    deny_mask, grant_table) ||
-          check_some_grants_remain(denies, role_denies,
+          check_some_grants_remain(user_denies, role_denies,
                                    deny_mask, grant_table_role);
 
   mysql_mutex_unlock(&acl_cache->lock);
@@ -11246,9 +11254,10 @@ bool check_grant_db(const Security_context *sctx,
       if (denies_at_table_or_column_level)
       {
         table_name= {grant_table->tname, strlen(grant_table->tname)};
-        deny_mask|= denies->get_table_deny(db, table_name);
-        if (role_denies)
-          deny_mask|= role_denies->get_table_deny(db, table_name);
+        deny_mask|= denies ? denies->get_table_deny(db, table_name) :
+                    NO_ACL;
+        deny_mask|= role_denies ? role_denies->get_table_deny(db, table_name) :
+                    NO_ACL;
       }
 
       if (grant_table->privs & ~deny_mask)
@@ -11278,7 +11287,7 @@ bool check_grant_db(const Security_context *sctx,
            to check if there is an explicit deny on each of those columns
            and compute the effective privileges.
         */
-        if (check_some_grants_remain(*denies, role_denies, deny_mask, grant_table))
+        if (check_some_grants_remain(denies, role_denies, deny_mask, grant_table))
         {
           error= false;
           goto error;

@@ -1,0 +1,57 @@
+create database some_db;
+create view some_db.v1 as (select 1 as col);
+create user foo;
+create role bar;
+grant select on *.* to foo;
+grant show view on *.* to foo;
+grant bar to foo;
+grant select(col) on some_db.v1 to foo;
+revoke ignore denies on *.* from foo;
+deny select (col) on some_db.v1 to bar;
+connect  con1,localhost,foo,,;
+describe some_db.v1;
+Field	Type	Null	Key	Default	Extra
+col	int(1)	NO		0	
+set role bar;
+describe some_db.v1;
+ERROR 42000: SELECT command denied to user 'foo'@'localhost' for table 'v1'
+show create view some_db.v1;
+View	Create View	character_set_client	collation_connection
+v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `some_db`.`v1` AS (select 1 AS `col`)	latin1	latin1_swedish_ci
+disconnect con1;
+connection default;
+drop user foo;
+drop role bar;
+drop database some_db;
+#
+# Test if only role level denies are active.
+#
+create database some_db;
+create view some_db.v1 as (select 1 as col);
+create user foo;
+create role bar;
+grant bar to foo;
+grant select(col) on some_db.v1 to foo;
+deny select (col) on some_db.v1 to bar;
+connect  con1,localhost,foo,,;
+#
+# Due to select(col) privilege on v1 we can see some_db here.
+#
+show databases;
+Database
+information_schema
+some_db
+test
+set role bar;
+#
+# Now the role's denies take effect and we can no longer see some_db.
+#
+show databases;
+Database
+information_schema
+test
+disconnect con1;
+connection default;
+drop user foo;
+drop role bar;
+drop database some_db;
