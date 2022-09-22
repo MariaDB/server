@@ -5684,11 +5684,13 @@ static privilege_t acl_get_effective_deny_mask_impl(
 }
 
 
+static
 privilege_t acl_get_effective_deny_mask_impl(const Security_context *ctx,
                                              const LEX_CSTRING &db,
                                              const LEX_CSTRING &object_name,
                                              const LEX_CSTRING &column_name,
-                                             enum object_type type)
+                                             enum object_type type,
+                                             bool acl_cache_locked)
 {
   privilege_t result= NO_ACL;
 
@@ -5726,7 +5728,8 @@ privilege_t acl_get_effective_deny_mask_impl(const Security_context *ctx,
       return NO_ACL;
   }
 
-  mysql_mutex_lock(&acl_cache->lock);
+  if (!acl_cache_locked)
+    mysql_mutex_lock(&acl_cache->lock);
   ACL_USER *acl_user= find_user_exact(ctx->priv_host, ctx->priv_user);
   ACL_ROLE *role= find_acl_role(ctx->priv_role);
 
@@ -5744,7 +5747,8 @@ privilege_t acl_get_effective_deny_mask_impl(const Security_context *ctx,
        However we do not cache denies in sctx, thus to ensure we do not leak any
        data unintentionally, we assume the user has every privilege denied!
     */
-    mysql_mutex_unlock(&acl_cache->lock);
+    if (!acl_cache_locked)
+      mysql_mutex_unlock(&acl_cache->lock);
     return ALL_KNOWN_ACL;
   }
 
@@ -5752,7 +5756,8 @@ privilege_t acl_get_effective_deny_mask_impl(const Security_context *ctx,
                                            role ? role->denies : nullptr,
                                            db, object_name, column_name, type);
 
-  mysql_mutex_unlock(&acl_cache->lock);
+  if (!acl_cache_locked)
+    mysql_mutex_unlock(&acl_cache->lock);
   return result;
 }
 
@@ -5762,8 +5767,11 @@ privilege_t acl_get_effective_deny_mask(const Security_context *ctx,
                                         const LEX_CSTRING &table,
                                         const LEX_CSTRING &column)
 {
-  return acl_get_effective_deny_mask_impl(ctx, db, table, column, TABLE_TYPE);
+  return acl_get_effective_deny_mask_impl(ctx, db, table, column, TABLE_TYPE,
+                                          false);
 }
+
+
 
 /*
   Get privilege for a host, user and db combination
@@ -11132,7 +11140,8 @@ err:
 static bool check_grant_db_routine(const Security_context *sctx,
                                    const LEX_CSTRING &db,
                                    enum object_type routine_type,
-                                   privilege_t db_deny_mask)
+                                   privilege_t db_deny_mask,
+                                   bool acl_cache_locked)
 {
   HASH *hash= get_corresponding_routine_hash(routine_type);
   for (uint idx= 0; idx < hash->records; ++idx)
@@ -11142,13 +11151,16 @@ static bool check_grant_db_routine(const Security_context *sctx,
     /*
        Only re-compute the deny mask if there are specific denies active
        that might impact it.
+       TODO(cvicentiu) This should actually crash because of recursive
+       acl_cache->lock. TEST THIS!
     */
     if (sctx->denies_active() & get_corresponding_priv_spec_type(routine_type))
     {
       LEX_CSTRING routine_name= {item->tname, strlen(item->tname)};
       usable_mask= acl_get_effective_deny_mask_impl(sctx, db, routine_name,
                                                     {nullptr, 0},
-                                                    routine_type);
+                                                    routine_type,
+                                                    acl_cache_locked);
     }
 
     if (strcmp(item->user, sctx->priv_user) == 0 &&
@@ -11308,10 +11320,14 @@ bool check_grant_db(const Security_context *sctx,
   }
 
   if (error)
-    error= check_grant_db_routine(sctx, lower_case_db, PROCEDURE_TYPE, db_deny_mask) &&
-           check_grant_db_routine(sctx, lower_case_db, FUNCTION_TYPE, db_deny_mask) &&
-           check_grant_db_routine(sctx, lower_case_db, PACKAGE_SPEC_TYPE, db_deny_mask) &&
-           check_grant_db_routine(sctx, lower_case_db, PACKAGE_BODY_TYPE, db_deny_mask);
+    error= check_grant_db_routine(sctx, lower_case_db, PROCEDURE_TYPE,
+                                  db_deny_mask, denies_at_table_or_column_level) &&
+           check_grant_db_routine(sctx, lower_case_db, FUNCTION_TYPE,
+                                  db_deny_mask, denies_at_table_or_column_level) &&
+           check_grant_db_routine(sctx, lower_case_db, PACKAGE_SPEC_TYPE,
+                                  db_deny_mask, denies_at_table_or_column_level) &&
+           check_grant_db_routine(sctx, lower_case_db, PACKAGE_BODY_TYPE,
+                                  db_deny_mask, denies_at_table_or_column_level);
 
 error:
   if (denies_at_table_or_column_level)
@@ -11364,7 +11380,8 @@ static bool check_grant_routine(THD *thd, privilege_t want_access,
         table->get_db_name(),
         table->get_table_name(),
         {nullptr, 0},
-        get_corresponding_object_type(*sph));
+        get_corresponding_object_type(*sph),
+        false);
 
     GRANT_NAME *grant_proc;
     if ((grant_proc= routine_hash_search(host, sctx->ip, table->db.str, user,
@@ -11435,7 +11452,8 @@ bool check_routine_level_acl(THD *thd,
   privilege_t deny_mask=
     acl_get_effective_deny_mask_impl(thd->security_context(),
                                      db, name, {nullptr, 0},
-                                     get_corresponding_object_type(sph));
+                                     get_corresponding_object_type(sph),
+                                     false);
 
   mysql_rwlock_rdlock(&LOCK_grant);
   if ((grant_proc= routine_hash_search(sctx->priv_host,

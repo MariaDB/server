@@ -133,3 +133,55 @@ connection default;
 set sql_mode=@old_sql_mode;
 drop user foo;
 drop database some_db;
+#
+# This test checks locking of data structures to make sure
+# we do not try to double lock a mutex if both table and routine level
+# denies are active.
+#
+connection default;
+create user foo;
+create database some_db;
+create table some_db.p1 (a int, b int);
+CREATE PROCEDURE some_db.p1 (OUT param1 INT)
+BEGIN
+SELECT COUNT(*) INTO param1 FROM p1;
+END;
+|
+CREATE FUNCTION some_db.p1(IN c INT) RETURNS INT
+BEGIN
+SET c = 100;
+RETURN c + c;
+END;
+|
+set @old_sql_mode=@@sql_mode|
+set sql_mode=ORACLE|
+create package some_db.util_functions as
+function f1(id int) return int;
+end|
+create package body some_db.util_functions as
+function f1(id int) return int as result int;
+begin
+return 10;
+end;
+end|
+connection default;
+grant all on procedure some_db.p1 to foo;
+grant all on function some_db.p1 to foo;
+grant all on package some_db.util_functions to foo;
+grant all on package body some_db.util_functions to foo;
+deny select on some_db.t1 to foo;
+deny execute on procedure some_db.p1 to foo;
+deny execute on function some_db.p1 to foo;
+deny execute on package some_db.util_functions to foo;
+deny execute on package body some_db.util_functions to foo;
+connect  con1,localhost,foo,,;
+show databases;
+Database
+information_schema
+some_db
+test
+disconnect con1;
+connection default;
+set sql_mode=@old_sql_mode;
+drop user foo;
+drop database some_db;
