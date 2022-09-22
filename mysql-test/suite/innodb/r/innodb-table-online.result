@@ -18,15 +18,12 @@ ddl_log_file_alter_table	0
 SET DEBUG_SYNC = 'RESET';
 SET DEBUG_SYNC = 'write_row_noreplace SIGNAL have_handle WAIT_FOR go_ahead';
 INSERT INTO t1 VALUES(1,2,3);
-# Establish session con1 (user=root)
 connect  con1,localhost,root,,;
-connection con1;
 SET DEBUG_SYNC = 'now WAIT_FOR have_handle';
 SET lock_wait_timeout = 1;
 ALTER TABLE t1 ROW_FORMAT=REDUNDANT;
 ERROR HY000: Lock wait timeout exceeded; try restarting transaction
 SET DEBUG_SYNC = 'now SIGNAL go_ahead';
-# session default
 connection default;
 ERROR 23000: Duplicate entry '1' for key 'PRIMARY'
 SELECT name, count FROM INFORMATION_SCHEMA.INNODB_METRICS WHERE subsystem = 'ddl';
@@ -37,7 +34,6 @@ ddl_online_create_index	0
 ddl_pending_alter_table	0
 ddl_sort_file_alter_table	0
 ddl_log_file_alter_table	0
-# session con1
 connection con1;
 SET @saved_debug_dbug = @@SESSION.debug_dbug;
 SET DEBUG_DBUG = '+d,innodb_OOM_prepare_inplace_alter';
@@ -55,7 +51,6 @@ SET SESSION DEBUG = @saved_debug_dbug;
 Warnings:
 Warning	1287	'@@debug' is deprecated and will be removed in a future release. Please use '@@debug_dbug' instead
 ALTER TABLE t1 ROW_FORMAT=REDUNDANT, ALGORITHM=INPLACE, LOCK=NONE;
-# session default
 connection default;
 SHOW CREATE TABLE t1;
 Table	Create Table
@@ -67,22 +62,17 @@ t1	CREATE TABLE `t1` (
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci ROW_FORMAT=REDUNDANT
 BEGIN;
 INSERT INTO t1 VALUES(7,4,2);
-# session con1
 connection con1;
 SET DEBUG_SYNC = 'row_log_table_apply1_before SIGNAL scanned WAIT_FOR insert_done';
 ALTER TABLE t1 DROP PRIMARY KEY, ADD UNIQUE INDEX(c2);
 ERROR HY000: Lock wait timeout exceeded; try restarting transaction
-# session default
 connection default;
 COMMIT;
-# session con1
 connection con1;
 ALTER TABLE t1 DROP PRIMARY KEY, ADD UNIQUE INDEX(c2);
 ERROR 23000: Duplicate entry '4' for key 'c2'
-# session default
 connection default;
 DELETE FROM t1 WHERE c1 = 7;
-# session con1
 connection con1;
 ALTER TABLE t1 DROP PRIMARY KEY, ADD UNIQUE INDEX(c2), ROW_FORMAT=COMPACT,
 LOCK = SHARED, ALGORITHM = INPLACE;
@@ -100,7 +90,6 @@ t1	CREATE TABLE `t1` (
   UNIQUE KEY `c2_2` (`c2`)
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci ROW_FORMAT=COMPACT
 ALTER TABLE t1 DROP INDEX c2, ADD PRIMARY KEY(c1);
-# session default
 connection default;
 SET DEBUG_SYNC = 'now WAIT_FOR scanned';
 SELECT name, count FROM INFORMATION_SCHEMA.INNODB_METRICS WHERE subsystem = 'ddl';
@@ -114,13 +103,10 @@ ddl_log_file_alter_table	0
 BEGIN;
 INSERT INTO t1 VALUES(4,7,2);
 SET DEBUG_SYNC = 'now SIGNAL insert_done';
-# session con1
 connection con1;
 ERROR 23000: Duplicate entry '4' for key 'PRIMARY'
-# session default
 connection default;
 ROLLBACK;
-# session con1
 connection con1;
 SHOW CREATE TABLE t1;
 Table	Create Table
@@ -142,7 +128,6 @@ ddl_online_create_index	0
 ddl_pending_alter_table	0
 ddl_sort_file_alter_table	0
 ddl_log_file_alter_table	0
-# session default
 connection default;
 INSERT INTO t1 VALUES(6,3,1);
 ERROR 23000: Duplicate entry '3' for key 'c2_2'
@@ -152,14 +137,12 @@ DROP INDEX c2_2 ON t1;
 BEGIN;
 INSERT INTO t1 VALUES(7,4,2);
 ROLLBACK;
-# session con1
 connection con1;
 KILL QUERY @id;
 ERROR 70100: Query execution was interrupted
 SET DEBUG_SYNC = 'row_log_table_apply1_before SIGNAL rebuilt WAIT_FOR dml_done';
 SET DEBUG_SYNC = 'row_log_table_apply2_before SIGNAL applied WAIT_FOR kill_done';
 ALTER TABLE t1 ROW_FORMAT=REDUNDANT;
-# session default
 connection default;
 SET DEBUG_SYNC = 'now WAIT_FOR rebuilt';
 SELECT name, count FROM INFORMATION_SCHEMA.INNODB_METRICS WHERE subsystem = 'ddl';
@@ -176,7 +159,6 @@ ROLLBACK;
 SET DEBUG_SYNC = 'now SIGNAL dml_done WAIT_FOR applied';
 KILL QUERY @id;
 SET DEBUG_SYNC = 'now SIGNAL kill_done';
-# session con1
 connection con1;
 ERROR 70100: Query execution was interrupted
 SELECT name, count FROM INFORMATION_SCHEMA.INNODB_METRICS WHERE subsystem = 'ddl';
@@ -187,7 +169,6 @@ ddl_online_create_index	0
 ddl_pending_alter_table	0
 ddl_sort_file_alter_table	0
 ddl_log_file_alter_table	0
-# session default
 connection default;
 CHECK TABLE t1;
 Table	Op	Msg_type	Msg_text
@@ -211,7 +192,6 @@ WHERE variable_name = 'innodb_encryption_n_merge_blocks_decrypted');
 SET @rowlog_encrypt_0=
 (SELECT variable_value FROM information_schema.global_status
 WHERE variable_name = 'innodb_encryption_n_rowlog_blocks_encrypted');
-# session con1
 connection con1;
 SHOW CREATE TABLE t1;
 Table	Create Table
@@ -226,7 +206,6 @@ SET DEBUG_SYNC = 'row_log_table_apply1_before SIGNAL rebuilt2 WAIT_FOR dml2_done
 SET lock_wait_timeout = 10;
 ALTER TABLE t1 ROW_FORMAT=COMPACT
 PAGE_COMPRESSED = YES PAGE_COMPRESSION_LEVEL = 1, ALGORITHM = INPLACE;
-# session default
 connection default;
 INSERT INTO t1 SELECT  80 + c1, c2, c3 FROM t1;
 INSERT INTO t1 SELECT 160 + c1, c2, c3 FROM t1;
@@ -289,7 +268,6 @@ SELECT
 sort_balance	@merge_encrypt_1>@merge_encrypt_0	@merge_decrypt_1>@merge_decrypt_0	@rowlog_encrypt_1>@rowlog_encrypt_0
 0	0	0	0
 SET DEBUG_SYNC = 'now SIGNAL dml2_done';
-# session con1
 connection con1;
 ERROR HY000: Creating index 'PRIMARY' required more than 'innodb_online_alter_log_max_size' bytes of modification log. Please try again
 SELECT name, count FROM INFORMATION_SCHEMA.INNODB_METRICS WHERE subsystem = 'ddl';
@@ -320,7 +298,6 @@ ERROR 23000: Duplicate entry '5' for key 'PRIMARY'
 ALTER TABLE t1 DROP PRIMARY KEY, ADD PRIMARY KEY(c22f,c1,c4(5)),
 CHANGE c2 c22f INT, CHANGE c3 c3 CHAR(255) NULL, CHANGE c1 c1 INT AFTER c22f,
 ADD COLUMN c4 VARCHAR(6) DEFAULT 'Online', LOCK=NONE;
-# session default
 connection default;
 SET DEBUG_SYNC = 'now WAIT_FOR rebuilt3';
 SELECT name, count FROM INFORMATION_SCHEMA.INNODB_METRICS WHERE subsystem = 'ddl';
@@ -348,7 +325,6 @@ ddl_pending_alter_table	1
 ddl_sort_file_alter_table	2
 ddl_log_file_alter_table	2
 SET DEBUG_SYNC = 'now SIGNAL dml3_done';
-# session con1
 connection con1;
 SELECT name, count FROM INFORMATION_SCHEMA.INNODB_METRICS WHERE subsystem = 'ddl';
 name	count
@@ -404,20 +380,16 @@ SET DEBUG_SYNC = 'row_log_table_apply1_before SIGNAL c3p5_created0 WAIT_FOR ins_
 ALTER TABLE t1 MODIFY c3 CHAR(255) NOT NULL, DROP COLUMN c22f,
 DROP PRIMARY KEY, ADD PRIMARY KEY(c1,c4(5)),
 ADD COLUMN c5 CHAR(5) DEFAULT 'tired' FIRST;
-# session default
 connection default;
 SET DEBUG_SYNC = 'now WAIT_FOR c3p5_created0';
 BEGIN;
 INSERT INTO t1 VALUES(347,33101,'Pikku kakkosen posti','YLETV2');
 INSERT INTO t1 VALUES(33101,347,NULL,'');
 SET DEBUG_SYNC = 'now SIGNAL ins_done0';
-# session con1
 connection con1;
 ERROR 01000: Data truncated for column 'c3' at row 323
-# session default
 connection default;
 ROLLBACK;
-# session con1
 connection con1;
 ALTER TABLE t1 MODIFY c3 CHAR(255) NOT NULL;
 SET DEBUG_SYNC = 'row_log_table_apply1_before SIGNAL c3p5_created WAIT_FOR ins_done';
@@ -425,14 +397,12 @@ ALTER TABLE t1 DROP PRIMARY KEY, DROP COLUMN c22f,
 ADD COLUMN c6 VARCHAR(1000) DEFAULT
 'I love tracking down hard-to-reproduce bugs.',
 ADD PRIMARY KEY c3p5(c3(5), c6(2));
-# session default
 connection default;
 SET DEBUG_SYNC = 'now WAIT_FOR c3p5_created';
 SET DEBUG_SYNC = 'ib_after_row_insert SIGNAL ins_done WAIT_FOR ddl_timed_out';
 INSERT INTO t1 VALUES(347,33101,NULL,'');
 ERROR 23000: Column 'c3' cannot be null
 INSERT INTO t1 VALUES(347,33101,'Pikku kakkosen posti','');
-# session con1
 connection con1;
 ERROR HY000: Lock wait timeout exceeded; try restarting transaction
 SET DEBUG_SYNC = 'now SIGNAL ddl_timed_out';
@@ -444,7 +414,6 @@ ddl_online_create_index	0
 ddl_pending_alter_table	0
 ddl_sort_file_alter_table	6
 ddl_log_file_alter_table	2
-# session default
 connection default;
 SELECT COUNT(*) FROM t1;
 COUNT(*)
@@ -462,12 +431,9 @@ c22f	c1	c3	c4
 5	36	36foofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoo	Online
 5	41	41foofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoo	Online
 5	46	46foofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoo	Online
-# session con1
 connection con1;
 ALTER TABLE t1 DISCARD TABLESPACE;
-# Disconnect session con1
 disconnect con1;
-# session default
 connection default;
 SHOW CREATE TABLE t1;
 Table	Create Table
