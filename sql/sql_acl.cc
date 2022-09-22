@@ -1596,6 +1596,7 @@ static bool check_grant_routine(THD *thd, privilege_t want_access,
 
 static bool check_routine_level_acl(THD *thd, const LEX_CSTRING &db,
                                     const LEX_CSTRING &name,
+                                    privilege_t deny_mask,
                                     const Sp_handler &sph);
 static int acl_db_compare(const ACL_DB *a, const ACL_DB *b);
 static void rebuild_acl_dbs();
@@ -4475,6 +4476,14 @@ check_routine_access(THD *thd, privilege_t want_access, const LEX_CSTRING *db,
   return check_grant_routine(thd, want_access, tables, sph, no_errors);
 }
 
+static
+privilege_t acl_get_effective_deny_mask_impl(const Security_context *ctx,
+                                             const LEX_CSTRING &db,
+                                             const LEX_CSTRING &object_name,
+                                             const LEX_CSTRING &column_name,
+                                             enum object_type type,
+                                             bool acl_cache_locked);
+
 static privilege_t acl_get_effective_deny_mask_impl(
     const Deny_spec *denies,
     const Deny_spec *role_denies,
@@ -4482,6 +4491,8 @@ static privilege_t acl_get_effective_deny_mask_impl(
     const LEX_CSTRING &object_name,
     const LEX_CSTRING &column_name,
     enum object_type type);
+
+static enum object_type get_corresponding_object_type(const Sp_handler &sph);
 
 /**
   Check if the routine has any of the routine privileges.
@@ -4501,6 +4512,13 @@ bool check_some_routine_access(THD *thd,
                                const Sp_handler &sph)
 {
   privilege_t save_priv(NO_ACL);
+
+  privilege_t deny_mask=
+    acl_get_effective_deny_mask_impl(thd->security_context(),
+                                     db, name, {nullptr, 0},
+                                     get_corresponding_object_type(sph),
+                                     false);
+
   /*
     The following test is just a shortcut for check_access() (to avoid
     calculating db_access)
@@ -4510,12 +4528,14 @@ bool check_some_routine_access(THD *thd,
     Since the I_S and P_S do not contain routines, this bypass is ok,
     as it only opens SHOW_PROC_ACLS.
   */
-  if (thd->security_ctx->master_access & SHOW_PROC_ACLS)
+  if ((thd->security_ctx->master_access & ~deny_mask) & SHOW_PROC_ACLS)
     return FALSE;
-  if (!check_access(thd, SHOW_PROC_ACLS, db.str, &save_priv, NULL, 0, 1) ||
-      (save_priv & SHOW_PROC_ACLS))
+
+  /* Collect all rights in save_priv. */
+  check_access(thd, SHOW_PROC_ACLS, db.str, &save_priv, NULL, 0, 1);
+  if ((save_priv & ~deny_mask) & SHOW_PROC_ACLS)
     return FALSE;
-  return check_routine_level_acl(thd, db, name, sph);
+  return check_routine_level_acl(thd, db, name, deny_mask, sph);
 }
 
 
@@ -11443,17 +11463,12 @@ err:
 static
 bool check_routine_level_acl(THD *thd,
                              const LEX_CSTRING &db, const LEX_CSTRING &name,
+                             privilege_t deny_mask,
                              const Sp_handler &sph)
 {
   bool no_routine_acl= 1;
   GRANT_NAME *grant_proc;
   Security_context *sctx= thd->security_ctx;
-
-  privilege_t deny_mask=
-    acl_get_effective_deny_mask_impl(thd->security_context(),
-                                     db, name, {nullptr, 0},
-                                     get_corresponding_object_type(sph),
-                                     false);
 
   mysql_rwlock_rdlock(&LOCK_grant);
   if ((grant_proc= routine_hash_search(sctx->priv_host,

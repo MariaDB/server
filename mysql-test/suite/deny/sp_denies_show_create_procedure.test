@@ -1,0 +1,66 @@
+--source include/not_embedded.inc
+
+let $REGEX_VERSION_ID=/$mysql_get_server_version/VERSION_ID/;
+
+--echo #
+--echo # Test SHOW_PROC_ACLS being masked from all levels.
+--echo #
+
+connection default;
+create user foo;
+create database some_db;
+create table some_db.p1 (a int, b int);
+
+DELIMITER |;
+
+CREATE PROCEDURE some_db.p1 (OUT param1 INT)
+ BEGIN
+  SELECT COUNT(*) INTO param1 FROM p1;
+ END;
+|
+
+DELIMITER ;|
+
+
+grant all on *.* to foo;
+grant all on some_db.* to foo;
+revoke ignore denies on *.* from foo;
+deny all on procedure some_db.p1 to foo;
+
+--connect (con1, localhost, foo,,)
+
+--echo #
+--echo # Still visible because of SELECT priv on mysql.
+--echo #
+show create procedure some_db.p1;
+
+disconnect con1;
+
+connection default;
+deny select on mysql.* to foo;
+
+--connect (con1, localhost, foo,,)
+
+--echo #
+--echo # Still visible because of CREATE ROUTINE priv on some_db.
+--echo #
+show create procedure some_db.p1;
+disconnect con1;
+
+connection default;
+deny create routine on some_db.* to foo;
+
+--connect (con1, localhost, foo,,)
+
+--echo #
+--echo # Now no longer visible.
+--echo #
+
+--error ER_SP_DOES_NOT_EXIST
+show create procedure some_db.p1;
+disconnect con1;
+
+connection default;
+
+drop user foo;
+drop database some_db;

@@ -1,0 +1,49 @@
+#
+# Test SHOW_PROC_ACLS being masked from all levels.
+#
+connection default;
+create user foo;
+create database some_db;
+create table some_db.p1 (a int, b int);
+CREATE PROCEDURE some_db.p1 (OUT param1 INT)
+BEGIN
+SELECT COUNT(*) INTO param1 FROM p1;
+END;
+|
+grant all on *.* to foo;
+grant all on some_db.* to foo;
+revoke ignore denies on *.* from foo;
+deny all on procedure some_db.p1 to foo;
+connect  con1, localhost, foo,,;
+#
+# Still visible because of SELECT priv on mysql.
+#
+show create procedure some_db.p1;
+Procedure	sql_mode	Create Procedure	character_set_client	collation_connection	Database Collation
+p1	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	CREATE DEFINER=`root`@`localhost` PROCEDURE `p1`(OUT param1 INT)
+BEGIN
+SELECT COUNT(*) INTO param1 FROM p1;
+END	latin1	latin1_swedish_ci	latin1_swedish_ci
+disconnect con1;
+connection default;
+deny select on mysql.* to foo;
+connect  con1, localhost, foo,,;
+#
+# Still visible because of CREATE ROUTINE priv on some_db.
+#
+show create procedure some_db.p1;
+Procedure	sql_mode	Create Procedure	character_set_client	collation_connection	Database Collation
+p1	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	NULL	latin1	latin1_swedish_ci	latin1_swedish_ci
+disconnect con1;
+connection default;
+deny create routine on some_db.* to foo;
+connect  con1, localhost, foo,,;
+#
+# Now no longer visible.
+#
+show create procedure some_db.p1;
+ERROR 42000: PROCEDURE p1 does not exist
+disconnect con1;
+connection default;
+drop user foo;
+drop database some_db;
