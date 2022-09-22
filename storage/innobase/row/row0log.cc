@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2011, 2018, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2021, MariaDB Corporation.
+Copyright (c) 2017, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -2169,6 +2169,7 @@ func_exit:
 		}
 func_exit_committed:
 		ut_ad(mtr.has_committed());
+		ut_free(pcur.old_rec_buf);
 
 		if (error != DB_SUCCESS) {
 			/* Report the erroneous row using the new
@@ -2356,7 +2357,8 @@ func_exit_committed:
 		entry = row_build_index_entry(old_row, old_ext, index, heap);
 		if (!entry) {
 			ut_ad(0);
-			return(DB_CORRUPTION);
+			error = DB_CORRUPTION;
+			goto func_exit_committed;
 		}
 
 		mtr_start(&mtr);

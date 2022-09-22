@@ -433,7 +433,6 @@ c22f	c1	c3	c4
 5	46	46foofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoofoo	Online
 connection con1;
 ALTER TABLE t1 DISCARD TABLESPACE;
-disconnect con1;
 connection default;
 SHOW CREATE TABLE t1;
 Table	Create Table
@@ -447,6 +446,23 @@ t1	CREATE TABLE `t1` (
 SET DEBUG_SYNC = 'RESET';
 SET GLOBAL innodb_monitor_disable = module_ddl;
 DROP TABLE t1;
+#
+# MDEV-29600 Memory leak in row_log_table_apply_update()
+#
+CREATE TABLE t1 (pk INT PRIMARY KEY, f TEXT) ENGINE=InnoDB;
+INSERT INTO t1 SET pk=1;
+connection con1;
+SET DEBUG_SYNC = 'row_log_table_apply1_before SIGNAL created WAIT_FOR updated';
+ALTER TABLE t1 FORCE;
+connection default;
+SET DEBUG_SYNC = 'now WAIT_FOR created';
+UPDATE t1 SET f = REPEAT('a', 20000);
+SET DEBUG_SYNC = 'now SIGNAL updated';
+connection con1;
+disconnect con1;
+connection default;
+DROP TABLE t1;
+SET DEBUG_SYNC = 'RESET';
 SET GLOBAL innodb_file_per_table = @global_innodb_file_per_table_orig;
 SET GLOBAL innodb_monitor_enable  = default;
 SET GLOBAL innodb_monitor_disable = default;
