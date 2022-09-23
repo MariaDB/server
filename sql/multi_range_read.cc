@@ -22,6 +22,50 @@
 #include "rowid_filter.h"
 #include "optimizer_defaults.h"
 
+
+
+/* The following calculation is the same as in multi_range_read_info() */
+
+void handler::calculate_costs(Cost_estimate *cost, uint keyno,
+                              uint n_ranges, uint flags,
+                              ha_rows total_rows,
+                              ulonglong io_blocks,
+                              ulonglong unassigned_single_point_ranges)
+{
+  double key_cost;
+  cost->reset();
+  cost->avg_io_cost= cost->idx_avg_io_cost= 0; // Not used!
+
+  if (!is_clustering_key(keyno))
+  {
+    key_cost= ha_keyread_time(keyno, n_ranges, total_rows, io_blocks);
+    cost->idx_cpu_cost= key_cost;
+
+    if (!(flags & HA_MRR_INDEX_ONLY))
+    {
+      /* ha_rnd_pos_time includes ROW_COPY_COST */
+      cost->cpu_cost=     ha_rnd_pos_time(total_rows);
+    }
+    else
+    {
+      /* Index only read */
+      cost->copy_cost=    rows2double(total_rows) * KEY_COPY_COST;
+    }
+  }
+  else
+  {
+    /* Clustered index */
+    io_blocks+= unassigned_single_point_ranges;
+    key_cost= ha_keyread_time(keyno, n_ranges, total_rows, io_blocks);
+    cost->idx_cpu_cost= key_cost;
+    cost->copy_cost=    rows2double(total_rows) * ROW_COPY_COST;
+  }
+  cost->comp_cost= (rows2double(total_rows) * WHERE_COST +
+                    MULTI_RANGE_READ_SETUP_COST);
+}
+
+
+
 /****************************************************************************
  * Default MRR implementation (MRR to non-MRR converter)
  ***************************************************************************/
@@ -57,10 +101,12 @@
                   contain scan parameters.
 */
 
+
 ha_rows
 handler::multi_range_read_info_const(uint keyno, RANGE_SEQ_IF *seq,
                                      void *seq_init_param, uint n_ranges_arg,
                                      uint *bufsz, uint *flags,
+                                     ha_rows top_limit,
                                      Cost_estimate *cost)
 {
   KEY_MULTI_RANGE range;
@@ -303,40 +349,22 @@ handler::multi_range_read_info_const(uint keyno, RANGE_SEQ_IF *seq,
 
   if (total_rows != HA_POS_ERROR)
   {
-    double key_cost;
     set_if_smaller(total_rows, max_rows);
-
-    /* The following calculation is the same as in multi_range_read_info(): */
     *flags |= HA_MRR_USE_DEFAULT_IMPL;
-    cost->reset();
-    cost->avg_io_cost= cost->idx_avg_io_cost= 0; // Not used!
-
-    if (!is_clustering_key(keyno))
+    calculate_costs(cost, keyno, n_ranges, *flags, total_rows,
+                    io_blocks, unassigned_single_point_ranges);
+    if (top_limit < total_rows)
     {
-      key_cost= ha_keyread_time(keyno, n_ranges, total_rows, io_blocks);
-      cost->idx_cpu_cost= key_cost;
-
-      if (!(*flags & HA_MRR_INDEX_ONLY))
-      {
-        /* ha_rnd_pos_time includes ROW_COPY_COST */
-        cost->cpu_cost=     ha_rnd_pos_time(total_rows);
-      }
-      else
-      {
-        /* Index only read */
-        cost->copy_cost=    rows2double(total_rows) * KEY_COPY_COST;
-      }
+      /*
+        Calculate what the cost would be if we only have to read 'top_limit'
+        rows. This is the lowest possible cost fwhen using the range
+        when we find the 'accepted rows' at once.
+      */
+      Cost_estimate limit_cost;
+      calculate_costs(&limit_cost, keyno, n_ranges, *flags, top_limit,
+                      io_blocks, unassigned_single_point_ranges);
+      cost->limit_cost= limit_cost.total_cost();
     }
-    else
-    {
-      /* Clustered index */
-      io_blocks+= unassigned_single_point_ranges;
-      key_cost= ha_keyread_time(keyno, n_ranges, total_rows, io_blocks);
-      cost->idx_cpu_cost= key_cost;
-      cost->copy_cost=    rows2double(total_rows) * ROW_COPY_COST;
-    }
-    cost->comp_cost= (rows2double(total_rows) * WHERE_COST +
-                      MULTI_RANGE_READ_SETUP_COST);
   }
   DBUG_PRINT("statistics",
              ("key: %s  rows: %llu  total_cost: %.3f  io_blocks: %llu  "
@@ -1717,8 +1745,9 @@ ha_rows DsMrr_impl::dsmrr_info(uint keyno, uint n_ranges, uint rows,
 */
 
 ha_rows DsMrr_impl::dsmrr_info_const(uint keyno, RANGE_SEQ_IF *seq,
-                                 void *seq_init_param, uint n_ranges, 
-                                 uint *bufsz, uint *flags, Cost_estimate *cost)
+                                     void *seq_init_param, uint n_ranges,
+                                     uint *bufsz, uint *flags, ha_rows limit,
+                                     Cost_estimate *cost)
 {
   ha_rows rows;
   uint def_flags= *flags;
@@ -1728,7 +1757,9 @@ ha_rows DsMrr_impl::dsmrr_info_const(uint keyno, RANGE_SEQ_IF *seq,
                                                            seq_init_param,
                                                            n_ranges, 
                                                            &def_bufsz, 
-                                                           &def_flags, cost);
+                                                           &def_flags,
+                                                           limit,
+                                                           cost);
   if (rows == HA_POS_ERROR)
   {
     /* Default implementation can't perform MRR scan => we can't either */
