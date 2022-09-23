@@ -502,7 +502,8 @@ int index_prev(uchar *buf);
   ha_rows multi_range_read_info_const(uint keyno, RANGE_SEQ_IF *seq,
                                       void *seq_init_param,
                                       uint n_ranges, uint *bufsz,
-                                      uint *flags, Cost_estimate *cost);
+                                      uint *flags, ha_rows limit,
+                                      Cost_estimate *cost);
   ha_rows multi_range_read_info(uint keyno, uint n_ranges, uint keys,
                                 uint key_parts, uint *bufsz,
                                 uint *flags, Cost_estimate *cost);

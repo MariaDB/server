@@ -345,7 +345,8 @@ struct st_index_scan_info;
 struct st_ror_scan_info;
 
 static bool is_key_scan_ror(PARAM *param, uint keynr, uint8 nparts);
-static ha_rows check_quick_select(PARAM *param, uint idx, bool index_only,
+static ha_rows check_quick_select(PARAM *param, uint idx, ha_rows limit,
+                                  bool index_only,
                                   SEL_ARG *tree, bool update_tbl_stats, 
                                   uint *mrr_flags, uint *bufsize,
                                   Cost_estimate *cost, bool *is_ror_scan);
@@ -356,7 +357,8 @@ QUICK_RANGE_SELECT *get_quick_select(PARAM *param,uint index,
 static TRP_RANGE *get_key_scans_params(PARAM *param, SEL_TREE *tree,
                                        bool index_read_must_be_used,
                                        bool for_range_access,
-                                       double read_time);
+                                       double read_time, ha_rows limit,
+                                       bool using_table_scan);
 static
 TRP_INDEX_INTERSECT *get_best_index_intersect(PARAM *param, SEL_TREE *tree,
                                               double read_time);
@@ -370,7 +372,9 @@ TRP_ROR_INTERSECT *get_best_covering_ror_intersect(PARAM *param,
                                                    double read_time);
 static
 TABLE_READ_PLAN *get_best_disjunct_quick(PARAM *param, SEL_IMERGE *imerge,
-                                         double read_time, bool named_trace= false);
+                                         double read_time, ha_rows limit,
+                                         bool named_trace,
+                                         bool using_table_scan);
 static
 TABLE_READ_PLAN *merge_same_index_scans(PARAM *param, SEL_IMERGE *imerge,
                                         TRP_INDEX_MERGE *imerge_trp,
@@ -2710,21 +2714,8 @@ int SQL_SELECT::test_quick_select(THD *thd, key_map keys_to_use,
   else
   {
     read_time= head->file->ha_scan_and_compare_time(records);
-
-    /*
-      Force the detection of range access if LIMIT is used.
-      The idea is that we want to store all possible range
-      accesses to see if we can use them to resolve an ORDER BY.
-      Ranges with too high costs will be pruned in best_access_path().
-
-      The test for read_time is there only to not modify read_time if
-      ha_scan_and_compare_time() returned a really big value
-    */
-    if (limit < records && read_time < (double) records * 2)
-    {
-      read_time= (double) records * 2; // Force to use index
+    if (limit < records)
       notnull_cond= NULL;
-    }
   }
 
   possible_keys.clear_all();
@@ -2954,7 +2945,8 @@ int SQL_SELECT::test_quick_select(THD *thd, key_map keys_to_use,
       /* Get best 'range' plan and prepare data for making other plans */
       if ((range_trp= get_key_scans_params(&param, tree,
                                            only_single_index_range_scan,
-                                           true, best_read_time)))
+                                           true, best_read_time, limit,
+                                           1)))
       {
         best_trp= range_trp;
         best_read_time= best_trp->read_cost;
@@ -3020,7 +3012,8 @@ int SQL_SELECT::test_quick_select(THD *thd, key_map keys_to_use,
         Json_writer_array trace_idx_merge(thd, "analyzing_index_merge_union");
         while ((imerge= it++))
         {
-          new_conj_trp= get_best_disjunct_quick(&param, imerge, best_read_time);
+          new_conj_trp= get_best_disjunct_quick(&param, imerge, best_read_time,
+                                                limit, 0, 1);
           if (new_conj_trp)
             param.table->set_opt_range_condition_rows(new_conj_trp->records);
           if (new_conj_trp &&
@@ -5200,7 +5193,9 @@ static double get_sweep_read_cost(const PARAM *param, ha_rows records,
 
 static
 TABLE_READ_PLAN *get_best_disjunct_quick(PARAM *param, SEL_IMERGE *imerge,
-                                         double read_time, bool named_trace)
+                                         double read_time, ha_rows limit,
+                                         bool named_trace,
+                                         bool using_table_scan)
 {
   SEL_TREE **ptree;
   TRP_INDEX_MERGE *imerge_trp= NULL;
@@ -5264,7 +5259,7 @@ TABLE_READ_PLAN *get_best_disjunct_quick(PARAM *param, SEL_IMERGE *imerge,
                                         "tree in SEL_IMERGE"););
     Json_writer_object trace_idx(thd);
     if (!(*cur_child= get_key_scans_params(param, *ptree, TRUE, FALSE,
-                                           read_time)))
+                                           read_time, limit, using_table_scan)))
     {
       /*
         One of index scans in this index_merge is more expensive than entire
@@ -5614,7 +5609,8 @@ TABLE_READ_PLAN *merge_same_index_scans(PARAM *param, SEL_IMERGE *imerge,
   DBUG_ASSERT(imerge->trees_next>imerge->trees);
 
   if (imerge->trees_next-imerge->trees > 1)
-    trp= get_best_disjunct_quick(param, imerge, read_time, true);
+    trp= get_best_disjunct_quick(param, imerge, read_time, HA_POS_ERROR, true,
+                                 0);
   else
   {
     /*
@@ -7584,7 +7580,8 @@ TRP_ROR_INTERSECT *get_best_covering_ror_intersect(PARAM *param,
 static TRP_RANGE *get_key_scans_params(PARAM *param, SEL_TREE *tree,
                                        bool index_read_must_be_used, 
                                        bool for_range_access,
-                                       double read_time)
+                                       double read_time, ha_rows limit,
+                                       bool using_table_scan)
 {
   uint idx, UNINIT_VAR(best_idx);
   SEL_ARG *key_to_read= NULL;
@@ -7636,7 +7633,7 @@ static TRP_RANGE *get_key_scans_params(PARAM *param, SEL_TREE *tree,
       Json_writer_object trace_idx(thd);
       trace_idx.add("index", param->table->key_info[keynr].name);
 
-      found_records= check_quick_select(param, idx, read_index_only, key,
+      found_records= check_quick_select(param, idx, limit, read_index_only, key,
                                         for_range_access, &mrr_flags,
                                         &buf_size, &cost, &is_ror_scan);
 
@@ -7670,19 +7667,29 @@ static TRP_RANGE *get_key_scans_params(PARAM *param, SEL_TREE *tree,
         trace_range.end();
 
         if (unlikely(trace_idx.trace_started()))
+        {
           trace_idx.
             add("rowid_ordered", is_ror_scan).
             add("using_mrr", !(mrr_flags & HA_MRR_USE_DEFAULT_IMPL)).
             add("index_only", read_index_only).
             add("rows", found_records).
             add("cost", found_read_time);
+          if (using_table_scan && cost.limit_cost != 0.0)
+            trace_idx.add("cost_with_limit", cost.limit_cost);
+        }
       }
       if (is_ror_scan)
       {
         tree->n_ror_scans++;
         tree->ror_scans_map.set_bit(idx);
       }
-      if (read_time > found_read_time)
+      /*
+        Use range if best range so far or if we are comparing to a table scan
+        and the cost with limit approximation is better than the table scan
+      */
+      if (read_time > found_read_time ||
+          (using_table_scan && cost.limit_cost != 0.0 &&
+           read_time > cost.limit_cost))
       {
         read_time=    found_read_time;
         best_records= found_records;
@@ -7690,6 +7697,7 @@ static TRP_RANGE *get_key_scans_params(PARAM *param, SEL_TREE *tree,
         best_idx= idx;
         best_mrr_flags= mrr_flags;
         best_buf_size=  buf_size;
+        using_table_scan= 0;
         trace_idx.add("chosen", true);
       }
       else if (unlikely(trace_idx.trace_started()))
@@ -11716,7 +11724,8 @@ static bool check_if_first_key_part_has_only_one_value(SEL_ARG *arg)
 */
 
 static
-ha_rows check_quick_select(PARAM *param, uint idx, bool index_only,
+ha_rows check_quick_select(PARAM *param, uint idx, ha_rows limit,
+                           bool index_only,
                            SEL_ARG *tree, bool update_tbl_stats, 
                            uint *mrr_flags, uint *bufsize, Cost_estimate *cost,
                            bool *is_ror_scan)
@@ -11777,7 +11786,7 @@ ha_rows check_quick_select(PARAM *param, uint idx, bool index_only,
   */
   if (param->table->pos_in_table_list->is_non_derived())
     rows= file->multi_range_read_info_const(keynr, &seq_if, (void*)&seq, 0,
-                                            bufsize, mrr_flags, cost);
+                                            bufsize, mrr_flags, limit, cost);
   param->quick_rows[keynr]= rows;
   if (rows != HA_POS_ERROR)
   {

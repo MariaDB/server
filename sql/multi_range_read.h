@@ -576,7 +576,7 @@ public:
 
   ha_rows dsmrr_info_const(uint keyno, RANGE_SEQ_IF *seq, 
                             void *seq_init_param, uint n_ranges, uint *bufsz,
-                            uint *flags, Cost_estimate *cost);
+                           uint *flags, ha_rows limit, Cost_estimate *cost);
 
   int dsmrr_explain_info(uint mrr_mode, char *str, size_t size);
 private:

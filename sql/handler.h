@@ -2805,6 +2805,7 @@ public:
   double comp_cost;       /* Cost of comparing found rows with WHERE clause */
   double copy_cost;       /* Copying the data to 'record' */
   double mem_cost;        /* cost of used memory           */
+  double limit_cost;      /* Total cost when restricting rows with limit */
 
   static constexpr double IO_COEFF= 1;
   static constexpr double CPU_COEFF= 1;
@@ -2868,8 +2869,8 @@ public:
   {
     avg_io_cost= 1.0;
     idx_avg_io_cost= 1.0;
-    io_count= idx_io_count= cpu_cost= idx_cpu_cost= mem_cost= import_cost=
-      comp_cost= copy_cost= 0.0;
+    io_count= idx_io_count= cpu_cost= idx_cpu_cost= mem_cost= import_cost= 0.0;
+    comp_cost= copy_cost= limit_cost= 0.0;
   }
 
   void multiply(double m)
@@ -2880,6 +2881,7 @@ public:
     idx_cpu_cost *= m;
     import_cost *= m;
     comp_cost *= m;
+    limit_cost*= m;
     /* Don't multiply mem_cost */
   }
 
@@ -2905,6 +2907,7 @@ public:
     idx_cpu_cost += cost->idx_cpu_cost;
     import_cost += cost->import_cost;
     comp_cost+= cost->comp_cost;
+    limit_cost+= cost->limit_cost;
   }
 
   void add_io(double add_io_cnt, double add_avg_cost)
@@ -4107,7 +4110,7 @@ public:
   virtual ha_rows multi_range_read_info_const(uint keyno, RANGE_SEQ_IF *seq,
                                               void *seq_init_param, 
                                               uint n_ranges, uint *bufsz,
-                                              uint *mrr_mode,
+                                              uint *mrr_mode, ha_rows limit,
                                               Cost_estimate *cost);
   virtual ha_rows multi_range_read_info(uint keyno, uint n_ranges, uint keys,
                                         uint key_parts, uint *bufsz, 
@@ -4116,6 +4119,13 @@ public:
                                     uint n_ranges, uint mrr_mode, 
                                     HANDLER_BUFFER *buf);
   virtual int multi_range_read_next(range_id_t *range_info);
+private:
+  inline void calculate_costs(Cost_estimate *cost, uint keyno,
+                              uint ranges, uint flags,
+                              ha_rows total_rows,
+                              ulonglong io_blocks,
+                              ulonglong unassigned_single_point_ranges);
+public:
   /*
     Return string representation of the MRR plan.
 

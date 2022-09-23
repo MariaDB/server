@@ -340,6 +340,7 @@ public:
     uint n_ranges,
     uint *bufsz,
     uint *flags,
+    ha_rows limit,
     Cost_estimate *cost
   );
   ha_rows multi_range_read_info(

@@ -383,6 +383,7 @@ public:
 		uint			n_ranges,
 		uint*			bufsz,
 		uint*			flags,
+                ha_rows                 limit,
 		Cost_estimate*		cost) override;
 
 	/** Initialize multi range read and get information.
