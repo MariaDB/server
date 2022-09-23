@@ -778,18 +778,18 @@ FLUSH PRIVILEGES;
 #
 This installation of MariaDB is already upgraded to MariaDB .
 There is no need to run mysql_upgrade again for MariaDB .
-Looking for 'mysql' as: mysql
+Looking for 'mariadb' as: mariadb
 This installation of MariaDB is already upgraded to MariaDB .
 There is no need to run mysql_upgrade again for MariaDB .
 #
 # MDEV-27279: mariadb_upgrade check-if-upgrade absence is do it
 #
-Looking for 'mysql' as: mysql
+Looking for 'mariadb' as: mariadb
 Empty or non existent ...mysql_upgrade_info. Assuming mysql_upgrade has to be run!
 #
 # MDEV-27279: mariadb_upgrade check-if-upgrade with minor version change
 #
-Looking for 'mysql' as: mysql
+Looking for 'mariadb' as: mariadb
 This installation of MariaDB is already upgraded to MariaDB .
 There is no need to run mysql_upgrade again for MariaDB .
 This installation of MariaDB is already upgraded to MariaDB .
