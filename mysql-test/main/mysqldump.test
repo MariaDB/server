@@ -597,62 +597,62 @@ create table t3(a varchar(30) primary key, b int not null);
 --disable_query_log
 select '------ Testing with illegal table names ------' as test_sequence ;
 --enable_query_log
---replace_result mysqldump.exe mysqldump
+--replace_result mariadb-dump.exe mariadb-dump
 --error 6
 --exec $MYSQL_DUMP --compact --skip-comments mysqldump_test_db "\d-2-1.sql" 2>&1
 
---replace_result mysqldump.exe mysqldump
+--replace_result mariadb-dump.exe mariadb-dump
 --error 6
 --exec $MYSQL_DUMP --compact --skip-comments mysqldump_test_db  "\t1" 2>&1
 
---replace_result mysqldump.exe mysqldump
+--replace_result mariadb-dump.exe mariadb-dump
 --error 6
 --exec $MYSQL_DUMP --compact --skip-comments mysqldump_test_db  "\\t1" 2>&1
 
---replace_result mysqldump.exe mysqldump
+--replace_result mariadb-dump.exe mariadb-dump
 --error 6
 --exec $MYSQL_DUMP --compact --skip-comments mysqldump_test_db  "\\\\t1" 2>&1
 
---replace_result mysqldump.exe mysqldump
+--replace_result mariadb-dump.exe mariadb-dump
 --error 6
 --exec $MYSQL_DUMP --compact --skip-comments mysqldump_test_db  "t\1" 2>&1
 
---replace_result mysqldump.exe mysqldump
+--replace_result mariadb-dump.exe mariadb-dump
 --error 6
 --exec $MYSQL_DUMP --compact --skip-comments  mysqldump_test_db  "t\\1" 2>&1
 
---replace_result mysqldump.exe mysqldump
+--replace_result mariadb-dump.exe mariadb-dump
 --error 6
 --exec $MYSQL_DUMP --compact --skip-comments mysqldump_test_db  "t/1" 2>&1
 
---replace_result mysqldump.exe mysqldump
+--replace_result mariadb-dump.exe mariadb-dump
 --error 6
 --exec $MYSQL_DUMP --compact --skip-comments mysqldump_test_db "T_1" 2>&1
 
---replace_result mysqldump.exe mysqldump
+--replace_result mariadb-dump.exe mariadb-dump
 --error 6
 --exec $MYSQL_DUMP --compact --skip-comments mysqldump_test_db "T%1" 2>&1
 
---replace_result mysqldump.exe mysqldump
+--replace_result mariadb-dump.exe mariadb-dump
 --error 6
 --exec $MYSQL_DUMP --compact --skip-comments mysqldump_test_db "T'1" 2>&1
 
---replace_result mysqldump.exe mysqldump
+--replace_result mariadb-dump.exe mariadb-dump
 --error 6
 --exec $MYSQL_DUMP --compact --skip-comments mysqldump_test_db "T_1" 2>&1
 
---replace_result mysqldump.exe mysqldump
+--replace_result mariadb-dump.exe mariadb-dump
 --error 6
 --exec $MYSQL_DUMP --compact --skip-comments mysqldump_test_db "T_" 2>&1
 
 --disable_query_log
 select '------ Testing with illegal database names ------' as test_sequence ;
 --enable_query_log
---replace_result mysqldump.exe mysqldump
+--replace_result mariadb-dump.exe mariadb-dump
 --error 2
 --exec $MYSQL_DUMP --compact --skip-comments mysqldump_test_d 2>&1
 
---replace_result mysqldump.exe mysqldump
+--replace_result mariadb-dump.exe mariadb-dump
 --error 2
 --exec $MYSQL_DUMP --compact --skip-comments "mysqld\ump_test_db" 2>&1
 
@@ -738,7 +738,7 @@ drop table `t1`;
 create table t1(a int);
 create table t2(a int);
 create table t3(a int);
---replace_result mysqldump.exe mysqldump
+--replace_result mariadb-dump.exe mariadb-dump
 --error 6
 --exec $MYSQL_DUMP --default-character-set=utf8mb4 --skip-comments --force --no-data test t3 t1 non_existing t2 2>&1
 drop table t1, t2, t3;
@@ -749,7 +749,7 @@ drop table t1, t2, t3;
 --echo #
 
 create table t1 (a int);
---replace_result mysqldump.exe mysqldump
+--replace_result mariadb-dump.exe mariadb-dump
 --error 2
 --exec $MYSQL_DUMP --default-character-set=utf8mb4 --skip-comments --force test t1 --where="xx xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" 2>&1
 drop table t1;
@@ -1287,7 +1287,7 @@ create view v1 as select * from t1;
 drop table t1;
 # mysqldump gets 1356 from server, but gives us 2
 --echo mysqldump {
---replace_result mysqldump.exe mysqldump
+--replace_result mariadb-dump.exe mariadb-dump
 --error 2
 --exec $MYSQL_DUMP --default-character-set=utf8mb4 --force -N --compact --skip-comments test 2>&1
 --echo } mysqldump
@@ -1385,13 +1385,13 @@ create table t1(a int, b varchar(34));
 reset master;
 
 # Execute mysqldump, will fail on FLUSH TABLES
---replace_result mysqldump.exe mysqldump
+--replace_result mariadb-dump.exe mariadb-dump
 --error 2
 --exec $MYSQL_DUMP --default-character-set=utf8mb4 --compact --master-data -u mysqltest_1 test 2>&1
 
 # Execute mysqldump, will fail on FLUSH TABLES
 # use --force, should no affect behaviour
---replace_result mysqldump.exe mysqldump
+--replace_result mariadb-dump.exe mariadb-dump
 --error 2
 --exec $MYSQL_DUMP --default-character-set=utf8mb4 --compact --force --master-data -u mysqltest_1 test 2>&1
 
@@ -1399,13 +1399,13 @@ reset master;
 grant RELOAD on *.* to mysqltest_1@localhost;
 
 # Execute mysqldump, will fail on SHOW MASTER STATUS
---replace_result mysqldump.exe mysqldump
+--replace_result mariadb-dump.exe mariadb-dump
 --error 2
 --exec $MYSQL_DUMP --default-character-set=utf8mb4 --compact --master-data -u mysqltest_1 test 2>&1
 
 # Execute mysqldump, will fail on SHOW MASTER STATUS.
 # use --force, should not alter behaviour
---replace_result mysqldump.exe mysqldump
+--replace_result mariadb-dump.exe mariadb-dump
 --error 2
 --exec $MYSQL_DUMP --default-character-set=utf8mb4 --compact --force --master-data -u mysqltest_1 test 2>&1
 
@@ -1520,18 +1520,18 @@ CREATE TABLE t1(a int);
 INSERT INTO t1 VALUES (1), (2);
 
 # too long a file path causes an error
---replace_result mysqldump.exe mysqldump
+--replace_result mariadb-dump.exe mariadb-dump
 --error 1
 --exec $MYSQL_DUMP --default-character-set=utf8mb4 --tab=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa test 2>&1
 
 --exec $MYSQL_DUMP --default-character-set=utf8mb4 --tab=$MYSQLTEST_VARDIR/tmp/ --fields-terminated-by=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa test
---replace_result mysqldump.exe mysqldump
+--replace_result mariadb-dump.exe mariadb-dump
 --error 2
 --exec $MYSQL_DUMP --default-character-set=utf8mb4 --tab=$MYSQLTEST_VARDIR/tmp/ --fields-enclosed-by=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa test 2>&1
---replace_result mysqldump.exe mysqldump
+--replace_result mariadb-dump.exe mariadb-dump
 --error 2
 --exec $MYSQL_DUMP --default-character-set=utf8mb4 --tab=$MYSQLTEST_VARDIR/tmp/ --fields-optionally-enclosed-by=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa test 2>&1
---replace_result mysqldump.exe mysqldump
+--replace_result mariadb-dump.exe mariadb-dump
 --error 2
 --exec $MYSQL_DUMP --default-character-set=utf8mb4 --tab=$MYSQLTEST_VARDIR/tmp/ --fields-escaped-by=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa test 2>&1
 --exec $MYSQL_DUMP --default-character-set=utf8mb4 --tab=$MYSQLTEST_VARDIR/tmp/ --lines-terminated-by=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa test
@@ -1605,7 +1605,7 @@ connection user27293;
 
 create procedure mysqldump_test_db.sp1() select 'hello';
 
---replace_result mysqldump.exe mysqldump
+--replace_result mariadb-dump.exe mariadb-dump
 --error 2
 --exec $MYSQL_DUMP -f --compact --user=user2 --password=  -h 127.0.0.1 -P $MASTER_MYPORT --routines mysqldump_test_db 2>&1
 
@@ -1711,7 +1711,7 @@ DROP TABLE `straße`;
 
 CREATE TABLE `כדשגכחךלדגכחשךדגחכךלדגכ` ( f1 INT );
 --exec $MYSQL_DUMP --character-sets-dir=$MYSQL_SHAREDIR/charsets --skip-comments --default-character-set=utf8 --compatible=mysql323 test
---replace_result mysqldump.exe mysqldump
+--replace_result mariadb-dump.exe mariadb-dump
 --error 2
 --exec $MYSQL_DUMP --character-sets-dir=$MYSQL_SHAREDIR/charsets --skip-comments --default-character-set=latin1 --compatible=mysql323 test 2>&1
 DROP TABLE `כדשגכחךלדגכחשךדגחכךלדגכ`;
@@ -1766,7 +1766,7 @@ select * from words2;
 
 # Drop table "words" and run with threads, should fail
 drop table words;
---replace_regex /.*mysqlimport(\.exe)*/mysqlimport/
+--replace_regex /.*mariadb-import(\.exe)*/mariadb-import/
 --error 1
 --exec $MYSQL_IMPORT --silent --use-threads=2 test $MYSQLTEST_VARDIR/tmp/t1.txt $MYSQLTEST_VARDIR/tmp/t2.txt $MYSQLTEST_VARDIR/std_data/words.dat $MYSQLTEST_VARDIR/std_data/words2.dat 2>&1
 
@@ -2117,12 +2117,12 @@ INSERT INTO t1 VALUES (1, 'ABC-АБВ', 'DEF-ÂÃÄ'), (2, NULL, NULL);
 
 --echo # error on multi-character ENCLOSED/ESCAPED BY
 
---replace_result mysqldump.exe mysqldump
+--replace_result mariadb-dump.exe mariadb-dump
 --error 2
 --exec $MYSQL_DUMP --disable-default-character-set --tab=$MYSQLTEST_VARDIR/tmp/ --fields-enclosed-by='12345' test t1 2>&1
 --remove_file $file
 
---replace_result mysqldump.exe mysqldump
+--replace_result mariadb-dump.exe mariadb-dump
 --error 2
 --exec $MYSQL_DUMP --disable-default-character-set --tab=$MYSQLTEST_VARDIR/tmp/ --fields-escaped-by='12345' test t1 2>&1
 --remove_file $file
@@ -2336,7 +2336,7 @@ connection conn_1;
 --echo # Running 'replace_regex on timestamp'
 --replace_regex /[0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2}(.[0-9]{2})*/--TIME--/
 
---replace_result mysqldump.exe mysqldump
+--replace_result mariadb-dump.exe mariadb-dump
 --error 2
 --exec $MYSQL_DUMP --user=user1 -R -E --triggers -X BUG52792 2>&1
 
@@ -2529,6 +2529,7 @@ SELECT ROUTINE_NAME FROM INFORMATION_SCHEMA.ROUTINES
        WHERE ROUTINE_SCHEMA='bug25717383' AND ROUTINE_TYPE= 'PROCEDURE'
        ORDER BY ROUTINE_NAME;
 
+--replace_result mariadb-dump.exe mariadb-dump
 --exec $MYSQL_DUMP --default-character-set=utf8mb4 --triggers --events --routines --add-drop-database --databases bug25717383 > $MYSQLTEST_VARDIR/tmp/bug25717383.sql
 
 SHOW TABLES FROM bug25717383;
@@ -2546,14 +2547,14 @@ DROP DATABASE bug25717383;
 #
 # MDEV-6091 mysqldump goes in a loop and segfaults if --dump-slave is specified and it cannot connect to the server
 #
---replace_regex /mysqldump\.exe/mysqldump/ /'unknownhost' \(.*\)/'unknownhost'/
+--replace_regex /mariadb-dump\.exe/mariadb-dump/ /'unknownhost' \(.*\)/'unknownhost'/
 --error 2
 --exec $MYSQL_DUMP --default-character-set=utf8mb4 -hunknownhost --dump-slave nulldb 2>&1
 
 #
 # MDEV-6056 [PATCH] mysqldump writes usage to stdout even when not explicitly requested
 #
---replace_result mysqldump.exe mysqldump
+--replace_result mariadb-dump.exe mariadb-dump
 --error 1
 --exec $MYSQL_DUMP --default-character-set=utf8mb4 --user=foo 2>&1
 --exec $MYSQL_DUMP --help 2>&1 > $MYSQLTEST_VARDIR/tmp/bug6056.out
@@ -2676,7 +2677,7 @@ create table t2 (
 0
 EOF
 
---replace_regex /.*mysqlimport(\.exe)*/mysqlimport/
+--replace_regex /.*mariadb-import(\.exe)*/mariadb-import/
 --error 1
 --exec $MYSQL_IMPORT --silent test $MYSQLTEST_VARDIR/tmp/t2.txt 2>&1
 --exec $MYSQL_IMPORT --silent -k test $MYSQLTEST_VARDIR/tmp/t2.txt
