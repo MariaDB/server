@@ -505,7 +505,8 @@ public:
   ha_rows multi_range_read_info_const(uint keyno, RANGE_SEQ_IF *seq,
                                       void *seq_init_param,
                                       uint n_ranges, uint *bufsz,
-                                      uint *flags, Cost_estimate *cost) mrn_override;
+                                      uint *flags, ha_rows limit,
+                                      Cost_estimate *cost) mrn_override;
   ha_rows multi_range_read_info(uint keyno, uint n_ranges, uint keys,
 #ifdef MRN_HANDLER_HAVE_MULTI_RANGE_READ_INFO_KEY_PARTS
                                 uint key_parts,
@@ -1057,6 +1058,7 @@ private:
                                               uint n_ranges,
                                               uint *bufsz,
                                               uint *flags,
+                                              ha_rows limit,
                                               Cost_estimate *cost);
   ha_rows storage_multi_range_read_info_const(uint keyno,
                                               RANGE_SEQ_IF *seq,
@@ -1064,6 +1066,7 @@ private:
                                               uint n_ranges,
                                               uint *bufsz,
                                               uint *flags,
+                                              ha_rows limit,
                                               Cost_estimate *cost);
   ha_rows wrapper_multi_range_read_info(uint keyno, uint n_ranges, uint keys,
 #ifdef MRN_HANDLER_HAVE_MULTI_RANGE_READ_INFO_KEY_PARTS

@@ -3151,6 +3151,7 @@ ha_rows ha_spider::multi_range_read_info_const(
   uint n_ranges,
   uint *bufsz,
   uint *flags,
+  ha_rows limit,
   Cost_estimate *cost
 )
 {
@@ -3190,6 +3191,7 @@ ha_rows ha_spider::multi_range_read_info_const(
       n_ranges,
       bufsz,
       flags,
+      limit,
       cost
     );
   *flags &= ~HA_MRR_USE_DEFAULT_IMPL;
