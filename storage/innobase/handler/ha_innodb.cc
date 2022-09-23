@@ -20126,6 +20126,7 @@ ha_innobase::multi_range_read_info_const(
 	uint		n_ranges,
 	uint*		bufsz,
 	uint*		flags,
+        ha_rows         limit,
 	Cost_estimate*	cost)
 {
 	/* See comments in ha_myisam::multi_range_read_info_const */
@@ -20135,8 +20136,9 @@ ha_innobase::multi_range_read_info_const(
 		*flags |= HA_MRR_USE_DEFAULT_IMPL;
 	}
 
-	ha_rows res= m_ds_mrr.dsmrr_info_const(keyno, seq, seq_init_param, n_ranges,
-			bufsz, flags, cost);
+	ha_rows res= m_ds_mrr.dsmrr_info_const(keyno, seq, seq_init_param,
+                                               n_ranges,
+                                               bufsz, flags, limit, cost);
 	return res;
 }
 

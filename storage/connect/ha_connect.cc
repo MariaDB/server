@@ -7395,7 +7395,8 @@ int ha_connect::multi_range_read_next(range_id_t *range_info)
 ha_rows ha_connect::multi_range_read_info_const(uint keyno, RANGE_SEQ_IF *seq,
                                                void *seq_init_param,
                                                uint n_ranges, uint *bufsz,
-                                               uint *flags, Cost_estimate *cost)
+                                                uint *flags, ha_rows limit,
+                                                Cost_estimate *cost)
 {
   /*
     This call is here because there is no location where this->table would
@@ -7409,7 +7410,7 @@ ha_rows ha_connect::multi_range_read_info_const(uint keyno, RANGE_SEQ_IF *seq,
     *flags|= HA_MRR_USE_DEFAULT_IMPL;
 
   ha_rows rows= ds_mrr.dsmrr_info_const(keyno, seq, seq_init_param, n_ranges,
-                                        bufsz, flags, cost);
+                                        bufsz, flags, limit, cost);
   xp->g->Mrr= !(*flags & HA_MRR_USE_DEFAULT_IMPL);
   return rows;
 } // end of multi_range_read_info_const
