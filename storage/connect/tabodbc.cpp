@@ -557,15 +557,17 @@ bool TDBODBC::OpenDB(PGLOBAL g)
 
     if (Memory < 3) {
       // Method will depend on cursor type
-      if ((Rbuf = Ocp->Rewind(Query->GetStr(), (PODBCCOL)Columns)) < 0)
-				if (Mode != MODE_READX) {
-	        Ocp->Close();
-		      return true;
-				}	else
-					Rbuf = 0;
-
-    } else
+      if (Query && (Rbuf = Ocp->Rewind(Query->GetStr(), (PODBCCOL)Columns)) < 0) {
+        if (Mode != MODE_READX) {
+          Ocp->Close();
+          return true;
+        } else {
+          Rbuf = 0;
+        }
+      }
+    } else {
       Rbuf = Qrp->Nblin;
+    }
 
     CurNum = 0;
     Fpos = 0;
