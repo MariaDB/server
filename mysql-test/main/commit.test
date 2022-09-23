@@ -1,4 +1,5 @@
 --source include/have_innodb.inc
+--source include/no_view_protocol.inc
 
 connect (con1,localhost,root,,);
 

@@ -79,6 +79,7 @@ DROP TABLE m2, m1, t2, t1;
 #
 # INSERT-SELECT with no TEMPORARY table.
 #
+--disable_service_connection
 CREATE TABLE t1 (c1 INT);
 CREATE TABLE t2 (c1 INT);
 CREATE TABLE m1 (c1 INT) ENGINE=MRG_MyISAM UNION=(t1,t2)
@@ -141,6 +142,7 @@ INSERT INTO m2 SELECT * FROM m1;
 SELECT * FROM m2;
 UNLOCK TABLES;
 DROP TABLE m2, m1, t2, t1;
+--enable_service_connection
 
 --echo End of 6.0 tests
 

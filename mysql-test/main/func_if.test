@@ -119,6 +119,8 @@ select if(0, 18446744073709551610, 18446744073709551610);
 
 CREATE TABLE t1(a DECIMAL(10,3));
 
+#enable after fix MDEV-27871
+--disable_view_protocol
 # check : should be fast. more than few secs means failure.
 SELECT t1.a,
  IF((ROUND(t1.a,2)=1), 2,
@@ -152,7 +154,7 @@ SELECT t1.a,
  IF((ROUND(t1.a,2)=1), 2,
  IF((ROUND(t1.a,2)=1), 2,0)))))))))))))))))))))))))))))) + 1
 FROM t1;
-
+--enable_view_protocol
 DROP TABLE t1;
 
 #

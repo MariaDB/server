@@ -78,6 +78,8 @@ drop table t1;
 # Test problem with DATE_FORMAT
 #
 
+#enable after fix MDEV-27871
+--disable_view_protocol
 CREATE TABLE t1(AFIELD INT);
 INSERT INTO t1 VALUES(1);
 CREATE TABLE t2(GMT  VARCHAR(32));
@@ -89,6 +91,7 @@ SELECT DATE_FORMAT("2002-03-06 10:11:12", CONCAT('%a, %d %M %Y %H:%i:%s ', t2.GM
        DATE_FORMAT("2002-03-06 10:11:12", CONCAT('%a, %d %M %Y %H:%i:%s ', t2.GMT))
 FROM t1,t2 GROUP BY t1.AFIELD;
 drop table t1,t2;
+--enable_view_protocol
 
 #
 # Multiple SELECT DATE_FORMAT gave incorrect results (Bug #4036)
@@ -288,7 +291,10 @@ drop table t1;
 --echo #
 --echo # MDEV-4634 Crash in CONVERT_TZ
 --echo #
+#enable after fix MDEV-27871
+--disable_view_protocol
 SELECT CONVERT_TZ(GREATEST(DATE('2021-00-00'),DATE('2022-00-00')),'+00:00','+7:5');
+--enable_view_protocol
 
 --echo #
 --echo # MDEV-4804 Date comparing false result 

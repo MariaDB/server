@@ -12,7 +12,10 @@ select from_days(to_days("960101")),to_days(960201)-to_days("19960101"),to_days(
 select period_add("9602",-12),period_diff(199505,"9404") ;
 
 select now()-now(),weekday(curdate())-weekday(now()),unix_timestamp()-unix_timestamp(now());
+#enable after fix MDEV-27871
+--disable_view_protocol
 select from_unixtime(unix_timestamp("1994-03-02 10:11:12")),from_unixtime(unix_timestamp("1994-03-02 10:11:12"),"%Y-%m-%d %h:%i:%s"),from_unixtime(unix_timestamp("1994-03-02 10:11:12"))+0;
+--enable_view_protocol
 select sec_to_time(9001),sec_to_time(9001)+0,time_to_sec("15:12:22"),
   sec_to_time(time_to_sec("0:30:47")/6.21);
 select sec_to_time(9001.1), time_to_sec('15:12:22.123456'), time_to_sec(15.5566778899);
@@ -24,11 +27,14 @@ select sec_to_time(-9001.1), sec_to_time(-9001.1) / 1,
 select sec_to_time(90011e-1), sec_to_time(1234567890123e30);
 select sec_to_time(1234567890123), sec_to_time('99999999999999999999999999999');
 select now()-curdate()*1000000-curtime();
+#enable after fix MDEV-27871
+--disable_view_protocol
 select strcmp(current_timestamp(),concat(current_date()," ",current_time()));
 select strcmp(localtime(),concat(current_date()," ",current_time()));
 select strcmp(localtimestamp(),concat(current_date()," ",current_time()));
 select date_format("1997-01-02 03:04:05", "%M %W %D %Y %y %m %d %h %i %s %w");
 select date_format("1997-01-02", concat("%M %W %D ","%Y %y %m %d %h %i %s %w"));
+--enable_view_protocol
 select dayofmonth("1997-01-02"),dayofmonth(19970323);
 select month("1997-01-02"),year("98-02-03"),dayofyear("1997-12-31");
 select month("2001-02-00"),year("2001-00-00");
@@ -78,8 +84,11 @@ select time_format(000000,'%H|%I|%k|%l|%i|%p|%r|%S|%T'),date_format(199801310000
 select time_format(010203,'%H|%I|%k|%l|%i|%p|%r|%S|%T'),date_format(19980131010203,'%H|%I|%k|%l|%i|%p|%r|%S|%T');
 select time_format(131415,'%H|%I|%k|%l|%i|%p|%r|%S|%T'),date_format(19980131131415,'%H|%I|%k|%l|%i|%p|%r|%S|%T');
 select time_format(010015,'%H|%I|%k|%l|%i|%p|%r|%S|%T'),date_format(19980131010015,'%H|%I|%k|%l|%i|%p|%r|%S|%T');
+#enable after fix MDEV-27871
+--disable_view_protocol
 select date_format(concat('19980131',131415),'%H|%I|%k|%l|%i|%p|%r|%S|%T| %M|%W|%D|%Y|%y|%a|%b|%j|%m|%d|%h|%s|%w');
 select date_format(19980021000000,'%H|%I|%k|%l|%i|%p|%r|%S|%T| %M|%W|%D|%Y|%y|%a|%b|%j|%m|%d|%h|%s|%w');
+--enable_view_protocol
 select date_add("1997-12-31 23:59:59",INTERVAL 1 SECOND);
 select date_add("1997-12-31 23:59:59",INTERVAL 1 MINUTE);
 select date_add("1997-12-31 23:59:59",INTERVAL 1 HOUR);
@@ -118,9 +127,12 @@ select date_add("1997-12-31 23:59:59",INTERVAL "10000:1" MINUTE_SECOND);
 select date_add("1997-12-31 23:59:59",INTERVAL "-10000:1" HOUR_MINUTE);
 select date_add("1997-12-31 23:59:59",INTERVAL "10000:1" DAY_HOUR);
 select date_add("1997-12-31 23:59:59",INTERVAL "-100 1" YEAR_MONTH);
+#enable after fix MDEV-27871
+--disable_view_protocol
 select date_add("1997-12-31 23:59:59",INTERVAL "10000:99:99" HOUR_SECOND);
 select date_add("1997-12-31 23:59:59",INTERVAL " -10000 99:99" DAY_MINUTE);
 select date_add("1997-12-31 23:59:59",INTERVAL "10000 99:99:99" DAY_SECOND);
+--enable_view_protocol
 select "1997-12-31 23:59:59" + INTERVAL 1 SECOND;
 select INTERVAL 1 DAY + "1997-12-31";
 select "1998-01-01 00:00:00" - INTERVAL 1 SECOND;
@@ -169,15 +181,22 @@ SELECT EXTRACT(QUARTER FROM '2004-12-15') AS quarter;
 #
 # MySQL Bugs: #12356: DATE_SUB or DATE_ADD incorrectly returns null
 #
+#enable after fix MDEV-27871
+--disable_view_protocol
 SELECT DATE_SUB(str_to_date('9999-12-31 00:01:00','%Y-%m-%d %H:%i:%s'), INTERVAL 1 MINUTE);
 SELECT DATE_ADD(str_to_date('9999-12-30 23:59:00','%Y-%m-%d %H:%i:%s'), INTERVAL 1 MINUTE);
+--enable_view_protocol
 
 #
 # Test big intervals (Bug #3498)
 #
 SELECT "1900-01-01 00:00:00" + INTERVAL 2147483648 SECOND;
 SELECT "1900-01-01 00:00:00" + INTERVAL "1:2147483647" MINUTE_SECOND;
-SELECT "1900-01-01 00:00:00" + INTERVAL "100000000:214748364700" MINUTE_SECOND;SELECT "1900-01-01 00:00:00" + INTERVAL 1<<37 SECOND;
+#enable after fix MDEV-27871
+--disable_view_protocol
+SELECT "1900-01-01 00:00:00" + INTERVAL "100000000:214748364700" MINUTE_SECOND;
+--disable_view_protocol
+SELECT "1900-01-01 00:00:00" + INTERVAL 1<<37 SECOND;
 SELECT "1900-01-01 00:00:00" + INTERVAL 1<<31 MINUTE;
 SELECT "1900-01-01 00:00:00" + INTERVAL 1<<20 HOUR;
 
@@ -426,9 +445,12 @@ select last_day("1997-12-1")+0.0;
 # Test SAPDB UTC_% functions. This part is TZ dependant (It is supposed that
 # TZ variable set to GMT-3
 
+#enable after fix MDEV-27871
+--disable_view_protocol
 select strcmp(date_sub(localtimestamp(), interval 3 hour), utc_timestamp())=0;
 select strcmp(date_format(date_sub(localtimestamp(), interval 3 hour),"%T"), utc_time())=0;
 select strcmp(date_format(date_sub(localtimestamp(), interval 3 hour),"%Y-%m-%d"), utc_date())=0;
+--enable_view_protocol
 select strcmp(date_format(utc_timestamp(),"%T"), utc_time())=0;
 select strcmp(date_format(utc_timestamp(),"%Y-%m-%d"), utc_date())=0;
 select strcmp(concat(utc_date(),' ',utc_time()),utc_timestamp())=0;
@@ -455,8 +477,11 @@ select last_day('2005-01-00');
 # Bug #18501: monthname and NULLs
 #
 
+#enable after fix MDEV-28535
+--disable_view_protocol
 select monthname(str_to_date(null, '%m')), monthname(str_to_date(null, '%m')),
        monthname(str_to_date(1, '%m')), monthname(str_to_date(0, '%m'));
+--enable_view_protocol
 
 #
 # Bug #16327: problem with timestamp < 1970
@@ -728,7 +753,10 @@ set time_zone= @@global.time_zone;
 #
 
 select str_to_date('10:00 PM', '%h:%i %p') + INTERVAL 10 MINUTE;
+#enable after fix MDEV-27871
+--disable_view_protocol
 select str_to_date("1997-00-04 22:23:00","%Y-%m-%D") + interval 10 minute;
+--enable_view_protocol
 
 #
 # Bug #21103: DATE column not compared as DATE
@@ -765,6 +793,7 @@ SELECT TIME_FORMAT(SEC_TO_TIME(a),"%H:%i:%s") FROM (SELECT 3020399 AS a UNION SE
 #
 # Bug#28875 Conversion between ASCII and LATIN1 charsets does not function
 #
+--disable_service_connection
 set names latin1;
 create table t1 (a varchar(15) character set ascii not null);
 insert into t1 values ('070514-000000');
@@ -785,6 +814,7 @@ set lc_time_names=fr_FR;
 select concat(a,ifnull(min(date_format(now(), '%Y-%m-%d')),' ull')) from t1;
 set lc_time_names=en_US;
 drop table t1;
+--enable_service_connection
 
 #
 # Bug#32180: DATE_ADD treats datetime numeric argument as DATE
@@ -816,7 +846,10 @@ select LAST_DAY('2007-12-06 08:59:19.05') - INTERVAL 1 SECOND;
 
 # show that we treat fractions of seconds correctly (zerofill from right to
 # six places) even if we left out fields on the left.
+#enable after fix MDEV-27871
+--disable_view_protocol
 select date_add('1000-01-01 00:00:00', interval '1.03:02:01.05' day_microsecond);
+--enable_view_protocol
 select date_add('1000-01-01 00:00:00', interval '1.02' day_microsecond);
 
 
@@ -1057,14 +1090,19 @@ SET timestamp=DEFAULT;
 
 SELECT UNIX_TIMESTAMP(STR_TO_DATE('201506', "%Y%m"));
 SELECT UNIX_TIMESTAMP('2015-06-00');
+#enable after fix MDEV-27871
+--disable_view_protocol
 SELECT UNIX_TIMESTAMP(STR_TO_DATE('0000-00-00 10:30:30', '%Y-%m-%d %h:%i:%s'));
-
+--enable_view_protocol
 set sql_mode= 'TRADITIONAL';
 SELECT @@sql_mode;
 
 SELECT UNIX_TIMESTAMP(STR_TO_DATE('201506', "%Y%m"));
 SELECT UNIX_TIMESTAMP('2015-06-00');
+#enable after fix MDEV-27871
+--disable_view_protocol
 SELECT UNIX_TIMESTAMP(STR_TO_DATE('0000-00-00 10:30:30', '%Y-%m-%d %h:%i:%s'));
+--enable_view_protocol
 
 set sql_mode= default;
 
@@ -1093,7 +1131,10 @@ select time('10 02:03:04') + interval 1 year;
 # specially constructed queries to reach obscure places in the code
 # not touched by the more "normal" queries (and to increase the coverage)
 select cast('131415.123e0' as time);
+#enable after fix MDEV-27871
+--disable_view_protocol
 select cast('2010-01-02 03:04:05' as datetime) between null and '2010-01-02 03:04:04';
+--enable_view_protocol
 select least(time('1:2:3'), '01:02:04', null) div 1;
 select truncate(least(time('1:2:3'), '01:02:04', null), 6);
 select cast(least(time('1:2:3'), '01:02:04', null) as decimal(3,1));
@@ -1130,9 +1171,12 @@ drop table t1;
 #
 # lp:731815 Crash/valgrind warning Item::send with 5.1-micro
 #
+#enable after fix MDEV-27871
+--disable_view_protocol
 SET timestamp=unix_timestamp('2001-02-03 10:20:30');
 select convert_tz(timediff('0000-00-00 00:00:00', cast('2008-03-26 07:09:06' as datetime)), 'UTC', 'Europe/Moscow');
 SET timestamp=DEFAULT;
+--enable_view_protocol
 
 #
 # lp:736370 Datetime functions in subquery context cause wrong result and bogus warnings in mysql-5.1-micr
@@ -1203,10 +1247,13 @@ drop table t1;
 
 SET timestamp=UNIX_TIMESTAMP('2014-06-01 10:20:30');
 select greatest(cast("0-0-0" as date), cast("10:20:05" as time));
+#enable after fix MDEV-27871
+--disable_view_protocol
 select greatest(cast("0-0-0" as date), cast("10:20:05" as time)) = '0000-00-00';
 select greatest(cast("0-0-0" as date), cast("10:20:05" as time)) = '2014-06-01';
 select greatest(cast("0-0-0" as date), cast("10:20:05" as time)) = '2014-06-01 10:20:05';
 select cast(greatest(cast("0-0-0" as date), cast("10:20:05" as time)) as datetime(6));
+--enable_view_protocol
 SET timestamp=DEFAULT;
 
 select microsecond('12:00:00.123456'), microsecond('2009-12-31 23:59:59.000010');
@@ -1601,7 +1648,9 @@ SELECT DATE_ADD('2001-01-01 10:20:30',INTERVAL 250000000000.0 SECOND) AS c1, DAT
 --echo # MDEV-4838 Wrong metadata for DATE_ADD('string', INVERVAL)
 --echo #
 --enable_metadata
+--disable_view_protocol
 SELECT DATE_ADD('2011-01-02 12:13:14', INTERVAL 1 MINUTE);
+--enable_view_protocol
 --disable_metadata
 
 --echo #
@@ -1803,6 +1852,8 @@ SELECT
 --echo #
 --echo # MDEV-10787 Assertion `ltime->neg == 0' failed in void date_to_datetime(MYSQL_TIME*)
 --echo #
+#enable after fix MDEV-27871
+--disable_view_protocol
 CREATE TABLE t1 (d DATE);
 INSERT INTO t1 VALUES ('2005-07-20'),('2012-12-21');
 SELECT REPLACE( ADDDATE( d, INTERVAL 0.6732771076944444 HOUR_SECOND ), '2', 'x' ) FROM t1;
@@ -1822,6 +1873,7 @@ SELECT ADDDATE(DATE'0000-01-01', INTERVAL '0:0:0:315569433599' DAY_SECOND);
 SELECT ADDDATE(DATE'0000-01-01', INTERVAL '3652423:0:0:315569433559' DAY_SECOND);
 SELECT ADDDATE(DATE'0000-01-01', INTERVAL '0:87658175:0:315569433559' DAY_SECOND);
 SELECT ADDDATE(DATE'0000-01-01', INTERVAL '0:0:5259490559:315569433599' DAY_SECOND);
+--disable_view_protocol
 
 --echo #
 --echo # MDEV-13202 Assertion `ltime->neg == 0' failed in date_to_datetime
@@ -1884,7 +1936,9 @@ INSERT INTO t1 VALUES ('1999-12-31 23:59:59.999999');
 --vertical_results
 --enable_metadata
 --disable_ps_protocol
+--disable_view_protocol
 --eval $query
+--enable_view_protocol
 --enable_ps_protocol
 --disable_metadata
 --horizontal_results
@@ -1902,7 +1956,9 @@ INSERT INTO t1 VALUES ('-838:59:59.999999'),('838:59:59.999999');
 --vertical_results
 --enable_metadata
 --disable_ps_protocol
+--disable_view_protocol
 --eval $query
+--enable_view_protocol
 --enable_ps_protocol
 --disable_metadata
 --horizontal_results

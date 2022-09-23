@@ -469,7 +469,9 @@ prepare stmt1 from ' handler t1 open ';
 prepare stmt3 from ' commit ' ;
 prepare stmt3 from ' rollback ' ;
 
-
+# the view protocol has to use the same connection,
+# not util connection
+--disable_service_connection
 ## switch the sql_mode
 prepare stmt4 from ' SET sql_mode=ansi ';
 execute stmt4;
@@ -486,6 +488,7 @@ execute stmt5;
 SET sql_mode=ansi;
 execute stmt5;
 SET sql_mode="";
+--enable_service_connection
 
 prepare stmt1 from ' flush local privileges ' ;
 prepare stmt1 from ' reset query cache ' ;

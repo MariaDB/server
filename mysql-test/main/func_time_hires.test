@@ -30,8 +30,11 @@ show create table t1;
 --query_vertical select * from t1
 drop table t1;
 
+#enable after fix MDEV-28535
+--disable_view_protocol
 --query_vertical select unix_timestamp('2011-01-01 01:01:01'), unix_timestamp('2011-01-01 01:01:01.123456'), unix_timestamp(cast('2011-01-01 01:01:01.123456' as datetime(0))), unix_timestamp(cast('2011-01-01 01:01:01.123456' as datetime(4)));
 --query_vertical select from_unixtime(unix_timestamp('2011/1/1 1:1:1')), from_unixtime(unix_timestamp('2011/1/1 1:1:1.123456')), from_unixtime(unix_timestamp(cast('2011/1/1 1:1:1.123456' as datetime(0)))), from_unixtime(unix_timestamp(cast('2011/1/1 1:1:1.123456' as datetime(4))));
+--enable_view_protocol
 
 select sec_to_time(3020399.99999), sec_to_time(3020399.999999), sec_to_time(3020399.9999999);
 select sec_to_time(-3020399.99999), sec_to_time(-3020399.999999), sec_to_time(-3020399.9999999);
@@ -80,7 +83,10 @@ select CAST(@a AS DATETIME(7));
 SELECT CONVERT_TZ('2011-01-02 12:00:00', '+00:00', '+03:00');
 SELECT CONVERT_TZ('2011-01-02 12:00:00.123', '+00:00', '+03:00');
 SELECT CONVERT_TZ('2011-01-02 12:00:00.123456', '+00:00', '+03:00');
+#enable after fix MDEV-27871
+--disable_view_protocol
 SELECT CONVERT_TZ(CAST('2010-10-10 10:10:10.123456' AS DATETIME(4)), '+00:00', '+03:00');
+--enable_view_protocol
 
 #
 # Field::store_time()

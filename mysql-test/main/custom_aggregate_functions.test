@@ -1,3 +1,6 @@
+# Check tests after fix MDEV-28475
+-- source include/no_view_protocol.inc
+
 create table t2 (sal int(10));
 delimiter |;
 

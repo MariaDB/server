@@ -2,6 +2,8 @@
 #
 # Test of query cache with --lower-case-table-names
 #
+-- source include/no_view_protocol.inc
+
 set @save_query_cache_size=@@query_cache_size;
 set GLOBAL query_cache_size=1355776;
 set GLOBAL query_cache_type=ON;
