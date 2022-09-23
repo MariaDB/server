@@ -8583,7 +8583,7 @@ int TABLE::update_virtual_fields(handler *h, enum_vcol_update_mode update_mode)
     {
       /* Compute the actual value of the virtual fields */
       DBUG_FIX_WRITE_SET(vf);
-# ifndef DBUG_OFF
+# ifdef DBUG_TRACE
       int field_error=
 # endif
       vcol_info->expr->save_in_field(vf, 0);

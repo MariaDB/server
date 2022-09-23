@@ -3831,7 +3831,7 @@ apply_event_and_update_pos_apply(Log_event* ev, THD* thd, rpl_group_info *rgi,
   }
 #endif
 
-#ifndef DBUG_OFF
+#ifdef DBUG_TRACE
   /*
     This only prints information to the debug trace.
 
@@ -3857,7 +3857,7 @@ apply_event_and_update_pos_apply(Log_event* ev, THD* thd, rpl_group_info *rgi,
   if (exec_res == 0)
   {
     int error= ev->update_pos(rgi);
- #ifndef DBUG_OFF
+#ifdef DBUG_TRACE
     DBUG_PRINT("info", ("update_pos error = %d", error));
     if (!rli->belongs_to_client())
     {

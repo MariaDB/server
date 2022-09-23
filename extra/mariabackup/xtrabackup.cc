@@ -6158,18 +6158,18 @@ static bool xtrabackup_prepare_func(char** argv)
           {
             for (int i= 0; i < got; i++)
             {
-#ifndef DBUG_OFF
+#ifdef DBUG_TRACE
               int rc=
-#endif // !DBUG_OFF
+#endif
                   innobase_rollback_by_xid(NULL, xid_list + i);
-#ifndef DBUG_OFF
+#ifdef DBUG_TRACE
               if (rc == 0)
               {
                 char buf[XIDDATASIZE * 4 + 6]; // see xid_to_str
                 DBUG_PRINT("info",
                            ("rollback xid %s", xid_to_str(buf, xid_list[i])));
               }
-#endif // !DBUG_OFF
+#endif
             }
           }
           ut_d(recv_no_log_write= true);

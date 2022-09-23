@@ -1,5 +1,5 @@
 /* Copyright (c) 2007, 2013, Oracle and/or its affiliates.
-   Copyright (c) 2008, 2019, MariaDB Corporation.
+   Copyright (c) 2008, 2022, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -319,7 +319,9 @@ unpack_row(rpl_group_info *rgi,
           normal unpack operation.
         */
         uint16 const metadata= tabledef->field_metadata(i);
-        IF_DBUG(uchar const *const old_pack_ptr= pack_ptr;,)
+#ifdef DBUG_TRACE
+        uchar const *const old_pack_ptr= pack_ptr;
+#endif
 
         pack_ptr= f->unpack(f->ptr, pack_ptr, row_end, metadata);
 	DBUG_PRINT("debug", ("field: %s; metadata: 0x%x;"

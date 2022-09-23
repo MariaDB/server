@@ -2278,7 +2278,7 @@ MDL_context::acquire_lock(MDL_request *mdl_request, double lock_wait_timeout)
   MDL_ticket *ticket;
   MDL_wait::enum_wait_status wait_status;
   DBUG_ENTER("MDL_context::acquire_lock");
-#ifndef DBUG_OFF
+#ifdef DBUG_TRACE
   const char *mdl_lock_name= get_mdl_lock_name(
     mdl_request->key.mdl_namespace(), mdl_request->type)->str;
 #endif
@@ -2304,7 +2304,7 @@ MDL_context::acquire_lock(MDL_request *mdl_request, double lock_wait_timeout)
     DBUG_RETURN(FALSE);
   }
 
-#ifndef DBUG_OFF
+#ifdef DBUG_TRACE
     const char *ticket_msg= dbug_print_mdl(ticket);
 #endif
 

@@ -661,14 +661,10 @@ err:
 
 static void *test_thread(void *arg)
 {
-#ifndef DBUG_OFF
-  int param= *((int*) arg);
-#endif
-
   my_thread_init();
   {
   DBUG_ENTER("test_thread");
-  DBUG_PRINT("enter", ("param: %d", param));
+  DBUG_PRINT("enter", ("param: %d", *(int*) arg));
 
   if (!simple_read_write_test() ||
       !simple_read_change_write_read_test() ||

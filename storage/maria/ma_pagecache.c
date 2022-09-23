@@ -184,7 +184,7 @@ struct st_pagecache_hash_link
 enum PCBLOCK_TEMPERATURE { PCBLOCK_COLD /*free*/ , PCBLOCK_WARM , PCBLOCK_HOT };
 
 /* debug info */
-#ifndef DBUG_OFF
+#ifdef DBUG_TRACE
 static const char *page_cache_page_type_str[]=
 {
   /* used only for control page type changing during debugging */
@@ -219,8 +219,9 @@ static const char *page_cache_page_pin_str[]=
   "unpinned -> pinned",
   "pinned -> unpinned"
 };
+#endif /* DBUG_TRACE */
 
-
+#ifndef DBUG_OFF
 typedef struct st_pagecache_pin_info
 {
   struct st_pagecache_pin_info *next, **prev;
@@ -549,7 +550,7 @@ static void pagecache_debug_print _VARARGS((const char *fmt, ...));
 #define KEYCACHE_DBUG_ASSERT(a)    DBUG_ASSERT(a)
 #endif /* defined(PAGECACHE_DEBUG_LOG) && defined(PAGECACHE_DEBUG) */
 
-#if defined(PAGECACHE_DEBUG) || !defined(DBUG_OFF)
+#if defined(PAGECACHE_DEBUG) || defined(DBUG_TRACE)
 static long pagecache_thread_id;
 #define KEYCACHE_THREAD_TRACE(l)                                              \
              KEYCACHE_DBUG_PRINT(l,("|thread %ld",pagecache_thread_id))
@@ -566,7 +567,7 @@ static long pagecache_thread_id;
 #define KEYCACHE_THREAD_TRACE_BEGIN(l)
 #define KEYCACHE_THREAD_TRACE_END(l)
 #define KEYCACHE_THREAD_TRACE(l)
-#endif /* defined(PAGECACHE_DEBUG) || !defined(DBUG_OFF) */
+#endif /* defined(PAGECACHE_DEBUG) || defined(DBUG_TRACE) */
 
 #define PCBLOCK_NUMBER(p, b)                                                    \
   ((uint) (((char*)(b)-(char *) p->block_root)/sizeof(PAGECACHE_BLOCK_LINK)))
@@ -3345,8 +3346,9 @@ uchar *pagecache_read(PAGECACHE *pagecache,
     unlock_pin= lock_to_pin[buff==0][lock].unlock_pin;
   PAGECACHE_BLOCK_LINK *fake_link;
   my_bool reg_request;
-#ifndef DBUG_OFF
+#ifdef DBUG_TRACE
   char llbuf[22];
+#endif
   DBUG_ENTER("pagecache_read");
   DBUG_PRINT("enter", ("fd: %u  page: %s  buffer: %p  level: %u  "
                        "t:%s  (%d)%s->%s  %s->%s",
@@ -3361,7 +3363,6 @@ uchar *pagecache_read(PAGECACHE *pagecache,
   DBUG_ASSERT(buff != 0 || (buff == 0 && (unlock_pin == PAGECACHE_PIN ||
                                           unlock_pin == PAGECACHE_PIN_LEFT_PINNED)));
   DBUG_ASSERT(pageno < ((1ULL) << 40));
-#endif
 
   if (!page_link)
     page_link= &fake_link;
@@ -3976,8 +3977,9 @@ my_bool pagecache_write_part(PAGECACHE *pagecache,
   my_bool error= 0;
   int need_lock_change= write_lock_change_table[lock].need_lock_change;
   my_bool reg_request;
-#ifndef DBUG_OFF
+#ifdef DBUG_TRACE
   char llbuf[22];
+#endif
   DBUG_ENTER("pagecache_write_part");
   DBUG_PRINT("enter", ("fd: %u  page: %s  level: %u  type: %s  lock: %s  "
                        "pin: %s   mode: %s  offset: %u  size %u",
@@ -3992,7 +3994,6 @@ my_bool pagecache_write_part(PAGECACHE *pagecache,
   DBUG_ASSERT(lock != PAGECACHE_LOCK_READ_UNLOCK);
   DBUG_ASSERT(offset + size <= pagecache->block_size);
   DBUG_ASSERT(pageno < ((1ULL) << 40));
-#endif
 
   if (!page_link)
     page_link= &fake_link;

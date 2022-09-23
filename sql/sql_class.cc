@@ -7054,7 +7054,7 @@ int THD::binlog_flush_pending_rows_event(bool stmt_end, bool is_transactional)
 }
 
 
-#if !defined(DBUG_OFF) && !defined(_lint)
+#if defined(DBUG_TRACE) && !defined(_lint)
 static const char *
 show_query_type(THD::enum_binlog_query_type qtype)
 {
