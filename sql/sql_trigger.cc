@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2004, 2012, Oracle and/or its affiliates.
-   Copyright (c) 2010, 2018, MariaDB
+   Copyright (c) 2010, 2022, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -596,7 +596,7 @@ bool mysql_create_or_drop_trigger(THD *thd, TABLE_LIST *tables, bool create)
       goto end;
   }
 
-#ifdef WITH_WSREP
+#if defined WITH_WSREP && defined ENABLED_DEBUG_SYNC
   DBUG_EXECUTE_IF("sync.mdev_20225",
                   {
                     const char act[]=
@@ -605,7 +605,7 @@ bool mysql_create_or_drop_trigger(THD *thd, TABLE_LIST *tables, bool create)
                     DBUG_ASSERT(!debug_sync_set_action(thd,
                                                        STRING_WITH_LEN(act)));
                   };);
-#endif /* WITH_WSREP */
+#endif /* WITH_WSREP && ENABLED_DEBUG_SYNC */
 
   result= (create ?
            table->triggers->create_trigger(thd, tables, &stmt_query):

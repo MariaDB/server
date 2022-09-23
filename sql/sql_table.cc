@@ -2115,10 +2115,12 @@ bool mysql_rm_table(THD *thd,TABLE_LIST *tables, bool if_exists,
     }
   }
 
+#ifdef ENABLED_DEBUG_SYNC
   DBUG_EXECUTE_IF("ib_purge_virtual_mdev_16222_1",
                   DBUG_ASSERT(!debug_sync_set_action(
                                 thd,
                                 STRING_WITH_LEN("now SIGNAL drop_started"))););
+#endif
 
   /* mark for close and remove all cached entries */
   thd->push_internal_handler(&err_handler);
@@ -9654,7 +9656,7 @@ bool mysql_alter_table(THD *thd, const LEX_CSTRING *new_db,
 
   DEBUG_SYNC(thd, "alter_opened_table");
 
-#ifdef WITH_WSREP
+#if defined WITH_WSREP && defined ENABLED_DEBUG_SYNC
   DBUG_EXECUTE_IF("sync.alter_opened_table",
                   {
                     const char act[]=

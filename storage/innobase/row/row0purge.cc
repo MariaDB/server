@@ -1314,7 +1314,7 @@ row_purge_step(
 
 	node->start();
 
-#ifdef UNIV_DEBUG
+#ifdef ENABLED_DEBUG_SYNC
 	srv_slot_t *slot = thr->thread_slot;
 	ut_ad(slot);
 

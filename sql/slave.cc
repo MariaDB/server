@@ -3797,12 +3797,14 @@ apply_event_and_update_pos_apply(Log_event* ev, THD* thd, rpl_group_info *rgi,
   Relay_log_info* rli= rgi->rli;
 
   DBUG_ENTER("apply_event_and_update_pos_apply");
+#ifdef ENABLED_DEBUG_SYNC
   DBUG_EXECUTE_IF("inject_slave_sql_before_apply_event",
     {
       DBUG_ASSERT(!debug_sync_set_action
                   (thd, STRING_WITH_LEN("now WAIT_FOR continue")));
       DBUG_SET_INITIAL("-d,inject_slave_sql_before_apply_event");
     };);
+#endif
   if (reason == Log_event::EVENT_SKIP_NOT)
     exec_res= ev->apply_event(rgi);
 
@@ -4388,6 +4390,7 @@ static int exec_relay_log_event(THD* thd, Relay_log_info* rli,
 #ifdef WITH_WSREP
     wsrep_after_statement(thd);
 #endif /* WITH_WSREP */
+#ifdef ENABLED_DEBUG_SYNC
     DBUG_EXECUTE_IF(
         "pause_sql_thread_on_fde",
         if (ev && typ == FORMAT_DESCRIPTION_EVENT) {
@@ -4396,6 +4399,7 @@ static int exec_relay_log_event(THD* thd, Relay_log_info* rli,
               STRING_WITH_LEN(
                   "now SIGNAL paused_on_fde WAIT_FOR sql_thread_continue")));
         });
+#endif
 
     DBUG_RETURN(exec_res);
   }

@@ -227,7 +227,7 @@ extern "C" my_bool wsrep_thd_bf_abort(THD *bf_thd, THD *victim_thd,
 {
   mysql_mutex_assert_owner(&victim_thd->LOCK_thd_kill);
   mysql_mutex_assert_owner(&victim_thd->LOCK_thd_data);
-
+#ifdef ENABLED_DEBUG_SYNC
   DBUG_EXECUTE_IF("sync.before_wsrep_thd_abort",
                  {
                    const char act[]=
@@ -237,7 +237,7 @@ extern "C" my_bool wsrep_thd_bf_abort(THD *bf_thd, THD *victim_thd,
                    DBUG_ASSERT(!debug_sync_set_action(bf_thd,
                                                       STRING_WITH_LEN(act)));
                  };);
-
+#endif
   my_bool ret= wsrep_bf_abort(bf_thd, victim_thd);
   /*
     Send awake signal if victim was BF aborted or does not

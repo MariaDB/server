@@ -7837,6 +7837,7 @@ static bool wsrep_mysql_parse(THD *thd, char *rawbuf, uint length,
           thd->lex->sql_command != SQLCOM_SELECT  &&
           thd->wsrep_retry_counter < thd->variables.wsrep_retry_autocommit)
       {
+#ifdef ENABLED_DEBUG_SYNC
 	DBUG_EXECUTE_IF("sync.wsrep_retry_autocommit",
                     {
                       const char act[]=
@@ -7845,6 +7846,7 @@ static bool wsrep_mysql_parse(THD *thd, char *rawbuf, uint length,
                         "WAIT_FOR wsrep_retry_autocommit_continue";
                       DBUG_ASSERT(!debug_sync_set_action(thd, STRING_WITH_LEN(act)));
                     });
+#endif
         WSREP_DEBUG("wsrep retrying AC query: %lu  %s",
                     thd->wsrep_retry_counter, wsrep_thd_query(thd));
         wsrep_prepare_for_autocommit_retry(thd, rawbuf, length, parser_state);

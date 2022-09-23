@@ -381,6 +381,7 @@ int Wsrep_high_priority_service::apply_toi(const wsrep::ws_meta& ws_meta,
   WSREP_DEBUG("Wsrep_high_priority_service::apply_toi: %lld",
               client_state.toi_meta().seqno().get());
 
+#ifdef ENABLED_DEBUG_SYNC
   DBUG_EXECUTE_IF("sync.wsrep_apply_toi",
                   {
                     const char act[]=
@@ -390,6 +391,7 @@ int Wsrep_high_priority_service::apply_toi(const wsrep::ws_meta& ws_meta,
                     DBUG_ASSERT(!debug_sync_set_action(thd,
                                                        STRING_WITH_LEN(act)));
                   };);
+#endif
 
   int ret= wsrep_apply_events(thd, m_rli, data.data(), data.size());
   if (ret != 0 || thd->wsrep_has_ignored_error)
@@ -439,6 +441,7 @@ int Wsrep_high_priority_service::log_dummy_write_set(const wsrep::ws_handle& ws_
   DBUG_PRINT("info",
              ("Wsrep_high_priority_service::log_dummy_write_set: seqno=%lld",
               ws_meta.seqno().get()));
+#ifdef ENABLED_DEBUG_SYNC
   DBUG_EXECUTE_IF("sync.wsrep_log_dummy_write_set",
                   {
                     const char act[]=
@@ -447,6 +450,7 @@ int Wsrep_high_priority_service::log_dummy_write_set(const wsrep::ws_handle& ws_
                     DBUG_ASSERT(!debug_sync_set_action(m_thd,
                                                        STRING_WITH_LEN(act)));
                   };);
+#endif
 
   if (ws_meta.ordered())
   {
@@ -536,6 +540,7 @@ int Wsrep_applier_service::apply_write_set(const wsrep::ws_meta& ws_meta,
   /* moved dbug sync point here, after possible THD switch for SR transactions
      has ben done
   */
+#ifdef ENABLED_DEBUG_SYNC
   /* Allow tests to block the applier thread using the DBUG facilities */
   DBUG_EXECUTE_IF("sync.wsrep_apply_cb",
                  {
@@ -546,6 +551,7 @@ int Wsrep_applier_service::apply_write_set(const wsrep::ws_meta& ws_meta,
                    DBUG_ASSERT(!debug_sync_set_action(thd,
                                                       STRING_WITH_LEN(act)));
                  };);
+#endif
 
   wsrep_setup_uk_and_fk_checks(thd);
 
@@ -694,6 +700,7 @@ int Wsrep_replayer_service::apply_write_set(const wsrep::ws_meta& ws_meta,
   DBUG_ASSERT(thd->wsrep_trx().active());
   DBUG_ASSERT(thd->wsrep_trx().state() == wsrep::transaction::s_replaying);
 
+#ifdef ENABLED_DEBUG_SYNC
   /* Allow tests to block the replayer thread using the DBUG facilities */
   DBUG_EXECUTE_IF("sync.wsrep_replay_cb",
                  {
@@ -704,6 +711,7 @@ int Wsrep_replayer_service::apply_write_set(const wsrep::ws_meta& ws_meta,
                    DBUG_ASSERT(!debug_sync_set_action(thd,
                                                       STRING_WITH_LEN(act)));
                  };);
+#endif
 
   wsrep_setup_uk_and_fk_checks(thd);
 

@@ -20579,6 +20579,7 @@ fail:
 for purge thread */
 static TABLE* innodb_find_table_for_vc(THD* thd, dict_table_t* table)
 {
+#ifdef ENABLED_DEBUG_SYNC
 	DBUG_EXECUTE_IF(
 		"ib_purge_virtual_mdev_16222_1",
 		DBUG_ASSERT(!debug_sync_set_action(
@@ -20592,6 +20593,7 @@ static TABLE* innodb_find_table_for_vc(THD* thd, dict_table_t* table)
 			    thd,
 			    STRING_WITH_LEN("ib_purge_virtual_got_no_such_table "
 					    "SIGNAL got_no_such_table"))););
+#endif
 
 	if (THDVAR(thd, background_thread)) {
 		/* Purge thread acquires dict_sys.latch while

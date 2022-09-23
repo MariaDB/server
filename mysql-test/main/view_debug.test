@@ -1,5 +1,6 @@
 
 --source include/have_debug.inc
+--source include/have_debug_sync.inc
 
 --echo #
 --echo #MDEV-8087:Server crashed in Time_and_counter_tracker::incr_loops

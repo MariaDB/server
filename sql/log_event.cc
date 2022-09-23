@@ -11384,12 +11384,13 @@ int Rows_log_event::do_apply_event(rpl_group_info *rgi)
 
     /* A small test to verify that objects have consistent types */
     DBUG_ASSERT(sizeof(thd->variables.option_bits) == sizeof(OPTION_RELAXED_UNIQUE_CHECKS));
-
+#ifdef ENABLED_DEBUG_SYNC
     DBUG_EXECUTE_IF("rows_log_event_before_open_table",
                     {
                       const char action[] = "now SIGNAL before_open_table WAIT_FOR go_ahead_sql";
                       DBUG_ASSERT(!debug_sync_set_action(thd, STRING_WITH_LEN(action)));
                     };);
+#endif
 
     /*
        Trigger's procedures work with global table list. So we have to add
