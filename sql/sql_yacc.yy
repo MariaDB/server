@@ -15379,7 +15379,8 @@ with_clause:
              Lex->derived_tables|= DERIVED_WITH;
              Lex->with_cte_resolution= true;
              Lex->curr_with_clause= with_clause;
-             with_clause->add_to_list(Lex->with_clauses_list_last_next);
+             with_clause->add_to_list(&Lex->with_clauses_list,
+                                      Lex->with_clauses_list_last_next);
           }
         with_list
           {
