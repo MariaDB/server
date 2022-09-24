@@ -6029,7 +6029,6 @@ void THD::get_definer(LEX_USER *definer, bool role)
     definer->user= invoker.user;
     definer->host= invoker.host;
     definer->auth= NULL;
-    definer->is_public= false;
   }
   else
 #endif

@@ -2801,7 +2801,7 @@ bool sp_process_definer(THD *thd)
     LEX_USER *d= get_current_user(thd, lex->definer);
     if (!d)
       DBUG_RETURN(TRUE);
-    if (d->is_public)
+    if (d->user.str == public_name.str)
     {
       my_error(ER_INVALID_ROLE, MYF(0), lex->definer->user.str);
       DBUG_RETURN(TRUE);
@@ -10064,7 +10064,6 @@ void get_default_definer(THD *thd, LEX_USER *definer, bool role)
   }
   definer->user.length= strlen(definer->user.str);
   definer->auth= NULL;
-  definer->is_public= false;
 }
 
 

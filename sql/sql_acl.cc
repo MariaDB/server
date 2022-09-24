@@ -108,6 +108,9 @@ LEX_CSTRING current_user_and_current_role=
 LEX_CSTRING none= {STRING_WITH_LEN("NONE") };
 LEX_CSTRING public_name= {STRING_WITH_LEN("PUBLIC") };
 
+static inline bool is_public(const char *l) { return l == public_name.str; }
+static inline bool is_public(const LEX_CSTRING *l) { return is_public(l->str); }
+static inline bool is_public(const LEX_USER *l) { return is_public(&l->user); }
 
 static plugin_ref old_password_plugin;
 static plugin_ref native_password_plugin;
@@ -2199,7 +2202,7 @@ ACL_ROLE::ACL_ROLE(const char *rolename, privilege_t privileges, MEM_ROOT *root)
   : initial_role_access(privileges), counter(0)
 {
   this->access= initial_role_access;
-  if (rolename == public_name.str)
+  if (is_public(rolename))
     this->user= public_name;
   else
   {
@@ -3597,8 +3600,8 @@ static void acl_insert_role(const char *rolename, privilege_t privileges)
                         sizeof(ACL_ROLE *), 0, 8, MYF(0));
 
   my_hash_insert(&acl_roles, (uchar *)entry);
-  DBUG_ASSERT(strcasecmp(rolename, public_name.str) || rolename == public_name.str);
-  if (rolename == public_name.str)
+  DBUG_ASSERT(strcasecmp(rolename, public_name.str) || is_public(rolename));
+  if (is_public(rolename))
     acl_public= entry;
 
   DBUG_VOID_RETURN;
@@ -7275,7 +7278,7 @@ int mysql_table_grant(THD *thd, TABLE_LIST *table_list,
     error= copy_and_check_auth(Str, Str, thd) ||
            replace_user_table(thd, tables.user_table(), Str,
                                NO_ACL, revoke_grant, create_new_users,
-                               MY_TEST(!Str->is_public &&
+                               MY_TEST(!is_public(Str) &&
                                        (thd->variables.sql_mode &
                                         MODE_NO_AUTO_CREATE_USER)));
     if (unlikely(error))
@@ -7461,7 +7464,7 @@ bool mysql_routine_grant(THD *thd, TABLE_LIST *table_list,
     if (copy_and_check_auth(Str, tmp_Str, thd) ||
         replace_user_table(thd, tables.user_table(), Str,
 			   NO_ACL, revoke_grant, create_new_users,
-                           !Str->is_public && (thd->variables.sql_mode &
+                           !is_public(Str) && (thd->variables.sql_mode &
                                      MODE_NO_AUTO_CREATE_USER)))
     {
       result= TRUE;
@@ -7707,7 +7710,6 @@ bool mysql_grant_role(THD *thd, List <LEX_USER> &list, bool revoke)
         continue;
       case ROLE_NAME_PUBLIC:
         user->host= hostname= empty_clex_str;
-        user->is_public= true;
         role_as_user= acl_public;
         break;
       case ROLE_NAME_OK:
@@ -7726,7 +7728,7 @@ bool mysql_grant_role(THD *thd, List <LEX_USER> &list, bool revoke)
 
     if (has_auth(user, thd->lex))
       DBUG_ASSERT(!grantee);
-    else if (!grantee && !user->is_public)
+    else if (!grantee && !is_public(user))
       grantee= find_user_exact(hostname.str, username.str);
 
     if (!grantee && !revoke)
@@ -7738,13 +7740,13 @@ bool mysql_grant_role(THD *thd, List <LEX_USER> &list, bool revoke)
       if (copy_and_check_auth(&user_combo, &user_combo, thd) ||
           replace_user_table(thd, tables.user_table(), &user_combo, NO_ACL,
                              false, create_new_user,
-                             (!user_combo.is_public && no_auto_create_user)))
+                             (!is_public(&user_combo) && no_auto_create_user)))
       {
         append_user(thd, &wrong_users, &username, &hostname);
         result= 1;
         continue;
       }
-      if (!user_combo.is_public)
+      if (!is_public(&user_combo))
         grantee= find_user_exact(hostname.str, username.str);
       else
         grantee= role_as_user= acl_public;
@@ -7913,7 +7915,7 @@ bool mysql_grant(THD *thd, const char *db, List <LEX_USER> &list,
         replace_user_table(thd, tables.user_table(), Str,
                            (!db ? rights : NO_ACL),
                            revoke_grant, create_new_users,
-                           MY_TEST(!Str->is_public &&
+                           MY_TEST(!is_public(Str) &&
                                    (thd->variables.sql_mode &
                                     MODE_NO_AUTO_CREATE_USER))))
       result= true;
@@ -9464,7 +9466,7 @@ bool get_show_user(THD *thd, LEX_USER *lex_user, const char **username,
   if (lex_user->is_role())
   {
     *rolename= lex_user->user.str;
-    do_check_access= !lex_user->is_public && strcmp(*rolename, sctx->priv_role);
+    do_check_access= !is_public(lex_user) && strcmp(*rolename, sctx->priv_role);
   }
   else
   {
@@ -9772,7 +9774,7 @@ static void add_to_user(THD *thd, String *result, const char *user,
                         bool is_user, const char *host)
 {
   result->append(STRING_WITH_LEN(" TO "));
-  if (user == public_name.str)
+  if (is_public(user))
     result->append(public_name);
   else
     append_identifier(thd, result, user, strlen(user));
@@ -11217,7 +11219,7 @@ bool mysql_drop_user(THD *thd, List <LEX_USER> &list, bool handle_as_role)
   {
     int rc;
     user_name= get_current_user(thd, tmp_user_name, false);
-    if (!user_name || (handle_as_role && user_name->is_public))
+    if (!user_name || (handle_as_role && is_public(user_name)))
     {
       thd->clear_error();
       if (!user_name)
@@ -11909,7 +11911,6 @@ bool sp_grant_privileges(THD *thd, const char *sp_db, const char *sp_name,
   thd->make_lex_string(&combo->host, combo->host.str, strlen(combo->host.str));
 
   combo->auth= NULL;
-  combo->is_public= false;
 
   if (user_list.push_back(combo, thd->mem_root))
     DBUG_RETURN(TRUE);
@@ -13006,8 +13007,6 @@ LEX_USER *get_current_user(THD *thd, LEX_USER *user, bool lock)
     if (!dup)
       return 0;
 
-    dup->is_public= false;
-
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
     if (has_auth(user, thd->lex))
     {
@@ -13020,7 +13019,6 @@ LEX_USER *get_current_user(THD *thd, LEX_USER *user, bool lock)
       return 0;
     if (result == ROLE_NAME_PUBLIC)
     {
-      dup->is_public= true;
       dup->host= empty_clex_str;
       return dup;
     }

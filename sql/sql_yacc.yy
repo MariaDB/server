@@ -17155,10 +17155,7 @@ role_name: ident_or_text
              if (lex_string_eq(&$1, &none))
                $$->user= none;
              else if (lex_string_eq(&$1, &public_name))
-             {
                $$->user= public_name;
-               $$->is_public= true;
-             }
              else if (check_string_char_length(&($$->user= $1), ER_USERNAME,
                                                username_char_length, cs, 0))
                MYSQL_YYABORT;
