@@ -794,7 +794,6 @@ public:
 					in that case we will
 					flush the log in
 					trx_commit_complete_for_mysql() */
-	ulint		duplicates;	/*!< TRX_DUP_IGNORE | TRX_DUP_REPLACE */
 	trx_dict_op_t	dict_operation;	/**< @see enum trx_dict_op_t */
 
 	ib_uint32_t	dict_operation_lock_mode;
@@ -1085,11 +1084,6 @@ inline bool trx_is_started(const trx_t* trx)
 #define TRX_ISO_SERIALIZABLE		3	/* all plain SELECTs are
 						converted to LOCK IN SHARE
 						MODE reads */
-
-/* Treatment of duplicate values (trx->duplicates; for example, in inserts).
-Multiple flags can be combined with bitwise OR. */
-#define TRX_DUP_IGNORE	1U	/* duplicate rows are to be updated */
-#define TRX_DUP_REPLACE	2U	/* duplicate rows are to be replaced */
 
 
 /** Commit node states */
