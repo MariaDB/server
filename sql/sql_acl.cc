@@ -281,8 +281,8 @@ public:
   uint  counter;
   DYNAMIC_ARRAY parent_grantee; // array of backlinks to elements granted
 
-  ACL_ROLE(ACL_USER * user, MEM_ROOT *mem);
-  ACL_ROLE(const char * rolename, privilege_t privileges, MEM_ROOT *mem);
+  ACL_ROLE(ACL_USER *user);
+  ACL_ROLE(const char *rolename, privilege_t privileges, MEM_ROOT *mem);
 
 };
 
@@ -2182,7 +2182,7 @@ enum enum_acl_lists
   ROLES_MAPPINGS_HASH
 };
 
-ACL_ROLE::ACL_ROLE(ACL_USER *user, MEM_ROOT *root)
+ACL_ROLE::ACL_ROLE(ACL_USER *user)
  :
   /* set initial role access the same as the table row privileges */
   initial_role_access(user->access),
@@ -2194,9 +2194,8 @@ ACL_ROLE::ACL_ROLE(ACL_USER *user, MEM_ROOT *root)
   flags= IS_ROLE;
 }
 
-ACL_ROLE::ACL_ROLE(const char * rolename, privilege_t privileges,
-                   MEM_ROOT *root) :
-  initial_role_access(privileges), counter(0)
+ACL_ROLE::ACL_ROLE(const char *rolename, privilege_t privileges, MEM_ROOT *root)
+  : initial_role_access(privileges), counter(0)
 {
   this->access= initial_role_access;
   this->user.str= safe_strdup_root(root, rolename);
@@ -2666,7 +2665,7 @@ static bool acl_load(THD *thd, const Grant_tables& tables)
         continue;
       }
 
-      ACL_ROLE *entry= new (&acl_memroot) ACL_ROLE(&user, &acl_memroot);
+      ACL_ROLE *entry= new (&acl_memroot) ACL_ROLE(&user);
       entry->role_grants = user.role_grants;
       my_init_dynamic_array(key_memory_acl_mem, &entry->parent_grantee,
                             sizeof(ACL_USER_BASE *), 0, 8, MYF(0));
@@ -8518,16 +8517,13 @@ void GRANT_INFO::read(const Security_context *sctx,
   grant_table_user= grant_table_role= grant_public= NULL;
 #else
   grant_table_user=
-    table_hash_search(sctx->host, sctx->ip, db,
-                      sctx->priv_user,
+    table_hash_search(sctx->host, sctx->ip, db, sctx->priv_user,
                       table, FALSE);         /* purecov: inspected */
   grant_table_role=
-    sctx->priv_role[0] ? table_hash_search("", NULL, db,
-                                           sctx->priv_role,
+    sctx->priv_role[0] ? table_hash_search("", NULL, db, sctx->priv_role,
                                            table, TRUE) : NULL;
   grant_public=
-    acl_public ? table_hash_search("", NULL, db,
-                                   public_name.str,
+    acl_public ? table_hash_search("", NULL, db, public_name.str,
                                    table, TRUE) : NULL;
 #endif
   version= grant_version;		/* purecov: inspected */
@@ -11211,8 +11207,7 @@ bool mysql_drop_user(THD *thd, List <LEX_USER> &list, bool handle_as_role)
     int rc;
     user_name= get_current_user(thd, tmp_user_name, false);
     if (!user_name || (handle_as_role &&
-                       (strcasecmp(user_name->user.str,
-                                   public_name.str) == 0)))
+                       (strcasecmp(user_name->user.str, public_name.str) == 0)))
     {
       thd->clear_error();
       if (!user_name)
@@ -13010,8 +13005,7 @@ LEX_USER *get_current_user(THD *thd, LEX_USER *user, bool lock)
       return dup;
     }
 
-    role_name_check_result result= check_role_name(user->user.str,
-                                                   user->host.length == 0);
+    role_name_check_result result= check_role_name(user->user.str, true);
     if (result == ROLE_NAME_INVALID)
       return 0;
     if (result == ROLE_NAME_PUBLIC)

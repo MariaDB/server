@@ -17156,8 +17156,7 @@ grant_role:
             $$->host= empty_clex_str;
 
             if (unlikely(check_string_char_length(&$$->user, ER_USERNAME,
-                                                  username_char_length,
-                                                  cs, 0)))
+                                                  username_char_length, cs, 0)))
               MYSQL_YYABORT;
           }
         | current_role
