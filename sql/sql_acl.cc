@@ -105,6 +105,7 @@ LEX_CSTRING current_user= { STRING_WITH_LEN("*current_user") };
 LEX_CSTRING current_role= { STRING_WITH_LEN("*current_role") };
 LEX_CSTRING current_user_and_current_role=
  { STRING_WITH_LEN("*current_user_and_current_role") };
+LEX_CSTRING none= {STRING_WITH_LEN("NONE") };
 LEX_CSTRING public_name= {STRING_WITH_LEN("PUBLIC") };
 
 
@@ -2198,8 +2199,13 @@ ACL_ROLE::ACL_ROLE(const char *rolename, privilege_t privileges, MEM_ROOT *root)
   : initial_role_access(privileges), counter(0)
 {
   this->access= initial_role_access;
-  this->user.str= safe_strdup_root(root, rolename);
-  this->user.length= strlen(rolename);
+  if (rolename == public_name.str)
+    this->user= public_name;
+  else
+  {
+    this->user.str= safe_strdup_root(root, rolename);
+    this->user.length= strlen(rolename);
+  }
   bzero(&parent_grantee, sizeof(parent_grantee));
   flags= IS_ROLE;
 }
@@ -2211,24 +2217,26 @@ enum role_name_check_result
   ROLE_NAME_INVALID
 };
 
-static role_name_check_result check_role_name(const char *str,
+static role_name_check_result check_role_name(LEX_CSTRING *str,
                                               bool public_is_ok)
 {
-  if (*str)
+  if (str->length)
   {
-    if (strcasecmp(str, public_name.str) == 0)
+    if (str->length == public_name.length &&
+        strcasecmp(str->str, public_name.str) == 0)
     {
+      *str= public_name;
       if (public_is_ok)
         return ROLE_NAME_PUBLIC;
       else
         goto error;
     }
-    if (strcasecmp(str, "NONE") != 0)
+    if (str->length != none.length || strcasecmp(str->str, none.str) != 0)
       return ROLE_NAME_OK;
   }
 
 error:
-  my_error(ER_INVALID_ROLE, MYF(0), str);
+  my_error(ER_INVALID_ROLE, MYF(0), str->str);
   return ROLE_NAME_INVALID;
 }
 
@@ -2658,7 +2666,7 @@ static bool acl_load(THD *thd, const Grant_tables& tables)
 
     if (is_role)
     {
-      role_name_check_result result= check_role_name(username, true);
+      role_name_check_result result= check_role_name(&user.user, true);
       if (result == ROLE_NAME_INVALID)
       {
         thd->clear_error(); // the warning is still issued
@@ -3307,7 +3315,7 @@ static int check_user_can_set_role(THD *thd, const char *user,
   /* clear role privileges */
   mysql_mutex_lock(&acl_cache->lock);
 
-  if (!strcasecmp(rolename, "NONE"))
+  if (!strcasecmp(rolename, none.str))
   {
     /* have to clear the privileges */
     /* get the current user */
@@ -3426,7 +3434,7 @@ int acl_setrole(THD *thd, const char *rolename, privilege_t access)
   /* merge the privileges */
   Security_context *sctx= thd->security_ctx;
   sctx->master_access= access;
-  if (!strcasecmp(rolename, "NONE"))
+  if (!strcasecmp(rolename, none.str))
   {
     thd->security_ctx->priv_role[0]= 0;
   }
@@ -3589,7 +3597,8 @@ static void acl_insert_role(const char *rolename, privilege_t privileges)
                         sizeof(ACL_ROLE *), 0, 8, MYF(0));
 
   my_hash_insert(&acl_roles, (uchar *)entry);
-  if (strcasecmp(rolename, public_name.str) == 0)
+  DBUG_ASSERT(strcasecmp(rolename, public_name.str) || rolename == public_name.str);
+  if (rolename == public_name.str)
     acl_public= entry;
 
   DBUG_VOID_RETURN;
@@ -4243,7 +4252,7 @@ int acl_set_default_role(THD *thd, const char *host, const char *user,
   DBUG_PRINT("enter",("host: '%s'  user: '%s'  rolename: '%s'",
                       user, safe_str(host), safe_str(rolename)));
 
-  if (!strcasecmp(rolename, "NONE"))
+  if (!strcasecmp(rolename, none.str))
     clear_role= TRUE;
 
   if (mysql_bin_log.is_open() ||
@@ -4448,8 +4457,7 @@ static ACL_ROLE *find_acl_role(const char *role, bool allow_public)
 
   mysql_mutex_assert_owner(&acl_cache->lock);
 
-  if (!length || (!allow_public && length == public_name.length &&
-                  strcasecmp(role, public_name.str) == 0))
+  if (!length || (!allow_public && strcasecmp(role, public_name.str) == 0))
     DBUG_RETURN(NULL);
 
   ACL_ROLE *r= (ACL_ROLE *)my_hash_search(&acl_roles, (uchar *)role, length);
@@ -7655,8 +7663,8 @@ bool mysql_grant_role(THD *thd, List <LEX_USER> &list, bool revoke)
       /* current_role is NONE */
       if (!thd->security_ctx->priv_role[0])
       {
-        my_error(ER_INVALID_ROLE, MYF(0), "NONE");
-        append_str(&wrong_users, STRING_WITH_LEN("NONE"));
+        my_error(ER_INVALID_ROLE, MYF(0), none.str);
+        append_str(&wrong_users, none.str, none.length);
         result= 1;
         continue;
       }
@@ -7689,30 +7697,27 @@ bool mysql_grant_role(THD *thd, List <LEX_USER> &list, bool revoke)
     }
     else
     {
-      username= user->user;
       if (user->host.str)
         hostname= user->host;
       else
-      if ((role_as_user= find_acl_role(user->user.str, false)))
-        hostname= empty_clex_str;
-      else
-      {
-        switch (check_role_name(username.str, true)) {
-        case ROLE_NAME_INVALID:
-          append_user(thd, &wrong_users, &username, &empty_clex_str);
-          result= 1;
-          continue;
-        case ROLE_NAME_PUBLIC:
-          user->user= username= public_name; // fix the letter case
-          user->host= hostname= empty_clex_str;
-          user->is_public= true;
-          role_as_user= acl_public;
-          break;
-        case ROLE_NAME_OK:
+      switch (check_role_name(&user->user, true)) {
+      case ROLE_NAME_INVALID:
+        append_user(thd, &wrong_users, &user->user, &empty_clex_str);
+        result= 1;
+        continue;
+      case ROLE_NAME_PUBLIC:
+        user->host= hostname= empty_clex_str;
+        user->is_public= true;
+        role_as_user= acl_public;
+        break;
+      case ROLE_NAME_OK:
+        if ((role_as_user= find_acl_role(user->user.str, false)))
+          hostname= empty_clex_str;
+        else
           hostname= host_not_specified;
-          break;
-        }
+        break;
       }
+      username= user->user;
     }
 
     ROLE_GRANT_PAIR *hash_entry= find_role_grant_pair(&username, &hostname,
@@ -9673,7 +9678,10 @@ static bool show_role_grants(THD *thd, const char *hostname,
                                           ACL_ROLE**));
     append_identifier(thd, &grant, acl_role->user.str, acl_role->user.length);
     grant.append(STRING_WITH_LEN(" TO "));
-    append_identifier(thd, &grant, acl_entry->user.str, acl_entry->user.length);
+    if (acl_entry == acl_public)
+      grant.append(public_name);
+    else
+      append_identifier(thd, &grant, acl_entry->user.str, acl_entry->user.length);
     if (!(acl_entry->flags & IS_ROLE))
     {
       grant.append('@');
@@ -9715,9 +9723,7 @@ static bool show_global_privileges(THD *thd, ACL_USER_BASE *acl_entry,
     want_access= acl_entry->access;
 
   // suppress "GRANT USAGE ON *.* TO `PUBLIC`"
-  if (!(want_access & ~GRANT_ACL) &&
-      acl_entry->user.length == public_name.length &&
-      strcasecmp(acl_entry->user.str, public_name.str) == 0)
+  if (!(want_access & ~GRANT_ACL) && acl_entry == acl_public)
     return FALSE;
 
   if (test_all_bits(want_access, (GLOBAL_ACLS & ~ GRANT_ACL)))
@@ -9741,7 +9747,10 @@ static bool show_global_privileges(THD *thd, ACL_USER_BASE *acl_entry,
     }
   }
   global.append (STRING_WITH_LEN(" ON *.* TO "));
-  append_identifier(thd, &global, acl_entry->user.str, acl_entry->user.length);
+  if (acl_entry == acl_public)
+    global.append(public_name);
+  else
+    append_identifier(thd, &global, acl_entry->user.str, acl_entry->user.length);
 
   if (!handle_as_role)
     add_user_parameters(thd, &global, (ACL_USER *)acl_entry,
@@ -9763,7 +9772,10 @@ static void add_to_user(THD *thd, String *result, const char *user,
                         bool is_user, const char *host)
 {
   result->append(STRING_WITH_LEN(" TO "));
-  append_identifier(thd, result, user, strlen(user));
+  if (user == public_name.str)
+    result->append(public_name);
+  else
+    append_identifier(thd, result, user, strlen(user));
   if (is_user)
   {
     result->append('@');
@@ -9982,9 +9994,8 @@ static bool show_table_and_column_privileges(THD *thd, const char *username,
 
 }
 
-static int show_routine_grants(THD* thd,
-                               const char *username, const char *hostname,
-                               const Sp_handler *sph,
+static int show_routine_grants(THD* thd, const char *username,
+                               const char *hostname, const Sp_handler *sph,
                                char *buff, int buffsize)
 {
   uint counter, index;
@@ -11046,7 +11057,7 @@ bool mysql_create_user(THD *thd, List <LEX_USER> &list, bool handle_as_role)
     }
 
     if (handle_as_role &&
-        (check_role_name(user_name->user.str, false) == ROLE_NAME_INVALID))
+        (check_role_name(&user_name->user, false) == ROLE_NAME_INVALID))
     {
       append_user(thd, &wrong_users, user_name);
       result= TRUE;
@@ -11206,8 +11217,7 @@ bool mysql_drop_user(THD *thd, List <LEX_USER> &list, bool handle_as_role)
   {
     int rc;
     user_name= get_current_user(thd, tmp_user_name, false);
-    if (!user_name || (handle_as_role &&
-                       (strcasecmp(user_name->user.str, public_name.str) == 0)))
+    if (!user_name || (handle_as_role && user_name->is_public))
     {
       thd->clear_error();
       if (!user_name)
@@ -13005,13 +13015,12 @@ LEX_USER *get_current_user(THD *thd, LEX_USER *user, bool lock)
       return dup;
     }
 
-    role_name_check_result result= check_role_name(user->user.str, true);
+    role_name_check_result result= check_role_name(&dup->user, true);
     if (result == ROLE_NAME_INVALID)
       return 0;
     if (result == ROLE_NAME_PUBLIC)
     {
       dup->is_public= true;
-      dup->user= public_name; // fix the letter case
       dup->host= empty_clex_str;
       return dup;
     }

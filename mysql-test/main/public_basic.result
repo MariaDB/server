@@ -19,20 +19,20 @@ Host	User	Priv
 	PUBLIC	{"access":0,"version_id":VERSION,"is_role":true}
 SHOW GRANTS FOR PUBLIC;
 Grants for PUBLIC
-GRANT SELECT ON `test`.* TO `PUBLIC`
-GRANT SELECT ON `mysql`.`db` TO `PUBLIC`
+GRANT SELECT ON `test`.* TO PUBLIC
+GRANT SELECT ON `mysql`.`db` TO PUBLIC
 GRANT UPDATE on test.* to PUBLIC;
 grant update on mysql.db to public;
 show grants for public;
 Grants for PUBLIC
-GRANT SELECT, UPDATE ON `test`.* TO `PUBLIC`
-GRANT SELECT, UPDATE ON `mysql`.`db` TO `PUBLIC`
+GRANT SELECT, UPDATE ON `test`.* TO PUBLIC
+GRANT SELECT, UPDATE ON `mysql`.`db` TO PUBLIC
 revoke select on test.* from public;
 REVOKE SELECT on mysql.db from PUBLIC;
 SHOW GRANTS FOR PUBLIC;
 Grants for PUBLIC
-GRANT UPDATE ON `test`.* TO `PUBLIC`
-GRANT UPDATE ON `mysql`.`db` TO `PUBLIC`
+GRANT UPDATE ON `test`.* TO PUBLIC
+GRANT UPDATE ON `mysql`.`db` TO PUBLIC
 REVOKE UPDATE on test.* from PUBLIC;
 REVOKE UPDATE on mysql.db from PUBLIC;
 SHOW GRANTS FOR PUBLIC;
@@ -46,7 +46,7 @@ revoke xxxxxx from current_user;
 ERROR OP000: Invalid role specification `xxxxxx`
 # following should fail with the same error as above
 revoke public from current_user;
-ERROR OP000: Invalid role specification `public`
+ERROR OP000: Invalid role specification `PUBLIC`
 drop role XXXXXX;
 ERROR HY000: Operation DROP ROLE failed for 'XXXXXX'
 # following should fail with the same error as above
@@ -63,7 +63,7 @@ ERROR OP000: Invalid role specification `XXXXXX`
 SET DEFAULT ROLE PUBLIC;
 ERROR OP000: Invalid role specification `PUBLIC`
 set default role public;
-ERROR OP000: Invalid role specification `public`
+ERROR OP000: Invalid role specification `PUBLIC`
 #
 # check prohibition of change security context to PUBLIC
 #

@@ -1580,7 +1580,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
                            field_scale opt_field_scale
 
 %type <lex_user> user grant_user grant_role user_or_role current_role
-                 admin_option_for_role user_maybe_role
+                 admin_option_for_role user_maybe_role role_name
 
 %type <user_auth> opt_auth_str auth_expression auth_token
                   text_or_password
@@ -16686,12 +16686,12 @@ option_value_no_option_type:
             if (unlikely(sp_create_assignment_instr(thd, yychar == YYEMPTY)))
               MYSQL_YYABORT;
           }
-        | ROLE_SYM ident_or_text
+        | ROLE_SYM role_name
           {
             if (sp_create_assignment_lex(thd, $1.pos()))
               MYSQL_YYABORT;
             LEX *lex = Lex;
-            set_var_role *var= new (thd->mem_root) set_var_role($2);
+            set_var_role *var= new (thd->mem_root) set_var_role($2->user);
             if (unlikely(var == NULL) ||
                 unlikely(lex->var_list.push_back(var, thd->mem_root)) ||
                 unlikely(sp_create_assignment_instr(thd, yychar == YYEMPTY)))
@@ -17141,26 +17141,32 @@ current_role:
           }
           ;
 
-grant_role:
-          ident_or_text
-          {
-            CHARSET_INFO *cs= system_charset_info;
-            /* trim end spaces (as they'll be lost in mysql.user anyway) */
-            $1.length= cs->lengthsp($1.str, $1.length);
-            ((char*) $1.str)[$1.length] = '\0';
-            if (unlikely($1.length == 0))
-              my_yyabort_error((ER_INVALID_ROLE, MYF(0), ""));
-            if (unlikely(!($$=(LEX_USER*) thd->calloc(sizeof(LEX_USER)))))
-              MYSQL_YYABORT;
-            $$->user= $1;
-            $$->host= empty_clex_str;
 
-            if (unlikely(check_string_char_length(&$$->user, ER_USERNAME,
-                                                  username_char_length, cs, 0)))
-              MYSQL_YYABORT;
-          }
-        | current_role
-        ;
+role_name: ident_or_text
+           {
+             CHARSET_INFO *cs= system_charset_info;
+             /* trim end spaces (as they'll be lost in mysql.user anyway) */
+             $1.length= cs->lengthsp($1.str, $1.length);
+             ((char*) $1.str)[$1.length] = '\0';
+             if (unlikely($1.length == 0))
+               my_yyabort_error((ER_INVALID_ROLE, MYF(0), ""));
+             if (unlikely(!($$=(LEX_USER*) thd->calloc(sizeof(LEX_USER)))))
+               MYSQL_YYABORT;
+             if (lex_string_eq(&$1, &none))
+               $$->user= none;
+             else if (lex_string_eq(&$1, &public_name))
+             {
+               $$->user= public_name;
+               $$->is_public= true;
+             }
+             else if (check_string_char_length(&($$->user= $1), ER_USERNAME,
+                                               username_char_length, cs, 0))
+               MYSQL_YYABORT;
+             $$->host= empty_clex_str;
+           }
+           ;
+
+grant_role: role_name | current_role ;
 
 opt_table:
           /* Empty */

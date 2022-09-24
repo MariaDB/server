@@ -58,6 +58,8 @@ extern LEX_CSTRING host_not_specified;
 extern LEX_CSTRING current_user;
 extern LEX_CSTRING current_role;
 extern LEX_CSTRING current_user_and_current_role;
+extern LEX_CSTRING none;
+extern LEX_CSTRING public_name;
 
 
 static inline int access_denied_error_code(int passwd_used)
