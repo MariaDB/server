@@ -273,6 +273,7 @@ class SEL_ARG :public Sql_alloc
 {
   static int sel_cmp(Field *field, uchar *a, uchar *b, uint8 a_flag,
                      uint8 b_flag);
+  bool min_max_are_equal() const;
 public:
   uint8 min_flag,max_flag,maybe_flag;
   uint8 part;					// Which key part
@@ -369,6 +370,7 @@ public:
       return false;
     return true;
   }
+  int number_of_eq_groups(uint group_key_parts) const;
   inline void merge_flags(SEL_ARG *arg) { maybe_flag|=arg->maybe_flag; }
   inline void maybe_smaller() { maybe_flag=1; }
   /* Return true iff it's a single-point null interval */
