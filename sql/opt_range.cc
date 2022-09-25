@@ -2174,6 +2174,27 @@ int SEL_ARG::sel_cmp(Field *field, uchar *a, uchar *b, uint8 a_flag,
 }
 
 
+/*
+  Check if min and values are equal
+
+  @return 1 if equal
+*/
+
+bool SEL_ARG::min_max_are_equal() const
+{
+  uint offset= 0;
+  if (field->real_maybe_null())			// If null is part of key
+  {
+    if (*min_value != *max_value)
+      return 0;
+    if (*min_value)
+      return 1;					// NULL where equal
+    offset= 1;                                  // Skip NULL marker
+  }
+  return field->key_cmp(min_value+offset, max_value+offset) == 0;
+}
+
+
 SEL_ARG *SEL_ARG::clone_tree(RANGE_OPT_PARAM *param)
 {
   SEL_ARG tmp_link,*next_arg,*root;
@@ -11040,6 +11061,50 @@ uint SEL_ARG::get_max_key_part() const
 }
 
 
+/**
+  Compute the number of eq_ranges top elements in the tree
+
+  This is used by the cost_group_min_max() to calculate the number of
+  groups in SEL_TREE
+
+  @param group_key_parts number of key parts that must be equal
+
+  @return < 0  Not known
+  @return >= 0  Number of groups
+*/
+
+int SEL_ARG::number_of_eq_groups(uint group_key_parts) const
+{
+  int elements= 0;
+  SEL_ARG const *cur;
+
+  if (part > group_key_parts-1 || type != KEY_RANGE)
+    return -1;
+
+  cur= first();
+  do
+  {
+    if ((cur->min_flag | cur->min_flag) &
+        (NO_MIN_RANGE | NO_MAX_RANGE | NEAR_MIN | NEAR_MAX | GEOM_FLAG))
+      return -1;
+    if (min_value != max_value && !min_max_are_equal())
+      return -1;
+    if (part != group_key_parts -1)
+    {
+      int tmp;
+      if (!next_key_part)
+        return -1;
+      if ((tmp= next_key_part->number_of_eq_groups(group_key_parts)) < 0)
+        return -1;
+      elements+= tmp;
+    }
+    else
+      elements++;
+  } while ((cur= cur->next));
+  return elements;
+}
+
+
 /*
   Remove the SEL_ARG graph elements which have part > max_part.
 
@@ -11092,8 +11157,8 @@ void prune_sel_arg_graph(SEL_ARG *sel_arg, uint max_part)
 
   @return
     tree pointer  The tree after processing,
-    NULL          If it was not possible to reduce the weight of the tree below the
-                  limit.
+    NULL          If it was not possible to reduce the weight of the tree below
+                  the limit.
 */
 
 SEL_ARG *enforce_sel_arg_weight_limit(RANGE_OPT_PARAM *param, uint keyno,
@@ -14950,7 +15015,7 @@ get_field_keypart(KEY *index, Field *field)
     have_min             [in] True if there is a MIN function
     have_max             [in] True if there is a MAX function
     read_cost           [out] The cost to retrieve rows via this quick select
-    records             [out] The number of rows retrieved
+    out_records         [out] The number of rows retrieved
 
   DESCRIPTION
     This method computes the access cost of a TRP_GROUP_MIN_MAX instance and
@@ -14967,6 +15032,20 @@ get_field_keypart(KEY *index, Field *field)
         If the engine does not support a native next_prefix, we will
         either scan the index for the next value or do a new index dive
         with 'find next bigger key'.
+
+    When using MIN() and MAX() in the query, the calls to the storage engine
+    are as follows for each group:
+      Assuming kp1 in ('abc','def','ghi)' and kp2 between 1000 and 2000
+
+      read_key('abc', HA_READ_KEY_OR_NEXT)
+      In case of MIN() we do:
+        read_key('abc,:'1000', HA_READ_KEY_OR_NEXT)
+      In case of MAX() we do
+        read_key('abc,:'2000', HA_READ_PREFIX_LAST_OR_PREV)
+      In the following code we will assume that the MIN key will be in
+      the same block as the first key read.
+      (We should try to optimize away the extra call for MAX() at some
+       point).
 
   NOTES
     See get_best_group_min_max() for which kind of queries this function
@@ -15013,36 +15092,27 @@ void cost_group_min_max(TABLE* table, KEY *index_info, uint used_key_parts,
                         uint group_key_parts, SEL_TREE *range_tree,
                         SEL_ARG *index_tree, ha_rows quick_prefix_records,
                         bool have_min, bool have_max,
-                        double *read_cost, ha_rows *records)
+                        double *read_cost, ha_rows *out_records)
 {
-  uint    keys_per_block, key_length;
-  ha_rows table_records;
+  uint    key_length;
+  ha_rows records;
   ha_rows num_groups;
   ha_rows num_blocks;
   ha_rows keys_per_group;
-  ha_rows keys_per_subgroup; /* Average number of keys in sub-groups */
-                          /* formed by a key infix. */
-  double p_overlap; /* Probability that a sub-group overlaps two blocks. */
   double quick_prefix_selectivity;
-  double io_cost;
+  ulonglong io_cost;
   handler *file= table->file;
   DBUG_ENTER("cost_group_min_max");
 
   /* Same code as in handler::key_read_time() */
-  table_records= table->stat_records();
+  records= table->stat_records();
   key_length= (index_info->key_length + file->ref_length);
-  num_blocks= (table_records * key_length / INDEX_BLOCK_FILL_FACTOR_DIV *
-               INDEX_BLOCK_FILL_FACTOR_MUL) / file->stats.block_size + 1;
-  keys_per_block= (file->stats.block_size /
-                   (key_length * INDEX_BLOCK_FILL_FACTOR_MUL /
-                    INDEX_BLOCK_FILL_FACTOR_DIV) +
-                   1);
 
   /* Compute the number of keys in a group. */
   if (!group_key_parts)
   {
     /* Summary over the whole table */
-    keys_per_group= MY_MAX(table_records,1);
+    keys_per_group= MY_MAX(records,1);
   }
   else
   {
@@ -15050,62 +15120,61 @@ void cost_group_min_max(TABLE* table, KEY *index_info, uint used_key_parts,
                                                              1);
     if (keys_per_group == 0) /* If there is no statistics try to guess */
     {
-      /* each group contains 10% of all records */
-      keys_per_group= (table_records / 10) + 1;
+      /* each group contains 1% of all records */
+      keys_per_group= (records / 100) + 1;
     }
   }
   if (keys_per_group > 1)
-    num_groups= (table_records / keys_per_group) + 1;
+    num_groups= (records / keys_per_group) + 1;
   else
-    num_groups= table_records;
+    num_groups= records;
 
   /* Apply the selectivity of the quick select for group prefixes. */
   if (range_tree && (quick_prefix_records != HA_POS_ERROR))
   {
+    int groups;
     quick_prefix_selectivity= (double) quick_prefix_records /
-                              (double) table_records;
+                              (double) records;
     num_groups= (ha_rows) rint(num_groups * quick_prefix_selectivity);
+    records= quick_prefix_records;
+
     /*
-      Expect at least as many groups as there is ranges in the index
+      Try to handle cases like
       WHERE a in (1,2,3) GROUP BY a
 
-      This is mostly relevant for queries with few records, which is
-      something we have a lot of in our test suites.
-      In theory it is possible to scan the index_tree and for cases
-      where all ranges are eq ranges, we could calculate the exact number
-      of groups. This is probably an overkill so for now we estimate
-      the lower level of number of groups by the range elements in the
-      tree.
+      If all ranges are eq_ranges for the group_key_parts we can use
+      this as the number of groups.
     */
-    set_if_bigger(num_groups, MY_MAX(index_tree->elements, 1));
+    groups= index_tree->number_of_eq_groups(group_key_parts);
+    if (groups > 0)
+      num_groups= groups;
+    else
+    {
+      /*
+        Expect at least as many groups as there is ranges in the index
+
+        This is mostly relevant for queries with few records, which is
+        something we have a lot of in our test suites.
+        In theory it is possible to scan the index_tree and for cases
+        where all ranges are eq ranges, we could calculate the exact number
+        of groups. This is probably an overkill so for now we estimate
+        the lower level of number of groups by the range elements in the
+        tree.
+      */
+      set_if_bigger(num_groups, MY_MAX(index_tree->elements, 1));
+    }
     /* There cannot be more groups than matched records */
     set_if_smaller(num_groups, quick_prefix_records);
   }
-  DBUG_ASSERT(num_groups <= table_records);
+  DBUG_ASSERT(num_groups <= records);
 
-  if (used_key_parts > group_key_parts)
-  {
-    /*
-      Compute the probability that two ends of a subgroup are inside
-      different blocks.
-    */
-    keys_per_subgroup= (ha_rows) index_info->actual_rec_per_key(used_key_parts -
-                                                                1);
-    if (keys_per_subgroup >= keys_per_block) /* If a subgroup is bigger than */
-      p_overlap= 1.0;       /* a block, it will overlap at least two blocks. */
-    else
-    {
-      double blocks_per_group= (double) num_blocks / (double) num_groups;
-      p_overlap= (blocks_per_group * (keys_per_subgroup - 1)) / keys_per_group;
-      p_overlap= MY_MIN(p_overlap, 1.0);
-    }
-    io_cost= (double) MY_MIN(num_groups * (1 + p_overlap), num_blocks);
-  }
-  else
-    io_cost= ((keys_per_group > keys_per_block) ?
-              (have_min && have_max) ? (double) (num_groups + 1) :
-              (double) num_groups :
-              (double) num_blocks);
+
+  /* Calculate the number of blocks we will touch for the table or range scan */
+  num_blocks= (records * key_length / INDEX_BLOCK_FILL_FACTOR_DIV *
+               INDEX_BLOCK_FILL_FACTOR_MUL) / file->stats.block_size + 1;
+
+  io_cost= (have_max) ? num_groups*2 : num_groups;
+  set_if_smaller(io_cost, num_blocks);
 
   /*
     CPU cost must be comparable to that of an index scan as computed
@@ -15118,13 +15187,13 @@ void cost_group_min_max(TABLE* table, KEY *index_info, uint used_key_parts,
   *read_cost= file->ha_keyread_and_compare_time(keyno, (ulong) num_groups,
                                                 num_groups,
                                                 io_cost);
-  *records= num_groups;
+  *out_records= num_groups;
 
   DBUG_PRINT("info",
-             ("table rows: %lu  keys/block: %u  keys/group: %lu  "
+             ("rows: %lu  keys/group: %lu  "
               "result rows: %lu  blocks: %lu",
-              (ulong) table_records, keys_per_block, (ulong) keys_per_group, 
-              (ulong) *records, (ulong) num_blocks));
+              (ulong) records, (ulong) keys_per_group,
+              (ulong) *out_records, (ulong) num_blocks));
   DBUG_VOID_RETURN;
 }
 
