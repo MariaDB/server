@@ -3690,7 +3690,7 @@ int main(int argc, char** argv)
     fprintf(result_file, "/*!50530 SET @@SESSION.PSEUDO_SLAVE_MODE=1*/;\n");
 
     fprintf(result_file,
-	    "/*!40019 SET @@session.max_insert_delayed_threads=0*/;\n");
+	    "/*!40019 SET @@session.max_delayed_threads=0*/;\n");
 
     if (disable_log_bin)
       fprintf(result_file,

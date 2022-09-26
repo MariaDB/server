@@ -295,8 +295,8 @@ ALTER TABLE general_log
   MODIFY thread_id BIGINT(21) UNSIGNED NOT NULL;
 SET GLOBAL general_log = @old_log_state;
 
-SET @old_log_state = @@global.slow_query_log;
-SET GLOBAL slow_query_log = 'OFF';
+SET @old_log_state = @@global.log_slow_query;
+SET GLOBAL log_slow_query = 'OFF';
 ALTER TABLE slow_log
   ADD COLUMN thread_id BIGINT(21) UNSIGNED NOT NULL AFTER sql_text;
 ALTER TABLE slow_log
@@ -314,7 +314,7 @@ ALTER TABLE slow_log
   MODIFY server_id INTEGER UNSIGNED NOT NULL,
   MODIFY sql_text MEDIUMTEXT NOT NULL,
   MODIFY thread_id BIGINT(21) UNSIGNED NOT NULL;
-SET GLOBAL slow_query_log = @old_log_state;
+SET GLOBAL log_slow_query = @old_log_state;
 
 ALTER TABLE plugin
   MODIFY name varchar(64) COLLATE utf8_general_ci NOT NULL DEFAULT '',

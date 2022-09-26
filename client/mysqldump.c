@@ -784,7 +784,7 @@ static void write_header(FILE *sql_file, const char *db_name)
 
     if (!opt_logging)
       fprintf(sql_file,
-"\n/*M!100101 SET LOCAL SQL_LOG_OFF=0, LOCAL SLOW_QUERY_LOG=0 */;");
+"\n/*M!100101 SET LOCAL SQL_LOG_OFF=0, LOCAL LOG_SLOW_QUERY=0 */;");
 
     if (opt_set_charset)
       fprintf(sql_file,
@@ -5445,7 +5445,7 @@ static int init_dumping_mysql_tables(char *qdatabase)
   if (opt_drop_database)
     fprintf(md_result_file,
             "\n/*!50106 SET @save_log_output=@@LOG_OUTPUT*/;\n"
-            "/*M!100203 EXECUTE IMMEDIATE IF(@@LOG_OUTPUT='TABLE' AND (@@SLOW_QUERY_LOG=1 OR @@GENERAL_LOG=1),"
+            "/*M!100203 EXECUTE IMMEDIATE IF(@@LOG_OUTPUT='TABLE' AND (@@LOG_SLOW_QUERY=1 OR @@GENERAL_LOG=1),"
               "\"SET GLOBAL LOG_OUTPUT='NONE'\", \"DO 0\") */;\n");
 
   DBUG_RETURN(init_dumping_tables(qdatabase));
