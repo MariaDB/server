@@ -3073,6 +3073,8 @@ PCFIL ha_connect::CheckCond(PGLOBAL g, PCFIL filp, const Item *cond)
 
       if ((iscol= args[i]->type() == COND::FIELD_ITEM)) {
         const char *fnm;
+        char buf[MAX_FIELD_WIDTH];
+        String strColumn(buf, sizeof(buf), system_charset_info);
         ha_field_option_struct *fop;
         Item_field *pField= (Item_field *)args[i];
 
@@ -3098,8 +3100,14 @@ PCFIL ha_connect::CheckCond(PGLOBAL g, PCFIL filp, const Item *cond)
 					return NULL;
 				} else {
 					bool h;
-
 					fnm= filp->Chk(pField->field->field_name.str, &h);
+          if (tty == TYPE_AM_MYSQL && !(x || ismul))
+          {
+            strColumn.length(0);
+            strColumn.qs_append(STRING_WITH_LEN("`"));
+            strColumn.qs_append(fnm);
+            strColumn.append(STRING_WITH_LEN("`"));
+          }
 
 					if (h && i && !ishav)
 						return NULL;			// Having should be	col VOP arg
@@ -3113,9 +3121,11 @@ PCFIL ha_connect::CheckCond(PGLOBAL g, PCFIL filp, const Item *cond)
           htrc("Field name=%s\n", pField->field->field_name.str);
           htrc("Field type=%d\n", pField->field->type());
           htrc("Field_type=%d\n", args[i]->field_type());
-          } // endif trace
-
-        strcat((ishav ? havg : body), fnm);
+        } // endif trace
+        if (tty == TYPE_AM_MYSQL && !(x || ismul))
+          strcat((ishav ? havg : body), strColumn.ptr());
+        else
+          strcat((ishav ? havg : body), fnm);
       } else if (args[i]->type() == COND::FUNC_ITEM) {
         if (tty == TYPE_AM_MYSQL) {
           if (!CheckCond(g, filp, args[i]))
