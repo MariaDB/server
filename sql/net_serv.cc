@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2016, Oracle and/or its affiliates.
-   Copyright (c) 2012, 2020, MariaDB Corporation.
+   Copyright (c) 2012, 2022, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -507,6 +507,7 @@ net_write_command(NET *net,uchar command,
   DBUG_ENTER("net_write_command");
   DBUG_PRINT("enter",("length: %lu", (ulong) len));
 
+#ifdef ENABLED_DEBUG_SYNC
   DBUG_EXECUTE_IF("simulate_error_on_packet_write",
                   {
                     if (command == COM_BINLOG_DUMP)
@@ -518,6 +519,7 @@ net_write_command(NET *net,uchar command,
                       DBUG_RETURN(true);
                     }
                   };);
+#endif
   MYSQL_NET_WRITE_START(length);
 
   buff[4]=command;				/* For first packet */

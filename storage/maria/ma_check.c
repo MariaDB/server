@@ -1069,7 +1069,7 @@ static int chk_index(HA_CHECK *param, MARIA_HA *info, MARIA_KEYDEF *keyinfo,
          share->state.state.data_file_length) ||
         (share->data_file_type == NO_RECORD && record != 0))
     {
-#ifndef DBUG_OFF
+#ifdef DBUG_TRACE
       char llbuff2[22], llbuff3[22];
 #endif
       _ma_check_print_error(param,

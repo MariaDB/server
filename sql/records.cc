@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2000, 2010, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2017, MariaDB Corporation
+   Copyright (c) 2009, 2022, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -568,7 +568,7 @@ template<bool Packed_addon_fields>
 static int rr_unpack_from_tempfile(READ_RECORD *info)
 {
   uchar *destination= info->rec_buf;
-#ifndef DBUG_OFF
+#ifdef DBUG_TRACE
   my_off_t where= my_b_tell(info->io_cache);
 #endif
   if (Packed_addon_fields)

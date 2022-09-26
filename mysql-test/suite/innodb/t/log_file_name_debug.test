@@ -36,12 +36,10 @@ SELECT * FROM t1;
 --let SEARCH_PATTERN = InnoDB: Tablespace 4294967280 was not found at .*, but there were no modifications either
 --source include/search_pattern_in_file.inc
 
---let $restart_parameters= --debug=d,innodb_log_abort_3,ib_log $resize
+--let $restart_parameters= --debug=d,innodb_log_abort_3 $resize
 --source include/restart_mysqld.inc
 --error ER_UNKNOWN_STORAGE_ENGINE
 SELECT * FROM t1;
---let SEARCH_PATTERN= ib_log: FILE_CHECKPOINT.* written
---source include/search_pattern_in_file.inc
 
 --let $restart_parameters=
 --source include/restart_mysqld.inc

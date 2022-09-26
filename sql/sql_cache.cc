@@ -4767,7 +4767,7 @@ void Query_cache::cache_dump()
 
 void Query_cache::queries_dump()
 {
-
+#ifdef DBUG_TRACE
   if (!initialized)
   {
     DBUG_PRINT("qcache", ("Query Cache not initialized"));
@@ -4828,11 +4828,13 @@ void Query_cache::queries_dump()
     DBUG_PRINT("qcache", ("no queries in list"));
   }
   DBUG_PRINT("qcache", ("------------------"));
+#endif
 }
 
 
 void Query_cache::tables_dump()
 {
+#ifdef DBUG_TRACE
   if (!initialized || query_cache_size == 0)
   {
     DBUG_PRINT("qcache", ("Query Cache not initialized"));
@@ -4855,6 +4857,7 @@ void Query_cache::tables_dump()
   else
     DBUG_PRINT("qcache", ("no tables in list"));
   DBUG_PRINT("qcache", ("--------------------"));
+#endif
 }
 
 

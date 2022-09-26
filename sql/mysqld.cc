@@ -1674,6 +1674,7 @@ void kill_mysql(THD *thd)
 
   DBUG_EXECUTE_IF("mysql_admin_shutdown_wait_for_slaves",
                   thd->lex->is_shutdown_wait_for_slaves= true;);
+#ifdef ENABLED_DEBUG_SYNC
   DBUG_EXECUTE_IF("simulate_delay_at_shutdown",
                   {
                     DBUG_ASSERT(binlog_dump_thread_count == 3);
@@ -1683,6 +1684,7 @@ void kill_mysql(THD *thd)
                     DBUG_ASSERT(!debug_sync_set_action(thd,
                                                        STRING_WITH_LEN(act)));
                   };);
+#endif
 
   if (thd->lex->is_shutdown_wait_for_slaves)
     shutdown_wait_for_slaves= true;

@@ -1,5 +1,6 @@
 --source include/have_innodb.inc
 --source include/have_debug.inc
+--source include/have_debug_sync.inc
 
 create table t1(f1 char(10), f2 char(10) not null, f3 int not null,
                 f4 int not null, primary key(f3))engine=innodb;

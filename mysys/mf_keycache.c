@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2013, Oracle and/or its affiliates.
-   Copyright (c) 2017, MariaDB Corporation.
+   Copyright (c) 2017, 2022, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -377,7 +377,7 @@ static void keycache_debug_print(const char *fmt,...);
 #define KEYCACHE_DBUG_ASSERT(a)    DBUG_ASSERT(a)
 #endif /* defined(KEYCACHE_DEBUG_LOG) && defined(KEYCACHE_DEBUG) */
 
-#if defined(KEYCACHE_DEBUG) || !defined(DBUG_OFF)
+#if defined(KEYCACHE_DEBUG) || defined(DBUG_TRACE)
 static long keycache_thread_id;
 #define KEYCACHE_THREAD_TRACE(l)                                              \
              KEYCACHE_DBUG_PRINT(l,("|thread %ld",keycache_thread_id))
@@ -393,7 +393,7 @@ static long keycache_thread_id;
 #define KEYCACHE_THREAD_TRACE_BEGIN(l)
 #define KEYCACHE_THREAD_TRACE_END(l)
 #define KEYCACHE_THREAD_TRACE(l)
-#endif /* defined(KEYCACHE_DEBUG) || !defined(DBUG_OFF) */
+#endif /* defined(KEYCACHE_DEBUG) || defined(DBUG_TRACE) */
 
 #define BLOCK_NUMBER(b)                                                       \
   ((uint) (((char*)(b)-(char *) keycache->block_root)/sizeof(BLOCK_LINK)))

@@ -1,5 +1,5 @@
 /* Copyright (c) 2009, 2013, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2020, MariaDB Corporation.
+   Copyright (c) 2009, 2022, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -354,7 +354,7 @@ static char *debug_sync_bmove_len(char *to, char *to_end,
 }
 
 
-#if !defined(DBUG_OFF)
+#ifdef DBUG_TRACE
 
 /**
   Create a string that describes an action.
@@ -444,8 +444,7 @@ static void debug_sync_print_actions(THD *thd)
 
   DBUG_VOID_RETURN;
 }
-
-#endif /* !defined(DBUG_OFF) */
+#endif /* defined(DBUG_TRACE) */
 
 
 /**
@@ -776,6 +775,7 @@ static bool debug_sync_set_action(THD *thd, st_debug_sync_action *action)
   else
   {
     const char *dsp_name= action->sync_point.c_ptr();
+#ifdef DBUG_TRACE
     DBUG_EXECUTE("debug_sync", {
         /* Functions as DBUG_PRINT args can change keyword and line nr. */
         const char *sig_emit= action->signal.c_ptr();
@@ -786,6 +786,7 @@ static bool debug_sync_set_action(THD *thd, st_debug_sync_action *action)
                     dsp_name, action->activation_count,
                     action->hit_limit, action->execute, action->timeout,
                     sig_emit, sig_wait));});
+#endif
 
     /* Check this before sorting the array. action may move. */
     is_dsp_now= !my_strcasecmp(system_charset_info, dsp_name, "now");
@@ -798,7 +799,9 @@ static bool debug_sync_set_action(THD *thd, st_debug_sync_action *action)
                sizeof(st_debug_sync_action), debug_sync_qsort_cmp);
     }
   }
+#ifdef DBUG_TRACE
   DBUG_EXECUTE("debug_sync_list", debug_sync_print_actions(thd););
+#endif
 
   /* Execute the special sync point 'now' if activated above. */
   if (is_dsp_now)
@@ -1359,7 +1362,7 @@ uchar *debug_sync_value_ptr(THD *thd)
 
 static void debug_sync_execute(THD *thd, st_debug_sync_action *action)
 {
-#ifndef DBUG_OFF
+#ifdef DBUG_TRACE
   const char *dsp_name= action->sync_point.c_ptr();
   const char *sig_emit= action->signal.c_ptr();
   const char *sig_wait= action->wait_for.c_ptr();
@@ -1450,12 +1453,12 @@ static void debug_sync_execute(THD *thd, st_debug_sync_action *action)
         restore_current_mutex = false;
 
       set_timespec(abstime, action->timeout);
-      DBUG_EXECUTE("debug_sync_exec", {
+      DBUG_EXECUTE("debug_sync_exec",
           /* Functions as DBUG_PRINT args can change keyword and line nr. */
-          const char *sig_glob= debug_sync_global.ds_signal.c_ptr();
           DBUG_PRINT("debug_sync_exec",
                      ("wait for '%s'  at: '%s'  curr: '%s'",
-                      sig_wait, dsp_name, sig_glob));});
+                      sig_wait, dsp_name,
+                      debug_sync_global.ds_signal.c_ptr())););
 
       /*
         Wait until global signal string matches the wait_for string.
@@ -1469,12 +1472,12 @@ static void debug_sync_execute(THD *thd, st_debug_sync_action *action)
         error= mysql_cond_timedwait(&debug_sync_global.ds_cond,
                                     &debug_sync_global.ds_mutex,
                                     &abstime);
-        DBUG_EXECUTE("debug_sync", {
+        DBUG_EXECUTE("debug_sync",
             /* Functions as DBUG_PRINT args can change keyword and line nr. */
-            const char *sig_glob= debug_sync_global.ds_signal.c_ptr();
             DBUG_PRINT("debug_sync",
                        ("awoke from %s  global: %s  error: %d",
-                        sig_wait, sig_glob, error));});
+                        sig_wait, debug_sync_global.ds_signal.c_ptr(),
+                        error)););
         if (unlikely(error == ETIMEDOUT || error == ETIME))
         {
           // We should not make the statement fail, even if in strict mode.

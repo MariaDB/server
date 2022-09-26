@@ -4616,10 +4616,12 @@ longlong Item_func_sleep::val_int()
 
   mysql_cond_destroy(&cond);
 
+#ifdef ENABLED_DEBUG_SYNC
   DBUG_EXECUTE_IF("sleep_inject_query_done_debug_sync", {
       debug_sync_set_action
         (thd, STRING_WITH_LEN("dispatch_command_end SIGNAL query_done"));
     };);
+#endif
 
   return MY_TEST(!error);                  // Return 1 killed
 }
