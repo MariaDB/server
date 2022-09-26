@@ -848,6 +848,26 @@ static void srv_shutdown_threads()
 	}
 }
 
+
+/** Shut down background threads that can generate undo log. */
+static void srv_shutdown_bg_undo_sources()
+{
+  srv_shutdown_state= SRV_SHUTDOWN_INITIATED;
+
+  if (srv_undo_sources)
+  {
+    ut_ad(!srv_read_only_mode);
+    fts_optimize_shutdown();
+    dict_stats_shutdown();
+    while (row_get_background_drop_list_len_low())
+    {
+      srv_inc_activity_count();
+      os_thread_yield();
+    }
+    srv_undo_sources= false;
+  }
+}
+
 #ifdef UNIV_DEBUG
 # define srv_init_abort(_db_err)	\
 	srv_init_abort_low(create_new_db, __FILE__, __LINE__, _db_err)
@@ -1951,23 +1971,6 @@ skip_monitors:
 	}
 
 	return(DB_SUCCESS);
-}
-
-/** Shut down background threads that can generate undo log. */
-void srv_shutdown_bg_undo_sources()
-{
-	srv_shutdown_state = SRV_SHUTDOWN_INITIATED;
-
-	if (srv_undo_sources) {
-		ut_ad(!srv_read_only_mode);
-		fts_optimize_shutdown();
-		dict_stats_shutdown();
-		while (row_get_background_drop_list_len_low()) {
-			srv_inc_activity_count();
-			os_thread_yield();
-		}
-		srv_undo_sources = false;
-	}
 }
 
 /**
