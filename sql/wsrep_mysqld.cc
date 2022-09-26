@@ -711,11 +711,14 @@ static std::string wsrep_server_incoming_address()
     /*
       In case port is not specified in wsrep_node_incoming_address, we use
       mysqld_port.
+      Note that we might get here before we execute set_ports().
     */
-    int port= (addr.get_port() > 0) ? addr.get_port() : (int) mysqld_port;
+    int local_port= (addr.get_port() > 0) ? addr.get_port() : (int) mysqld_port;
+    if (!local_port)
+      local_port= MYSQL_PORT;
     const char *fmt= (addr.is_ipv6()) ? "[%s]:%u" : "%s:%u";
 
-    snprintf(inc_addr, inc_addr_max, fmt, addr.get_address(), port);
+    snprintf(inc_addr, inc_addr_max, fmt, addr.get_address(), local_port);
   }
 
  done:

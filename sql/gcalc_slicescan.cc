@@ -116,16 +116,20 @@ static void GCALC_DBUG_PRINT_PI(const Gcalc_heap::Info *pi)
   int n_buf;
   if (pi->type == Gcalc_heap::nt_intersection)
   {
+#ifdef DBUG_TRACE
     const Gcalc_scan_iterator::intersection_info *ic= i_data(pi);
 
     GCALC_DBUG_PRINT(("intersection point %d %d",
                       ic->edge_a->thread, ic->edge_b->thread));
+#endif
     return;
   }
   if (pi->type == Gcalc_heap::nt_eq_node)
   {
+#ifdef DBUG_TRACE
     const Gcalc_scan_iterator::point *e= eq_sp(pi);
     GCALC_DBUG_PRINT(("eq point %d", e->thread));
+#endif
     return;
   }
   n_buf= gcalc_pi_str(buf, pi, "");

@@ -1,9 +1,11 @@
 #
 # Purpose:
-#   This test verifies that sequence DML updates, i.e. NEXTVAL and SETVAL,
-# respect the binlog_row_image variable value when written into the binary log.
-# In particular, it ensures that only changed columns are written with MINIMAL
-# image mode, and all columns are written otherwise.
+#   The rpl_row_img_sequence group of tests verify that sequence MDL updates,
+# i.e. NEXTVAL and SETVAL, respect the binlog_row_image variable value when
+# written into the binary log. In particular, it ensures that only changed
+# columns are written with MINIMAL image mode, and all columns are written
+# otherwise. This test focuses on validating the behavior of
+# binlog_row_img=MINIMAL.
 #
 # Methodology
 #   After issuing a sequence update, ensure that both 1) it was replicated
@@ -34,8 +36,8 @@
 --connection server_1
 
 --echo #
---echo # Test Case 1) binlog_row_image=MINIMAL should write only columns
---echo # 1 and 8 to the binary log
+--echo # binlog_row_image=MINIMAL should write only columns 1 and 8 to the
+--echo # binary log
 --echo #
 --let $row_img_set=server_1:MINIMAL:N,server_2:MINIMAL:Y,server_3:MINIMAL:Y
 --source include/rpl_row_img_set.inc
@@ -43,23 +45,8 @@
 --let row_img_test_script= include/rpl_row_img_sequence.inc
 --source include/rpl_row_img_general_loop.inc
 
---echo #
---echo # Test Case 2) binlog_row_image=NOBLOB should write all columns to the
---echo # binary log
---echo #
---let $row_img_set=server_1:NOBLOB:N,server_2:NOBLOB:Y,server_3:NOBLOB:Y
---source include/rpl_row_img_set.inc
---let $expected_columns=(1,2,3,4,5,6,7,8)
---source include/rpl_row_img_general_loop.inc
-
---echo #
---echo # Test Case 3) binlog_row_image=NOBLOB should write all columns to the
---echo # binary log
---echo #
 --let $row_img_set=server_1:FULL:N,server_2:FULL:Y,server_3:FULL:Y
 --source include/rpl_row_img_set.inc
---let $expected_columns=(1,2,3,4,5,6,7,8)
---source include/rpl_row_img_general_loop.inc
 
 --source include/rpl_end.inc
 --echo # End of tests

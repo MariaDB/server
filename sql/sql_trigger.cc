@@ -644,7 +644,7 @@ bool mysql_create_or_drop_trigger(THD *thd, TABLE_LIST *tables, bool create)
       goto end;
   }
 
-#ifdef WITH_WSREP
+#if defined WITH_WSREP && defined ENABLED_DEBUG_SYNC
   DBUG_EXECUTE_IF("sync.mdev_20225",
                   {
                     const char act[]=
@@ -653,7 +653,7 @@ bool mysql_create_or_drop_trigger(THD *thd, TABLE_LIST *tables, bool create)
                     DBUG_ASSERT(!debug_sync_set_action(thd,
                                                        STRING_WITH_LEN(act)));
                   };);
-#endif /* WITH_WSREP */
+#endif /* WITH_WSREP && ENABLED_DEBUG_SYNC */
 
   if (create)
     result= table->triggers->create_trigger(thd, tables, &stmt_query,

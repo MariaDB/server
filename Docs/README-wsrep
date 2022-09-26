@@ -365,7 +365,7 @@ wsrep_forced_binlog_format=none
    special value NONE, meaning that there is no forced binlog format in effect.
    This variable was introduced to support STATEMENT format replication during
    rolling schema upgrade processing. However, in most cases ROW replication 
-   is valid for asymmetrict schema replication.
+   is valid for asymmetric schema replication.
 
 State snapshot transfer options.
 
@@ -416,7 +416,7 @@ wsrep_sst_donor=
 
 6. ONLINE SCHEMA UPGRADE
 
-   Schema upgrades mean any data definition statements (DDL statemnents) run
+   Schema upgrades mean any data definition statements (DDL statements) run
    for the database. They change the database structure and are non-
    transactional.
 
@@ -429,7 +429,7 @@ wsrep_sst_donor=
 
    With earlier releases, DDL processing happened always by Total Order
    Isolation (TOI) method. With TOI, the DDL was scheduled to be processed in
-   same transaction seqeuncing 'slot' in each cluster node.
+   same transaction sequencing 'slot' in each cluster node.
    The processing is secured by locking the affected table from any other use.
    With TOI method, the whole cluster has part of the database locked for the
    duration of the DDL processing.

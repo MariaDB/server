@@ -8217,10 +8217,12 @@ MYSQL_BIN_LOG::trx_group_commit_leader(group_commit_entry *leader)
   DBUG_ENTER("MYSQL_BIN_LOG::trx_group_commit_leader");
 
   {
+#ifdef ENABLED_DEBUG_SYNC
     DBUG_EXECUTE_IF("inject_binlog_commit_before_get_LOCK_log",
       DBUG_ASSERT(!debug_sync_set_action(leader->thd, STRING_WITH_LEN
         ("commit_before_get_LOCK_log SIGNAL waiting WAIT_FOR cont TIMEOUT 1")));
     );
+#endif
     /*
       Lock the LOCK_log(), and once we get it, collect any additional writes
       that queued up while we were waiting.
@@ -10553,6 +10555,7 @@ binlog_background_thread(void *arg __attribute__((unused)))
     mysql_mutex_unlock(&mysql_bin_log.LOCK_binlog_background_thread);
 
     /* Process any incoming commit_checkpoint_notify() calls. */
+#ifdef ENABLED_DEBUG_SYNC
     DBUG_EXECUTE_IF("inject_binlog_background_thread_before_mark_xid_done",
       DBUG_ASSERT(!debug_sync_set_action(
         thd,
@@ -10561,6 +10564,7 @@ binlog_background_thread(void *arg __attribute__((unused)))
                         "WAIT_FOR something_that_will_never_happen "
                         "TIMEOUT 2")));
       );
+#endif
     while (queue)
     {
       long count= queue->notify_count;
@@ -10575,11 +10579,13 @@ binlog_background_thread(void *arg __attribute__((unused)))
         mysql_bin_log.mark_xid_done(queue->binlog_id, true);
       queue= next;
 
+#ifdef ENABLED_DEBUG_SYNC
       DBUG_EXECUTE_IF("binlog_background_checkpoint_processed",
         DBUG_ASSERT(!debug_sync_set_action(
           thd,
           STRING_WITH_LEN("now SIGNAL binlog_background_checkpoint_processed")));
         );
+#endif
     }
 
     if (stop)

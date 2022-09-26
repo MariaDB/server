@@ -2661,7 +2661,7 @@ static my_bool translog_buffer_flush(struct st_translog_buffer *buffer)
        i < buffer->size;
        i+= TRANSLOG_PAGE_SIZE, pg++)
   {
-#ifndef DBUG_OFF
+#ifdef DBUG_TRACE
     TRANSLOG_ADDRESS addr= (buffer->offset + i);
 #endif
     DBUG_PRINT("info", ("send log form %lu till %lu  address: " LSN_FMT "  "
@@ -2908,7 +2908,7 @@ static my_bool translog_page_validator(int res, PAGECACHE_IO_HOOK_ARGS *args)
   uint flags;
   uchar *page_pos;
   TRANSLOG_FILE *data= (TRANSLOG_FILE *) args->data;
-#ifndef DBUG_OFF
+#ifdef DBUG_TRACE
   pgcache_page_no_t offset= page_no * TRANSLOG_PAGE_SIZE;
 #endif
   DBUG_ENTER("translog_page_validator");
@@ -3268,7 +3268,7 @@ static my_bool translog_get_last_page_addr(TRANSLOG_ADDRESS *addr,
   my_off_t file_size;
   uint32 file_no= LSN_FILE_NO(*addr);
   TRANSLOG_FILE *file;
-#ifndef DBUG_OFF
+#ifdef DBUG_TRACE
   char buff[21];
 #endif
   DBUG_ENTER("translog_get_last_page_addr");
