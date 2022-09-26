@@ -19,7 +19,7 @@ drop function if exists f3;
 --enable_warnings
 
 # BUG#8072 
-
+--disable_service_connection
 create database mysqltest;
 delimiter //;
 use mysqltest//
@@ -42,7 +42,7 @@ select database();
 
 drop procedure mysqltest.sp1;
 drop database mysqltest;
-
+--enable_service_connection
 # BUG#8766
 
 delimiter //;

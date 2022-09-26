@@ -4,6 +4,8 @@
 --echo # Update a with value from subquery on the same table, no search clause. ALL access
 --echo #
 
+#Enable view protocol  after fix MDEV-29207
+--disable_view_protocol
 start transaction;
 --enable_info ONCE
 update t1
@@ -145,3 +147,4 @@ update t1
   order by c3 desc limit 2;
 select concat(old_c1,'->',c1),c3, case when c1 != old_c1 then '*' else ' ' end "Changed" from t1 ;
 rollback;
+--enable_view_protocol

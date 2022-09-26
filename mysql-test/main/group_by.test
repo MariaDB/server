@@ -90,6 +90,7 @@ drop table t1;
 # Problem with GROUP BY + ORDER BY when no match
 # Tested with locking
 #
+--disable_service_connection
 
 CREATE TABLE t1 (
   cid mediumint(9) NOT NULL auto_increment,
@@ -123,6 +124,7 @@ drop table t2;
 unlock tables;
 drop table t1;
 
+--enable_service_connection
 #
 # Test of group by bug in bugzilla
 #
@@ -637,11 +639,15 @@ SELECT a FROM t1 GROUP BY 'a';
 SELECT a FROM t1 GROUP BY "a";
 SELECT a FROM t1 GROUP BY `a`;
 
+--disable_service_connection
+
 set sql_mode=ANSI_QUOTES;
 SELECT a FROM t1 GROUP BY "a";
 SELECT a FROM t1 GROUP BY 'a';
 SELECT a FROM t1 GROUP BY `a`;
 set sql_mode='';
+
+--enable_service_connection
 
 SELECT a FROM t1 HAVING 'a' > 1;
 SELECT a FROM t1 HAVING "a" > 1;
@@ -680,6 +686,9 @@ DROP TABLE t1, t2;
 # Bug#11211: Ambiguous column reference in GROUP BY.
 #
 
+#disable --view-prototcol because warnings are dropped
+--disable_view_protocol
+
 create table t1 (c1 char(3), c2 char(3));
 create table t2 (c3 char(3), c4 char(3));
 insert into t1 values ('aaa', 'bb1'), ('aaa', 'bb2');
@@ -696,6 +705,8 @@ group by t1.c1;
 
 show warnings;
 drop table t1, t2;
+
+--enable_view_protocol
 
 #
 # Bug #20466: a view is mixing data when there's a trigger on the table
@@ -769,8 +780,13 @@ SELECT 1 FROM t1 as t1_outer GROUP BY a
   HAVING (SELECT t1_outer.b FROM t1 AS t1_inner LIMIT 1);
 SELECT (SELECT SUM(t1_inner.a) FROM t1 AS t1_inner LIMIT 1) 
   FROM t1 AS t1_outer GROUP BY t1_outer.b;
+
+#enable after fix MDEV-27871
+--disable_view_protocol
 SELECT (SELECT SUM(t1_inner.a) FROM t1 AS t1_inner GROUP BY t1_inner.b LIMIT 1)
   FROM t1 AS t1_outer;
+--enable_view_protocol
+
 --error ER_WRONG_FIELD_WITH_GROUP 
 SELECT (SELECT SUM(t1_outer.a) FROM t1 AS t1_inner LIMIT 1) 
   FROM t1 AS t1_outer GROUP BY t1_outer.b;
@@ -878,6 +894,9 @@ SELECT t1.a FROM t1 ORDER BY (SELECT SUM(t2.a) FROM t2 ORDER BY t2.a);
 --error 1140
 SELECT t1.a FROM t1 ORDER BY (SELECT t2.a FROM t2 ORDER BY SUM(t2.b) LIMIT 1);
 
+#enable after fix MDEV-28570
+--disable_view_protocol
+
 --error 1140
 SELECT t1.a FROM t1
   WHERE t1.a = (SELECT t2.a FROM t2 ORDER BY SUM(t2.b) LIMIT 1);
@@ -915,6 +934,8 @@ SELECT 1 FROM t1 GROUP BY t1.a
 SELECT 1 FROM t1 GROUP BY t1.a
   HAVING (SELECT AVG(t1.b + t2.b) FROM t2 ORDER BY t2.a LIMIT 1);
 
+--enable_view_protocol
+
 # Both SUMs are aggregated in the subquery, no mixture:
 SELECT t1.a FROM t1 
   WHERE t1.a = (SELECT t2.a FROM t2 GROUP BY t2.a
@@ -938,6 +959,9 @@ SELECT t1.a, SUM(t1.b) FROM t1
                   ORDER BY SUM(t2.b + t1.a) LIMIT 1)
   GROUP BY t1.a;
 
+#enable after fix MDEV-28570, MDEV-28571
+--disable_view_protocol
+
 SELECT t1.a FROM t1 GROUP BY t1.a
     HAVING (1, 1) = (SELECT SUM(t1.a), t1.a FROM t2 LIMIT 1);
 
@@ -953,6 +977,8 @@ select avg (
     (select sum(outr.a + innr.a) from t1 as innr limit 1)) as tt
    from t1 as outr order by count(outr.a) limit 1)) as tt
 from t1 as most_outer;
+
+--enable_view_protocol
 
 select (select sum(outr.a + t1.a) from t1 limit 1) as tt from t1 as outr order by outr.a;
 
@@ -1350,6 +1376,8 @@ DROP TABLE t1;
 --echo # Bug#11765254 (58200): Assertion failed: param.sort_length when grouping
 --echo # by functions
 --echo #
+#createing view adds one new warning 
+--disable_view_protocol
 
 set tmp_memory_table_size=0;
 CREATE TABLE t1(a INT);
@@ -1360,6 +1388,8 @@ SELECT 1 FROM t1 GROUP BY SUBSTRING('',SLEEP(0),'');
 SELECT 1 FROM t1 GROUP BY SUBSTRING(SYSDATE() FROM 'K' FOR 'jxW<');
 DROP TABLE t1;
 set tmp_memory_table_size=default;
+
+--enable_view_protocol
 
 --echo #
 --echo # MDEV-641 LP:1002108 - Wrong result (or crash) from a query with duplicated field in the group list and a limit clause
@@ -1621,6 +1651,10 @@ DROP TABLE t1, t2;
 # MDEV-736 LP:1004615 - Unexpected warnings "Encountered illegal value '' when converting to DECIMAL" on a query with aggregate functions and GROUP BY
 #
 
+#the view protocol creates 
+# an additional util connection and other statistics data
+--disable_view_protocol
+
 FLUSH STATUS; # this test case *must* use Aria temp tables
 
 CREATE TABLE t1 (f1 INT, f2 decimal(20,1), f3 blob);
@@ -1630,6 +1664,7 @@ DROP TABLE t1;
 
 --echo the value below *must* be 1
 show status like 'Created_tmp_disk_tables';
+--enable_view_protocol
 
 --echo #
 --echo #  Bug #1002146: Unneeded filesort if usage of join buffer is not allowed

@@ -1,5 +1,6 @@
 # Test that must have symlink. eg. using DATA/INDEX DIR
 # (DATA/INDEX DIR requires symlinks)
+
 # This test is only useful for MyISAM, since no other engine supports DATA DIR
 -- source include/have_partition.inc
 -- source include/have_symlink.inc
@@ -15,6 +16,7 @@ DROP DATABASE IF EXISTS mysqltest2;
 --echo #
 --echo # Test for WL#4445: EXCHANGE PARTITION
 --echo #
+--disable_service_connection
 --replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
 eval CREATE TABLE t1 (a INT)
 ENGINE = MyISAM
@@ -44,6 +46,7 @@ ALTER TABLE t1 EXCHANGE PARTITION p2 WITH TABLE t2;
 SELECT * FROM t1;
 SELECT * FROM t2;
 DROP TABLE t1, t2;
+--enable_service_connection
 # skipped because of bug#52354
 #CREATE TABLE t1 LIKE t2;
 #ALTER TABLE t1 PARTITION BY LIST (a)
@@ -72,6 +75,7 @@ DROP TABLE t1, t2;
 -- echo # Creating two non colliding tables mysqltest2.t1 and test.t1
 -- echo # test.t1 have partitions in mysqltest2-directory!
 -- echo # user root:
+--disable_service_connection
   CREATE USER mysqltest_1@localhost;
   CREATE DATABASE mysqltest2;
   USE mysqltest2;
@@ -110,6 +114,7 @@ connection default;
   SELECT * FROM t1;
   DROP TABLE t1;
   DROP DATABASE mysqltest2;
+  --enable_service_connection
 # The below test shows that a pre-existing partition can not be
 # destroyed by a new partition from another table.
 # (Remember that a table or partition that uses the DATA/INDEX DIR

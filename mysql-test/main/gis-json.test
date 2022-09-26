@@ -1,5 +1,7 @@
 -- source include/have_geometry.inc
 
+#enable after fix MDEV-27871
+--disable_view_protocol
 select st_asgeojson(geomfromtext('POINT(1 1)'));
 select st_asgeojson(geomfromtext('LINESTRING(10 10,20 10,20 20,10 20,10 10)'));
 select st_asgeojson(geomfromtext('POLYGON((10 10,20 10,20 20,10 20,10 10))'));
@@ -15,13 +17,17 @@ SELECT st_astext(st_geomfromgeojson('{"type":"multipoint","coordinates":[[1,2],[
 SELECT st_astext(st_geomfromgeojson('{"type": "multilinestring", "coordinates": [[[10, 10], [20, 10], [20, 20], [10, 20], [10, 10]]]}'));
 SELECT st_astext(st_geomfromgeojson('{"type": "multipolygon", "coordinates": [[[[10, 10], [20, 10], [20, 20], [10, 20], [10, 10]]]]}'));
 SELECT st_astext(st_geomfromgeojson('{"type": "GeometryCollection", "geometries": [{"type": "Point","coordinates": [100.0, 0.0]}, {"type": "LineString","coordinates": [[101.0, 0.0],[102.0, 1.0]]}]}'));
+--enable_view_protocol
 
 SELECT st_astext(st_geomfromgeojson('{"type":"point"}'));
 SELECT st_astext(st_geomfromgeojson('{"type":"point"'));
 SELECT st_astext(st_geomfromgeojson('{"type""point"}'));
 
+#enable after fix MDEV-27871
+--disable_view_protocol
 SELECT st_astext(st_geomfromgeojson('{ "type": "Feature", "geometry": { "type": "Point", "coordinates": [102.0, 0.5] } }'));
 SELECT st_astext(st_geomfromgeojson('{ "type": "FeatureCollection", "features": [{ "type": "Feature", "geometry": { "type": "Point", "coordinates": [102.0, 0.5] }, "properties": { "prop0": "value0" } }]}'));
+
 
 --error ER_WRONG_VALUE_FOR_TYPE
 SELECT ST_AsText(ST_GeomFromGeoJSON('{ "type": "Point", "coordinates": [5.3, 15.0, 4.3]}',5));
@@ -32,6 +38,8 @@ SELECT ST_AsText(ST_GeomFromGeoJSON('{ "type": "Point", "coordinates": [5.3, 15.
 SELECT ST_AsText(ST_GeomFromGeoJSON('{ "type": "Point", "coordinates": [5.3, 15.0, 4.3]}',2));
 SELECT ST_AsText(ST_GeomFromGeoJSON('{ "type": "Point", "coordinates": [5.3, 15.0, 4.3]}',3));
 SELECT ST_AsText(ST_GeomFromGeoJSON('{ "type": "Point", "coordinates": [5.3, 15.0, 4.3]}',4));
+
+--enable_view_protocol
 
 SELECT ST_AsGeoJSON(ST_GeomFromText('POINT(5.363 7.266)'),2);
 SELECT ST_AsGeoJSON(ST_GeomFromText('POINT(5.363 7.266)'),1);
@@ -44,6 +52,8 @@ SELECT st_astext(st_geomfromgeojson('{"type": "MultiLineString","coordinates": [
 SELECT st_astext(st_geomfromgeojson('{"type": "Polygon","coordinates": []}')) as a;
 SELECT st_astext(st_geomfromgeojson('{"type": "MultiPolygon","coordinates": []}')) as a;
 
+#enable after fix MDEV-27871
+--disable_view_protocol
 SELECT ST_GEOMFROMGEOJSON("{ \"type\": \"Feature\", \"geometry\": [10, 20] }");
 
 #
@@ -53,6 +63,9 @@ SELECT ST_GEOMFROMGEOJSON("{ \"type\": \"Feature\", \"geometry\": [10, 20] }");
 SELECT ST_ASTEXT (ST_GEOMFROMGEOJSON ('{ "type": "GEOMETRYCOLLECTION", "coordinates": [102.0, 0.0]}'));
 
 SELECT ST_ASTEXT(ST_GEOMFROMGEOJSON('{"type": ["POINT"], "coINates": [0,0] }'));
+
+--enable_view_protocol
+
 --echo #
 --echo # End of 10.2 tests
 --echo #

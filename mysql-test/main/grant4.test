@@ -1,5 +1,7 @@
 --source include/not_embedded.inc
 
+--disable_service_connection
+
 # Setup database, tables and user accounts
 --disable_warnings
 drop database if exists mysqltest_db1;
@@ -268,3 +270,5 @@ create user foo4 identified via mysql_old_password using '1111111111111111111111
 set GLOBAL sql_mode=default;
 
 --echo End of 10.1 tests
+
+--enable_service_connection

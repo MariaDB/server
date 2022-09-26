@@ -3,6 +3,8 @@
 # Can't test with embedded server that doesn't support grants
 -- source include/not_embedded.inc
 
+--disable_service_connection
+
 set sql_mode="";
 --source include/default_charset.inc
 
@@ -523,3 +525,4 @@ let $wait_condition=
 --source include/wait_condition.inc
 
 drop database events_test;
+--enable_service_connection

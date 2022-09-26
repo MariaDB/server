@@ -26,8 +26,11 @@ INSERT INTO t2 VALUES('456', 'lui');
 
 select round(match(t1.texte,t1.sujet,t1.motsclefs) against('droit'),5)
        from t1 left join t2 on t2.id=t1.id;
+#enable after fix MDEV-27871
+--disable_view_protocol
 select match(t1.texte,t1.sujet,t1.motsclefs) against('droit' IN BOOLEAN MODE)
        from t1 left join t2 on t2.id=t1.id;
+--enable_view_protocol
 
 drop table t1, t2;
 

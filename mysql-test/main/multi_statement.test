@@ -1,3 +1,6 @@
+# view-protocol doesn't support multi-statements
+-- source include/no_view_protocol.inc
+
 # PS doesn't support multi-statements
 --disable_ps_protocol
 

@@ -1,6 +1,10 @@
+#View cannot has temporary table in definition
+-- source include/no_view_protocol.inc
+
 #
 # MDEV-4260 Don't create frm files for temporary tables
 #
+
 
 # Ensure we don't overflow the internal heap table size in the join
 set @save_use_stat_tables= @@use_stat_tables;
