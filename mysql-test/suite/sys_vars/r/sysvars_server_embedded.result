@@ -1712,7 +1712,7 @@ NUMERIC_BLOCK_SIZE	NULL
 ENUM_VALUE_LIST	OFF,ON
 READ_ONLY	NO
 COMMAND_LINE_ARGUMENT	OPTIONAL
-VARIABLE_NAME	LOG_SLOW_QUERY_FILE_NAME
+VARIABLE_NAME	LOG_SLOW_QUERY_FILE
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	VARCHAR
 VARIABLE_COMMENT	Log slow queries to given log file. Defaults logging to 'hostname'-slow.log. Must be enabled to activate other slow log options
@@ -3235,7 +3235,7 @@ COMMAND_LINE_ARGUMENT	OPTIONAL
 VARIABLE_NAME	SLOW_QUERY_LOG_FILE
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	VARCHAR
-VARIABLE_COMMENT	Alias for log_slow_query_file_name. Log slow queries to given log file. Defaults logging to 'hostname'-slow.log. Must be enabled to activate other slow log options
+VARIABLE_COMMENT	Alias for log_slow_query_file. Log slow queries to given log file. Defaults logging to 'hostname'-slow.log. Must be enabled to activate other slow log options
 NUMERIC_MIN_VALUE	NULL
 NUMERIC_MAX_VALUE	NULL
 NUMERIC_BLOCK_SIZE	NULL

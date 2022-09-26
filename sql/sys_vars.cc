@@ -5161,7 +5161,7 @@ static bool fix_slow_log_file(sys_var *self, THD *thd, enum_var_type type)
 
 static Sys_var_charptr_fscs Sys_slow_log_path(
        "slow_query_log_file",
-       "Alias for log_slow_query_file_name. "
+       "Alias for log_slow_query_file. "
        "Log slow queries to given log file. "
        "Defaults logging to 'hostname'-slow.log. Must be enabled to activate "
        "other slow log options",
@@ -5170,7 +5170,7 @@ static Sys_var_charptr_fscs Sys_slow_log_path(
        ON_CHECK(check_log_path), ON_UPDATE(fix_slow_log_file));
 
 static Sys_var_charptr_fscs Sys_log_slow_query_file_name(
-       "log_slow_query_file_name", "Log slow queries to given log file. "
+       "log_slow_query_file", "Log slow queries to given log file. "
        "Defaults logging to 'hostname'-slow.log. Must be enabled to activate "
        "other slow log options",
        PREALLOCATED GLOBAL_VAR(opt_slow_logname), CMD_LINE(REQUIRED_ARG),
