@@ -2,6 +2,8 @@ CREATE DATABASE unlocked;
 CREATE TABLE unlocked.t1(a INT PRIMARY KEY) ENGINE=INNODB STATS_PERSISTENT=0;
 CREATE DATABASE locked;
 CREATE TABLE locked.t1(a INT PRIMARY KEY) ENGINE=INNODB STATS_PERSISTENT=1;
+CREATE TABLE locked.t1p(pk INT PRIMARY KEY) ENGINE=InnoDB STATS_PERSISTENT=1
+PARTITION BY HASH (pk) PARTITIONS 4;
 CREATE TABLE innodb_stats_drop_locked (c INT, KEY c_key (c))
 ENGINE=INNODB STATS_PERSISTENT=1;
 ANALYZE TABLE innodb_stats_drop_locked;
@@ -38,12 +40,25 @@ innodb_stats_drop_locked	CREATE TABLE `innodb_stats_drop_locked` (
 DROP TABLE innodb_stats_drop_locked;
 ERROR HY000: Lock wait timeout exceeded; try restarting transaction
 DROP DATABASE unlocked;
+DROP TABLE locked.t1p;
+SELECT * FROM locked.t1p;
+ERROR 42S02: Table 'locked.t1p' doesn't exist
 DROP DATABASE locked;
 ERROR HY000: Lock wait timeout exceeded; try restarting transaction
 disconnect con1;
 connection default;
 COMMIT;
+SELECT COUNT(*) FROM mysql.innodb_table_stats WHERE database_name='locked';
+COUNT(*)
+5
+SELECT COUNT(*) FROM mysql.innodb_index_stats WHERE database_name='locked';
+COUNT(*)
+15
 DROP DATABASE locked;
+SELECT table_name FROM mysql.innodb_table_stats WHERE database_name='locked';
+table_name
+SELECT table_name FROM mysql.innodb_index_stats WHERE database_name='locked';
+table_name
 SELECT table_name FROM mysql.innodb_table_stats
 WHERE table_name='innodb_stats_drop_locked';
 table_name

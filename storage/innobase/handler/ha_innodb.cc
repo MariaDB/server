@@ -13613,7 +13613,8 @@ int ha_innobase::delete_table(const char *name)
       dict_sys.unfreeze();
     }
 
-    const bool skip_wait{table->name.is_temporary()};
+    const bool skip_wait{table->name.is_temporary() ||
+                         dict_table_is_partition(table)};
 
     if (table_stats && index_stats &&
         !strcmp(table_stats->name.m_name, TABLE_STATS_NAME) &&

@@ -4,11 +4,15 @@
 #
 
 -- source include/have_innodb.inc
+-- source include/have_partition.inc
 
 CREATE DATABASE unlocked;
 CREATE TABLE unlocked.t1(a INT PRIMARY KEY) ENGINE=INNODB STATS_PERSISTENT=0;
 CREATE DATABASE locked;
 CREATE TABLE locked.t1(a INT PRIMARY KEY) ENGINE=INNODB STATS_PERSISTENT=1;
+
+CREATE TABLE locked.t1p(pk INT PRIMARY KEY) ENGINE=InnoDB STATS_PERSISTENT=1
+PARTITION BY HASH (pk) PARTITIONS 4;
 
 CREATE TABLE innodb_stats_drop_locked (c INT, KEY c_key (c))
 ENGINE=INNODB STATS_PERSISTENT=1;
@@ -35,13 +39,25 @@ SHOW CREATE TABLE innodb_stats_drop_locked;
 DROP TABLE innodb_stats_drop_locked;
 
 DROP DATABASE unlocked;
+
+# Partitions will always be dropped despite locking conflicts.
+DROP TABLE locked.t1p;
+--error ER_NO_SUCH_TABLE
+SELECT * FROM locked.t1p;
+
 --error ER_LOCK_WAIT_TIMEOUT
 DROP DATABASE locked;
 -- disconnect con1
 -- connection default
 COMMIT;
 
+SELECT COUNT(*) FROM mysql.innodb_table_stats WHERE database_name='locked';
+SELECT COUNT(*) FROM mysql.innodb_index_stats WHERE database_name='locked';
+
 DROP DATABASE locked;
+
+SELECT table_name FROM mysql.innodb_table_stats WHERE database_name='locked';
+SELECT table_name FROM mysql.innodb_index_stats WHERE database_name='locked';
 
 # the stats should be there
 
