@@ -21,6 +21,8 @@
 
 #define TABLE_TYPE 510		//Magic number for table.frm files
 #define VIEW_TYPE 22868		//Magic number for view.frm files
+#define FRM_VER_EXPRESSSIONS (FRM_VER + 5) /* 11 */
+#define FRM_VER_CURRENT FRM_VER_EXPRESSSIONS
 
 #define c_malloc(size)                                                        \
   ((char *) my_malloc(PSI_NOT_INSTRUMENTED, (size), MYF(MY_WME)))
@@ -33,11 +35,18 @@ struct label
 
 struct column
 {
-  column(){};
+  column()
+  {
+    name= {0, 0};
+    comment= {0,0};
+    default_value= {0,0};
+    extra_data_type_info= {0, 0};
+    vcol_exp= {0, 0};
+    check_constraint= {0, 0};
+  };
   LEX_CSTRING name;
   uint length;
   uint flags;   //field.h
-  //enum utype unireg_check;
   uint unireg_check;
   enum enum_field_types type;
   LEX_CSTRING comment;
@@ -64,7 +73,13 @@ struct key_part
 
 struct key
 {
-  key(){};
+  key()
+  {
+    name= {0, 0};
+    comment= {0, 0};
+    column_name= {0, 0};
+    parser= {0, 0};
+  };
   LEX_CSTRING name;
   LEX_CSTRING comment;
   uint flags;
@@ -82,7 +97,25 @@ struct key
 
 struct frm_file_data
 {
-  frm_file_data(){};
+  frm_file_data()
+  {
+    table_cs_name= {0, 0};
+    table_coll_name= {0, 0};
+    connect_string= {0, 0};
+    engine_name= {0,0};
+    partition_info= {0, 0};
+    version= {0, 0};
+    options= {0, 0};
+    engine= {0, 0};
+    gis= {0, 0};
+    field_flags= {0, 0};
+    system_period= {0, 0};
+    application_period= {0, 0};
+    field_data_type_info= {0, 0};
+    without_overlaps= {0, 0};
+    index_flags= {0, 0};
+    table_comment= {0, 0};
+  };
   uint mysql_version, keyinfo_offset, keyinfo_length;
   uint defaults_offset, defaults_length;
   uint extrainfo_offset, extrainfo_length;
@@ -95,7 +128,6 @@ struct frm_file_data
   uint charset_primary_number;
   LEX_CSTRING table_cs_name;
   LEX_CSTRING table_coll_name;
-  enum row_type  rtype;
   uint key_block_size, handler_option;
   LEX_CSTRING connect_string;
   LEX_CSTRING engine_name;
@@ -164,23 +196,6 @@ static inline bool is_binary_frm_header(uchar *head)
 #define f_decimals(x)                                                         \
   ((uint8) (((x) >> FIELDFLAG_DEC_SHIFT) & FIELDFLAG_MAX_DEC))
 
-inline bool is_temporal_type_with_date(enum_field_types type)
-{
-  switch (type)
-  {
-  case MYSQL_TYPE_DATE:
-  case MYSQL_TYPE_DATETIME:
-  case MYSQL_TYPE_TIMESTAMP:
-    return true;
-  case MYSQL_TYPE_DATETIME2:
-  case MYSQL_TYPE_TIMESTAMP2:
-    DBUG_ASSERT(0); // field->real_type() should not get to here.
-    return false;
-  default:
-    return false;
-  }
-}
-/*
 enum row_type
 {
   ROW_TYPE_NOT_USED= -1,
@@ -192,7 +207,7 @@ enum row_type
   ROW_TYPE_COMPACT,
   ROW_TYPE_PAGE
 };
-*/
+
 enum extra2_frm_value_type
 {
   EXTRA2_TABLEDEF_VERSION= 0,
@@ -265,3 +280,49 @@ enum vcol_info_type
   VCOL_USING_HASH,
   VCOL_TYPE_NONE= 127
 };
+
+#define FIELD_NR_MASK 16383 /* To get fieldnumber */
+#define MIN_TIME_WIDTH 10     /* -HHH:MM:SS */
+#define MAX_TIME_WIDTH 16   /* -DDDDDD HH:MM:SS */
+#define MAX_DATETIME_WIDTH 19 /* YYYY-MM-DD HH:MM:SS */
+
+#define MAX_DATETIME_PRECISION 6
+uint time_m_hires_bytes[MAX_DATETIME_PRECISION + 1]= {3, 4, 4, 5, 5, 5, 6};
+
+#define get_one(WHERE, FACTOR)                                                \
+  WHERE= (ulong) (packed % FACTOR);                                           \
+  packed/= FACTOR
+
+#define TIMEF_OFS 0x800000000000LL
+#define TIMEF_INT_OFS 0x800000LL
+#define MY_PACKED_TIME_MAKE_INT(i) ((((ulonglong) (i)) << 24))
+#define MY_PACKED_TIME_MAKE(i, f) ((((ulonglong) (i)) << 24) + (f))
+#define MY_PACKED_TIME_GET_INT_PART(x) ((x) >> 24)
+#define MY_PACKED_TIME_GET_FRAC_PART(x) ((x) % (1LL << 24))
+#define DATETIMEF_INT_OFS 0x8000000000LL
+
+enum utype
+{
+  NONE= 0,
+  NEXT_NUMBER= 15,          // AUTO_INCREMENT
+  TIMESTAMP_OLD_FIELD= 18,  // TIMESTAMP created before 4.1.3
+  TIMESTAMP_DN_FIELD= 21,   // TIMESTAMP DEFAULT NOW()
+  TIMESTAMP_UN_FIELD= 22,   // TIMESTAMP ON UPDATE NOW()
+  TIMESTAMP_DNUN_FIELD= 23, // TIMESTAMP DEFAULT NOW() ON UPDATE NOW()
+  TMYSQL_COMPRESSED= 24,    // Compatibility with TMySQL
+};
+
+#define FIELDFLAG_DEC_MASK 0x3F00U
+
+static const size_t IN_ADDR_SIZE= 4;
+static const size_t IN_ADDR_MAX_CHAR_LENGTH= 15;
+
+static const size_t IN6_ADDR_SIZE= 16;
+static const size_t IN6_ADDR_NUM_WORDS= IN6_ADDR_SIZE / 2;
+
+static const uint IN6_ADDR_MAX_CHAR_LENGTH= 8 * 4 + 7;
+
+static std::unordered_set<uint> default_chrsts{
+    1,  3,  4,  6,  7,  8,  9,  10, 11, 12, 13, 16, 18, 19,
+    22, 24, 25, 26, 28, 30, 32, 33, 35, 36, 37, 38, 39, 40,
+    41, 45, 51, 54, 56, 57, 59, 60, 63, 92, 95, 97, 98};

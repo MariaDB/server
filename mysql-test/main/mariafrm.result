@@ -76,6 +76,79 @@ side_c     DOUBLE  AS (SQRT(side_a * side_a + side_b * side_b)) CHECK(side_c > s
 all_sides  JSON,
 CONSTRAINT chk     CHECK (side_a > 0)
 );
+CREATE TABLE tinyints (
+a TINYINT          DEFAULT 122,
+b TINYINT UNSIGNED DEFAULT 250,
+c TINYINT ZEROFILL DEFAULT 18
+);
+CREATE TABLE smallints (
+a SMALLINT          DEFAULT -31632,
+b SMALLINT UNSIGNED DEFAULT 65285,
+c SMALLINT ZEROFILL DEFAULT 891
+);
+CREATE TABLE mediumints (
+a MEDIUMINT          DEFAULT -8182635,
+b MEDIUMINT UNSIGNED DEFAULT 12477235,
+c MEDIUMINT ZEROFILL DEFAULT 46789
+);
+CREATE TABLE ints (
+a INT          DEFAULT 2143484644,
+b INT UNSIGNED DEFAULT 4294967295,
+c INT ZEROFILL DEFAULT 4
+);
+CREATE TABLE bigints (
+a BIGINT          DEFAULT -9223372036854775808,
+b BIGINT UNSIGNED DEFAULT 18446744073709551615,
+c BIGINT ZEROFILL DEFAULT 46792358
+);
+CREATE TABLE decimals (
+a DECIMAL(40,8)           DEFAULT -37.342,
+b DECIMAL(55,15) UNSIGNED DEFAULT 8947266.432643,
+c DECIMAL(4)     ZEROFILL DEFAULT 4789.5784
+);
+Warnings:
+Note	1265	Data truncated for column 'c' at row 0
+CREATE TABLE floats (
+a FLOAT(10,5)        DEFAULT -7314.5472,
+b FLOAT(20)  UNSIGNED DEFAULT 578.4788975,
+c FLOAT      ZEROFILL DEFAULT 3.402823466E+38
+);
+CREATE TABLE doubles (
+a DOUBLE          DEFAULT 4785845.2655,
+b DOUBLE UNSIGNED DEFAULT 1.7976931348623157E+308,
+c DOUBLE ZEROFILL DEFAULT 875487935479.7986437289064
+);
+CREATE TABLE bit_s (
+b1 BIT(8)  DEFAULT 255,
+b2 BIT(20) DEFAULT b'11000000110000111100'
+);
+CREATE TABLE chars (
+a CHAR(30) DEFAULT 'Maria'
+);
+CREATE TABLE varchars (
+a VARCHAR(300) DEFAULT 'Fire is hot'
+) CHARSET=utf8mb4;
+CREATE TABLE inet4s (
+a INET4 DEFAULT '19.117.63.126',
+b INET4 DEFAULT '128.250.121.8'
+);
+CREATE TABLE inet6s (
+a INET6 DEFAULT '2001:0db8:0000:0000:0000:ff00:0042:8329',
+b INET6 DEFAULT '::ffff:192.0.2.128'
+);
+CREATE TABLE enums (
+fruit ENUM('apple', 'orange', 'pear') DEFAULT 'apple'
+);
+CREATE TABLE sets (
+color SET('red', 'green', 'blue', 'yellow', 'white', 'black') DEFAULT 'green,blue'
+);
+CREATE TABLE temporal_defaults (
+dates         DATE        DEFAULT '2010-01-12',
+times         TIME(6)     DEFAULT '14:34:52.4373',
+date_and_time DATETIME(4) DEFAULT '2002-05-24 23:32:11.637985',
+time_stamps   TIMESTAMP   DEFAULT '1995-03-10 12:50:31.8745',
+years         YEAR        DEFAULT '2000'
+);
 
 # Table t1
 
@@ -307,6 +380,244 @@ CREATE TABLE `triangle` (
   CONSTRAINT `chk` CHECK (`side_a` > 0)
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1
 
+# Table tinyints
+
+SHOW CREATE TABLE tinyints;
+Table	Create Table
+tinyints	CREATE TABLE `tinyints` (
+  `a` tinyint(4) DEFAULT 122,
+  `b` tinyint(3) unsigned DEFAULT 250,
+  `c` tinyint(3) unsigned zerofill DEFAULT 018
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+
+CREATE TABLE `tinyints` (
+  `a` tinyint(4) DEFAULT 122,
+  `b` tinyint(3) unsigned DEFAULT 250,
+  `c` tinyint(3) unsigned zerofill DEFAULT 018
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+
+# Table smallints
+
+SHOW CREATE TABLE smallints;
+Table	Create Table
+smallints	CREATE TABLE `smallints` (
+  `a` smallint(6) DEFAULT -31632,
+  `b` smallint(5) unsigned DEFAULT 65285,
+  `c` smallint(5) unsigned zerofill DEFAULT 00891
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+
+CREATE TABLE `smallints` (
+  `a` smallint(6) DEFAULT -31632,
+  `b` smallint(5) unsigned DEFAULT 65285,
+  `c` smallint(5) unsigned zerofill DEFAULT 00891
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+
+# Table mediumints
+
+SHOW CREATE TABLE mediumints;
+Table	Create Table
+mediumints	CREATE TABLE `mediumints` (
+  `a` mediumint(9) DEFAULT -8182635,
+  `b` mediumint(8) unsigned DEFAULT 12477235,
+  `c` mediumint(8) unsigned zerofill DEFAULT 00046789
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+
+CREATE TABLE `mediumints` (
+  `a` mediumint(9) DEFAULT -8182635,
+  `b` mediumint(8) unsigned DEFAULT 12477235,
+  `c` mediumint(8) unsigned zerofill DEFAULT 00046789
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+
+# Table ints
+
+SHOW CREATE TABLE ints;
+Table	Create Table
+ints	CREATE TABLE `ints` (
+  `a` int(11) DEFAULT 2143484644,
+  `b` int(10) unsigned DEFAULT 4294967295,
+  `c` int(10) unsigned zerofill DEFAULT 0000000004
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+
+CREATE TABLE `ints` (
+  `a` int(11) DEFAULT 2143484644,
+  `b` int(10) unsigned DEFAULT 4294967295,
+  `c` int(10) unsigned zerofill DEFAULT 0000000004
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+
+# Table bigints
+
+SHOW CREATE TABLE bigints;
+Table	Create Table
+bigints	CREATE TABLE `bigints` (
+  `a` bigint(20) DEFAULT -9223372036854775808,
+  `b` bigint(20) unsigned DEFAULT 18446744073709551615,
+  `c` bigint(20) unsigned zerofill DEFAULT 00000000000046792358
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+
+CREATE TABLE `bigints` (
+  `a` bigint(20) DEFAULT -9223372036854775808,
+  `b` bigint(20) unsigned DEFAULT 18446744073709551615,
+  `c` bigint(20) unsigned zerofill DEFAULT 00000000000046792358
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+
+# Table decimals
+
+SHOW CREATE TABLE decimals;
+Table	Create Table
+decimals	CREATE TABLE `decimals` (
+  `a` decimal(40,8) DEFAULT -37.34200000,
+  `b` decimal(55,15) unsigned DEFAULT 8947266.432643000000000,
+  `c` decimal(4,0) unsigned zerofill DEFAULT 4790
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+
+CREATE TABLE `decimals` (
+  `a` decimal(40,8) DEFAULT -37.34200000,
+  `b` decimal(55,15) unsigned DEFAULT 8947266.432643000000000,
+  `c` decimal(4,0) unsigned zerofill DEFAULT 4790
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+
+# Table floats
+
+SHOW CREATE TABLE floats;
+Table	Create Table
+floats	CREATE TABLE `floats` (
+  `a` float(10,5) DEFAULT -7314.54736,
+  `b` float unsigned DEFAULT 578.479,
+  `c` float unsigned zerofill DEFAULT 003.40282e38
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+
+CREATE TABLE `floats` (
+  `a` float(10,5) DEFAULT -7314.54736,
+  `b` float unsigned DEFAULT 578.479,
+  `c` float unsigned zerofill DEFAULT 003.40282e38
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+
+# Table doubles
+
+SHOW CREATE TABLE doubles;
+Table	Create Table
+doubles	CREATE TABLE `doubles` (
+  `a` double DEFAULT 4785845.2655,
+  `b` double unsigned DEFAULT 1.7976931348623157e308,
+  `c` double unsigned zerofill DEFAULT 00000875487935479.7986
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+
+CREATE TABLE `doubles` (
+  `a` double DEFAULT 4785845.2655,
+  `b` double unsigned DEFAULT 1.7976931348623157e308,
+  `c` double unsigned zerofill DEFAULT 00000875487935479.7986
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+
+# Table bit_s
+
+SHOW CREATE TABLE bit_s;
+Table	Create Table
+bit_s	CREATE TABLE `bit_s` (
+  `b1` bit(8) DEFAULT b'11111111',
+  `b2` bit(20) DEFAULT b'11000000110000111100'
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+
+CREATE TABLE `bit_s` (
+  `b1` bit(8) DEFAULT 'b'11111111'',
+  `b2` bit(20) DEFAULT 'b'11000000110000111100''
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+
+# Table chars
+
+SHOW CREATE TABLE chars;
+Table	Create Table
+chars	CREATE TABLE `chars` (
+  `a` char(30) DEFAULT 'Maria'
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+
+CREATE TABLE `chars` (
+  `a` char(30) DEFAULT 'Maria'
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+
+# Table varchars
+
+SHOW CREATE TABLE varchars;
+Table	Create Table
+varchars	CREATE TABLE `varchars` (
+  `a` varchar(300) DEFAULT 'Fire is hot'
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+
+CREATE TABLE `varchars` (
+  `a` varchar(300) DEFAULT 'Fire is hot'
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+
+# Table inet4s
+
+SHOW CREATE TABLE inet4s;
+Table	Create Table
+inet4s	CREATE TABLE `inet4s` (
+  `a` inet4 DEFAULT '19.117.63.126',
+  `b` inet4 DEFAULT '128.250.121.8'
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+
+CREATE TABLE `inet4s` (
+  `a` inet4 DEFAULT '19.117.63.126',
+  `b` inet4 DEFAULT '128.250.121.8'
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+
+# Table inet6s
+
+SHOW CREATE TABLE inet6s;
+Table	Create Table
+inet6s	CREATE TABLE `inet6s` (
+  `a` inet6 DEFAULT '2001:db8::ff00:42:8329',
+  `b` inet6 DEFAULT '::ffff:192.0.2.128'
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+
+CREATE TABLE `inet6s` (
+  `a` inet6 DEFAULT '2001:db8::ff00:42:8329',
+  `b` inet6 DEFAULT '::ffff:192.0.2.128'
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+
+# Table enums
+
+SHOW CREATE TABLE enums;
+Table	Create Table
+enums	CREATE TABLE `enums` (
+  `fruit` enum('apple','orange','pear') DEFAULT 'apple'
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+
+CREATE TABLE `enums` (
+  `fruit` enum('apple','orange','pear') DEFAULT 'apple'
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+
+# Table sets
+
+SHOW CREATE TABLE sets;
+Table	Create Table
+sets	CREATE TABLE `sets` (
+  `color` set('red','green','blue','yellow','white','black') DEFAULT 'green,blue'
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+
+CREATE TABLE `sets` (
+  `color` set('red','green','blue','yellow','white','black') DEFAULT 'green,blue'
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+
+# Table temporal_defaults
+
+SHOW CREATE TABLE temporal_defaults;
+Table	Create Table
+temporal_defaults	CREATE TABLE `temporal_defaults` (
+  `dates` date DEFAULT '2010-01-12',
+  `times` time(6) DEFAULT '14:34:52.437300',
+  `date_and_time` datetime(4) DEFAULT '2002-05-24 23:32:11.6379',
+  `time_stamps` timestamp NOT NULL DEFAULT '1995-03-10 12:50:31',
+  `years` year(4) DEFAULT 2000
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+
+CREATE TABLE `temporal_defaults` (
+  `dates` date DEFAULT '2010-01-12',
+  `times` time(6) DEFAULT '14:34:52.437300',
+  `date_and_time` datetime(4) DEFAULT '2002-05-24 23:32:11.6379',
+  `time_stamps` timestamp NOT NULL DEFAULT '1995-03-10 12:50:31',
+  `years` year(4) DEFAULT 2000
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+
 DROP TABLE t1;
 DROP TABLE employees;
 DROP TABLE departments;
@@ -317,3 +628,19 @@ DROP TABLE serverlogs;
 DROP TABLE custom_types;
 DROP TABLE contacts;
 DROP TABLE triangle;
+DROP TABLE tinyints;
+DROP TABLE smallints;
+DROP TABLE mediumints;
+DROP TABLE ints;
+DROP TABLE bigints;
+DROP TABLE decimals;
+DROP TABLE floats;
+DROP TABLE doubles;
+DROP TABLE bit_s;
+DROP TABLE chars;
+DROP TABLE varchars;
+DROP TABLE inet4s;
+DROP TABLE inet6s;
+DROP TABLE enums;
+DROP TABLE sets;
+DROP TABLE temporal_defaults;
