@@ -1,6 +1,6 @@
 /* Copyright (C) 2007 Google Inc.
    Copyright (c) 2008, 2013, Oracle and/or its affiliates.
-   Copyright (c) 2011, 2016, MariaDB
+   Copyright (c) 2011, 2022, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -275,12 +275,16 @@ void Active_tranx::clear_active_tranx_nodes(const char *log_file_name,
     Tranx_node *curr_node, *next_node;
 
     /* Delete all transaction nodes before the confirmation point. */
+#ifdef DBUG_TRACE
     int n_frees = 0;
+#endif
     curr_node = m_trx_front;
     while (curr_node != new_front)
     {
       next_node = curr_node->next;
+#ifdef DBUG_TRACE
       n_frees++;
+#endif
 
       /* Remove the node from the hash table. */
       unsigned int hash_val = get_hash_value(curr_node->log_name, curr_node->log_pos);
