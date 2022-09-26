@@ -9522,7 +9522,8 @@ Item *LEX::create_item_qualified_asterisk(THD *thd,
                                              null_clex_str, *name,
                                              star_clex_str)))
     return NULL;
-  current_select->with_wild++;
+  current_select->parsing_place == IN_RETURNING ?
+              thd->lex->returning()->with_wild++ : current_select->with_wild++;
   return item;
 }
 
@@ -9537,7 +9538,8 @@ Item *LEX::create_item_qualified_asterisk(THD *thd,
   if (!(item= new (thd->mem_root) Item_field(thd, current_context(),
                                              schema, *b, star_clex_str)))
    return NULL;
-  current_select->with_wild++;
+  current_select->parsing_place == IN_RETURNING ?
+            thd->lex->returning()->with_wild++ : current_select->with_wild++;
   return item;
 }
 

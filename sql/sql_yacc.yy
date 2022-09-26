@@ -9175,14 +9175,20 @@ select_item_list:
         | select_item
         | '*'
           {
+            bool is_parsing_returning=
+                              thd->lex->current_select->parsing_place ==
+                                                IN_RETURNING;
+            SELECT_LEX *correct_select= is_parsing_returning ?
+                                              thd->lex->returning() :
+                                              thd->lex->current_select;
             Item *item= new (thd->mem_root)
-                          Item_field(thd, &thd->lex->current_select->context,
+                          Item_field(thd, &correct_select->context,
                                      star_clex_str);
             if (unlikely(item == NULL))
               MYSQL_YYABORT;
             if (unlikely(add_item_to_list(thd, item)))
               MYSQL_YYABORT;
-            (thd->lex->current_select->with_wild)++;
+            correct_select->with_wild++;
           }
         ;
 
@@ -13360,19 +13366,33 @@ opt_returning:
         | RETURNING_SYM
           {
             DBUG_ASSERT(!Lex->has_returning());
-            if (($<num>$= (Select != Lex->returning())))
-            {
-              SELECT_LEX *sl= Lex->returning();
-              sl->set_master_unit(0);
-              Select->attach_single(Lex->create_unit(sl));
-              sl->include_global((st_select_lex_node**)&Lex->all_selects_list);
-              Lex->push_select(sl);
-            }
+            /*
+              When parsing_place is IN_RETURNING, we push select items to
+              item_list of builtin_select instead of current_select.
+              But set parsing_place of current_select to true.
+
+              Because parsing_place for builtin_select will be IN_RETURNING,
+              regardless there is SELECT in RETURNING. Example, if
+              there is RETURNING (SELECT...), then when we parse
+              SELECT inside RETURNING, builtin_select->parsing_place
+              will still be true. So the select items of SELECT inside
+              RETURNING will be added to item_list of builtin_select which
+              is incorrect. We want to prevent this from happening.
+              Since for every new select, a new SELECT_LEX
+              object is created and pushed to select stack, current_select
+              will point to SELECT inside RETURNING, and also has
+              parsing_place not set to IN_RETURNING by default.
+              So items are correctly added to item_list of SELECT inside
+              RETURNING instead of builtin_select.
+            */
+
+            thd->lex->current_select->parsing_place= IN_RETURNING;
+            thd->lex->push_context(&thd->lex->returning()->context);
           }
           select_item_list
           {
-            if ($<num>2)
-              Lex->pop_select();
+            thd->lex->pop_context();
+            thd->lex->current_select->parsing_place= NO_MATTER;
           }
         ;
 

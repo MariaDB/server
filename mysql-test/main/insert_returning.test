@@ -326,3 +326,73 @@ DROP TABLE ins_duplicate;
 DROP VIEW v1;
 DROP VIEW v2;
 DROP FUNCTION f;
+
+--echo #
+--echo # MDEV-25028: ASAN use-after-poison in base_list_iterator::next or
+--echo # Assertion `sl->join == 0' upon INSERT .. RETURNING via PS
+--echo #
+CREATE TABLE t1 (a INT);
+CREATE TABLE t2 (b INT);
+
+PREPARE stmt1 FROM "INSERT INTO t1 SELECT * FROM t1 WHERE a IN (SELECT b FROM t2) RETURNING a";
+EXECUTE stmt1;
+
+PREPARE stmt2 FROM "INSERT INTO t1 SELECT * FROM t1 WHERE a IN (SELECT b FROM t2) RETURNING (SELECT b FROM t2)";
+EXECUTE stmt2;
+
+DROP TABLE t1, t2;
+
+--echo #
+--echo # MDEV-25187: Assertion `inited == NONE || table->open_by_handler'
+--echo # failed or Direct leak in init_dynamic_array2 upon INSERT .. RETURNING
+--echo # and memory leak in init_dynamic_array2
+--echo #
+CREATE TABLE t (a INT, KEY (a));
+CREATE TABLE t1 (f INT);
+
+INSERT INTO t VALUES (1),(2);
+
+INSERT INTO t1 SELECT a FROM t WHERE 1 NOT IN (SELECT a FROM t) RETURNING f;
+
+# Cleanup
+DROP TABLE t, t1;
+
+--echo #
+--echo # MDEV-28740: crash in INSERT RETURNING subquery in prepared statements
+--echo #
+
+CREATE TABLE t1 (
+                  id INTEGER NOT NULL,
+                  data VARCHAR(30),
+                  PRIMARY KEY (id)
+                )ENGINE=MyISAM;
+
+EXECUTE IMMEDIATE 'INSERT INTO t1 (id, data) VALUES  ((SELECT CAST(1 AS SIGNED INTEGER) AS anon_1), ?) RETURNING t1.id' using 'hi';
+
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-27165: crash in base_list_iterator::next
+--echo #
+
+CREATE TABLE t1 ( id int, a int);
+CREATE TABLE t2 ( id int);
+
+--error ER_WARN_DATA_OUT_OF_RANGE
+INSERT INTO t1 VALUES (( SELECT 1 from t2),999999999999) RETURNING id;
+--error ER_WARN_DATA_OUT_OF_RANGE
+EXECUTE immediate "INSERT INTO t1 VALUES (( SELECT 1 from t2),999999999999) RETURNING id ";
+
+EXECUTE immediate "INSERT INTO t1 VALUES (( SELECT 1 from t2),9) RETURNING id ";
+
+DROP TABLE t1, t2;
+
+--echo #
+--echo # MDEV-29686: Assertion `slave == 0' failed in
+--echo # st_select_lex_node::attach_single
+--echo #
+
+CREATE TABLE t (a INT);
+INSERT t WITH cte AS (SELECT 1) SELECT * FROM cte RETURNING *;
+
+DROP TABLE t;
