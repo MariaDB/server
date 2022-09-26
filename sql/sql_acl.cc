@@ -1532,6 +1532,11 @@ class User_table_json: public User_table
   {
     privilege_t mask= ALL_KNOWN_ACL_100304;
     ulonglong orig_access= access;
+    if (version_id < 101100)
+    {
+      if (access & SUPER_ACL)
+        access|= READ_ONLY_ADMIN_ACL;
+    }
     if (version_id >= 100509)
     {
       mask= ALL_KNOWN_ACL_100509;

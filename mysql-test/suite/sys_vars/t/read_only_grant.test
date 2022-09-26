@@ -35,3 +35,11 @@ SET SESSION read_only=0;
 --disconnect user1
 --connection default
 DROP USER user1@localhost;
+
+--echo #
+--echo # MDEV-29632 SUPER users created before 10.11 should retain READ_ONLY ADMIN privilege upon upgrade
+--echo #
+insert mysql.global_priv values ('bar', 'foo', '{"access":32768,"version_id":101000,"plugin":"mysql_native_password","authentication_string":""}');
+flush privileges;
+show grants for foo@bar;
+drop user foo@bar;
