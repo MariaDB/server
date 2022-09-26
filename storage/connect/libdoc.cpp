@@ -290,46 +290,8 @@ if (!rc)
 /******************************************************************/
 /*  XML library cleanup function.                                 */
 /******************************************************************/
-/*
-  This is a copy of xmlCleanupParser() from the libxml2 sources
-  with xmlResetLastError() commented.
-
-  xmlResetLastError() called from the original xmlCleanupParser() causes
-  valgrind to report memory leaks. This happens because
-  ha_initialize_handlerton() is called from the main thread in mysqld.cc,
-  while ha_finalize_handlerton() is called from a non-main thread.
-  libxml2 gets confused because of xmlInitParser() and xmlCleanupParser()
-  being called from the different threads.
-
-  Perhaps the code in mysqld.cc should eventually be modified
-  to shutdown plugins from the main thread.
-*/
-static void
-xmlCleanupParser_replacement(void)
-  {
-  xmlCleanupCharEncodingHandlers();
-#ifdef LIBXML_CATALOG_ENABLED
-  xmlCatalogCleanup();
-#endif
-  xmlDictCleanup();
-  xmlCleanupInputCallbacks();
-#ifdef LIBXML_OUTPUT_ENABLED   
-  xmlCleanupOutputCallbacks();
-#endif
-#ifdef LIBXML_SCHEMAS_ENABLED
-  xmlSchemaCleanupTypes(); 
-  xmlRelaxNGCleanupTypes();
-#endif
-  //xmlResetLastError();
-  xmlCleanupGlobals();
-  xmlCleanupThreads(); /* must be last if called not from the main thread */
-  xmlCleanupMemory();
-  }
-
-
 void XmlCleanupParserLib(void)
   {
-  xmlCleanupParser_replacement();
   } // end of XmlCleanupParserLib
 
 /******************************************************************/
