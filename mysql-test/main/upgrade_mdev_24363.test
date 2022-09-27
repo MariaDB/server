@@ -9,7 +9,7 @@
 --echo # Test that mysql.user password_expired column
 --echo # shows the right value as in mysql.global_priv
 --echo #
-
+--disable_service_connection
 create user gigi@localhost;
 show create user gigi@localhost;
 select password_expired from mysql.user where user='gigi' and host='localhost';
@@ -19,6 +19,7 @@ show create user gigi@localhost;
 select password_expired from mysql.user where user='gigi' and host='localhost';
 
 drop user gigi@localhost;
+--enable_service_connection
 
 --echo #
 --echo # Test that upgrades from 10.4+ versions before this mdev

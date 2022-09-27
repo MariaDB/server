@@ -1,5 +1,8 @@
 # General purpose bug fix tests go here : subselect.test too large
 
+#remove this include after fix MDEV-27871, MDEV-27957
+--source include/no_view_protocol.inc
+
 --source include/default_optimizer_switch.inc
 
 --disable_warnings

@@ -4,6 +4,7 @@
 #
 # MDEV-5616 - Deadlock between CREATE/DROP FUNCTION and SELECT from view
 #
+--disable_service_connection
 --replace_result $UDF_EXAMPLE_SO UDF_EXAMPLE_LIB
 eval CREATE FUNCTION myfunc_int RETURNS INTEGER SONAME "$UDF_EXAMPLE_SO";
 CREATE VIEW v1 AS SELECT myfunc_int(1);
@@ -38,3 +39,4 @@ connection default;
 SET debug_sync='RESET';
 DROP VIEW v1;
 DROP FUNCTION myfunc_int;
+--enable_service_connection

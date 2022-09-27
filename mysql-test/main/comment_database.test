@@ -52,6 +52,7 @@ SHOW CREATE DATABASE db1;
 DROP DATABASE db1;
 
 # Test the case when the database is named 'comment'
+--disable_service_connection
 CREATE DATABASE comment COMMENT 'comment' CHARACTER SET 'latin2';
 SHOW CREATE DATABASE comment;
 ALTER DATABASE comment COMMENT 'comment comment';
@@ -61,3 +62,4 @@ ALTER DATABASE COMMENT 'comment';
 SELECT * FROM information_schema.schemata
 WHERE schema_name='comment';
 DROP DATABASE comment;
+--enable_service_connection

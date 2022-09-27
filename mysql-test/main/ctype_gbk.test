@@ -447,11 +447,13 @@ DROP TABLE t1;
 --echo #
 --echo # MDEV-7661 Unexpected result for: CAST(0xHHHH AS CHAR CHARACTER SET xxx) for incorrect byte sequences
 --echo #
+#enable after fix MDEV-27871
+--disable_view_protocol
 set sql_mode='';
 SELECT HEX(CAST(0xA341 AS CHAR CHARACTER SET gb2312));
 SELECT HEX(CONVERT(CAST(0xA341 AS CHAR CHARACTER SET gb2312) USING utf8));
 set sql_mode=default;
-
+--enable_view_protocol
 
 --echo #
 --echo # End of 10.1 tests

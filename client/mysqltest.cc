@@ -119,6 +119,7 @@ static my_bool opt_mark_progress= 0;
 static my_bool ps_protocol= 0, ps_protocol_enabled= 0;
 static my_bool sp_protocol= 0, sp_protocol_enabled= 0;
 static my_bool view_protocol= 0, view_protocol_enabled= 0;
+static my_bool service_connection_enabled= 1;
 static my_bool cursor_protocol= 0, cursor_protocol_enabled= 0;
 static my_bool parsing_disabled= 0;
 static my_bool display_result_vertically= FALSE, display_result_lower= FALSE,
@@ -157,6 +158,7 @@ static struct property prop_list[] = {
   { &display_metadata, 0, 0, 0, "$ENABLED_METADATA" },
   { &ps_protocol_enabled, 0, 0, 0, "$ENABLED_PS_PROTOCOL" },
   { &view_protocol_enabled, 0, 0, 0, "$ENABLED_VIEW_PROTOCOL"},
+  { &service_connection_enabled, 0, 1, 0, "$ENABLED_SERVICE_CONNECTION"},
   { &disable_query_log, 0, 0, 1, "$ENABLED_QUERY_LOG" },
   { &disable_result_log, 0, 0, 1, "$ENABLED_RESULT_LOG" },
   { &disable_warnings, 0, 0, 1, "$ENABLED_WARNINGS" }
@@ -172,6 +174,7 @@ enum enum_prop {
   P_META,
   P_PS,
   P_VIEW,
+  P_CONN,
   P_QUERY,
   P_RESULT,
   P_WARN,
@@ -379,6 +382,7 @@ enum enum_commands {
   Q_START_TIMER, Q_END_TIMER,
   Q_CHARACTER_SET, Q_DISABLE_PS_PROTOCOL, Q_ENABLE_PS_PROTOCOL,
   Q_DISABLE_VIEW_PROTOCOL, Q_ENABLE_VIEW_PROTOCOL,
+  Q_DISABLE_SERVICE_CONNECTION, Q_ENABLE_SERVICE_CONNECTION,
   Q_ENABLE_NON_BLOCKING_API, Q_DISABLE_NON_BLOCKING_API,
   Q_DISABLE_RECONNECT, Q_ENABLE_RECONNECT,
   Q_IF,
@@ -472,6 +476,8 @@ const char *command_names[]=
   "enable_ps_protocol",
   "disable_view_protocol",
   "enable_view_protocol",
+  "disable_service_connection",
+  "enable_service_connection",
   "enable_non_blocking_api",
   "disable_non_blocking_api",
   "disable_reconnect",
@@ -8979,25 +8985,30 @@ int util_query(MYSQL* org_mysql, const char* query){
   MYSQL* mysql;
   DBUG_ENTER("util_query");
 
-  if(!(mysql= cur_con->util_mysql))
+  if (service_connection_enabled)
   {
-    DBUG_PRINT("info", ("Creating util_mysql"));
-    if (!(mysql= mysql_init(mysql)))
-      die("Failed in mysql_init()");
+    if(!(mysql= cur_con->util_mysql))
+    {
+      DBUG_PRINT("info", ("Creating util_mysql"));
+      if (!(mysql= mysql_init(mysql)))
+        die("Failed in mysql_init()");
 
-    if (opt_connect_timeout)
-      mysql_options(mysql, MYSQL_OPT_CONNECT_TIMEOUT,
-                    (void *) &opt_connect_timeout);
+      if (opt_connect_timeout)
+        mysql_options(mysql, MYSQL_OPT_CONNECT_TIMEOUT,
+            (void *) &opt_connect_timeout);
 
-    /* enable local infile, in non-binary builds often disabled by default */
-    mysql_options(mysql, MYSQL_OPT_LOCAL_INFILE, 0);
-    mysql_options(mysql, MYSQL_OPT_NONBLOCK, 0);
-    safe_connect(mysql, "util", org_mysql->host, org_mysql->user,
-                 org_mysql->passwd, org_mysql->db, org_mysql->port,
-                 org_mysql->unix_socket);
+      /* enable local infile, in non-binary builds often disabled by default */
+      mysql_options(mysql, MYSQL_OPT_LOCAL_INFILE, 0);
+      mysql_options(mysql, MYSQL_OPT_NONBLOCK, 0);
+      safe_connect(mysql, "util", org_mysql->host, org_mysql->user,
+          org_mysql->passwd, org_mysql->db, org_mysql->port,
+          org_mysql->unix_socket);
 
-    cur_con->util_mysql= mysql;
+      cur_con->util_mysql= mysql;
+    }
   }
+  else
+    mysql= org_mysql;
 
   int ret= mysql_query(mysql, query);
   DBUG_RETURN(ret);
@@ -9146,7 +9157,10 @@ void run_query(struct st_connection *cn, struct st_command *command, int flags)
         Collect warnings from create of the view that should otherwise
         have been produced when the SELECT was executed
       */
-      append_warnings(&ds_warnings, cur_con->util_mysql);
+      append_warnings(&ds_warnings,
+                      service_connection_enabled ?
+                        cur_con->util_mysql :
+                        mysql);
     }
 
     dynstr_free(&query_str);
@@ -10199,6 +10213,14 @@ int main(int argc, char **argv)
         break;
       case Q_ENABLE_VIEW_PROTOCOL:
         set_property(command, P_VIEW, view_protocol);
+        break;
+      case Q_DISABLE_SERVICE_CONNECTION:
+        set_property(command, P_CONN, 0);
+        /* Close only util connections */
+        close_util_connections();
+        break;
+      case Q_ENABLE_SERVICE_CONNECTION:
+        set_property(command, P_CONN, view_protocol);
         break;
       case Q_DISABLE_NON_BLOCKING_API:
         non_blocking_api_enabled= 0;

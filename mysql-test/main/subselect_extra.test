@@ -40,6 +40,9 @@ drop tables t1, t2;
 --echo #
 --echo # Bug #32694: NOT NULL table field in a subquery produces invalid results
 --echo #
+#--view-protocol is disabled because view gives another query plan
+--disable_view_protocol
+
 create table t1 (id int(10) not null, cur_date datetime not null);
 create table t2 (id int(10) not null, cur_date date not null);
 insert into t1 (id, cur_date) values (1, '2007-04-25 18:30:22');
@@ -73,6 +76,7 @@ select * from t2
 where id in (select id from t2 as x1 where (t2.cur_date is null));
 
 drop table t1,t2;
+--enable_view_protocol
 
 --echo # 
 --echo # From group_min_max.test

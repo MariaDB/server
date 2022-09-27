@@ -100,6 +100,8 @@ SET GLOBAL innodb_read_only_compressed=@save_innodb_read_only_compressed;
 #
 # Bug#32430 - show engine innodb status causes errors
 #
+#change to "disable_service_connection" after fix MDEV-29278 
+--disable_view_protocol
 SET @save_detect= @@GLOBAL.innodb_deadlock_detect;
 SET @save_report= @@GLOBAL.innodb_deadlock_report;
 SET GLOBAL innodb_deadlock_detect=ON;
@@ -163,3 +165,4 @@ ROLLBACK;
 disconnect con1;
 connection default;
 DROP TABLE `t``\""e`;
+--enable_view_protocol
