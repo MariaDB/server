@@ -9,7 +9,7 @@
 #               old name was t/innodb-deadlock.test
 #               main code went into include/deadlock.inc
 #
-
+--disable_service_connection
 connect (con1,localhost,root,,);
 connect (con2,localhost,root,,);
 
@@ -20,7 +20,7 @@ drop table if exists t1,t2;
 #
 # Testing of FOR UPDATE
 #
-
+--disable_view_protocol
 connection con1;
 eval create table t1 (id integer, x integer) engine = $engine_type;
 insert into t1 values(0, 0);
@@ -49,10 +49,11 @@ select * from t1;
 commit;
 
 drop table t1;
+--enable_view_protocol
 #
 # Testing of FOR UPDATE
 #
-
+--disable_view_protocol
 connection con1;
 eval create table t1 (id integer, x integer) engine = $engine_type;
 eval create table t2 (b integer, a integer) engine = $engine_type;
@@ -125,7 +126,7 @@ connection default;
 disconnect con1;
 disconnect con2;
 drop table t1, t2;
-
+--enable_view_protocol
 --echo End of 4.1 tests
 
 #
@@ -152,3 +153,4 @@ drop table if exists a;
 set default_storage_engine=default;
 
 --echo End of 5.0 tests.
+--enable_service_connection

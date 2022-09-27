@@ -33,7 +33,8 @@ DROP TABLE t1;
 #
 # End of MDEV-5180
 #
-
+#enable after fix MDEV-29290
+--disable_view_protocol
 select hex(weight_string('a'));
 select hex(weight_string('A'));
 select hex(weight_string('abc'));
@@ -64,3 +65,4 @@ select hex(weight_string('abc', 3, 4, 0xC0));
 select hex(weight_string('abc', 4, 4, 0xC0));
 select hex(weight_string('abc', 5, 4, 0xC0));
 select hex(weight_string('abc',25, 4, 0xC0));
+--enable_view_protocol

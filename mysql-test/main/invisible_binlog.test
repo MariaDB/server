@@ -1,5 +1,6 @@
 --source include/master-slave.inc
 
+--disable_service_connection
 --connection master
 create table t1(a int , b int invisible);
 insert into t1 values(1);
@@ -30,3 +31,4 @@ show create table t2;
 drop table t1,t2;
 
 --source include/rpl_end.inc
+--enable_service_connection

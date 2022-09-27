@@ -7,6 +7,7 @@
 --echo #
 --echo # MDEV-21743 Split up SUPER privilege to smaller privileges 
 --echo #
+--disable_service_connection
 
 --let $count_sessions=1
 
@@ -82,6 +83,8 @@ let $wait_condition=
 --source include/wait_until_count_sessions.inc
 DROP USER foo@localhost;
 DROP USER bar@localhost;
+
+--enable_service_connection
 
 --echo #
 --echo # End of 10.5 tests

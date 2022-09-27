@@ -1,6 +1,8 @@
 # Note that this test requires a fresh restart to not have problems with the
 # old status values
 
+--disable_service_connection
+
 set @save_use_stat_tables=@@use_stat_tables;
 
 set use_stat_tables='preferably';
@@ -240,6 +242,8 @@ set global use_stat_tables=@save_global_use_stat_tables;
 DROP DATABASE dbt3_s001;
 
 use test;
+
+--enable_service_connection
 
 #
 # Bug mdev-4019: crash when executing in parallel ANALYZE and 

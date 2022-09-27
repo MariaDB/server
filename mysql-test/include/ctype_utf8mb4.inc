@@ -1,6 +1,12 @@
 #
 # Tests with the utf8mb4 character set
 #
+
+# Tests will be skipped for the view protocol because the view protocol uses 
+# an additional util connection and don't use for this nessesary configurations
+# Also need to resolve MDEV-27871
+-- source include/no_view_protocol.inc
+
 --source include/default_optimizer_switch.inc
 --disable_warnings
 drop table if exists t1,t2;

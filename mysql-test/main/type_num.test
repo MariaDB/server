@@ -687,6 +687,7 @@ SELECT
 --echo #
 
 --disable_ps_protocol
+--disable_view_protocol
 --enable_metadata
 SELECT NULL+1 AS c0,
        COALESCE(NULL)+1 AS c2,
@@ -696,6 +697,7 @@ SELECT NULL+1 AS c0,
        COALESCE(COALESCE(''))+1 AS c6;
 --disable_metadata
 --enable_ps_protocol
+--enable_view_protocol
 
 --echo #
 --echo # Start of 10.2 tests
