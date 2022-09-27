@@ -1405,9 +1405,6 @@ int main(int argc,char *argv[])
   put_info(buff,INFO_INFO);
   status.exit_status= read_and_execute(!status.batch);
 
-  /* Free alias hash. */
-  deinit_alias();
-
   if (opt_outfile)
     end_tee();
   mysql_end(0);
@@ -1463,6 +1460,7 @@ sig_handler mysql_end(int sig)
   my_free(current_prompt);
   while (embedded_server_arg_count > 1)
     my_free(embedded_server_args[--embedded_server_arg_count]);
+  deinit_alias();
   mysql_server_end();
   free_defaults(defaults_argv);
   my_end(my_end_arg);
@@ -3488,7 +3486,7 @@ typedef struct {
   Execute command
   Returns: 0  if ok
           -1 if not fatal error
-	  1  if fatal error
+           1  if fatal error
 */
 
 
@@ -3577,7 +3575,6 @@ com_go(String *buffer,char *line __attribute__((unused)))
 #endif
 
   buffer->length(0);
-  aliased_buffer.length(0);
 
   if (error)
     goto end;
@@ -5796,13 +5793,13 @@ static char *parse_alias_name(char *line, char **out, bool *is_valid)
   if (*pos == '\'')
   {
     quoted= single_quoted= true;
-    pos ++;
+    pos++;
     beg= pos;
   }
   else if (*pos == '\"')
   {
     quoted= double_quoted= true;
-    pos ++;
+    pos++;
     beg= pos;
   }
 
@@ -5810,9 +5807,7 @@ static char *parse_alias_name(char *line, char **out, bool *is_valid)
          (quoted && my_isspace(charset_info, *pos)) ||
          *pos == '-'                                ||
          *pos == '_')
-  {
-    pos ++;
-  }
+    pos++;
 
   if (*pos)
   {
@@ -5831,10 +5826,10 @@ static char *parse_alias_name(char *line, char **out, bool *is_valid)
       {
         *is_valid= true;
         end= pos;
-        pos ++;
+        pos++;
         break;
       }
-      while (!my_isspace(charset_info, *pos)) pos ++;
+      while (!my_isspace(charset_info, *pos)) pos++;
       end= pos;
       break;
     case '\"':
@@ -5844,11 +5839,11 @@ static char *parse_alias_name(char *line, char **out, bool *is_valid)
       {
         *is_valid= true;
         end= pos;
-        pos ++;
+        pos++;
         break;
       }
       *is_valid= false;
-      while (!my_isspace(charset_info, *pos)) pos ++;
+      while (!my_isspace(charset_info, *pos)) pos++;
       end= pos;
       break;
     default:
@@ -5976,12 +5971,15 @@ static char *handle_next_alias(char *line, bool *error)
   size_t name_len;
   uchar *record;
 
+  *error= false;
+
   /* Parse the alias name. */
   pos= parse_alias_name(line, &name, &is_valid);
 
   if (!is_valid)
   {
     tee_fprintf(stdout, "alias: '%s': invalid alias name\n", name);
+    my_free(name);
     *error= true;
   }
   else
@@ -6001,7 +5999,8 @@ static char *handle_next_alias(char *line, bool *error)
 
       if (!is_valid)
       {
-        tee_fprintf(stdout, "alias: '%s': invalid alias name\n", name);
+        tee_fprintf(stdout, "alias: '%s': invalid alias value\n", value);
+        my_free(value);
       }
       else
       {
@@ -6035,7 +6034,6 @@ static char *handle_next_alias(char *line, bool *error)
         tee_fprintf(stdout, "alias: '%s': not found\n", name);
       }
     }
-    *error= false;
   }
   return pos;
 }
@@ -6086,6 +6084,8 @@ static int init_alias()
                     alias_free, MYF(0)))
   {
     put_info("Couldn't initialize hash to store aliases.", INFO_ERROR);
+    free_defaults(defaults_argv);
+    my_end(0);
     exit(1);
   }
 
@@ -6108,17 +6108,21 @@ static int init_alias()
   if (mariadbrc_file == 0)
   {
     put_info("out-of-memory!", INFO_ERROR);
+    free_defaults(defaults_argv);
+    my_end(0);
     exit(1);
   }
 
   /* Check if mariadbrc file exists. */
-  if (!my_stat(mariadbrc_file, &stat_arg, MYF(MY_WME)))
+  if (!my_stat(mariadbrc_file, &stat_arg, MYF(ME_JUST_WARNING)))
     goto cleanup;                               /* Do nothing */
 
   if (!(file= my_fopen(mariadbrc_file, O_RDONLY, MYF(MY_WME))))
   {
     put_info("Failed to open .mariadbrc file: ", INFO_ERROR);
     put_info(strerror(errno), INFO_ERROR, errno);
+    free_defaults(defaults_argv);
+    my_end(0);
     exit(1);
   }
 
@@ -6131,6 +6135,8 @@ static int init_alias()
 
       put_info("Failed to read from .mariadbrc file: ", INFO_ERROR);
       put_info(strerror(errno), INFO_ERROR, errno);
+      free_defaults(defaults_argv);
+      my_end(0);
       exit(1);
     }
 
@@ -6159,7 +6165,11 @@ static int init_alias()
         ptr= handle_next_alias(ptr, &error);
 
         if (error)
+        {
+          free_defaults(defaults_argv);
+          my_end(0);
           exit(1);
+        }
 
         /* Bypass the spaces. */
         while (*ptr && my_isspace(charset_info, *ptr)) ptr ++;
@@ -6179,7 +6189,11 @@ static int init_alias()
         ptr= handle_next_unalias(ptr, &error);
 
         if (error)
+        {
+          free_defaults(defaults_argv);
+          my_end(0);
           exit(1);
+        }
 
         /* Bypass the spaces. */
         while (*ptr && my_isspace(charset_info, *ptr)) ptr ++;
@@ -6209,26 +6223,26 @@ static int deinit_alias()
 static int com_alias(String *buffer __attribute__((unused)),
                      char *line)
 {
-  char *ptr= line;
+  char *ptr;
   bool unused;
 
   /* Move past "alias" and spaces. */
-  if ((ptr= strchr(line, ' ')))
+  if (!(ptr= strstr(line, "alias")))
   {
-    while (*ptr && my_isspace(charset_info, *ptr))
-      ptr ++;
+    // Bad syntax, missing "alias" keyword
+    return 1;
   }
+  ptr+= 5;
+  while (*ptr && my_isspace(charset_info, *ptr)) ptr++;
 
   if ((!ptr) || (*ptr == 0))
   {
     /* Only alias command specified, print all aliases and return. */
     ALIAS *alias;
-    ulong i= 0;
+    size_t i= 0;
 
     while ((alias= (ALIAS *) my_hash_element(&aliases, i++)))
-    {
       tee_fprintf(stdout, "alias %s = '%s'\n", alias->name, alias->value);
-    }
     return 0;
   }
 
@@ -6238,8 +6252,9 @@ static int com_alias(String *buffer __attribute__((unused)),
     ptr= handle_next_alias(ptr, &unused);
 
     /* Bypass the spaces. */
-    while (*ptr && my_isspace(charset_info, *ptr)) ptr ++;
+    while (*ptr && my_isspace(charset_info, *ptr)) ptr++;
   }
+
   return 0;
 }
 
