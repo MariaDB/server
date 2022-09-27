@@ -53,11 +53,14 @@ select substring_index('aaaaaaaaa1','aaaa',1);
 select substring_index('aaaaaaaaa1','aaaa',2);
 select substring_index('aaaaaaaaa1','1',1);
 select substring_index('aaaaaaaaa1','a',-1);
+#enable after fix MDEV-29601
+--disable_service_connection
 select substring_index('aaaaaaaaa1','aa',-1);
 select substring_index('aaaaaaaaa1','aa',-2);
 select substring_index('aaaaaaaaa1','aa',-3);
 select substring_index('aaaaaaaaa1','aa',-4);
 select substring_index('aaaaaaaaa1','aa',-5);
+--enable_service_connection
 select substring_index('aaaaaaaaa1','aaa',-1);
 select substring_index('aaaaaaaaa1','aaa',-2);
 select substring_index('aaaaaaaaa1','aaa',-3);
@@ -321,10 +324,13 @@ select FIELD('b','A','B');
 select FIELD('B','A','B');
 select FIELD('b' COLLATE latin1_bin,'A','B');
 select FIELD('b','A' COLLATE latin1_bin,'B');
+#enable after fix MDEV-29601
+--disable_service_connection
 --error 1270
 select FIELD(_latin2'b','A','B');
 --error 1270
 select FIELD('b',_latin2'A','B');
+--enable_service_connection
 select FIELD('1',_latin2'3','2',1);
 
 select POSITION(_latin1'B' IN _latin1'abcd');

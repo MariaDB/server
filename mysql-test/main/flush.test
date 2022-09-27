@@ -672,7 +672,7 @@ UNLOCK TABLES;
 
 DROP VIEW v1;
 DROP TABLE t1;
---enable_service_connection
+
 --echo #
 --echo # MDEV-15888 Implement FLUSH TABLES tbl_name [, tbl_name] ... WITH READ LOCK for views.
 --echo #
@@ -787,3 +787,5 @@ DROP VIEW v2, v1, v0;
 --echo #
 --echo # End of 10.6 tests
 --echo #
+
+--enable_service_connection

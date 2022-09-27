@@ -831,10 +831,12 @@ from t1 left join (t2,t3) on t2.a=t1.a and t3.a=t2.a and t3.a + t2.a <1000
 where 
   t1.b > 5555;
 
+--disable_view_protocol
 select
   json_detailed(json_extract(trace, '$**.substitute_best_equal'))
 from
   information_schema.optimizer_trace;
+--enable_view_protocol
 
 --echo # The next query is test for:
 --echo # MDEV-23646: Optimizer trace: optimize_cond() should show ON expression processing
@@ -881,10 +883,12 @@ where t1.b < 3;
 # Just show that choose_best_splitting function has coverage in the 
 # optimizer trace and re-optmization of child select inside it is distinct 
 # from the rest of join optimization.
+--disable_view_protocol
 select
   json_detailed(json_extract(trace, '$**.choose_best_splitting')) 
 from
   information_schema.optimizer_trace;
+--enable_view_protocol
 
 # Same as above. just to show that splitting plan has some coverage in the
 # trace.
@@ -903,9 +907,11 @@ CREATE TABLE t1(id INT, f1 JSON);
 INSERT INTO t1 VALUES (1, '{\"1\": 1}'), (2, '{\"1\": 2}'), (3, '{\"1\": 3}'),
        (4, '{\"1\": 4}'), (5, '{\"1\": 5}'), (6, '{\"1\": 6}');
 
+--disable_view_protocol
 SELECT * FROM t1 WHERE id IN
   (SELECT id FROM t1 as tt2,
          JSON_TABLE(f1, "$" COLUMNS (jf FOR ORDINALITY)) AS tbl);
+--enable_view_protocol
 
 select json_detailed(json_extract(trace, '$**.best_join_order'))
     from information_schema.OPTIMIZER_TRACE;

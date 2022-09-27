@@ -55,7 +55,10 @@ select product, country_id , year, sum(profit) from t1 group by product, country
 select concat(product,':',country_id) as 'prod', concat(":",year,":") as 'year',1+1, sum(profit)/count(*) from t1 group by 1,2 with rollup;
 select product, sum(profit)/count(*) from t1 group by product with rollup;
 select left(product,4) as prod, sum(profit)/count(*) from t1 group by prod with rollup;
+#check after fix MDEV-29601
+--disable_service_connection
 select concat(product,':',country_id), 1+1, sum(profit)/count(*) from t1 group by concat(product,':',country_id) with rollup;
+--enable_service_connection
 
 # Joins
 select product, country , year, sum(profit) from t1,t2 where t1.country_id=t2.country_id group by product, country, year with rollup;

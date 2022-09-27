@@ -1671,6 +1671,8 @@ INSERT INTO t1 (fd) SELECT fd FROM t1;
 INSERT INTO t1 (fd) SELECT fd FROM t1;
 INSERT INTO t1 (fd) SELECT fd FROM t1;
 INSERT INTO t1 (fd) SELECT fd FROM t1;
+#check after fix MDEV-29601
+--disable_service_connection
 --echo # The following should show "Impossible WHERE" :
 explain
 SELECT * FROM t1 WHERE fd='😁';
@@ -1681,6 +1683,7 @@ SELECT * FROM t1 WHERE fd='😁';
 explain select count(*) from t1 where fd <'😁';
 select count(*) from t1 where fd <'😁';
 select count(*) from t1 ignore index (ix_fd) where fd <'😁';
+--enable_service_connection
 
 drop table t1;
 set names default;
