@@ -448,7 +448,7 @@ public:
   bool is_xa_nota_error(
     int error_num
   );
-  int print_warnings(
+  int fetch_and_print_warnings(
     struct tm *l_time
   );
   spider_db_result *store_result(
