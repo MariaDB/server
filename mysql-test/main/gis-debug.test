@@ -161,12 +161,14 @@ SET SESSION debug_dbug="-d,cmp_item";
 --echo # MDEV-19994 Add class Function_collection
 --echo #
 
+--disable_service_connection
 SET SESSION debug_dbug="+d,make_item_func_call_native_simulate_not_found";
 --error ER_PARSE_ERROR
 SELECT CONTAINS(POINT(1,1),POINT(1,1));
 --error ER_PARSE_ERROR
 SELECT WITHIN(POINT(1,1),POINT(1,1));
 SET SESSION debug_dbug="-d,make_item_func_call_native_simulate_not_found";
+--enable_service_connection
 
 --echo #
 --echo # MDEV-20009 Add CAST(expr AS pluggable_type)

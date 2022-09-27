@@ -167,6 +167,9 @@ DROP TABLE t1;
 --echo #
 --echo # Temporary tables shadow real tables for TYPE OF purposes
 --echo #
+#view cannot has temporary table in definition
+--disable_view_protocol
+
 CREATE TABLE t1 (a VARCHAR(10));
 INSERT INTO t1 VALUES ('t1');
 CREATE TEMPORARY TABLE t1 (a INT);
@@ -201,6 +204,7 @@ DROP TABLE t2;
 DROP PROCEDURE p1;
 DROP TABLE t1;
 
+--enable_view_protocol
 
 --echo #
 --echo # "TYPE OF t1.a" searches for "t1" in the current database

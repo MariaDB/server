@@ -6,6 +6,7 @@
 --echo # MDEV-16426 Optimizer erroneously treats equal constants of different formats as same
 --echo #
 
+--disable_service_connection
 # It's important for CHARSET('a') and CHARSET(0x61) to have different lengths in this test.
 # 'latin1' and 'binary' have same lengths, so using 'utf8'.
 SET NAMES utf8;
@@ -15,6 +16,7 @@ SELECT CHARSET('a'),CHARSET(0x61),LENGTH(CHARSET('a'))+a,LENGTH(CHARSET(0x61))+a
 SELECT * FROM t1 WHERE LENGTH(CHARSET('a'))+a<=>LENGTH(CHARSET(0x61))+a;
 EXPLAIN EXTENDED SELECT * FROM t1 WHERE LENGTH(CHARSET('a'))+a<=>LENGTH(CHARSET(0x61))+a;
 DROP TABLE t1;
+--enable_service_connection
 
 --echo #
 --echo # MDEV-23320 Hex hybrid constants 0xHHHH work badly in rounding functions

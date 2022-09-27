@@ -9,6 +9,9 @@
 
 -- source include/not_embedded.inc
 -- source include/have_debug_sync.inc
+
+--disable_service_connection
+
 set local sql_mode="";
 set global sql_mode="";
 
@@ -601,3 +604,4 @@ DROP TABLE t1, t2;
 --echo #
 --error ER_BAD_FIELD_ERROR
 kill query id user 'foo';
+--enable_service_connection

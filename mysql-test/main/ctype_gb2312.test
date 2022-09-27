@@ -7,6 +7,8 @@
 drop table if exists t1;
 --enable_warnings
 
+--disable_service_connection
+
 SET @test_character_set= 'gb2312';
 SET @test_collation= 'gb2312_chinese_ci';
 -- source include/ctype_common.inc
@@ -177,6 +179,8 @@ let $coll_pad='gb2312_chinese_ci';
 let $coll='gb2312_nopad_bin';
 let $coll_pad='gb2312_bin';
 --source include/ctype_pad_all_engines.inc
+
+--enable_service_connection
 
 --echo #
 --echo # End of 10.2 tests

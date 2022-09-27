@@ -119,6 +119,8 @@ CALL p1(-1, 'GeometryCollection(Point(9 9),LineString(1 5,0 0),Polygon((2 2,2 8,
 
 --enable_query_log
 
+#enable after fix MDEV-27871
+--disable_view_protocol
 SELECT ST_CONTAINS(
   GeomFromText('MULTIPOLYGON(((0 0, 0 5, 5 5, 5 0, 0 0)),((6 6, 6 11, 11 11, 11 6, 6 6)))'),
   GeomFromText('POINT(5 10)'));
@@ -138,12 +140,16 @@ SELECT GeometryType(ST_BUFFER(MULTIPOLYGONFROMTEXT('MULTIPOLYGON(((0 0,9 4,3 3,0
 --echo #
 SELECT GeometryType(ST_BUFFER(MULTIPOLYGONFROMTEXT('MULTIPOLYGON(((3 5,2 5,2 4,3 4,3 5)),((2 2,2 8,8 8,8 2,2 2), (4 4,4 6,6 6,6 4,4 4)), ((9 9,8 1,1 5,9 9)))'),1));
 
+--enable_view_protocol
 
 --echo #
 --echo # Bug#13358363 - ASSERTION: N > 0 && N < SINUSES_CALCULATED*2+1 | GET_N_SINCOS/ADD_EDGE_BUFFER
 --echo #
 
 DO ST_BUFFER(ST_GEOMCOLLFROMTEXT('linestring(1 1,2 2)'),'');
+
+#enable after fix MDEV-27871
+--disable_view_protocol
 
 SELECT ST_WITHIN(
         LINESTRINGFROMTEXT(' LINESTRING(3 8,9 2,3 8,3 3,7 6,4 7,4 7,8 1) '),
@@ -159,3 +165,5 @@ SELECT ST_NUMINTERIORRINGS(
 
 SELECT ASTEXT(ST_BUFFER(POLYGONFROMTEXT(' POLYGON((9 9,5 2,4 5,9 9))'),
                         SRID(GEOMETRYFROMTEXT(' MULTIPOINT(8 4,5 0,7 8,6 9,3 4,7 3,5 5) '))));
+
+--enable_view_protocol

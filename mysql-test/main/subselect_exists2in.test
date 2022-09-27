@@ -270,6 +270,8 @@ INSERT INTO t3 VALUES (4),(5);
 
 SET optimizer_switch='exists_to_in=on,subquery_cache=off,materialization=on,in_to_exists=off,semijoin=off';
 
+#enable after fix MDEV-27871
+--disable_view_protocol
 explain extended
 SELECT ( SELECT b FROM t2 WHERE NOT EXISTS ( SELECT c FROM t3 WHERE c = b ) ) FROM t1;
 SELECT ( SELECT b FROM t2 WHERE NOT EXISTS ( SELECT c FROM t3 WHERE c = b ) ) FROM t1;
@@ -324,6 +326,8 @@ set optimizer_switch=default;
 set optimizer_switch='exists_to_in=on';
 
 drop table t1,t3;
+
+--enable_view_protocol
 
 --echo #
 --echo # MDEV-159 Assertion about not marked for read failed in
@@ -400,6 +404,9 @@ set optimizer_switch='exists_to_in=on';
 --echo #
 --echo # MDEV-160 Exists2In: Crash in in hp_movelink with subquery_cache=ON
 --echo #
+#--view-protocol is disabled because view gives another query plan
+--disable_view_protocol
+
 SET optimizer_switch = 'in_to_exists=on,subquery_cache=on,exists_to_in=on';
 
 CREATE TABLE t1 (  
@@ -511,6 +518,8 @@ SELECT * FROM t1 AS alias1, t2 AS alias2
 WHERE EXISTS ( 
   SELECT 1 FROM t2 WHERE b = alias1.a AND b > alias2.b 
 ) OR a = 5;
+
+--enable_view_protocol
 
 drop table t1, t2;
 set optimizer_switch=default;
@@ -776,12 +785,16 @@ SELECT STRAIGHT_JOIN sq1.f2
 
 set @optimizer_switch_save=@@optimizer_switch;
 
+#--view-protocol is disabled because view gives another query plan
+--disable_view_protocol
+
 set optimizer_switch='exists_to_in=off';
 eval explain extended $q;
 eval $q;
 set optimizer_switch='exists_to_in=on';
 eval explain extended $q;
 eval $q;
+--enable_view_protocol
 
 set optimizer_switch= @optimizer_switch_save;
  

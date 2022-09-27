@@ -110,7 +110,9 @@ insert into t1 values ('Y');
 alter table t1 add b set ('Y','N') CHARACTER SET utf8 COLLATE utf8_bin;
 alter table t1 add c enum ('Y','N') CHARACTER SET utf8 COLLATE utf8_bin;
 --enable_metadata
+--disable_view_protocol
 select * from t1;
+--enable_view_protocol
 --disable_metadata
 drop table t1;
 
@@ -234,7 +236,9 @@ CREATE TABLE t1 (
 ) ENGINE=MyISAM;
 INSERT INTO t1 VALUES (1),(2);
 --enable_metadata
+--disable_view_protocol
 SELECT AVG(f1) FROM t1;
+--enable_view_protocol
 --disable_metadata
 drop table t1;
 

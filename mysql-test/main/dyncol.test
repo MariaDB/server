@@ -1,6 +1,8 @@
 #
 # Dynamic column function test
 #
+# enable view-protocol after fix MDEV-27871
+-- source include/no_view_protocol.inc
 
 --source include/default_charset.inc
 
