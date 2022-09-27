@@ -17,7 +17,7 @@ set query_cache_type=1;
 create table t1 ( id int unsigned auto_increment, primary key(id) ) engine=innodb;
 
 create table t2 ( t2id int unsigned, id int unsigned, primary key(t2id, id), foreign key (`id`) references t1(`id`) on delete cascade ) engine=innodb;
-
+--disable_view_protocol
 insert into t1 values (1);
 insert into t2 values (1,1);
 select * from t2;
@@ -26,6 +26,7 @@ show status like "Qcache_queries_in_cache";
 delete from t1;
 show status like "Qcache_queries_in_cache";
 select * from t2;
+--enable_view_protocol
 
 optimize table t2;
 select * from t2;

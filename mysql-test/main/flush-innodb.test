@@ -1,5 +1,9 @@
 --source include/have_innodb.inc
 
+# Tests will be skipped for the view protocol because the view protocol creates 
+# an additional util connection and other statistics data
+-- source include/no_view_protocol.inc
+
 # MDEV-254: Server hang with FLUSH TABLES WITH READ LOCK AND DISABLE CHECKPOINT
 FLUSH TABLES WITH READ LOCK AND DISABLE CHECKPOINT;
 UNLOCK TABLES;

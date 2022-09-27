@@ -135,6 +135,7 @@ DROP TABLE t1;
 --echo #
 
 CREATE TABLE t1 (a VARCHAR(39));
+--disable_view_protocol
 --enable_metadata
 SELECT
   CAST(a AS BINARY(0)),
@@ -153,4 +154,5 @@ SELECT
   CAST(a AS BINARY(16777216))
 FROM t1;
 --disable_metadata
+--enable_view_protocol
 DROP TABLE t1;

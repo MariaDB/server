@@ -1,3 +1,5 @@
+-- source include/no_view_protocol.inc
+
 #
 # MDEV-4578 information_schema.processlist reports incorrect value for Time (2147483647)
 #

@@ -1,5 +1,7 @@
 # "mtr --ps" returns different values in "Max length"
 --disable_ps_protocol
+# view protocol createincorrect table name
+--disable_view_protocol
 --enable_metadata
 --vertical_results
 SELECT
@@ -39,6 +41,7 @@ FROM t1;
 --horizontal_results
 --disable_metadata
 --enable_ps_protocol
+--enable_view_protocol
 CREATE TABLE t2 AS
 SELECT
   a                                         AS ___________a,

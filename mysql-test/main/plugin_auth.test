@@ -3,6 +3,9 @@
 --source include/mysql_upgrade_preparation.inc
 --source include/have_innodb.inc
 
+#enable view protocol after fix MDEV-29542
+--source include/no_view_protocol.inc
+
 SET GLOBAL SQL_MODE="";
 SET LOCAL SQL_MODE="";
 

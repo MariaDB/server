@@ -55,7 +55,10 @@ select product, country_id , year, sum(profit) from t1 group by product, country
 select concat(product,':',country_id) as 'prod', concat(":",year,":") as 'year',1+1, sum(profit)/count(*) from t1 group by 1,2 with rollup;
 select product, sum(profit)/count(*) from t1 group by product with rollup;
 select left(product,4) as prod, sum(profit)/count(*) from t1 group by prod with rollup;
+#check after fix MDEV-29601
+--disable_service_connection
 select concat(product,':',country_id), 1+1, sum(profit)/count(*) from t1 group by concat(product,':',country_id) with rollup;
+--enable_service_connection
 
 # Joins
 select product, country , year, sum(profit) from t1,t2 where t1.country_id=t2.country_id group by product, country, year with rollup;
@@ -214,9 +217,14 @@ SELECT a, SUM(a), SUM(a)+1 FROM (SELECT 1 a UNION select 2) d
 SELECT a, SUM(a), SUM(a)+1 FROM (SELECT 1 a UNION select 2) d 
   GROUP BY a WITH ROLLUP;
 
+#enable view protocol after fix MDEV-28535
+--disable_view_protocol
+
 SELECT a, SUM(a), SUM(a)+1, CONCAT(SUM(a),'x'), SUM(a)+SUM(a), SUM(a)
   FROM (SELECT 1 a, 2 b UNION SELECT 2,3 UNION SELECT 5,6 ) d
     GROUP BY a WITH ROLLUP;
+
+--enable_view_protocol
 
 DROP TABLE t1;
 
@@ -254,6 +262,9 @@ DROP TABLE t1,t2;
 # Test for bug #11543: ROLLUP query with a repeated column in GROUP BY 
 #
 
+#enable view protocol after fix MDEV-28536
+--disable_view_protocol
+
 CREATE TABLE t1 (a INT(10) NOT NULL, b INT(10) NOT NULL);
 INSERT INTO t1 VALUES (1, 1);
 INSERT INTO t1 VALUES (1, 2);
@@ -261,6 +272,8 @@ INSERT INTO t1 VALUES (1, 2);
 SELECT a, b, a AS c, COUNT(*) AS count FROM t1 GROUP BY a, b, c WITH ROLLUP;
 
 DROP TABLE t1;
+
+--enable_view_protocol
 
 # Bug #12885(1): derived table specified by a subquery with
 #                ROLLUP over expressions on not nullable group by attributes 
@@ -444,11 +457,16 @@ DROP TABLE t;
 --echo # MDEV-14041 Server crashes in String::length on queries with functions and ROLLUP
 --echo #
 
+#enable view protocol after fix MDEV-28538
+--disable_view_protocol
+
 CREATE TABLE t1 (i INT);
 INSERT INTO t1 VALUES (1),(2);
 SELECT GET_LOCK( 'foo', 0 );
 SELECT HEX( RELEASE_LOCK( 'foo' ) ) AS f FROM t1 GROUP BY f WITH ROLLUP;
 DROP TABLE t1;
+
+--enable_view_protocol
 
 CREATE TABLE t1 (i INT);
 INSERT INTO t1 VALUES (1),(2);
