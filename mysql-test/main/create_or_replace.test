@@ -697,3 +697,9 @@ alter table mysql.innodb_index_stats modify stat_description varchar(1024) not n
 select * from t;
 drop table t;
 set sql_mode= default;
+
+--echo #
+--echo # MDEV-29620 Assertion `next_insert_id == 0' failed in handler::ha_external_lock
+--echo #
+create or replace table t1 (i serial) as select * from (values(1), (2)) dt;
+drop table t1;
