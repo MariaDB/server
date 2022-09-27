@@ -1,0 +1,58 @@
+--echo #
+--echo # MDEV-29644 a potential bug of null pointer dereference in spider_db_mbase::print_warnings()
+--echo #
+
+# The test case below does not cause the potential null pointer dereference.
+# It is just for checking spider_db_mbase::fetch_and_print_warnings() works.
+
+--disable_query_log
+--disable_result_log
+--source ../../t/test_init.inc
+--enable_result_log
+--enable_query_log
+
+--connection child2_1
+CREATE DATABASE auto_test_remote;
+USE auto_test_remote;
+eval CREATE TABLE tbl_a (
+    a CHAR(5)
+) $CHILD2_1_ENGINE $CHILD2_1_CHARSET;
+set @orig_sql_mode=@@global.sql_mode;
+SET GLOBAL sql_mode='';
+
+--connection master_1
+CREATE DATABASE auto_test_local;
+USE auto_test_local;
+eval CREATE TABLE tbl_a (
+    a CHAR(255)
+) $MASTER_1_ENGINE $MASTER_1_CHARSET COMMENT='table "tbl_a", srv "s_2_1"';
+
+SET @orig_sql_mode=@@global.sql_mode;
+SET GLOBAL sql_mode='';
+
+let SEARCH_FILE= $MYSQLTEST_VARDIR/log/mysqld.1.1.err;
+let SEARCH_PATTERN= \[WARN SPIDER RESULT\].* Warning 1265 Data truncated for column 'a' at row 1.*;
+
+INSERT INTO tbl_a VALUES ("this will be truncated");
+--source include/search_pattern_in_file.inc # should not find
+
+SET @orig_log_result_errors=@@global.spider_log_result_errors;
+SET GLOBAL spider_log_result_errors=4;
+
+INSERT INTO tbl_a VALUES ("this will be truncated");
+--source include/search_pattern_in_file.inc # should find
+
+--connection master_1
+SET GLOBAL spider_log_result_errors=@orig_log_result_errors;
+SET GLOBAL sql_mode=@orig_sql_mode;
+DROP DATABASE IF EXISTS auto_test_local;
+
+--connection child2_1
+SET GLOBAL sql_mode=@orig_sql_mode;
+DROP DATABASE IF EXISTS auto_test_remote;
+
+--disable_query_log
+--disable_result_log
+--source ../t/test_deinit.inc
+--enable_query_log
+--enable_result_log
