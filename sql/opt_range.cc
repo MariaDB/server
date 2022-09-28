@@ -7374,7 +7374,7 @@ TRP_ROR_INTERSECT *get_best_ror_intersect(const PARAM *param, SEL_TREE *tree,
   TRP_ROR_INTERSECT *trp= NULL;
   if (min_cost + cmp_cost < read_time && (cpk_scan || best_num > 1))
   {
-    double best_rows= double2rows(intersect_best->out_rows);
+    double best_rows= intersect_best->out_rows;
     set_if_bigger(best_rows, 1);
     if (!(trp= new (param->mem_root) TRP_ROR_INTERSECT))
       DBUG_RETURN(NULL);
@@ -7386,8 +7386,8 @@ TRP_ROR_INTERSECT *get_best_ror_intersect(const PARAM *param, SEL_TREE *tree,
     trp->last_scan=  trp->first_scan + best_num;
     trp->is_covering= intersect_best->is_covering;
     trp->read_cost= min_cost + cmp_cost;
-    param->table->set_opt_range_condition_rows(best_rows);
-    trp->records= best_rows;
+    param->table->set_opt_range_condition_rows((ha_rows)best_rows);
+    trp->records= (ha_rows)best_rows;
     trp->index_scan_costs= intersect_best->index_scan_costs;
     trp->cpk_scan= cpk_scan;
     DBUG_PRINT("info", ("Returning non-covering ROR-intersect plan:"

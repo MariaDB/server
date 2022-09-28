@@ -7837,13 +7837,13 @@ INDEX_READ_COST cost_for_index_read(const THD *thd, const TABLE *table,
   double rows_adjusted;
   DBUG_ENTER("cost_for_index_read");
 
-  rows_adjusted= MY_MIN(records, (ha_rows) thd->variables.max_seeks_for_key);
+  rows_adjusted= MY_MIN(rows2double(records), (double) thd->variables.max_seeks_for_key);
 #ifdef OLD_CODE_LIMITED_SEEKS
   set_if_smaller(rows_adjusted, worst_seeks);
 #endif
   if (file->is_clustering_key(key))
   {
-    cost.index_only_cost= file->ha_read_time(key, 1, rows_adjusted);
+    cost.index_only_cost= file->ha_read_time(key, 1, (ha_rows)rows_adjusted);
     /*
       Same computation as in ha_read_and_copy_time()
       We do it explicitely here as we want to use the original value of
@@ -7854,20 +7854,20 @@ INDEX_READ_COST cost_for_index_read(const THD *thd, const TABLE *table,
   }
   else if (table->covering_keys.is_set(key) && !table->no_keyread)
   {
-    cost.index_only_cost= file->ha_keyread_time(key, 1, rows_adjusted);
+    cost.index_only_cost= file->ha_keyread_time(key, 1, (ha_rows)rows_adjusted);
     /* Same computation as in ha_keyread_and_copy_time() */
     cost.read_cost= (cost.index_only_cost +
                      rows2double(records) * KEY_COPY_COST_THD(thd));
   }
   else
   {
-    cost.index_only_cost= file->ha_keyread_time(key, 1, rows_adjusted);
+    cost.index_only_cost= file->ha_keyread_time(key, 1, (ha_rows) rows_adjusted);
     /*
       Note that ha_read_time() + ..ROW_COPY_COST should be same
       as ha_rnd_pos_time().
     */
     cost.read_cost= (cost.index_only_cost +
-                     file->ha_read_time(key, 0, rows_adjusted) +
+                     file->ha_read_time(key, 0, (ha_rows)rows_adjusted) +
                      rows2double(records) * ROW_COPY_COST_THD(thd));
   }
   DBUG_PRINT("statistics", ("index_cost: %.3f  full_cost: %.3f",
@@ -8806,7 +8806,7 @@ best_access_path(JOIN      *join,
         This is done to make records found comparable to what we get with
         'ref' access.
       */
-      org_records= records_after_filter= rnd_records= s->found_records;
+      org_records= records_after_filter= rnd_records= rows2double(s->found_records);
 
       if (s->quick->get_type() == QUICK_SELECT_I::QS_TYPE_RANGE)
       {
@@ -8824,7 +8824,7 @@ best_access_path(JOIN      *join,
                       range->cost / s->quick->read_time >= 0.9999999));
 
         filter=
-        table->best_range_rowid_filter_for_partial_join(key_no, range->rows,
+        table->best_range_rowid_filter_for_partial_join(key_no, rows2double(range->rows),
                                                         range->find_cost,
                                                         range->index_only_cost,
                                                         record_count);
@@ -8864,7 +8864,7 @@ best_access_path(JOIN      *join,
       rnd_records= matching_candidates_in_table(s, found_constraint,
                                                 use_cond_selectivity);
       records_after_filter= rnd_records;
-      org_records= s->records;
+      org_records= rows2double(s->records);
       DBUG_ASSERT(rnd_records <= s->records);
 
       /* Estimate cost of reading table. */
@@ -8872,7 +8872,7 @@ best_access_path(JOIN      *join,
       {
         INDEX_READ_COST cost= cost_for_index_read(thd, table, s->ref.key,
                                                   s->records,
-                                                  s->worst_seeks);
+                                                  (ha_rows)s->worst_seeks);
         /*
           The query is using 'force_index' and we did not find a usable key.
           Caclulcate cost of a table scan with the forced index.
@@ -29874,7 +29874,7 @@ static bool get_range_limit_read_cost(const JOIN_TAB *tab,
         {
           INDEX_READ_COST cost= cost_for_index_read(tab->join->thd, table,
                                                     keynr,
-                                                    ref_rows,
+                                                    (ha_rows)ref_rows,
                                                     (ha_rows) tab->worst_seeks);
           if (cost.read_cost < best_cost)
           {
