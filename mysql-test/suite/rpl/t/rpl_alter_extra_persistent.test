@@ -111,4 +111,24 @@ select * from t1 order by a;
 select * from t1 order by a;
 drop table t1;
 
+create table t1(a int primary key, b int unique);
+insert into t1 values(1, 1);
+insert into t1 values(2, 2);
+
+--sync_slave_with_master
+alter table t1 add column d1 int default (b);
+--connection master
+
+insert into t1 values(6, 6);
+update t1 set a = 11 where a = 1;
+update t1 set b = 12 where b = 2;
+
+update t1 set b = 16 where a = 6;
+
+--sync_slave_with_master
+select * from t1;
+
+--connection master
+drop table t1;
+
 --source include/rpl_end.inc

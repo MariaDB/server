@@ -62,12 +62,12 @@ a
 connection slave;
 select * from t1 order by a;
 a	z1	z2	z3
-11	12	13	13
-12	13	14	14
-13	14	15	15
-14	15	16	16
-15	16	17	17
-16	17	18	18
+11	12	13	3
+12	13	14	4
+13	14	15	5
+14	15	16	6
+15	16	17	7
+16	17	18	8
 connection master;
 update t1 set a = a-10;
 select * from t1 order by a;
@@ -147,7 +147,7 @@ a	z1	z2	z3
 4	5	6	6
 5	6	7	7
 6	7	8	8
-13	14	15	15
+13	14	15	5
 connection master;
 update t1 set a = a - 10  where a = 13;
 select * from t1 order by a;
@@ -215,5 +215,23 @@ a
 5
 6
 7
+drop table t1;
+create table t1(a int primary key, b int unique);
+insert into t1 values(1, 1);
+insert into t1 values(2, 2);
+connection slave;
+alter table t1 add column d1 int default (b);
+connection master;
+insert into t1 values(6, 6);
+update t1 set a = 11 where a = 1;
+update t1 set b = 12 where b = 2;
+update t1 set b = 16 where a = 6;
+connection slave;
+select * from t1;
+a	b	d1
+11	1	1
+2	12	2
+6	16	6
+connection master;
 drop table t1;
 include/rpl_end.inc

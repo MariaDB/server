@@ -388,12 +388,6 @@ int unpack_row(rpl_group_info *rgi, TABLE *table, uint const colcnt,
     {
       copy->do_copy(copy);
     }
-    /* we only check constraints for ALTER TABLE */
-    DBUG_ASSERT(table->in_use->lex->ignore == FALSE);
-    error= table->verify_constraints(false);
-    DBUG_ASSERT(error != VIEW_CHECK_SKIP);
-    if (error)
-      DBUG_RETURN(HA_ERR_GENERIC);
   }
 
   if (table->default_field)
@@ -407,6 +401,16 @@ int unpack_row(rpl_group_info *rgi, TABLE *table, uint const colcnt,
     error= table->update_virtual_fields(table->file, VCOL_UPDATE_FOR_WRITE);
     if (unlikely(error))
       DBUG_RETURN(error);
+  }
+
+  if (rpl_data.is_online_alter())
+  {
+    /* we only check constraints for ALTER TABLE */
+    DBUG_ASSERT(table->in_use->lex->ignore == FALSE);
+    error = table->verify_constraints(false);
+    DBUG_ASSERT(error != VIEW_CHECK_SKIP);
+    if (error)
+      DBUG_RETURN(HA_ERR_GENERIC);
   }
 
   /*
