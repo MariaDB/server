@@ -1388,6 +1388,10 @@ void trx_t::commit_cleanup()
   ut_ad(!dict_operation);
   ut_ad(!was_dict_operation);
 
+  if (is_bulk_insert())
+    for (auto &t : mod_tables)
+      delete t.second.bulk_store;
+
   mutex.wr_lock();
   state= TRX_STATE_NOT_STARTED;
   mod_tables.clear();
@@ -1479,8 +1483,11 @@ void trx_t::commit()
   ut_d(was_dict_operation= dict_operation);
   dict_operation= false;
   commit_persist();
+#ifdef UNIV_DEBUG
+  if (!was_dict_operation)
+    for (const auto &p : mod_tables) ut_ad(!p.second.is_dropped());
+#endif /* UNIV_DEBUG */
   ut_d(was_dict_operation= false);
-  ut_d(for (const auto &p : mod_tables) ut_ad(!p.second.is_dropped()));
   commit_cleanup();
 }
 

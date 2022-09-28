@@ -59,7 +59,6 @@ const trx_t*		trx_roll_crash_recv_trx;
 @retval	false	if the rollback was aborted by shutdown  */
 inline bool trx_t::rollback_finish()
 {
-  mod_tables.clear();
   apply_online_log= false;
   if (UNIV_LIKELY(error_state == DB_SUCCESS))
   {
