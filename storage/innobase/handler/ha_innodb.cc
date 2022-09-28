@@ -1484,10 +1484,6 @@ innobase_destroy_background_thd(
 /*============================*/
 	MYSQL_THD thd)
 {
-	/* need to close the connection explicitly, the server won't do it
-	if innodb is in the PLUGIN_IS_DYING state */
-	innobase_close_connection(innodb_hton_ptr, thd);
-	thd_set_ha_data(thd, innodb_hton_ptr, NULL);
 	destroy_background_thd(thd);
 }
 

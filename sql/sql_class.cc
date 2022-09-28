@@ -462,6 +462,7 @@ void thd_storage_lock_wait(THD *thd, long long value)
 extern "C"
 void *thd_get_ha_data(const THD *thd, const struct handlerton *hton)
 {
+  DBUG_ASSERT(thd == current_thd ||  mysql_mutex_is_owner(&thd->LOCK_thd_data));
   return thd->ha_data[hton->slot].ha_ptr;
 }
 

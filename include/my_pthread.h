@@ -437,6 +437,7 @@ void safe_mutex_free_deadlock_data(safe_mutex_t *mp);
 #define my_cond_wait(A,B) safe_cond_wait((A), (B), __FILE__, __LINE__)
 #else
 
+#define safe_mutex_is_owner(mp) (1)
 #define safe_mutex_assert_owner(mp) do {} while (0)
 #define safe_mutex_assert_not_owner(mp) do {} while (0)
 #define safe_mutex_setflags(mp, F) do {} while (0)
