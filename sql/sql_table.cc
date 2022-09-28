@@ -58,6 +58,7 @@
 #ifdef WITH_WSREP
 #include "wsrep_mysqld.h"
 #endif
+#include "sql_debug.h"
 
 #ifdef __WIN__
 #include <io.h>
@@ -4457,6 +4458,13 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
                           file->partition_ht()->table_options, FALSE,
                           thd->mem_root))
       DBUG_RETURN(TRUE);
+
+#ifndef DBUG_OFF
+  DBUG_EXECUTE_IF("key",
+    Debug_key::print_keys(thd, "prep_create_table: ",
+                          *key_info_buffer, *key_count);
+  );
+#endif
 
   DBUG_RETURN(FALSE);
 }
