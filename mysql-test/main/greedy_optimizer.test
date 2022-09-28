@@ -391,6 +391,9 @@ set join_cache_level=@save_join_cache_level;
 --echo # Bug #59326: Greedy optimizer produce stupid query execution plans.
 --echo #
 
+#double warning for view protocol 
+--disable_view_protocol
+
 CREATE TABLE t10(
   K INT NOT NULL AUTO_INCREMENT,
   I INT,
@@ -951,5 +954,7 @@ CREATE TABLE t3 (c int);
 INSERT INTO t3 VALUES (5),(6);
 SELECT * FROM t1 WHERE 5 IN (SELECT t1_a.a FROM t1 as t1_a WHERE 1 IN (SELECT t1_b.a FROM t1 as t1_b LEFT JOIN (t2 JOIN t3) ON (t1_b.a = t2.d) WHERE t1_b.b < 1));
 drop table t1,t2,t3;
+
+--enable_view_protocol
 
 --echo End of 10.0 tests

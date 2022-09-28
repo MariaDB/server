@@ -2346,6 +2346,8 @@ SELECT random_bytes(1025);
 SELECT random_bytes(11111);
 SELECT random_bytes(2056);
 
+#double warning for view protocol 
+--disable_view_protocol
 SELECT length(random_bytes(10.0));
 SELECT length(random_bytes(10.1));
 SELECT length(random_bytes(+1e1));
@@ -2356,6 +2358,7 @@ SELECT length(random_bytes("+1e1"));
 SELECT length(random_bytes("10.0bunnies"));
 SELECT length(random_bytes("10.1chickens"));
 SELECT length(random_bytes("+1e1rabbits"));
+--enable_view_protocol
 
 --delimiter |
 create procedure p1()
@@ -2372,10 +2375,13 @@ drop procedure p1;
 --echo #
 --echo # Test For invalid argument return NULL
 --echo #
+#double warning for view protocol 
+--disable_view_protocol
 SELECT random_bytes('s');
 SELECT random_bytes('r');
 SELECT random_bytes('res');
 SELECT random_bytes('test');
+--enable_view_protocol
 
 --echo #
 --echo # MDEV-29108 RANDOM_BYTES - assertion in Create_tmp_table::finalize
@@ -2391,16 +2397,20 @@ DROP TABLE t;
 --echo #
 --echo # MDEV-29154 Excessive warnings upon a call to RANDOM_BYTES
 --echo #
-
+#double warning for view protocol 
+--disable_view_protocol
 select length(random_bytes(cast('x' as unsigned)+1));
 select repeat('.', cast('x' as unsigned)+1);
+--enable_view_protocol
 
 --echo #
 --echo # MDEV-23149 Server crashes in my_convert / ErrConvString::ptr / Item_char_typecast::check_truncation_with_warn
 --echo #
+#double warning for view protocol 
+--disable_view_protocol
 --replace_regex /'.*'/'...random bytes...'/
 select "a" in ("abc", (convert(random_bytes(8) ,binary(2))));
-
+--enable_view_protocol
 --echo #
 --echo # End of 10.10 tests
 --echo #
