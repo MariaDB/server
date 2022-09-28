@@ -565,12 +565,12 @@ where t1.a=t2.a and st<3
 select * from t2;
 a	b	st
 1	1	1
-1	2	2
 1	1	2
-1	2	3
-1	2	3
 1	1	3
 1	1	3
+1	2	2
+1	2	3
+1	2	3
 # recursive CTE that uses VALUES structure(s) : computation of factorial (first 10 elements)
 with recursive fact(n,f) as
 (

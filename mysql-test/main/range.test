@@ -1024,7 +1024,7 @@ create table t2 (a int, b int, filler char(100));
 insert into t2 select A.a + 10 * (B.a + 10 * C.a), 10, 'filler' from t1 A,
 t1 B, t1 C where A.a < 5;
 
-insert into t2 select 1000, b, 'filler' from t2;
+insert into t2 select 1000, b, 'filler' from t2 limit 250;
 alter table t2 add index (a,b);
 # t2 values 
 #  ( 1  , 10, 'filler')
@@ -1032,13 +1032,14 @@ alter table t2 add index (a,b);
 #  ( 3  , 10, 'filler')
 #  (... , 10, 'filler')
 #   ...
-#  (1000, 10, 'filler') - 500 times
+#  (1000, 10, 'filler') - 250 times
 
-# 500 rows, 1 row
+# 250 rows, 1 row
 
-select 'In following EXPLAIN the access method should be ref, #rows~=500 (and not 2)' Z;
+--echo # In following EXPLAIN the access method should be ref, #rows~=250
+--echo # (and not 2) when we are not using rowid-ordered scans
+
 explain select * from t2 where a=1000 and b<11;
-
 drop table t1, t2;
 
 #
@@ -1967,6 +1968,7 @@ select * from t1,t2
   where a = d and (a,e) in ((3,3),(7,7),(8,8)) and length(f) = 1;
 eval explain $q5;
 eval explain format=json $q5;
+--sorted_result
 eval $q5;
 eval prepare stmt from "$q5";
 execute stmt;
@@ -1982,6 +1984,7 @@ select * from t1,t2
   where a = d and (a,e) in ((4,4),(7,7),(8,8)) and length(f) = 1;
 eval explain $q6;
 eval explain format=json $q6;
+--sorted_result
 eval $q6;
 
 alter table t2 drop index idx1, drop index idx2, add index idx3(d,e);
@@ -2002,6 +2005,7 @@ select * from t1,t2
   where a = d and (a,e) in ((4,d+1),(7,d+1),(8,d+1)) and length(f) = 1;
 eval explain $q8;
 eval explain format=json $q8;
+--sorted_result
 eval $q8;
 
 --echo # join order: (t1,t2) with ref access of t2
@@ -2011,6 +2015,7 @@ select * from t1,t2
   where a = d and (a,e) in ((e,d+1),(7,7),(8,8)) and length(f) = 1;
 eval explain $q9;
 eval explain format=json $q9;
+--sorted_result
 eval $q9;
 
 --echo # join order: (t1,t2) with ref access of t2

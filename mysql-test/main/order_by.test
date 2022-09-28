@@ -3,6 +3,7 @@
 #
 
 call mtr.add_suppression("Sort aborted.*");
+--source include/have_sequence.inc
 call mtr.add_suppression("Out of sort memory; increase server sort buffer size");
 --source include/have_sequence.inc
 
@@ -797,6 +798,10 @@ EXPLAIN SELECT id,c3 FROM t2 WHERE c2 BETWEEN 20 AND 30 ORDER BY c3 LIMIT 4000;
 
 SELECT id,c3 FROM t2 WHERE c2=11 ORDER BY c3 LIMIT 20;
 
+# Show that order by optimization takes into account index only scans
+ALTER TABLE t2 DROP INDEX k3, ADD INDEX k3 (c3,c2);
+EXPLAIN SELECT c3 FROM t2 WHERE c2=11 ORDER BY c3 LIMIT 4000;
+
 DROP TABLE t1,t2;
 
 # 
@@ -904,6 +909,11 @@ INSERT INTO t1 VALUES (1, 10), (2, NULL);
 EXPLAIN
 SELECT 1 AS col FROM t1 WHERE a=2 AND (c=10 OR c IS NULL) ORDER BY c;
 --echo # Must return 1 row
+SELECT 1 AS col FROM t1 WHERE a=2 AND (c=10 OR c IS NULL) ORDER BY c;
+
+--echo # With more rows "range" changes to "ref_or_null"
+INSERT INTO t1 select seq,seq from seq_1_to_10;
+EXPLAIN
 SELECT 1 AS col FROM t1 WHERE a=2 AND (c=10 OR c IS NULL) ORDER BY c;
 
 # part 2 of the problem : DESC test cases

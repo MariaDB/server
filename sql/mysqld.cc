@@ -756,8 +756,6 @@ char *opt_relay_logname = 0, *opt_relaylog_index_name=0;
 char *opt_logname, *opt_slow_logname, *opt_bin_logname;
 char *opt_binlog_index_name=0;
 
-
-
 /* Static variables */
 
 my_bool opt_stack_trace;
@@ -4372,7 +4370,6 @@ static int init_common_variables()
     sql_print_error("An error occurred while storing ignore_db_dirs to a hash.");
     return 1;
   }
-
 
 #ifdef WITH_WSREP
   /*
@@ -9042,7 +9039,7 @@ void refresh_status(THD *thd)
   reset_pfs_status_stats();
 #endif
 
-  /* Add thread's status variabes to global status */
+  /* Add thread's status variabels to global status */
   add_to_status(&global_status_var, &thd->status_var);
 
   /* Reset thread's status variables */

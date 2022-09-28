@@ -389,6 +389,7 @@ select DB_ROW_HASH_1, DB_ROW_HASH_2 from t1;
 select DB_ROW_HASH_1, DB_ROW_HASH_2 from t1,t2;
 --error ER_BAD_FIELD_ERROR
 select * from t1 where DB_ROW_HASH_1 in (select DB_ROW_HASH_1 from t2);
+--sorted_result
 select DB_ROW_HASH_1, DB_ROW_HASH_2 from t1,t2 where DB_ROW_HASH_1 in (select DB_ROW_HASH_1 from t2);
 select * from t2 where DB_ROW_HASH_1 in (select DB_ROW_HASH_1 from t1);
 --error ER_BAD_FIELD_ERROR

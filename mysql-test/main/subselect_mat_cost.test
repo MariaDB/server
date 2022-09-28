@@ -73,13 +73,13 @@ set @@optimizer_switch = 'in_to_exists=on,semijoin=on,materialization=on,partial
 -- echo Q1.1m:
 -- echo MATERIALIZATION: there are too many rows in the outer query
 -- echo to be looked up in the inner table.
-EXPLAIN
+set statement optimizer_cache_hit_ratio=20 for EXPLAIN
 SELECT Name FROM Country
 WHERE (Code IN (select Country from City where City.Population > 100000) OR
        Name LIKE 'L%') AND
       surfacearea > 1000000;
 
-SELECT Name FROM Country
+set statement optimizer_cache_hit_ratio=20 for SELECT Name FROM Country
 WHERE (Code IN (select Country from City where City.Population > 100000) OR
        Name LIKE 'L%') AND
       surfacearea > 1000000;
@@ -209,7 +209,6 @@ WHERE Code NOT IN (SELECT Country FROM CountryLanguage WHERE Language = 'English
 -- echo Countries that speak French OR Spanish, but do not speak English
 -- echo MATERIALIZATION because the outer query filters less rows than Q5-a,
 -- echo so there are more lookups.
-
 
 set statement optimizer_switch='rowid_filter=off' for
 EXPLAIN
@@ -369,6 +368,7 @@ drop index CountryCapital on Country;
 # TODO: the cost estimates for subqueries in the HAVING clause need to be changed
 # to take into account that the subquery predicate is executed #times ~ to the
 # number of groups, not number of rows
+
 EXPLAIN
 SELECT City.Name, City.Population
 FROM City JOIN Country ON City.Country = Country.Code

@@ -4552,9 +4552,9 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 4	RECURSIVE UNION	<derived2>	ALL	NULL	NULL	NULL	NULL	2	
 5	RECURSIVE UNION	<derived2>	ALL	NULL	NULL	NULL	NULL	2	
 NULL	UNION RESULT	<union3,4,5>	ALL	NULL	NULL	NULL	NULL	NULL	
-2	DERIVED	h	ALL	NULL	NULL	NULL	NULL	12	
-2	DERIVED	<derived3>	ALL	NULL	NULL	NULL	NULL	12	Using where; Using join buffer (flat, BNL join)
-2	DERIVED	w	ALL	NULL	NULL	NULL	NULL	12	Using where; Using join buffer (incremental, BNL join)
+2	DERIVED	h	ALL	NULL	NULL	NULL	NULL	12	Using where
+2	DERIVED	<derived3>	ref	key0	key0	5	test.h.id	2	
+2	DERIVED	w	ALL	NULL	NULL	NULL	NULL	12	Using where; Using join buffer (flat, BNL join)
 prepare stmt from "with recursive
 ancestor_couples(h_id, h_name, h_dob, h_father, h_mother,
 w_id, w_name, w_dob, w_father, w_mother)
