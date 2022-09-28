@@ -1,3 +1,7 @@
+# Tests will be skipped for the view protocol because the view protocol creates 
+# an additional util connection and other statistics data
+-- source include/no_view_protocol.inc
+
 --source include/innodb_prefix_index_cluster_optimization.inc
 
 SET SESSION DEFAULT_STORAGE_ENGINE='InnoDB';

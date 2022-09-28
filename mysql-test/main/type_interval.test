@@ -19,12 +19,15 @@ INSERT INTO t1 VALUES
 ('87649416:00:00'),
 ('3652059 00:00:00');
 
+#enable after fix MDEV-29525
+--disable_view_protocol
 SELECT
   EXTRACT(DAY FROM a) AS d,
   EXTRACT(HOUR FROM a) AS h,
   a,
   CAST(a AS INTERVAL DAY_SECOND(6)) AS cast_itds
 FROM t1;
+--enable_view_protocol
 
 DROP TABLE t1;
 
@@ -40,12 +43,15 @@ INSERT INTO t1 VALUES
 (876494155959),
 (876494160000);
 
+#enable after fix MDEV-29525
+--disable_view_protocol
 SELECT
   EXTRACT(DAY FROM a) AS d,
   EXTRACT(HOUR FROM a) AS h,
   a,
   CAST(a AS INTERVAL DAY_SECOND(6)) AS cast_itds
 FROM t1;
+--enable_view_protocol
 
 DROP TABLE t1;
 

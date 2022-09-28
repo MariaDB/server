@@ -177,8 +177,11 @@ DROP TABLE t1;
 --echo # Literal corner case
 --echo #
 
+#check after fix MDEV-29534 and MDEV-29526
+--disable_view_protocol
 SELECT TIME'838:59:59.999999';
 --error ER_WRONG_VALUE
 SELECT TIME'838:59:59.9999999';
 --error ER_WRONG_VALUE
 SELECT TIME'839:00:00';
+--enable_view_protocol

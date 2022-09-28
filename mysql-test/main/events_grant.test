@@ -2,7 +2,7 @@
 -- source include/not_embedded.inc
 --source include/default_charset.inc
 
-
+--disable_service_connection
 CREATE DATABASE IF NOT EXISTS events_test;
 use events_test;
 #
@@ -113,3 +113,4 @@ DROP DATABASE events_test2;
 --source include/check_events_off.inc
 
 DROP DATABASE events_test;
+--enable_service_connection
