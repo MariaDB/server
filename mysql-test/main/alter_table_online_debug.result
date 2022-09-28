@@ -864,9 +864,11 @@ insert t1 values (1),(2),(3),(4);
 set debug_sync= 'now wait_for downgraded';
 connection con2;
 set debug_sync= 'alter_table_online_downgraded signal downgraded wait_for goforit';
-alter table t1 add b int default(a+10), algorithm=copy, lock=none;
+alter table t1 add b int default(a), algorithm=copy, lock=none;
 connection default;
 update t1 set a=a+10 where a > 2;
+insert t1 values(5);
+update t1 set a=a+10 where a = 5;
 set debug_sync= 'now signal goforit';
 connection con2;
 connection default;
@@ -878,10 +880,41 @@ t1	CREATE TABLE `t1` (
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1
 select * from t1;
 a	b
-1	11
-2	12
-13	23
-14	24
+1	1
+2	2
+13	13
+14	14
+15	15
+drop table t1;
+set debug_sync= 'reset';
+## VCOL + CHECK
+create table t1 (a int) engine=innodb;
+insert t1 values (1),(2),(3),(4);
+set debug_sync= 'now wait_for downgraded';
+connection con2;
+set debug_sync= 'alter_table_online_downgraded signal downgraded wait_for goforit';
+alter table t1 add b int as (a), add check(b=a), algorithm=copy, lock=none;
+connection default;
+update t1 set a=a+10 where a > 2;
+insert t1 values(5);
+update t1 set a=a+10 where a = 5;
+set debug_sync= 'now signal goforit';
+connection con2;
+connection default;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) GENERATED ALWAYS AS (`a`) VIRTUAL,
+  CONSTRAINT `CONSTRAINT_1` CHECK (`b` = `a`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+select * from t1;
+a	b
+1	1
+2	2
+13	13
+14	14
+15	15
 drop table t1;
 set debug_sync= 'reset';
 #

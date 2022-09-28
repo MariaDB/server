@@ -1021,10 +1021,35 @@ insert t1 values (1),(2),(3),(4);
 --send set debug_sync= 'now wait_for downgraded'
 --connection con2
 set debug_sync= 'alter_table_online_downgraded signal downgraded wait_for goforit';
---send alter table t1 add b int default(a+10), algorithm=copy, lock=none
+--send alter table t1 add b int default(a), algorithm=copy, lock=none
 --connection default
 --reap
 update t1 set a=a+10 where a > 2;
+insert t1 values(5);
+update t1 set a=a+10 where a = 5;
+
+set debug_sync= 'now signal goforit';
+--connection con2
+--reap
+--connection default
+show create table t1;
+select * from t1;
+drop table t1;
+set debug_sync= 'reset';
+
+--echo ## VCOL + CHECK
+create table t1 (a int) engine=innodb;
+insert t1 values (1),(2),(3),(4);
+--send set debug_sync= 'now wait_for downgraded'
+--connection con2
+set debug_sync= 'alter_table_online_downgraded signal downgraded wait_for goforit';
+--send alter table t1 add b int as (a), add check(b=a), algorithm=copy, lock=none
+--connection default
+--reap
+update t1 set a=a+10 where a > 2;
+insert t1 values(5);
+update t1 set a=a+10 where a = 5;
+
 set debug_sync= 'now signal goforit';
 --connection con2
 --reap
