@@ -445,6 +445,8 @@ SET debug_dbug=@old_debug;
 --echo # Check if queries in non-default charsets work.
 --echo #
 
+--disable_service_connection
+
 set names cp1251;
 # The below are two Russian letters with codes E3FB in cp1251 encoding.
 select charset('ãû');
@@ -470,6 +472,8 @@ SET debug_dbug=@old_debug;
 set names default;
 
 drop table if exists t0,t1,t2;
+
+--enable_service_connection
 
 --echo #
 --echo # MDEV-28124: Server crashes in Explain_aggr_filesort::print_json_members

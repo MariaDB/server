@@ -2,6 +2,10 @@
 # Single table specific update/delete tests (mysql_update and mysql_delete)
 #
 
+# Tests will be skipped for the view protocol because the view protocol creates 
+# an additional util connection and other statistics data
+-- source include/no_view_protocol.inc
+
 --echo #
 --echo # Bug #30584: delete with order by and limit clauses does not use
 --echo #             limit efficiently

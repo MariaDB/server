@@ -1735,7 +1735,9 @@ select count(*) from t2;
 select count(*) from t2 where fld1 < 098024;
 # PS does correct pre-zero here. MySQL can't do it as it returns a number.
 --disable_ps_protocol
+--disable_view_protocol
 select min(fld1) from t2 where fld1>= 098024;
+--enable_view_protocol
 --enable_ps_protocol
 select max(fld1) from t2 where fld1>= 098024;
 select count(*) from t3 where price2=76234234;
@@ -1743,7 +1745,9 @@ select count(*) from t3 where companynr=512 and price2=76234234;
 explain select min(fld1),max(fld1),count(*) from t2;
 # PS does correct pre-zero here. MySQL can't do it as it returns a number.
 --disable_ps_protocol
+--disable_view_protocol
 select min(fld1),max(fld1),count(*) from t2;
+--enable_view_protocol
 --enable_ps_protocol
 select min(t2nr),max(t2nr) from t3 where t2nr=2115 and price2=823742;
 select count(*),min(t2nr),max(t2nr) from t3 where name='spates' and companynr=78;
@@ -2178,7 +2182,7 @@ drop table t2;
 #
 # Bug #11745: SELECT ... FROM DUAL with WHERE condition
 #
-
+--disable_view_protocol
 CREATE TABLE t1 (a int, b int, c int);
 INSERT INTO t1
   SELECT 50, 3, 3 FROM DUAL
@@ -2197,7 +2201,7 @@ select count(*) from t1 limit 2,3;
 select found_rows();
 select SQL_CALC_FOUND_ROWS count(*) from t1 limit 2,3;
 select found_rows();
-
+--enable_view_protocol
 DROP TABLE t1;
 
 #
@@ -2493,9 +2497,10 @@ DROP TABLE t1,t2;
 #
 # Bug #10650
 #
-
+#enable after fix MDEV-28535
+--disable_view_protocol
 select x'3136' + 0, X'3136' + 0, b'10' + 0, B'10' + 0;
-
+--enable_view_protocol
 #
 # Bug #11398 Bug in field_conv() results in wrong result of join with index
 #
@@ -2606,7 +2611,10 @@ SELECT * FROM BUG_12595 WHERE a LIKE 'hakan*%' ESCAPE '*';
 SELECT * FROM BUG_12595 WHERE a LIKE 'hakan**%' ESCAPE '**';
 # this should work when sql_mode is not NO_BACKSLASH_ESCAPES
 SELECT * FROM BUG_12595 WHERE a LIKE 'hakan%' ESCAPE '';
+#enable after fix MDEV-29601
+--disable_service_connection
 SELECT * FROM BUG_12595 WHERE a LIKE 'hakan\%' ESCAPE '';
+--enable_service_connection
 SELECT * FROM BUG_12595 WHERE a LIKE 'ha\%an' ESCAPE 0x5c;
 SELECT * FROM BUG_12595 WHERE a LIKE 'ha%%an' ESCAPE '%';
 SELECT * FROM BUG_12595 WHERE a LIKE 'ha\%an' ESCAPE '\\';
@@ -2614,19 +2622,28 @@ SELECT * FROM BUG_12595 WHERE a LIKE 'ha|%an' ESCAPE '|';
 
 SET @@SQL_MODE='NO_BACKSLASH_ESCAPES';
 SHOW LOCAL VARIABLES LIKE 'SQL_MODE';
+#enable after fix MDEV-29231
+--disable_view_protocol
 SELECT * FROM BUG_12595 WHERE a LIKE 'hakan\%';
+--enable_view_protocol
 SELECT * FROM BUG_12595 WHERE a LIKE 'hakan*%' ESCAPE '*';
 -- error 1210
 SELECT * FROM BUG_12595 WHERE a LIKE 'hakan**%' ESCAPE '**';
+#enable after fix MDEV-29231
+--disable_view_protocol
 -- error 1210
 SELECT * FROM BUG_12595 WHERE a LIKE 'hakan\%' ESCAPE '\\';
+--enable_view_protocol
 #this gives an error when NO_BACKSLASH_ESCAPES is set
 -- error 1210
 SELECT * FROM BUG_12595 WHERE a LIKE 'hakan%' ESCAPE '';
 SELECT * FROM BUG_12595 WHERE a LIKE 'ha\%an' ESCAPE 0x5c;
 SELECT * FROM BUG_12595 WHERE a LIKE 'ha|%an' ESCAPE '|';
+#enable after fix MDEV-29231
+--disable_view_protocol
 -- error 1210
 SELECT * FROM BUG_12595 WHERE a LIKE 'hakan\n%' ESCAPE '\n';
+--enable_view_protocol
 
 SET @@SQL_MODE=@OLD_SQL_MODE12595;
 DROP TABLE BUG_12595;
@@ -3543,7 +3560,8 @@ DROP VIEW v1;
 # On DATETIME-like literals with trailing garbage, BETWEEN fudged in a
 # DATETIME comparator, while greater/less-than used bin-string comparisons.
 # Should correctly be compared as DATE or DATETIME, but throw a warning:
-
+#enable after fix MDEV-27871
+--disable_view_protocol
 select str_to_date('2007-10-09','%Y-%m-%d') between '2007/10/01 00:00:00 GMT'
                                                 and '2007/10/20 00:00:00 GMT';
 select str_to_date('2007-10-09','%Y-%m-%d') > '2007/10/01 00:00:00 GMT-6';
@@ -3586,6 +3604,7 @@ select str_to_date('2007-10-01 12:34','%Y-%m-%d %H:%i') = '2007-10-00 12:34';
 select str_to_date('2007-10-00 12:34','%Y-%m-%d %H:%i') = '2007-10-01 12:34';
 select str_to_date('2007-10-00','%Y-%m-%d') between '2007/09/01'
                                                 and '2007/10/20';
+--enable_view_protocol
 set SQL_MODE=DEFAULT;
 select str_to_date('2007-10-00','%Y-%m-%d') between '' and '2007/10/20';
 select str_to_date('','%Y-%m-%d') between '2007/10/01' and '2007/10/20';
@@ -3597,12 +3616,15 @@ select str_to_date('1','%Y-%m-%d') = '1';
 select str_to_date('1','%Y-%m-%d') = '1';
 select str_to_date('','%Y-%m-%d') = '';
 
+#enable after fix MDEV-27871
+--disable_view_protocol
 select str_to_date('2000-01-01','%Y-%m-%d') between '1000-01-01' and '2001-01-01';
 select str_to_date('2000-01-01','%Y-%m-%d') between '1000-01-01' and NULL;
 select str_to_date('2000-01-01','%Y-%m-%d') between NULL and '2001-01-01';
 select str_to_date('2000-01-01','%Y-%m-%d') between '2001-01-01' and NULL;
 select str_to_date('2000-01-01','%Y-%m-%d') between NULL and '1000-01-01';
 select str_to_date('2000-01-01','%Y-%m-%d') between NULL and NULL;
+--enable_view_protocol
 
 #
 # Bug #30666: Incorrect order when using range conditions on 2 tables or more
@@ -3712,7 +3734,7 @@ DROP TABLE t1;
 #
 # Bug #32942 now() - interval '7200' second is NOT pre-calculated, causing "full table scan"
 #
-
+--disable_view_protocol
 CREATE TABLE t1 (a INT, b INT);
 CREATE TABLE t2 (a INT, c INT, KEY(a));
 
@@ -3726,7 +3748,7 @@ FLUSH STATUS;
 SELECT DISTINCT b FROM t1 LEFT JOIN t2 USING(a) WHERE c <= 3;
 SHOW STATUS LIKE 'Handler_read%';
 DROP TABLE t1, t2;
-
+--enable_view_protocol
 #
 # Bug#40953 SELECT query throws "ERROR 1062 (23000): Duplicate entry..." error
 #

@@ -1,7 +1,6 @@
 #
 # Tests for UCA collations with InnoDB
 #
-
 let collation=utf8mb3_unicode_ci;
 --source include/have_collation.inc
 --source include/have_innodb.inc
@@ -15,10 +14,11 @@ let collation=utf8mb3_unicode_ci;
 --echo #
 --echo # MDEV-7649 wrong result when comparing utf8 column with an invalid literal
 --echo #
-
+--disable_service_connection
 SET NAMES utf8 COLLATE utf8_unicode_ci;
 --let ENGINE=InnoDB
 --source include/ctype_utf8_ilseq.inc
+--enable_service_connection
 
 --echo #
 --echo # End of 5.5 tests

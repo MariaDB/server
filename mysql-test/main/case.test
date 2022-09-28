@@ -2,6 +2,9 @@
 # Testing of CASE
 #
 
+#remove this include after fix MDEV-27871
+--source include/no_view_protocol.inc
+
 --disable_warnings
 drop table if exists t1, t2;
 --enable_warnings

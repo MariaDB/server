@@ -689,6 +689,8 @@ SELECT a AS x, ROW(11, 12) = (SELECT MAX(x), 12), ROW(11, 12) IN (SELECT MAX(x),
 
 DROP TABLE t1;
 
+#enable after fix MDEV-28585
+--disable_view_protocol
 --echo # both columns should be same
 SELECT ROW(1,2) = (SELECT NULL, NULL), ROW(1,2) IN (SELECT NULL, NULL);
 SELECT ROW(1,2) = (SELECT   1,  NULL), ROW(1,2) IN (SELECT    1, NULL);
@@ -696,6 +698,7 @@ SELECT ROW(1,2) = (SELECT NULL,    2), ROW(1,2) IN (SELECT NULL,    2);
 SELECT ROW(1,2) = (SELECT NULL,    1), ROW(1,2) IN (SELECT NULL,    1);
 SELECT ROW(1,2) = (SELECT    1,    1), ROW(1,2) IN (SELECT    1,    1);
 SELECT ROW(1,2) = (SELECT    1,    2), ROW(1,2) IN (SELECT    1,    2);
+--enable_view_protocol
 
 #
 # Bug #37362      Crash in do_field_eq

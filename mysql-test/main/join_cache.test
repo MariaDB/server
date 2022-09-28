@@ -409,6 +409,9 @@ SELECT Name FROM City
   WHERE City.Country IN (SELECT Code FROM Country WHERE Country.Name LIKE 'L%') AND
         City.Population > 100000;
 
+#enable after fix MDEV-27871
+--disable_view_protocol
+
 EXPLAIN
 SELECT Country.Name, IF(ISNULL(CountryLanguage.Country), NULL, CountryLanguage.Percentage)
   FROM Country LEFT JOIN CountryLanguage ON
@@ -421,6 +424,8 @@ SELECT Country.Name, IF(ISNULL(CountryLanguage.Country), NULL, CountryLanguage.P
        (CountryLanguage.Country=Country.Code AND Language='English')
   WHERE 
        Country.Population > 10000000;
+
+--enable_view_protocol
 
 show variables like 'join_buffer_size';
 set join_cache_level=4;
@@ -463,6 +468,9 @@ SELECT Name FROM City
   WHERE City.Country IN (SELECT Code FROM Country WHERE Country.Name LIKE 'L%') AND
         City.Population > 100000;
 
+#enable after fix MDEV-27871
+--disable_view_protocol
+
 EXPLAIN
 SELECT Country.Name, IF(ISNULL(CountryLanguage.Country), NULL, CountryLanguage.Percentage)
   FROM Country LEFT JOIN CountryLanguage ON
@@ -476,6 +484,7 @@ SELECT Country.Name, IF(ISNULL(CountryLanguage.Country), NULL, CountryLanguage.P
   WHERE 
        Country.Population > 10000000;
 
+--enable_view_protocol
 
 --replace_column 9 #
 EXPLAIN
@@ -547,6 +556,9 @@ SELECT Name FROM City
   WHERE City.Country IN (SELECT Code FROM Country WHERE Country.Name LIKE 'L%') AND
         City.Population > 100000;
 
+#enable after fix MDEV-27871
+--disable_view_protocol
+
 EXPLAIN
 SELECT Country.Name, IF(ISNULL(CountryLanguage.Country), NULL, CountryLanguage.Percentage)
   FROM Country LEFT JOIN CountryLanguage ON
@@ -559,6 +571,8 @@ SELECT Country.Name, IF(ISNULL(CountryLanguage.Country), NULL, CountryLanguage.P
        (CountryLanguage.Country=Country.Code AND Language='English')
   WHERE 
        Country.Population > 10000000;
+
+--enable_view_protocol
 
 set join_cache_level=6;
 show variables like 'join_cache_level';
@@ -600,6 +614,9 @@ SELECT Name FROM City
   WHERE City.Country IN (SELECT Code FROM Country WHERE Country.Name LIKE 'L%') AND
         City.Population > 100000;
 
+#enable after fix MDEV-27871
+--disable_view_protocol
+
 EXPLAIN
 SELECT Country.Name, IF(ISNULL(CountryLanguage.Country), NULL, CountryLanguage.Percentage)
   FROM Country LEFT JOIN CountryLanguage ON
@@ -612,6 +629,8 @@ SELECT Country.Name, IF(ISNULL(CountryLanguage.Country), NULL, CountryLanguage.P
        (CountryLanguage.Country=Country.Code AND Language='English')
   WHERE 
        Country.Population > 10000000;
+
+--enable_view_protocol
 
 set join_cache_level=7;
 show variables like 'join_cache_level';
@@ -653,6 +672,9 @@ SELECT Name FROM City
   WHERE City.Country IN (SELECT Code FROM Country WHERE Country.Name LIKE 'L%') AND
         City.Population > 100000;
 
+#enable after fix MDEV-27871
+--disable_view_protocol
+
 EXPLAIN
 SELECT Country.Name, IF(ISNULL(CountryLanguage.Country), NULL, CountryLanguage.Percentage)
   FROM Country LEFT JOIN CountryLanguage ON
@@ -665,6 +687,8 @@ SELECT Country.Name, IF(ISNULL(CountryLanguage.Country), NULL, CountryLanguage.P
        (CountryLanguage.Country=Country.Code AND Language='English')
   WHERE 
        Country.Population > 10000000;
+
+--enable_view_protocol
 
 set join_cache_level=8;
 show variables like 'join_cache_level';
@@ -706,6 +730,9 @@ SELECT Name FROM City
   WHERE City.Country IN (SELECT Code FROM Country WHERE Country.Name LIKE 'L%') AND
         City.Population > 100000;
 
+#enable after fix MDEV-27871
+--disable_view_protocol
+
 EXPLAIN
 SELECT Country.Name, IF(ISNULL(CountryLanguage.Country), NULL, CountryLanguage.Percentage)
   FROM Country LEFT JOIN CountryLanguage ON
@@ -718,6 +745,8 @@ SELECT Country.Name, IF(ISNULL(CountryLanguage.Country), NULL, CountryLanguage.P
        (CountryLanguage.Country=Country.Code AND Language='English')
   WHERE 
        Country.Population > 10000000;
+
+--enable_view_protocol
 
 set join_buffer_size=256;
 show variables like 'join_buffer_size';

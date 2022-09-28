@@ -81,6 +81,8 @@ DROP TABLE t1;
 # even if character_set_connection is big5/cp932/gbk/sjis.
 # Note, the other 0x5C which is before 0xE05C is also treated as escape.
 #
+#check after fix MDEV-29290
+--disable_view_protocol
 SET character_set_client=binary, character_set_results=binary;
 SELECT @@character_set_client, @@character_set_connection, @@character_set_results;
 SELECT HEX('à\['), HEX('\à\[');
@@ -105,7 +107,7 @@ SHOW CREATE TABLE t1;
 INSERT INTO t1 VALUES ('à\['),('\à\[');
 SELECT HEX(a) FROM t1;
 DROP TABLE t1;
-
+--enable_view_protocol
 
 --echo # Start of ctype_E05C.inc
 
