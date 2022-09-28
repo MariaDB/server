@@ -5829,7 +5829,8 @@ make_join_statistics(JOIN *join, List<TABLE_LIST> &tables_list,
 
         Json_writer_object table_records(thd);
         /* Only one matching row */
-        s->found_records= s->records= s->records_out= 1;
+        s->found_records= s->records= 1;
+        s->records_out= 1.0;
         s->read_time=1.0;
         s->worst_seeks=1.0;
         table_records.add_table_name(s)
@@ -8331,7 +8332,7 @@ best_access_path(JOIN      *join,
                    (1.0 +
                     ((double) (table->s->max_key_length-keyinfo->key_length) /
                      (double) table->s->max_key_length)));
-                set_if_smaller(records, s->records);
+                set_if_smaller(records, (double)s->records);
                 set_if_smaller(records_out, records);
                 if (records < 2.0)
                   records=2.0;               /* Can't be as good as a unique */
