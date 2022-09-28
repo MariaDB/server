@@ -4791,6 +4791,7 @@ static int innobase_close_connection(handlerton *hton, THD *thd)
   DBUG_ASSERT(hton == innodb_hton_ptr);
   if (auto trx= thd_to_trx(thd))
   {
+    thd_set_ha_data(thd, innodb_hton_ptr, NULL);
     if (trx->state == TRX_STATE_PREPARED && trx->has_logged_persistent())
     {
       trx_disconnect_prepared(trx);
@@ -4798,6 +4799,7 @@ static int innobase_close_connection(handlerton *hton, THD *thd)
     }
     innobase_rollback_trx(trx);
     trx->free();
+    DEBUG_SYNC(thd, "innobase_connection_closed");
   }
   return 0;
 }

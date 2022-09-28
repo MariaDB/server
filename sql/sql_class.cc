@@ -1533,6 +1533,8 @@ void THD::cleanup(void)
   wsrep_client_thread= false;
 #endif /* WITH_WSREP */
 
+  DEBUG_SYNC(this, "THD_cleanup_after_set_killed");
+
   mysql_ha_cleanup(this);
   locked_tables_list.unlock_locked_tables(this);
 

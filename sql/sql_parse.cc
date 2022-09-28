@@ -9271,7 +9271,7 @@ kill_one_thread(THD *thd, longlong id, killed_state kill_signal, killed_type typ
   tmp= find_thread_by_id(id, type == KILL_TYPE_QUERY);
   if (!tmp)
     DBUG_RETURN(error);
-
+  DEBUG_SYNC(thd, "found_killee");
   if (tmp->get_command() != COM_DAEMON)
   {
     /*

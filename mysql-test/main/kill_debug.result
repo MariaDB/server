@@ -221,3 +221,19 @@ DROP FUNCTION MY_KILL;
 set global sql_mode=default;
 disconnect con1;
 disconnect con2;
+#
+# MDEV-29368 Assertion `trx->mysql_thd == thd' failed in innobase_kill_query from process_timers/timer_handler and use-after-poison in innobase_kill_query
+#
+connect foo,localhost,root;
+create table t1 (a int) engine=innodb;
+insert t1 values (1);
+set debug_sync='THD_cleanup_after_set_killed SIGNAL go0 WAIT_FOR go1';
+set debug_sync='innobase_connection_closed SIGNAL go2 WAIT_FOR go3';
+disconnect foo;
+connection default;
+set debug_sync='now WAIT_FOR go0';
+set debug_sync='found_killee SIGNAL go1 WAIT_FOR go2';
+kill $id;
+set debug_sync='now SIGNAL go3';
+drop table t1;
+set debug_sync='reset';
