@@ -867,6 +867,8 @@ set debug_sync= 'alter_table_online_downgraded signal downgraded wait_for gofori
 alter table t1 add b int default(a+10), algorithm=copy, lock=none;
 connection default;
 update t1 set a=a+10 where a > 2;
+insert t1 values(5);
+update t1 set a=a+10 where a = 5;
 set debug_sync= 'now signal goforit';
 connection con2;
 connection default;
@@ -1120,7 +1122,7 @@ connection con2;
 select * from t2;
 b	c
 1	1
-22	22
+22	2
 3	3
 connection default;
 drop table t2, t1;
@@ -1279,7 +1281,7 @@ connection con2;
 select * from t2;
 b	c
 1	1
-NULL	NULL
+NULL	2
 3	3
 connection default;
 drop table t2, t1;

@@ -8832,10 +8832,16 @@ Update_rows_log_event::do_exec_row(rpl_group_info *rgi)
   message= thd->wsrep_info;
 #endif /* WSREP_PROC_INFO */
 
-  /* this also updates m_curr_row_end */
   thd_proc_info(thd, message);
-  if (unlikely((error= unpack_current_row(rgi, &m_cols_ai))))
+  Field **default_field= m_table->default_field;
+  m_table->default_field= NULL;
+  /* this also updates m_curr_row_end */
+  error= unpack_current_row(rgi, &m_cols_ai);
+  m_table->default_field= default_field;
+
+  if (unlikely(error))
     goto err;
+
 
   /*
     Now we have the right row to update.  The old row (the one we're
