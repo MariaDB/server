@@ -6730,6 +6730,7 @@ bool JOIN::choose_subquery_plan(table_map join_tables)
     }
     if (unlikely(thd->trace_started()))
     {
+      Json_writer_object wrapper(thd);
       Json_writer_object trace_subquery(thd, "subquery_plan");
       trace_subquery.
         add("records", inner_record_count_1).
