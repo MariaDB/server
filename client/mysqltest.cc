@@ -8582,6 +8582,7 @@ end:
 
   var_set_errno(mysql_stmt_errno(stmt));
 
+  display_optimizer_trace(cn, ds);
   revert_properties();
 
   /* Close the statement if reconnect, need new prepare */
