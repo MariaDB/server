@@ -1,8 +1,8 @@
 #
-# The test starts with unencrypted master. 
+# The test starts with unencrypted master.
 # It stops replication, generates a few statement and row events
-# on the master, then restarts the server with encrypted binlog, 
-# generates some more events and restarts it back without encryption 
+# on the master, then restarts the server with encrypted binlog,
+# generates some more events and restarts it back without encryption
 # (no encryption plugin).
 # Then it resumes replication and should error with
 # ER_MASTER_FATAL_ERROR_READING_BINLOG because the encrypted binlog is
@@ -47,7 +47,7 @@ CREATE TABLE table1_no_encryption (
   pk INT AUTO_INCREMENT PRIMARY KEY,
   ts TIMESTAMP NULL,
   b BLOB
-) ENGINE=MyISAM; 
+) ENGINE=MyISAM;
 
 INSERT INTO table1_no_encryption VALUES (NULL,NOW(),'data_no_encryption');
 INSERT INTO table1_no_encryption SELECT NULL,NOW(),b FROM table1_no_encryption;
@@ -80,7 +80,7 @@ CREATE TABLE table2_to_encrypt (
   pk INT AUTO_INCREMENT PRIMARY KEY,
   ts TIMESTAMP NULL,
   b BLOB
-) ENGINE=MyISAM; 
+) ENGINE=MyISAM;
 
 INSERT INTO table2_to_encrypt VALUES (NULL,NOW(),'data_to_encrypt');
 INSERT INTO table2_to_encrypt SELECT NULL,NOW(),b FROM table2_to_encrypt;
@@ -107,7 +107,7 @@ CREATE TABLE table3_no_encryption (
   pk INT AUTO_INCREMENT PRIMARY KEY,
   ts TIMESTAMP NULL,
   b BLOB
-) ENGINE=MyISAM; 
+) ENGINE=MyISAM;
 
 INSERT INTO table3_no_encryption VALUES (NULL,NOW(),'data_no_encryption');
 INSERT INTO table3_no_encryption SELECT NULL,NOW(),b FROM table3_no_encryption;
@@ -119,7 +119,7 @@ INSERT INTO table3_no_encryption SELECT NULL,NOW(),b FROM table3_no_encryption;
 
 --connection server_2
 start slave;
-# The slave should be able to synchronize with master up to 
+# The slave should be able to synchronize with master up to
 # the previously saved position (when the log was still unencrypted)
 --sync_with_master
 
