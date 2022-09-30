@@ -102,22 +102,14 @@ else
 
 # Find the safe process binary or script
 sub find_bin {
-  if (IS_WIN32PERL or IS_CYGWIN)
+  # Use my_safe_process
+  my $exe= my_find_bin($bindir, ["../$::multiconfig/bin", "lib/My/SafeProcess", "My/SafeProcess"],
+   "my_safe_process");
+  push(@safe_process_cmd, $exe);
+  if (IS_WIN32PERL)
   {
-    # Use my_safe_process.exe
-    my $exe= my_find_bin($bindir, ["lib/My/SafeProcess", "My/SafeProcess"],
-			 "my_safe_process");
-    push(@safe_process_cmd, $exe);
-
     # Use my_safe_kill.exe
-    $safe_kill= my_find_bin($bindir, "lib/My/SafeProcess", "my_safe_kill");
-  }
-  else
-  {
-    # Use my_safe_process
-    my $exe= my_find_bin($bindir, ["lib/My/SafeProcess", "My/SafeProcess"],
-			 "my_safe_process");
-    push(@safe_process_cmd, $exe);
+    $safe_kill= my_find_bin($bindir, ["../$::multiconfig/bin", "lib/My/SafeProcess"], "my_safe_kill");
   }
 }
 

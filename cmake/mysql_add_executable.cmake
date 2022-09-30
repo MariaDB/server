@@ -64,7 +64,7 @@ FUNCTION (MYSQL_ADD_EXECUTABLE)
   ENDIF()
 
   ADD_EXECUTABLE(${target} ${WIN32} ${MACOSX_BUNDLE} ${EXCLUDE_FROM_ALL} ${sources})
-
+  SET_TARGET_OUTPUT_DIRECTORY(${target})
   # tell CPack where to install
   IF(NOT ARG_EXCLUDE_FROM_ALL)
     IF(NOT ARG_DESTINATION)
@@ -98,12 +98,11 @@ FUNCTION (MYSQL_ADD_EXECUTABLE)
   IF(link)
     IF(UNIX)
       ADD_CUSTOM_COMMAND(TARGET ${target} POST_BUILD
-        COMMAND ${CMAKE_COMMAND} -E create_symlink
+        COMMAND cmake -E chdir $<TARGET_FILE_DIR:${target}> ${CMAKE_COMMAND} -E create_symlink
          ${target} ${link}
-        COMMENT "Creating ${link} link"
-        WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/${CMAKE_CFG_INTDIR})
+        COMMENT "Creating ${link} link")
       INSTALL(PROGRAMS
-         ${CMAKE_CURRENT_BINARY_DIR}/${CMAKE_CFG_INTDIR}/${link}
+         $<TARGET_FILE_DIR:${target}>/${link}
          DESTINATION
          ${ARG_DESTINATION}
          COMPONENT ${COMP})

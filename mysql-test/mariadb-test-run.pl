@@ -1282,12 +1282,7 @@ sub command_line_setup {
   }
   else
   {
-    $path_client_bindir= mtr_path_exists("$bindir/client_release",
-					 "$bindir/client_debug",
-					 "$bindir/client/$multiconfig",
-					 "$bindir/client$multiconfig",
-					 "$bindir/client",
-					 "$bindir/bin");
+    $path_client_bindir= mtr_path_exists("$bindir/$multiconfig/bin");
   }
 
   # Look for language files and charsetsdir, use same share
@@ -1844,8 +1839,8 @@ sub find_mysqld {
   }
 
   return my_find_bin($bindir,
-		     ["sql", "libexec", "sbin", "bin"],
-		     [@mysqld_names]);
+                    ["$multiconfig/bin", "libexec", "sbin", "bin"],
+                    [@mysqld_names]);
 }
 
 
@@ -1969,11 +1964,11 @@ sub mysql_client_test_arguments(){
   # mysql_client_test executable may _not_ exist
   if ( $opt_embedded_server ) {
     $exe= mtr_exe_maybe_exists(
-            "$bindir/libmysqld/examples$multiconfig/mysql_client_test_embedded",
-		"$bindir/bin/mysql_client_test_embedded");
+            "$bindir/bin/mysql_client_test_embedded",
+            "$bindir/$multiconfig/bin/mysql_client_test_embedded");
   } else {
-    $exe= mtr_exe_maybe_exists("$bindir/tests$multiconfig/mysql_client_test",
-			       "$bindir/bin/mysql_client_test");
+    $exe= mtr_exe_maybe_exists("$bindir/$multiconfig/bin/mysql_client_test",
+       "$bindir/bin/mysql_client_test");
   }
 
   my $args;
@@ -1986,10 +1981,11 @@ sub mysql_client_test_arguments(){
   return $ret;
 }
 
+
 sub tool_arguments ($$) {
   my($sedir, $tool_name) = @_;
   my $exe= my_find_bin($bindir,
-		       [$sedir, "bin"],
+		       ["$multiconfig/bin",$sedir],
 		       $tool_name);
 
   my $args;
@@ -2114,16 +2110,16 @@ sub environment_setup {
   else
   {
     $ENV{'SECURE_LOAD_PATH'}= $glob_mysql_test_dir."/std_data";
+    #
+    # Some stupid^H^H^H^H^H^Hignorant network providers set up "wildcard DNS"
+    # servers that return some given web server address for any lookup of a
+    # non-existent host name. This confuses test cases that want to test the
+    # behaviour when connecting to a non-existing host, so we need to be able
+    # to disable those tests when DNS is broken.
+    $ENV{HAVE_BROKEN_DNS}= defined(gethostbyname('invalid_hostname'));
   }
 
-  #
-  # Some stupid^H^H^H^H^H^Hignorant network providers set up "wildcard DNS"
-  # servers that return some given web server address for any lookup of a
-  # non-existent host name. This confuses test cases that want to test the
-  # behaviour when connecting to a non-existing host, so we need to be able
-  # to disable those tests when DNS is broken.
-  #
-  $ENV{HAVE_BROKEN_DNS}= defined(gethostbyname('invalid_hostname'));
+
 
   # ----------------------------------------------------
   # mysql clients
@@ -2146,14 +2142,13 @@ sub environment_setup {
   $ENV{'MARIADB_CONV'}=             "$exe_mariadb_conv --character-sets-dir=$path_charsetsdir";
   if(IS_WINDOWS)
   {
-     $ENV{'MYSQL_INSTALL_DB_EXE'}=  mtr_exe_exists("$bindir/sql$multiconfig/mysql_install_db",
-       "$bindir/bin/mysql_install_db");
+     $ENV{'MYSQL_INSTALL_DB_EXE'}=  mtr_exe_exists("$bindir/$multiconfig/bin/mysql_install_db")
   }
 
   my $client_config_exe=
     mtr_exe_maybe_exists(
         "$bindir/libmariadb/mariadb_config$multiconfig/mariadb_config",
-               "$bindir/bin/mariadb_config");
+               "$bindir/bin/$multiconfig/mariadb_config");
   if ($client_config_exe)
   {
     my $tls_info= `$client_config_exe --tlsinfo`;
@@ -2188,8 +2183,7 @@ sub environment_setup {
   # my_print_defaults
   # ----------------------------------------------------
   my $exe_my_print_defaults=
-    mtr_exe_exists("$bindir/extra$multiconfig/my_print_defaults",
-		   "$path_client_bindir/my_print_defaults");
+    mtr_exe_exists("$path_client_bindir/my_print_defaults");
   $ENV{'MYSQL_MY_PRINT_DEFAULTS'}= native_path($exe_my_print_defaults);
 
   # ----------------------------------------------------
@@ -2223,47 +2217,36 @@ sub environment_setup {
   # ----------------------------------------------------
   # perror
   # ----------------------------------------------------
-  my $exe_perror= mtr_exe_exists("$bindir/extra$multiconfig/perror",
-				 "$path_client_bindir/perror");
+  my $exe_perror= mtr_exe_exists("$path_client_bindir/perror");
   $ENV{'MY_PERROR'}= native_path($exe_perror);
 
   # ----------------------------------------------------
   # mysql_tzinfo_to_sql
   # ----------------------------------------------------
-  my $exe_mysql_tzinfo_to_sql= mtr_exe_exists("$basedir/sql$multiconfig/mysql_tzinfo_to_sql",
-                                 "$path_client_bindir/mysql_tzinfo_to_sql",
-                                 "$bindir/sql$multiconfig/mysql_tzinfo_to_sql");
+  my $exe_mysql_tzinfo_to_sql= mtr_exe_exists("$path_client_bindir/mysql_tzinfo_to_sql");
   $ENV{'MYSQL_TZINFO_TO_SQL'}= native_path($exe_mysql_tzinfo_to_sql);
 
   # ----------------------------------------------------
   # replace
   # ----------------------------------------------------
-  my $exe_replace= mtr_exe_exists(vs_config_dirs('extra', 'replace'),
-                                 "$basedir/extra/replace",
-                                 "$bindir/extra$multiconfig/replace",
-                                 "$path_client_bindir/replace");
+  my $exe_replace= mtr_exe_exists("$path_client_bindir/replace");
   $ENV{'REPLACE'}= native_path($exe_replace);
 
   # ----------------------------------------------------
   # innochecksum
   # ----------------------------------------------------
   my $exe_innochecksum=
-    mtr_exe_maybe_exists("$bindir/extra$multiconfig/innochecksum",
-		         "$path_client_bindir/innochecksum");
+    mtr_exe_maybe_exists("$path_client_bindir/innochecksum");
   $ENV{'INNOCHECKSUM'}= native_path($exe_innochecksum) if $exe_innochecksum;
 
   # ----------------------------------------------------
   # mariabackup
   # ----------------------------------------------------
-  my $exe_mariabackup= mtr_exe_maybe_exists(
-      "$bindir/extra/mariabackup$multiconfig/mariabackup",
-      "$path_client_bindir/mariabackup");
+  my $exe_mariabackup= mtr_exe_maybe_exists("$path_client_bindir/mariabackup");
 
   $ENV{XTRABACKUP}= native_path($exe_mariabackup) if $exe_mariabackup;
 
-  my $exe_xbstream= mtr_exe_maybe_exists(
-        "$bindir/extra/mariabackup/$multiconfig/mbstream",
-        "$path_client_bindir/mbstream");
+  my $exe_xbstream= mtr_exe_maybe_exists("$path_client_bindir/mbstream");
   $ENV{XBSTREAM}= native_path($exe_xbstream) if $exe_xbstream;
 
   $ENV{INNOBACKUPEX}= "$exe_mariabackup --innobackupex";
@@ -2442,66 +2425,13 @@ sub setup_vardir() {
 
   unless($plugindir)
   {
-    # create a plugin dir and copy or symlink plugins into it
-    if ($source_dist)
-    {
-      $plugindir="$opt_vardir/plugins";
-      # Source builds collect both client plugins and server plugins in the
-      # same directory.
-      $client_plugindir= $plugindir;
-      mkpath($plugindir);
-      if (IS_WINDOWS)
-      {
-        if (!$opt_embedded_server)
-        {
-          for (<$bindir/storage/*$multiconfig/*.dll>,
-               <$bindir/plugin/*$multiconfig/*.dll>,
-               <$bindir/libmariadb$multiconfig/*.dll>,
-               <$bindir/sql$multiconfig/*.dll>)
-          {
-            my $pname=basename($_);
-            copy rel2abs($_), "$plugindir/$pname";
-            set_plugin_var($pname);
-          }
-        }
-      }
-      else
-      {
-        my $opt_use_copy= 1;
-        if (symlink "$opt_vardir/run", "$plugindir/symlink_test")
-        {
-          $opt_use_copy= 0;
-          unlink "$plugindir/symlink_test";
-        }
-
-        for (<$bindir/storage/*$multiconfig/*.so>,
-             <$bindir/plugin/*$multiconfig/*.so>,
-             <$bindir/libmariadb/plugins/*/*.so>,
-             <$bindir/libmariadb/$multiconfig/*.so>,
-             <$bindir/sql$multiconfig/*.so>)
-        {
-          my $pname=basename($_);
-          if ($opt_use_copy)
-          {
-            copy rel2abs($_), "$plugindir/$pname";
-          }
-          else
-          {
-            symlink rel2abs($_), "$plugindir/$pname";
-          }
-          set_plugin_var($pname);
-        }
-      }
-    }
-    else
-    {
       # hm, what paths work for debs and for rpms ?
       for (<$bindir/lib64/mysql/plugin/*.so>,
            <$bindir/lib/mysql/plugin/*.so>,
            <$bindir/lib64/mariadb/plugin/*.so>,
            <$bindir/lib/mariadb/plugin/*.so>,
-           <$bindir/lib/plugin/*.so>,             # bintar
-           <$bindir/lib/plugin/*.dll>)
+           <$bindir/$multiconfig/lib/plugin/*.so>,             # bintar
+           <$bindir/$multiconfig/lib/plugin/*.dll>)
       {
         my $pname= basename($_);
         set_plugin_var($pname);
@@ -2515,7 +2445,6 @@ sub setup_vardir() {
         $client_plugindir= $_ if <$_/*.so>;
       }
       $client_plugindir= $plugindir unless $client_plugindir;
-    }
   }
 
   # Remove old log files
@@ -2601,7 +2530,7 @@ sub check_debug_support {
 # Helper function to find the correct value for the multiconfig
 # if it was not set explicitly.
 #
-# the configuration with the most recent build dir in sql/ is selected.
+# the configuration with the most recent build dir is selected.
 #
 # note: looking for all BuildLog.htm files everywhere in the tree with the
 # help of File::Find would be possibly more precise, but it is also
@@ -2615,13 +2544,13 @@ sub fix_vs_config_dir () {
   $multiconfig="";
 
 
-  for (<$bindir/sql/*/mysqld.exe>,
-      <$bindir/sql/*/mysqld>
+  for (<$bindir/*/bin/mysqld.exe>,
+      <$bindir/*/bin/mysqld>
   ) { #/
     if (-M $_ < $modified)
     {
       $modified = -M _;
-      $multiconfig = basename(dirname($_));
+      $multiconfig = basename(dirname(dirname($_)));
     }
   }
 

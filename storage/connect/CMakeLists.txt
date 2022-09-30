@@ -434,8 +434,6 @@ IF(MSVC)
   ENDIF()
   SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /wd4996")
   string(REPLACE "/permissive-" "" CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
-  INSTALL(FILES "$<TARGET_FILE_DIR:connect>/ha_connect.lib"
-    DESTINATION ${INSTALL_PLUGINDIR} COMPONENT connect-engine)
 ENDIF()
 
 

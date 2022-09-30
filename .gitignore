@@ -32,6 +32,7 @@ TAGS
 Testing/
 tmp/
 VERSION.dep
+bin/
 configure
 client/async_example
 client/mysql
@@ -47,6 +48,7 @@ client/mysqlslap
 client/mysqltest
 client/mariadb-conv
 cmake_install.cmake
+data/
 dbug/*.r
 dbug/factorial
 dbug/tests
@@ -79,6 +81,7 @@ include/probes_mysql_dtrace.h
 include/probes_mysql_nodtrace.h
 include/source_revision.h
 info_macros.cmake
+lib/
 libmysql*/libmysql*_exports_file.cc
 libmysql*/merge_archives_mysql*.cmake
 libmysql*/mysql*_depends.c
