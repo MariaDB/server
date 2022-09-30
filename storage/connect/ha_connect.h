@@ -309,7 +309,7 @@ public:
     Called in test_quick_select to determine if indexes should be used.
   */
   virtual IO_AND_CPU_COST scan_time()
-  { return { 0, (double) (stats.records+stats.deleted) * avg_io_cost() }; };
+  { return { 0, (double) (stats.records+stats.deleted) * DISK_READ_COST }; };
 
   /** @brief
     This method will never be called if you do not implement indexes.

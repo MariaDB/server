@@ -364,26 +364,26 @@ public:
     Talk to Kostja about this - how to get the
     number of rows * ...
     disk scan time on other side (block size, size of the row) + network time ...
-    The reason for "records * 1000" is that such a large number forces
-    this to use indexes "
+    The reason for "1000" is that such a large number forces this to use indexes "
   */
   IO_AND_CPU_COST scan_time()
   {
     DBUG_PRINT("info", ("records %lu", (ulong) stats.records));
     return
     {
-      (double) (stats.mean_rec_length * stats.records)/8192 * avg_io_cost(),
-        0
+      0,
+        (double) (stats.mean_rec_length * stats.records)/8192 * DISK_READ_COST+
+        1000,
     };
   }
   IO_AND_CPU_COST keyread_time(uint index, ulong ranges, ha_rows rows,
                                ulonglong blocks)
   {
-    return { (double) (ranges + rows) * avg_io_cost(), 0 };
+    return {0, (double) (ranges + rows) * DISK_READ_COST };
   }
   IO_AND_CPU_COST rnd_pos_time(ha_rows rows)
   {
-    return { (double) rows * avg_io_cost(), 0 };
+    return {0, (double) rows * DISK_READ_COST };
   }
 
   const key_map *keys_to_use_for_scanning() { return &key_map_full; }

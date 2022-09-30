@@ -14484,7 +14484,7 @@ ha_innobase::scan_time()
 		TODO: This will be further improved to return some approximate
 		estimate but that would also needs pre-population of stats
 		structure. As of now approach is in sync with MyISAM. */
-          return { (ulonglong2double(stats.data_file_length) / IO_SIZE * avg_io_cost()), 0.0 };
+          return { (ulonglong2double(stats.data_file_length) / IO_SIZE * DISK_READ_COST), 0.0 };
 	}
 
 	ulint	stat_clustered_index_size;
@@ -14494,7 +14494,7 @@ ha_innobase::scan_time()
 	stat_clustered_index_size =
 		m_prebuilt->table->stat_clustered_index_size;
 
-        cost.io= (double) stat_clustered_index_size * avg_io_cost();
+        cost.io= (double) stat_clustered_index_size * DISK_READ_COST;
         cost.cpu= 0;
 	return(cost);
 }

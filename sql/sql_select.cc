@@ -5436,6 +5436,7 @@ make_join_statistics(JOIN *join, List<TABLE_LIST> &tables_list,
     {
       set_position(join,const_count++,s,(KEYUSE*) 0);
       no_rows_const_tables |= table->map;
+      table->file->stats.records= 0;
     }
   }
 
@@ -7850,42 +7851,49 @@ static double matching_candidates_in_table(JOIN_TAB *s,
   WHERE_COST cost is not added to any result.
 */
 
-INDEX_READ_COST cost_for_index_read(const THD *thd, const TABLE *table,
-                                    uint key,
-                                    ha_rows records, ha_rows worst_seeks)
+ALL_READ_COST cost_for_index_read(const THD *thd, const TABLE *table,
+                                  uint key, ha_rows records,
+                                  ha_rows worst_seeks)
 {
-  INDEX_READ_COST cost;
+  ALL_READ_COST cost;
   handler *file= table->file;
-  double rows_adjusted;
+  ha_rows max_seeks;
   DBUG_ENTER("cost_for_index_read");
 
-  rows_adjusted= MY_MIN(rows2double(records), (double) thd->variables.max_seeks_for_key);
-  set_if_bigger(rows_adjusted, 1);
+  max_seeks= (ha_rows) thd->variables.max_seeks_for_key;
+  set_if_bigger(records, 1);
 
-#ifdef OLD_CODE_LIMITED_SEEKS
-  set_if_smaller(rows_adjusted, worst_seeks);
-#endif
   if (file->is_clustering_key(key))
   {
-    cost.index_only_cost=
-      file->ha_keyread_clustered_and_copy_time(key, 1, rows_adjusted, 0);
+    cost.index_cost=
+      file->ha_keyread_clustered_time(key, 1, records, 0);
+    cost.copy_cost= rows2double(records) * file->ROW_COPY_COST;
     /* There is no 'index_only_read' with a clustered index */
-    cost.read_cost= cost.index_only_cost;
+    cost.row_cost= {0,0};
+    /* Caping of index_blocks will happen in handler::cost() */
+    cost.max_index_blocks= MY_MIN(file->row_blocks(), max_seeks);
+    cost.max_row_blocks= 0;
   }
   else if (table->covering_keys.is_set(key) && !table->no_keyread)
   {
-    cost.index_only_cost= file->ha_keyread_time(key, 1, rows_adjusted, 0);
-    /* Same computation as in ha_keyread_and_copy_time() */
-    cost.read_cost= (cost.index_only_cost +
-                     rows2double(records) * file->KEY_COPY_COST);
+    cost.index_cost= file->ha_keyread_time(key, 1, records, 0);
+    cost.row_cost= {0,0};
+    cost.copy_cost= rows2double(records) * file->KEY_COPY_COST;
+    cost.max_index_blocks= MY_MIN(file->index_blocks(key), max_seeks);
+    cost.max_row_blocks= 0;
   }
   else
   {
-    cost.index_only_cost= file->ha_keyread_time(key, 1, rows_adjusted, 0);
-    cost.read_cost= (cost.index_only_cost + file->ha_rnd_pos_time(records));
+    cost.index_cost= file->ha_keyread_time(key, 1, records, 0);
+    /* ha_rnd_pos_time() includes time for copying the row */
+    cost.row_cost= file->ha_rnd_pos_time(records);
+    cost.max_index_blocks= MY_MIN(file->index_blocks(key), max_seeks);
+    cost.max_row_blocks=   MY_MIN(file->row_blocks(), max_seeks);
+    cost.copy_cost= 0;
   }
-  DBUG_PRINT("statistics", ("index_cost: %.3f  full_cost: %.3f",
-                            cost.index_only_cost, cost.read_cost));
+  DBUG_PRINT("statistics", ("index_cost: %.3f  row_cost: %.3f",
+                            file->cost(cost.index_cost),
+                            file->cost(cost.row_cost)));
   DBUG_RETURN(cost);
 }
 
@@ -7895,14 +7903,15 @@ INDEX_READ_COST cost_for_index_read(const THD *thd, const TABLE *table,
 
    @param thd             Thread handler
    @param table           Table
-   @param cost            Pointer to cost for *records_arg rows, not including
-                          WHERE_COST cost.
+   @param cost            Pointer to cost for current cost, which does not
+                          include WHERE_COST cost. Will be updated to
+                          new cost if filter is chosen.
                           Will be updated to new cost if filter is used.
    @param records_arg     Pointer to number of records for the current key.
                           Will be updated to records after filter, if filter is
                           used.
    @param startup_cost    Startup cost. Will be updated if filter is used.
-   @param fetch_cost      Cost of finding the row, without copy or compare cost
+   @param fetch_cost      Cost of finding the row, without where compare cost
    @param index_only_cost Cost if fetching '*records_arg' key values
    @param prev_records    Number of record combinations in previous tables
 
@@ -7911,16 +7920,17 @@ INDEX_READ_COST cost_for_index_read(const THD *thd, const TABLE *table,
 */
 
 Range_rowid_filter_cost_info* Range_rowid_filter_cost_info::
-apply_filter(THD *thd, TABLE *table, double *cost, double *records_arg,
-             double *startup_cost, double fetch_cost, double index_only_cost,
+apply_filter(THD *thd, TABLE *table, ALL_READ_COST *cost,
+             double *records_arg,
+             double *startup_cost,
              uint ranges, double prev_records)
 {
+  handler *file= table->file;
   bool use_filter;
-  double new_cost, new_total_cost, records= *records_arg, new_records;
-  double cost_of_accepted_rows, cost_of_rejected_rows;
+  double new_cost, records= *records_arg, new_records;
   double filter_startup_cost= get_setup_cost();
-  double io_cost= table->file->avg_io_cost();
   double filter_lookup_cost= records * lookup_cost();
+  ALL_READ_COST adjusted_cost;
 
   /*
     Calculate number of resulting rows after filtering
@@ -7944,42 +7954,47 @@ apply_filter(THD *thd, TABLE *table, double *cost, double *records_arg,
     The io_cost is used to take into account that we have to do 1 key
     lookup to find the first matching key in each range.
   */
-  cost_of_accepted_rows= fetch_cost * selectivity;
-  cost_of_rejected_rows= index_only_cost * (1-selectivity);
-  /*
-    The MAX() is used below to ensure that we take into account the index
-    read even if selectivity (and thus new_records) would be very low.
-  */
-  new_cost= (MY_MAX(cost_of_accepted_rows,
-                    ranges * table->file->KEY_LOOKUP_COST +
-                    ranges * io_cost * table->file->DISK_READ_RATIO) +
-             cost_of_rejected_rows + filter_lookup_cost);
-  new_total_cost= ((new_cost + new_records * WHERE_COST_THD(thd)) *
-                   prev_records + filter_startup_cost);
+
+  adjusted_cost= *cost;
+  /* We are going to read 'selectivity' fewer rows */
+  adjusted_cost.row_cost.io*= selectivity;
+  adjusted_cost.row_cost.cpu*= selectivity;
+  adjusted_cost.copy_cost*= selectivity;
+  adjusted_cost.index_cost.cpu+= filter_lookup_cost;
+
+  new_cost= (file->cost_for_reading_multiple_times(prev_records,
+                                                  &adjusted_cost) +
+             new_records * prev_records * WHERE_COST_THD(thd)+
+             filter_startup_cost);
 
   DBUG_ASSERT(new_cost >= 0 && new_records >= 0);
-  use_filter= ((*cost + records * WHERE_COST_THD(thd)) * prev_records >
-               new_total_cost);
+  use_filter= ((file->cost_for_reading_multiple_times(prev_records,
+                                                      cost)+
+                records * prev_records * WHERE_COST_THD(thd) > new_cost));
 
   if (unlikely(thd->trace_started()))
   {
     Json_writer_object trace_filter(thd, "filter");
     trace_filter.add("rowid_filter_key",
                      table->key_info[get_key_no()].name).
-      add("index_only_cost", index_only_cost).
+      add("index_only_cost", file->cost(cost->index_cost)).
       add("filter_startup_cost", filter_startup_cost).
       add("find_key_and_filter_lookup_cost", filter_lookup_cost).
       add("filter_selectivity", selectivity).
       add("orginal_rows", records).
-      add("new_rows", new_records).
-      add("original_found_rows_cost", fetch_cost).
-      add("new_found_rows_cost", new_cost).
-      add("cost", new_total_cost).
+      add("new_rows",     new_records).
+      add("orginal_access_cost", file->cost(cost)).
+      add("with_filter_access_cost",  file->cost(&adjusted_cost)).
+      add("original_found_rows_cost", file->cost(cost->row_cost)).
+      add("with_filter_found_rows_cost", file->cost(adjusted_cost.row_cost)).
+      add("cost", new_cost).
       add("filter_used", use_filter);
   }
   if (use_filter)
   {
-    *cost= new_cost;
+    cost->row_cost=   adjusted_cost.row_cost;
+    cost->index_cost= adjusted_cost.index_cost;
+    cost->copy_cost=  adjusted_cost.copy_cost;
     *records_arg= new_records;
     (*startup_cost)+= filter_startup_cost;
     return this;
@@ -8049,6 +8064,7 @@ best_access_path(JOIN      *join,
   uint use_cond_selectivity=
     thd->variables.optimizer_use_condition_selectivity;
   TABLE *table= s->table;
+  handler *file= table->file;
   my_bool found_constraint= 0;
   /*
     key_dependent is 0 if all key parts could be used or if there was an
@@ -8057,7 +8073,7 @@ best_access_path(JOIN      *join,
     Otherwise it's a bitmap of tables that could improve key usage.
   */
   table_map key_dependent= 0;
-  double tmp;
+  ALL_READ_COST tmp;
   ha_rows rec;
   MY_BITMAP *eq_join_set= &s->table->eq_join_set;
   KEYUSE *hj_start_key= 0;
@@ -8101,9 +8117,9 @@ best_access_path(JOIN      *join,
   if (s->keyuse)
   {                                            /* Use key if possible */
     KEYUSE *keyuse, *start_key= 0;
-    double index_only_cost= DBL_MAX;
     uint max_key_part=0;
     enum join_type type= JT_UNKNOWN;
+    double cur_cost;
 
     /* Test how we can use keys */
     rec= s->records/MATCHING_ROWS_IN_OTHER_TABLE;  // Assumed records/key
@@ -8234,16 +8250,26 @@ best_access_path(JOIN      *join,
       if (ft_key)
       {
         /*
-          Calculate an adjusted cost based on how many records are read
-          This will be later multipled by record_count.
+          Fulltext indexes are preformed the following way:
+          - In the prepare step it performs the search, collects all positions
+            in an array, sorts it.
+          - If optimizer decides to use the ft index access method it simply'
+            returns positions from the array one by one
+          - If optimizer decides to use something else (another index, table
+            scan), then it'll use binary search in the array to find the
+            position.
+
+         The following code puts the cost down to very small as the prep
+         step will always be done and the cost to fetch the row from memory
+         is very small.
+         Alternatively we could use the cost of an EQ_REF here.
         */
-        tmp= (prev_record_reads(join_positions, idx, found_ref) /
-              record_count);
-        set_if_smaller(tmp, 1.0);
-        index_only_cost= tmp;
+        tmp.reset();
+        tmp.row_cost.cpu= file->ROW_COPY_COST;
         /*
-          Really, there should be records=0.0 (yes!)
-          but 1.0 would be probably safer
+          We don't know how many records will match. However, we want to have
+          the fulltext search done early, so we put the number of records
+          to be very low.
         */
         records= 1.0;
         type= JT_FT;
@@ -8282,25 +8308,21 @@ best_access_path(JOIN      *join,
             if (!found_ref && table->opt_range_keys.is_set(key))
             {
               /* Ensure that the cost is identical to the range cost */
-              tmp= table->opt_range[key].fetch_cost;
-              index_only_cost= table->opt_range[key].index_only_cost;
+              table->opt_range[key].get_costs(&tmp);
             }
             else
             {
-              INDEX_READ_COST cost= cost_for_index_read(thd, table, key,
-                                                        1,1);
-              tmp= cost.read_cost;
-              index_only_cost= cost.index_only_cost;
+              tmp= cost_for_index_read(thd, table, key, 1, 1);
             }
             /*
               Calculate an adjusted cost based on how many records are read
-              This will be later multipled by record_count.
+              This will be multipled by record_count.
             */
             adjusted_cost= (prev_record_reads(join_positions, idx, found_ref) /
                             record_count);
             set_if_smaller(adjusted_cost, 1.0);
-            tmp*= adjusted_cost;
-            index_only_cost*= adjusted_cost;
+            tmp.row_cost.cpu*=   adjusted_cost;
+            tmp.index_cost.cpu*= adjusted_cost;
             records= 1.0;
           }
           else
@@ -8334,8 +8356,8 @@ best_access_path(JOIN      *join,
                 /* Ensure that the cost is identical to the range cost */
                 records= (double) table->opt_range[key].rows;
                 trace_access_idx.add("used_range_estimates", true);
-                tmp= table->opt_range[key].fetch_cost;
-                index_only_cost= table->opt_range[key].index_only_cost;
+
+                table->opt_range[key].get_costs(&tmp);
                 goto got_cost2;
               }
               /* quick_range couldn't use key! */
@@ -8397,16 +8419,14 @@ best_access_path(JOIN      *join,
               }
             }
             /* Calculate the cost of the index access */
-            INDEX_READ_COST cost=
-              cost_for_index_read(thd, table, key,
-                                  (ha_rows) records,
-                                  (ha_rows) s->worst_seeks);
-            tmp= cost.read_cost;
-            index_only_cost= cost.index_only_cost;
+            tmp= cost_for_index_read(thd, table, key,
+                                     (ha_rows) records,
+                                     (ha_rows) s->worst_seeks);
           }
         }
         else
         {
+          ha_rows tmp_records;
           type = ref_or_null_part ? JT_REF_OR_NULL : JT_REF;
           if (unlikely(trace_access_idx.trace_started()))
             trace_access_idx.
@@ -8419,7 +8439,7 @@ best_access_path(JOIN      *join,
             records.
           */
           if ((found_part & 1) &&
-              (!(table->file->index_flags(key, 0, 0) & HA_ONLY_WHOLE_INDEX) ||
+              (!(file->index_flags(key, 0, 0) & HA_ONLY_WHOLE_INDEX) ||
                found_part == PREV_BITS(uint,keyinfo->user_defined_key_parts)))
           {
             double extra_cost= 0;
@@ -8469,8 +8489,7 @@ best_access_path(JOIN      *join,
                 table->opt_range[key].ranges == 1 + MY_TEST(ref_or_null_part)) //(C3)
             {
               records= (double) table->opt_range[key].rows;
-              tmp= table->opt_range[key].fetch_cost;
-              index_only_cost= table->opt_range[key].index_only_cost;
+              table->opt_range[key].get_costs(&tmp);
               /*
                 TODO: Disable opt_range testing below for this range as we can
                 always use this ref instead.
@@ -8588,13 +8607,12 @@ best_access_path(JOIN      *join,
 
             /* Limit the number of matched rows */
             set_if_smaller(records, (double) s->records);
-            tmp= records;
-            set_if_smaller(tmp, (double) thd->variables.max_seeks_for_key);
-            INDEX_READ_COST cost= cost_for_index_read(thd, table, key,
-                                                      (ha_rows) tmp,
-                                                      (ha_rows) s->worst_seeks);
-            tmp= cost.read_cost;
-            index_only_cost= cost.index_only_cost+extra_cost;
+            tmp_records= records;
+            set_if_smaller(tmp_records, thd->variables.max_seeks_for_key);
+            tmp= cost_for_index_read(thd, table, key,
+                                     tmp_records,
+                                     (ha_rows) s->worst_seeks);
+            tmp.copy_cost+= extra_cost;
           }
           else
           {
@@ -8609,7 +8627,7 @@ best_access_path(JOIN      *join,
 
     got_cost2:
         loose_scan_opt.check_ref_access_part2(key, start_key, records,
-                                              tmp + startup_cost,
+                                              file->cost(&tmp) + startup_cost,
                                               found_ref);
       } /* not ft_key */
 
@@ -8619,43 +8637,44 @@ best_access_path(JOIN      *join,
       records_best_filter= records_after_filter= records;
 
       /*
-        Check that start_key->key can be used for index access
+        Check if we can use a filter.
         Records can be 0 in case of empty tables.
       */
       if ((found_part & 1) && records)
       {
-        filter=
-          table->best_range_rowid_filter_for_partial_join(start_key->key,
-                                                          records,
-                                                          tmp,
-                                                          index_only_cost,
-                                                          record_count,
-                                                          &records_best_filter);
+        filter= table->best_range_rowid_filter(start_key->key,
+                                               records,
+                                               file->cost(&tmp),
+                                               file->cost(tmp.index_cost),
+                                               record_count,
+                                               &records_best_filter);
         set_if_smaller(best.records_out, records_best_filter);
         if (filter)
-          filter= filter->apply_filter(thd, table, &tmp, &records_after_filter,
+          filter= filter->apply_filter(thd, table, &tmp,
+                                       &records_after_filter,
                                        &startup_cost,
-                                       tmp, index_only_cost,
                                        1, record_count);
       }
-      tmp= COST_ADD(tmp, records_after_filter * WHERE_COST_THD(thd));
-      tmp= COST_MULT(tmp, record_count);
-      tmp= COST_ADD(tmp, startup_cost);
+
+      tmp.copy_cost+= records_after_filter * WHERE_COST_THD(thd);
+      cur_cost= file->cost_for_reading_multiple_times(record_count, &tmp);
+      cur_cost= COST_ADD(cur_cost, startup_cost);
+
       if (unlikely(trace_access_idx.trace_started()))
       {
         trace_access_idx.
           add("rows", records_after_filter).
-          add("cost", tmp);
+          add("cost", cur_cost);
       }
 
       /*
         The COST_EPS is here to ensure we use the first key if there are
         two 'identical keys' that could be used.
       */
-      if (tmp + COST_EPS < best.cost)
+      if (cur_cost + COST_EPS < best.cost)
       {
         trace_access_idx.add("chosen", true);
-        best.cost= tmp;
+        best.cost= cur_cost;
         /*
           We use 'records' instead of 'records_after_filter' here as we want
           to have EXPLAIN print the number of rows found by the key access.
@@ -8733,10 +8752,11 @@ best_access_path(JOIN      *join,
       (!(table->map & join->outer_join) ||
        join->allowed_outer_join_with_cache))    // (2)
   {
-    double refills, row_copy_cost, cmp_time;
+    double refills, row_copy_cost, cmp_time, cur_cost;
     /* Estimate the cost of the hash join access to the table */
     double rnd_records= matching_candidates_in_table(s, 0,
                                                      use_cond_selectivity);
+    DBUG_ASSERT(rnd_records <= s->found_records);
     set_if_smaller(best.records_out, rnd_records);
 
     /*
@@ -8749,16 +8769,16 @@ best_access_path(JOIN      *join,
         Cost of reading rows through opt_range including comparing the rows
         with the attached WHERE clause.
       */
-      tmp= s->quick->read_time;
+      cur_cost= s->quick->read_time;
     }
     else
-      tmp= s->cached_scan_and_compare_time;
+      cur_cost= s->cached_scan_and_compare_time;
 
     /* We read the table as many times as join buffer becomes full. */
     refills= (1.0 + floor((double) cache_record_length(join,idx) *
                           record_count /
                           (double) thd->variables.join_buff_size));
-    tmp= COST_MULT(tmp, refills);
+    cur_cost= COST_MULT(cur_cost, refills);
 
     /*
       Cost of doing the hash lookup and check all matching rows with the
@@ -8772,9 +8792,9 @@ best_access_path(JOIN      *join,
                rnd_records * record_count * HASH_FANOUT *
                ((idx - join->const_tables) * row_copy_cost +
                 WHERE_COST_THD(thd)));
-    tmp= COST_ADD(tmp, cmp_time);
+    cur_cost= COST_ADD(cur_cost, cmp_time);
 
-    best.cost= tmp;
+    best.cost= cur_cost;
     best.records_read= best.records_after_filter= s->records;
     best.records= rnd_records;
     best.key= hj_start_key;
@@ -8836,13 +8856,13 @@ best_access_path(JOIN      *join,
         s->quick->get_type() != QUICK_SELECT_I::QS_TYPE_GROUP_MIN_MAX && // (2)
         best.key && s->quick->index == best.key->key &&                  // (2)
         best.max_key_part >= table->opt_range[best.key->key].key_parts) &&// (2)
-      !((table->file->ha_table_flags() & HA_TABLE_SCAN_ON_INDEX) &&      // (3)
+      !((file->ha_table_flags() & HA_TABLE_SCAN_ON_INDEX) &&      // (3)
         !table->covering_keys.is_clear_all() && best.key && !s->quick) &&// (3)
       !(table->force_index_join && best.key && !s->quick) &&             // (4)
       !(best.key && table->pos_in_table_list->jtbm_subselect))           // (5)
   {                                             // Check full join
     double records_after_filter, org_records;
-    double records_best_filter;
+    double records_best_filter, cur_cost;
     Range_rowid_filter_cost_info *filter= 0;
     double startup_cost= s->startup_cost;
     const char *scan_type= "";
@@ -8870,7 +8890,7 @@ best_access_path(JOIN      *join,
         access (see first else-branch below), but we don't take it into 
         account here for range/index_merge access. Find out why this is so.
       */
-      tmp= COST_MULT(s->quick->read_time, record_count);
+      cur_cost= COST_MULT(s->quick->read_time, record_count);
 
       /*
         Use record count from range optimizer.
@@ -8879,6 +8899,7 @@ best_access_path(JOIN      *join,
       */
       org_records= records_after_filter= s->found_records;
       records_best_filter= org_records;
+      set_if_smaller(best.records_out, records_best_filter);
 
       if (s->quick->get_type() == QUICK_SELECT_I::QS_TYPE_RANGE)
       {
@@ -8891,36 +8912,31 @@ best_access_path(JOIN      *join,
           registers complications when costs are calculated.
         */
         DBUG_ASSERT(range->rows == s->found_records);
-        DBUG_ASSERT((range->cost == 0.0 && s->quick->read_time == 0.0) ||
-                     (range->cost / s->quick->read_time <= 1.0000001 &&
-                      range->cost / s->quick->read_time >= 0.9999999));
+        DBUG_ASSERT((range->cost.total_cost() == 0.0 &&
+                     s->quick->read_time == 0.0) ||
+                    (range->cost.total_cost() / s->quick->read_time <= 1.0000001 &&
+                     range->cost.total_cost() / s->quick->read_time >= 0.9999999));
 
-        filter=
-        table->best_range_rowid_filter_for_partial_join(key_no, rows2double(range->rows),
-                                                        range->find_cost,
-                                                        range->index_only_cost,
-                                                        record_count,
-                                                        &records_best_filter);
+        range->get_costs(&tmp);
+        filter= table->best_range_rowid_filter(key_no, range->rows,
+                                               file->cost(&tmp),
+                                               file->cost(tmp.index_cost),
+                                               record_count,
+                                               &records_best_filter);
         set_if_smaller(best.records_out, records_best_filter);
         if (filter)
         {
-          double filter_cost= range->fetch_cost;
-          filter= filter->apply_filter(thd, table, &filter_cost,
+          filter= filter->apply_filter(thd, table, &tmp,
                                        &records_after_filter,
                                        &startup_cost,
-                                       range->fetch_cost,
-                                       range->index_only_cost,
                                        range->ranges,
                                        record_count);
           if (filter)
           {
-            tmp= filter_cost;
-            /* Filter returns cost without WHERE_COST */
-            tmp= COST_ADD(tmp, records_after_filter *
-                          WHERE_COST_THD(thd));
-            tmp= COST_MULT(tmp, record_count);
-            tmp= COST_ADD(tmp, startup_cost);
-            startup_cost= 0;                    // Avoid adding it later
+            tmp.row_cost.cpu+= records_after_filter * WHERE_COST_THD(thd);
+            cur_cost= file->cost_for_reading_multiple_times(record_count, &tmp);
+            cur_cost= COST_ADD(cur_cost, startup_cost);
+            startup_cost= 0;                    // Avoid adding it again later
             table->opt_range[key_no].selectivity= filter->selectivity;
           }
         }
@@ -8938,6 +8954,7 @@ best_access_path(JOIN      *join,
       records_after_filter= matching_candidates_in_table(s, 0,
                                                          use_cond_selectivity);
       DBUG_ASSERT(records_after_filter <= s->records);
+      DBUG_ASSERT(records_after_filter <= s->found_records);
 
       set_if_smaller(best.records_out, records_after_filter);
 
@@ -8947,7 +8964,7 @@ best_access_path(JOIN      *join,
       if (s->cached_forced_index_type)
       {
         type=         s->cached_forced_index_type;
-        tmp=          s->cached_forced_index_cost;
+        cur_cost=     s->cached_forced_index_cost;
         forced_index= s->cached_forced_index;
       }
       else
@@ -8963,42 +8980,42 @@ best_access_path(JOIN      *join,
           {
             /* Use value from estimate_scan_time */
             forced_index= s->cached_covering_key;
-            tmp= s->cached_scan_and_compare_time;
+            cur_cost= s->cached_scan_and_compare_time;
           }
           else
           {
 #ifdef FORCE_INDEX_SHOULD_FORCE_INDEX_SCAN
             /* No cached key, use shortest allowed key */
-            key_map keys= *table->file->keys_to_use_for_scanning();
+            key_map keys= *file->keys_to_use_for_scanning();
             keys.intersect(table->keys_in_use_for_query);
             if ((forced_index= find_shortest_key(table, &keys)) < MAX_KEY)
             {
-              INDEX_READ_COST cost= cost_for_index_read(thd, table,
+              ALL_READ_COST cost= cost_for_index_read(thd, table,
                                                         forced_index,
                                                         s->records,
                                                         s->worst_seeks);
-              tmp= cost.read_cost;
+              cur_cost= file->cost(cost);
               /* Calculate cost of checking the attached WHERE */
-              tmp= COST_ADD(cost.read_cost,
+              cur_cost= COST_ADD(cur_cost,
                             s->records * WHERE_COST_THD(thd));
             }
             else
 #endif
             {
               /* No usable key, use table scan */
-              tmp= s->cached_scan_and_compare_time;
+              cur_cost= s->cached_scan_and_compare_time;
               type= JT_ALL;
             }
           }
         }
         else // table scan
         {
-          tmp= s->cached_scan_and_compare_time;
+          cur_cost= s->cached_scan_and_compare_time;
           type= JT_ALL;
         }
         /* Cache result for other calls */
         s->cached_forced_index_type= type;
-        s->cached_forced_index_cost= tmp;
+        s->cached_forced_index_cost= cur_cost;
         s->cached_forced_index= forced_index;
       }
 
@@ -9018,7 +9035,7 @@ best_access_path(JOIN      *join,
           If this is not the first table we have to compare the rows against
           all previous row combinations
         */
-        tmp= COST_MULT(tmp, record_count);
+        cur_cost= COST_MULT(cur_cost, record_count);
       }
       else
       {
@@ -9036,7 +9053,7 @@ best_access_path(JOIN      *join,
         refills= (1.0 + floor((double) cache_record_length(join,idx) *
                               (record_count /
                                (double) thd->variables.join_buff_size)));
-        tmp= COST_MULT(tmp, refills);
+        cur_cost= COST_MULT(cur_cost, refills);
 
         /* We come here only if there are already rows in the join cache */
         DBUG_ASSERT(idx != join->const_tables);
@@ -9052,14 +9069,14 @@ best_access_path(JOIN      *join,
                    records_after_filter * record_count *
                    ((idx - join->const_tables) * row_copy_cost +
                     WHERE_COST_THD(thd)));
-        tmp= COST_ADD(tmp, cmp_time);
+        cur_cost= COST_ADD(cur_cost, cmp_time);
       }
     }
 
     /* Splitting technique cannot be used with join cache */
     if (table->is_splittable())
       startup_cost= table->get_materialization_cost();
-    tmp+= startup_cost;
+    cur_cost+= startup_cost;
 
     if (unlikely(trace_access_scan.trace_started()))
     {
@@ -9069,7 +9086,7 @@ best_access_path(JOIN      *join,
         add("rows",               org_records).
         add("rows_after_filter",  records_after_filter).
         add("rows_out",           best.records_out).
-        add("cost",               tmp);
+        add("cost",               cur_cost);
       if (type == JT_ALL)
       {
         trace_access_scan.add("index_only",
@@ -9077,15 +9094,16 @@ best_access_path(JOIN      *join,
       }
     }
 
-    if (tmp + COST_EPS < best.cost)
+    if (cur_cost + COST_EPS < best.cost)
     {
       /*
         If the table has a range (s->quick is set) make_join_select()
         will ensure that this will be used
       */
-      best.cost= tmp;
+      best.cost= cur_cost;
       best.records_read= org_records;       // Records accessed
       best.records= records_after_filter;   // Records to be checked with WHERE
+
       /*
         If we are using 'use_cond_selectivity > 1' then
         table_after_join_selectivity may take into account other
@@ -10960,7 +10978,7 @@ best_extension_by_limited_search(JOIN      *join,
         trace_one_table
           .add("pruned_by_cost", true)
           .add("current_cost", current_read_time)
-          .add("best_cost",    join->best_read + COST_EPS);
+          .add("best_cost",    join->best_read);
 
         restore_prev_nj_state(s);
         restore_prev_sj_state(remaining_tables, s, idx);
@@ -13296,6 +13314,7 @@ make_join_select(JOIN *join,SQL_SELECT *select,COND *cond)
 	  if (!sel->quick_keys.is_subset(tab->checked_keys) ||
               !sel->needed_reg.is_subset(tab->checked_keys))
 	  {
+            handler *file= tab->table->file;
             /*
               "Range checked for each record" is a "last resort" access method
               that should only be used when the other option is a cross-product
@@ -13311,9 +13330,7 @@ make_join_select(JOIN *join,SQL_SELECT *select,COND *cond)
 			     (sel->quick_keys.is_clear_all() ||
                               (sel->quick && 
                                sel->quick->read_time > 
-                               tab->table->file->
-                               ha_scan_and_compare_time(tab->table->file->
-                                                        stats.records)))) ?
+                               file->cost(file->ha_scan_and_compare_time(tab->table->file-> stats.records))))) ?
 	      2 : 1;
 	    sel->read_tables= used_tables & ~current_map;
             sel->quick_keys.clear_all();
@@ -14178,7 +14195,6 @@ uint check_join_cache_usage(JOIN_TAB *tab,
                             uint table_index,
                             JOIN_TAB *prev_tab)
 {
-  Cost_estimate cost;
   uint flags= 0;
   ha_rows rows= 0;
   uint bufsz= 4096;
@@ -14337,6 +14353,8 @@ uint check_join_cache_usage(JOIN_TAB *tab,
 
     if (!tab->is_ref_for_hash_join() && !no_bka_cache)
     {
+      Cost_estimate cost;
+      cost.reset();
       flags= HA_MRR_NO_NULL_ENDPOINTS | HA_MRR_SINGLE_POINT;
       if (tab->table->covering_keys.is_set(tab->ref.key))
         flags|= HA_MRR_INDEX_ONLY;
@@ -15072,6 +15090,7 @@ void JOIN_TAB::cleanup()
 void JOIN_TAB::estimate_scan_time()
 {
   THD *thd= join->thd;
+  handler *file= table->file;
   double copy_cost;
 
   cached_covering_key= MAX_KEY;
@@ -15083,7 +15102,7 @@ void JOIN_TAB::estimate_scan_time()
                                   &startup_cost);
       table->opt_range_condition_rows= records;
       table->used_stat_records= records;
-      copy_cost= table->file->ROW_COPY_COST;
+      copy_cost= file->ROW_COPY_COST;
     }
     else
     {
@@ -15097,12 +15116,13 @@ void JOIN_TAB::estimate_scan_time()
       if (!table->covering_keys.is_clear_all() && ! table->no_keyread)
       {
         cached_covering_key= find_shortest_key(table, &table->covering_keys);
-        read_time= table->file->ha_key_scan_time(cached_covering_key, records);
+        read_time= file->cost(file->ha_key_scan_time(cached_covering_key,
+                                                     records));
         copy_cost= 0;                           // included in ha_key_scan_time
       }
       else
       {
-        read_time= table->file->ha_scan_time(records);
+        read_time= file->cost(file->ha_scan_time(records));
         copy_cost= 0;
       }
     }
@@ -15119,12 +15139,13 @@ void JOIN_TAB::estimate_scan_time()
     else
       memcpy(&table->s->optimizer_costs, &tmp_table_optimizer_costs,
              sizeof(tmp_table_optimizer_costs));
-    table->file->set_optimizer_costs(thd);
-    table->s->optimizer_costs_inited=1 ;
+    file->set_optimizer_costs(thd);
+    table->s->optimizer_costs_inited=1;
 
     records= table->stat_records();
     DBUG_ASSERT(table->opt_range_condition_rows == records);
-    read_time= table->file->ha_scan_time(MY_MAX(records, 1000)); // Needs fix..
+    // Needs fix..
+    read_time= file->cost(table->file->ha_scan_time(MY_MAX(records, 1000)));
     copy_cost= table->s->optimizer_costs.row_copy_cost;
   }
 
@@ -30169,7 +30190,7 @@ static bool get_range_limit_read_cost(const POSITION *pos,
       full index scan/cost.
     */
     double best_rows, range_rows;
-    double range_cost= (double) table->opt_range[keynr].fetch_cost;
+    double range_cost= (double) table->opt_range[keynr].cost.fetch_cost();
     best_rows= range_rows=  (double) table->opt_range[keynr].rows;
 
     if (pos)
@@ -30225,12 +30246,12 @@ static bool get_range_limit_read_cost(const POSITION *pos,
     N/(refkey_rows_estimate/table_records) > table_records
     <=> N > refkey_rows_estimate.
   */
-  INDEX_READ_COST cost= cost_for_index_read(table->in_use, table, keynr,
-                                            rows_to_scan,
-                                            pos ?
-                                            (ha_rows) pos->table->worst_seeks :
-                                            HA_ROWS_MAX);
-  *read_cost= (cost.read_cost +
+  ALL_READ_COST cost= cost_for_index_read(table->in_use, table, keynr,
+                                          rows_to_scan,
+                                          pos ?
+                                          (ha_rows) pos->table->worst_seeks :
+                                          HA_ROWS_MAX);
+  *read_cost= (table->file->cost(&cost) +
                rows_to_scan * WHERE_COST_THD(table->in_use));
   *read_rows= rows2double(rows_to_scan);
   return 0;
@@ -30365,7 +30386,7 @@ test_if_cheaper_ordering(const JOIN_TAB *tab, ORDER *order, TABLE *table,
   {
     /* Probably an update or delete. Assume we will do a full table scan */
     fanout= 1.0;
-    read_time= table->file->ha_scan_and_compare_time(rows_estimate);
+    read_time= table->file->cost(table->file->ha_scan_and_compare_time(rows_estimate));
     set_if_smaller(select_limit_arg, table_records);
   }
 
