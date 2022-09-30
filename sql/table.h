@@ -1394,27 +1394,8 @@ public:
   {
     uint        key_parts;
     uint        ranges;
-    ha_rows     rows;
-    /*
-      The full cost of using 'range'. Includes fetching the rows
-      through keys, copying them and comparing the rows aginst the
-      WHERE clause.
-    */
-    double      cost;
-    /*
-      Cost of finding the key and fetching the row with row id.
-      In case of clustered keys or covering keys the fetch of the row is
-      not counted for.
-     */
-    double      find_cost;
-    /* find_cost + cost of copying the rows to record */
-    double      fetch_cost;
-    /*
-      Cost of fetching the keys, not including copying the keys to
-      record or comparing them with the WHERE clause. Used only when
-      working with filters.
-    */
-    double      index_only_cost;
+    ha_rows     rows, max_index_blocks, max_row_blocks;
+    Cost_estimate cost;
     /* Selectivity, in case of filters */
     double      selectivity;
     bool        first_key_part_has_only_one_value;
@@ -1424,6 +1405,7 @@ public:
       sql level.
     */
     double index_only_fetch_cost(TABLE *table);
+    void get_costs(ALL_READ_COST *cost);
   } *opt_range;
   /* 
      Bitmaps of key parts that =const for the duration of join execution. If
@@ -1818,12 +1800,12 @@ public:
   void prune_range_rowid_filters();
   void trace_range_rowid_filters(THD *thd) const;
   Range_rowid_filter_cost_info *
-  best_range_rowid_filter_for_partial_join(uint access_key_no,
-                                           double records,
-                                           double fetch_cost,
-                                           double index_only_cost,
-                                           double prev_records,
-                                           double *records_out);
+  best_range_rowid_filter(uint access_key_no,
+                          double records,
+                          double fetch_cost,
+                          double index_only_cost,
+                          double prev_records,
+                          double *records_out);
   /**
     System Versioning support
    */

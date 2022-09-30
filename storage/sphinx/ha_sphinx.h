@@ -76,7 +76,7 @@ public:
 	{
           IO_AND_CPU_COST cost;
           cost.io= 0;
-          cost.cpu= (double) (stats.records+stats.deleted) * avg_io_cost();
+          cost.cpu= (double) (stats.records+stats.deleted) * DISK_READ_COST;
           return cost;
         }
         IO_AND_CPU_COST keyread_time(uint index, ulong ranges, ha_rows rows,

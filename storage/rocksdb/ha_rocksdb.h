@@ -623,7 +623,7 @@ public:
                        bool sorted) override
       MY_ATTRIBUTE((__warn_unused_result__));
 
-  virtual IO_AND_CPU_COST scan_time() override
+  IO_AND_CPU_COST scan_time() override
   {
     IO_AND_CPU_COST cost;
     DBUG_ENTER_FUNC();
@@ -634,7 +634,8 @@ public:
   IO_AND_CPU_COST keyread_time(uint index, ulong ranges,
                                ha_rows rows, ulonglong blocks) override;
 
-  virtual void print_error(int error, myf errflag) override;
+  ulonglong index_blocks(uint index, uint ranges, ha_rows rows) override;
+  void print_error(int error, myf errflag) override;
 
   int open(const char *const name, int mode, uint test_if_locked) override
       MY_ATTRIBUTE((__warn_unused_result__));

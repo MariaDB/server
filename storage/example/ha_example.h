@@ -156,7 +156,7 @@ public:
   {
     IO_AND_CPU_COST cost;
     /* 0 blocks,  0.001 ms / row */
-    cost.io= (double) (stats.records+stats.deleted) * avg_io_cost();
+    cost.io= (double) (stats.records+stats.deleted) * DISK_READ_COST;
     cost.cpu= 0;
     return cost;
   }
@@ -168,7 +168,7 @@ public:
                                        ulonglong blocks)
   {
     IO_AND_CPU_COST cost;
-    cost.io= blocks * avg_io_cost();
+    cost.io= blocks * DISK_READ_COST;
     cost.cpu= (double) rows * 0.001;
     return cost;
   }
@@ -181,7 +181,7 @@ public:
    IO_AND_CPU_COST cost;
     /* 0 blocks,  0.001 ms / row */
     cost.io= 0;
-    cost.cpu= (double) rows * avg_io_cost();
+    cost.cpu= (double) rows * DISK_READ_COST;
     return cost;
   }
 
