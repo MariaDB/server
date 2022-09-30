@@ -106,7 +106,7 @@ public:
   {
     IO_AND_CPU_COST cost;
     cost.io= (ulonglong2double(stats.data_file_length) / IO_SIZE +
-              file->tables) * avg_io_cost();
+              file->tables),
     cost.cpu= records() * ROW_NEXT_FIND_COST;
     return cost;
   }

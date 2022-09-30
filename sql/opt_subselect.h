@@ -228,15 +228,16 @@ public:
       {
         double records, read_time;
         part1_conds_met= TRUE;
+        handler *file= s->table->file;
         DBUG_PRINT("info", ("Can use full index scan for LooseScan"));
         
         /* Calculate the cost of complete loose index scan.  */
-        records= rows2double(s->table->file->stats.records);
+        records= rows2double(file->stats.records);
 
         /* The cost is entire index scan cost (divided by 2) */
-        read_time= s->table->file->ha_keyread_and_copy_time(key, 1,
-                                                            (ha_rows) records,
-                                                            0);
+        read_time= file->cost(file->ha_keyread_and_copy_time(key, 1,
+                                                             (ha_rows) records,
+                                                             0));
 
         /*
           Now find out how many different keys we will get (for now we

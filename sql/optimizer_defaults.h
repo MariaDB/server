@@ -175,7 +175,7 @@
 #define TMPFILE_CREATE_COST         0.5  // Cost of creating and deleting files
 #define HEAP_TEMPTABLE_CREATE_COST  0.025 // ms
 /* Cost taken from HEAP_LOOKUP_COST in ha_heap.cc */
-#define HEAP_TEMPTABLE_LOOKUP_COST (0.00016097*1000 + heap_optimizer_costs.row_copy_cost)
+#define HEAP_TEMPTABLE_LOOKUP_COST (0.00016097)
 #define DISK_TEMPTABLE_LOOKUP_COST(thd) (tmp_table_optimizer_costs.key_lookup_cost + tmp_table_optimizer_costs.row_lookup_cost + tmp_table_optimizer_costs.row_copy_cost)
 #define DISK_TEMPTABLE_CREATE_COST TMPFILE_CREATE_COST*2 // 2 tmp tables
 #define DISK_TEMPTABLE_BLOCK_SIZE  IO_SIZE
