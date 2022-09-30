@@ -68,7 +68,6 @@ public:
                                ulonglong blocks) override;
   IO_AND_CPU_COST rnd_pos_time(ha_rows rows) override;
   /* 0 for avg_io_cost ensures that there are no read-block calculations */
-  double avg_io_cost() override { return 0.0; }
   int open(const char *name, int mode, uint test_if_locked) override;
   int close(void) override;
   int write_row(const uchar * buf) override;

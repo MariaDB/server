@@ -1040,7 +1040,7 @@ public:
   Sj_materialization_picker sjmat_picker;
 
   /* Cumulative cost and record count for the join prefix */
-  Cost_estimate prefix_cost;
+  double prefix_cost;
 
   /*
     Current optimization state: Semi-join strategy to be used for this

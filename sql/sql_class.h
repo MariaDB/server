@@ -6750,13 +6750,13 @@ public:
   /* 
     Cost to materialize - execute the sub-join and write rows into temp.table
   */
-  Cost_estimate materialization_cost;
+  double materialization_cost;
 
   /* Cost to make one lookup in the temptable */
-  Cost_estimate lookup_cost;
+  double lookup_cost;
   
   /* Cost of scanning the materialized table */
-  Cost_estimate scan_cost;
+  double scan_cost;
 
   /* --- Execution structures ---------- */
   

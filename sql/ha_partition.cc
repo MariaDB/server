@@ -6609,7 +6609,7 @@ ha_rows ha_partition::multi_range_read_info_const(uint keyno,
       ha_rows tmp_rows;
       uint tmp_mrr_mode;
       m_mrr_buffer_size[i]= 0;
-      part_cost.reset();
+      part_cost.reset(*file);
       tmp_mrr_mode= *mrr_mode;
       tmp_rows= (*file)->
         multi_range_read_info_const(keyno, &m_part_seq_if,
@@ -6660,7 +6660,7 @@ ha_rows ha_partition::multi_range_read_info(uint keyno, uint n_ranges,
     {
       ha_rows tmp_rows;
       m_mrr_buffer_size[i]= 0;
-      part_cost.reset();
+      part_cost.reset(*file);
       if ((tmp_rows= (*file)->multi_range_read_info(keyno, n_ranges, keys,
                                                     key_parts,
                                                     &m_mrr_buffer_size[i],

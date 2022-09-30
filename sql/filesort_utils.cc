@@ -237,9 +237,10 @@ void Sort_costs::compute_pq_sort_costs(Sort_param *param, ha_rows num_rows,
 
   if (queue_size < num_available_keys)
   {
+    handler *file= param->sort_form->file;
     costs[PQ_SORT_ORDER_BY_FIELDS]=
       get_pq_sort_cost(num_rows, queue_size, false) +
-      param->sort_form->file->ha_rnd_pos_call_time(MY_MIN(queue_size - 1, num_rows));
+      file->cost(file->ha_rnd_pos_call_time(MY_MIN(queue_size - 1, num_rows)));
   }
 
   /* Calculate cost with addon fields */
@@ -270,14 +271,15 @@ void Sort_costs::compute_merge_sort_costs(Sort_param *param,
   costs[MERGE_SORT_ORDER_BY_FIELDS]= DBL_MAX;
 
   if (num_available_keys)
+  {
+    handler *file= param->sort_form->file;
     costs[MERGE_SORT_ORDER_BY_FIELDS]=
       get_merge_many_buffs_cost_fast(num_rows, num_available_keys,
                                      row_length, DEFAULT_KEY_COMPARE_COST,
                                      default_optimizer_costs.disk_read_cost,
                                      false) +
-      param->sort_form->file->ha_rnd_pos_call_time(MY_MIN(param->limit_rows,
-                                                          num_rows));
-
+      file->cost(file->ha_rnd_pos_call_time(MY_MIN(param->limit_rows, num_rows)));
+  }
   if (with_addon_fields)
   {
     /* Compute cost of merge sort *if* we strip addon fields. */

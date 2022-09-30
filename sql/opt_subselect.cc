@@ -1456,7 +1456,8 @@ void get_delayed_table_estimates(TABLE *table,
                               hash_sj_engine->tmp_table->s->reclength);
 
   /* Do like in handler::ha_scan_and_compare_time, but ignore the where cost */
-  *scan_time= ((data_size/IO_SIZE *  table->file->avg_io_cost()) +
+  *scan_time= ((data_size/IO_SIZE *  table->file->DISK_READ_COST *
+                table->file->DISK_READ_RATIO) +
                *out_rows * file->ROW_COPY_COST);
 }
 
@@ -2505,7 +2506,7 @@ bool optimize_semijoin_nests(JOIN *join, table_map all_table_map)
                                          &subjoin_read_time,
                                          &subjoin_out_rows);
 
-        sjm->materialization_cost.convert_from_cost(subjoin_read_time);
+        sjm->materialization_cost=subjoin_read_time;
         sjm->rows_with_duplicates= sjm->rows= subjoin_out_rows;
         
         /*
@@ -2566,8 +2567,7 @@ bool optimize_semijoin_nests(JOIN *join, table_map all_table_map)
           temporary table. Note that smj->materialization_cost already includes
           row copy and compare costs of finding the original row.
         */ 
-        sjm->materialization_cost.add_io(subjoin_out_rows, cost.write);
-        sjm->materialization_cost.copy_cost+= cost.create;
+        sjm->materialization_cost+=subjoin_out_rows * cost.write + cost.create;
 
         /*
           Set the cost to do a full scan of the temptable (will need this to 
@@ -2580,10 +2580,10 @@ bool optimize_semijoin_nests(JOIN *join, table_map all_table_map)
         total_cost= (scan_cost * cost.cache_hit_ratio * cost.avg_io_cost +
                      TABLE_SCAN_SETUP_COST_THD(thd) +
                      row_copy_cost * sjm->rows);
-        sjm->scan_cost.convert_from_cost(total_cost);
+        sjm->scan_cost=total_cost;
 
         /* When reading a row, we have also to check the where clause */
-        sjm->lookup_cost.convert_from_cost(cost.lookup + WHERE_COST_THD(thd));
+        sjm->lookup_cost= cost.lookup + WHERE_COST_THD(thd);
         sj_nest->sj_mat_info= sjm;
         DBUG_EXECUTE("opt", print_sjm(sjm););
       }
@@ -2924,7 +2924,7 @@ void optimize_semi_joins(JOIN *join, table_map remaining_tables, uint idx,
        pos[-1].inner_tables_handled_with_other_sjs;
   }
 
-  pos->prefix_cost.convert_from_cost(*current_read_time);
+  pos->prefix_cost= *current_read_time;
   pos->prefix_record_count= *current_record_count;
 
   {
@@ -3053,7 +3053,7 @@ void optimize_semi_joins(JOIN *join, table_map remaining_tables, uint idx,
 
   update_sj_state(join, new_join_tab, idx, remaining_tables);
 
-  pos->prefix_cost.convert_from_cost(*current_read_time);
+  pos->prefix_cost= *current_read_time;
   pos->prefix_record_count= *current_record_count;
   pos->dups_producing_tables= dups_producing_tables;
 }
@@ -3143,7 +3143,7 @@ bool Sj_materialization_picker::check_qep(JOIN *join,
     else
     {
       /* This is SJ-Materialization with lookups */
-      Cost_estimate prefix_cost; 
+      double prefix_cost;
       signed int first_tab= (int)idx - mat_info->tables;
       double prefix_rec_count;
       Json_writer_object trace(join->thd);
@@ -3151,7 +3151,7 @@ bool Sj_materialization_picker::check_qep(JOIN *join,
 
       if (first_tab < (int)join->const_tables)
       {
-        prefix_cost.reset();
+        prefix_cost= 0;
         prefix_rec_count= 1.0;
       }
       else
@@ -3160,12 +3160,12 @@ bool Sj_materialization_picker::check_qep(JOIN *join,
         prefix_rec_count= join->positions[first_tab].prefix_record_count;
       }
 
-      double mat_read_time= prefix_cost.total_cost();
+      double mat_read_time= prefix_cost;
       mat_read_time=
         COST_ADD(mat_read_time,
-                 COST_ADD(mat_info->materialization_cost.total_cost(),
+                 COST_ADD(mat_info->materialization_cost,
                           COST_MULT(prefix_rec_count,
-                                    mat_info->lookup_cost.total_cost())));
+                                    mat_info->lookup_cost)));
 
       /*
         NOTE: When we pick to use SJM[-Scan] we don't memcpy its POSITION
@@ -3208,16 +3208,16 @@ bool Sj_materialization_picker::check_qep(JOIN *join,
     }
     else
     {
-      prefix_cost= join->positions[first_tab - 1].prefix_cost.total_cost();
+      prefix_cost= join->positions[first_tab - 1].prefix_cost;
       prefix_rec_count= join->positions[first_tab - 1].prefix_record_count;
     }
 
     /* Add materialization cost */
     prefix_cost=
       COST_ADD(prefix_cost,
-               COST_ADD(mat_info->materialization_cost.total_cost(),
+               COST_ADD(mat_info->materialization_cost,
                         COST_MULT(prefix_rec_count,
-                                  mat_info->scan_cost.total_cost())));
+                                  mat_info->scan_cost)));
     prefix_rec_count= COST_MULT(prefix_rec_count, mat_info->rows);
     
     uint i;
@@ -3621,7 +3621,7 @@ bool Duplicate_weedout_picker::check_qep(JOIN *join,
     }
     else
     {
-      dups_cost= join->positions[first_tab - 1].prefix_cost.total_cost();
+      dups_cost= join->positions[first_tab - 1].prefix_cost;
       first_weedout_table_rec_count=
         join->positions[first_tab - 1].prefix_record_count;
       temptable_rec_size= 8; /* This is not true but we'll make it so */

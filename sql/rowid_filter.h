@@ -461,18 +461,20 @@ public:
   friend
   void TABLE::init_cost_info_for_usable_range_rowid_filters(THD *thd);
 
+  /* Best range row id filter for parital join */
   friend
   Range_rowid_filter_cost_info *
-  TABLE::best_range_rowid_filter_for_partial_join(uint access_key_no,
-                                                  double records,
-                                                  double fetch_cost,
-                                                  double index_only_cost,
-                                                  double prev_records,
-                                                  double *records_out);
+  TABLE::best_range_rowid_filter(uint access_key_no,
+                                 double records,
+                                 double fetch_cost,
+                                 double index_only_cost,
+                                 double prev_records,
+                                 double *records_out);
   Range_rowid_filter_cost_info *
-    apply_filter(THD *thd, TABLE *table, double *cost, double *records_arg,
-                 double *startup_cost, double fetch_cost,
-                 double index_only_cost, uint ranges, double record_count);
+    apply_filter(THD *thd, TABLE *table, ALL_READ_COST *cost,
+                 double *records_arg,
+                 double *startup_cost,
+                 uint ranges, double record_count);
 };
 
 #endif /* ROWID_FILTER_INCLUDED */

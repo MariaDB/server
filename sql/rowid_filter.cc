@@ -485,12 +485,9 @@ void Range_rowid_filter_cost_info::trace_info(THD *thd)
 */
 
 Range_rowid_filter_cost_info *
-TABLE::best_range_rowid_filter_for_partial_join(uint access_key_no,
-                                                double records,
-                                                double fetch_cost,
-                                                double index_only_cost,
-                                                double prev_records,
-                                                double *records_out)
+TABLE::best_range_rowid_filter(uint access_key_no, double records,
+                               double fetch_cost, double index_only_cost,
+                               double prev_records, double *records_out)
 {
   if (range_rowid_filter_cost_info_elems == 0 ||
       covering_keys.is_set(access_key_no))

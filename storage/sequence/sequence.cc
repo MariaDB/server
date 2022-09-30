@@ -87,7 +87,17 @@ public:
   void position(const uchar *record) override;
   int rnd_pos(uchar *buf, uchar *pos) override;
   int info(uint flag) override;
-
+  IO_AND_CPU_COST keyread_time(uint index, ulong ranges, ha_rows rows,
+                               ulonglong blocks) override
+  {
+    /* Avoids assert in total_cost() and makes DBUG_PRINT more consistent */
+    return {0,0};
+  }
+  IO_AND_CPU_COST scan_time()
+  {
+    /* Avoids assert in total_cost() and makes DBUG_PRINT more consistent */
+    return {0, 0};
+  }
   /* indexes */
   ulong index_flags(uint inx, uint part, bool all_parts) const override
   { return HA_READ_NEXT | HA_READ_PREV | HA_READ_ORDER |
@@ -102,7 +112,6 @@ public:
   ha_rows records_in_range(uint inx, const key_range *start_key,
                            const key_range *end_key, page_range *pages)
     override;
-  double avg_io_cost() override { return 0.0; }
 
 private:
   void set(uchar *buf);
@@ -495,10 +504,14 @@ int ha_seq_group_by_handler::next_row()
 
 static void sequence_update_optimizer_costs(OPTIMIZER_COSTS *costs)
 {
+  costs->disk_read_cost= 0;
   costs->disk_read_ratio= 0.0;                // No disk
-  costs->key_next_find_cost= costs->key_lookup_cost=
-    costs->key_copy_cost= costs->row_lookup_cost=
-      costs->row_copy_cost= 0.0000062391530550;
+  costs->key_next_find_cost=
+    costs->key_lookup_cost=
+    costs->key_copy_cost=
+    costs->row_next_find_cost=
+    costs->row_lookup_cost=
+    costs->row_copy_cost= 0.0000062391530550;
 }
 
 /*****************************************************************************

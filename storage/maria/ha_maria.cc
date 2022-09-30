@@ -1125,7 +1125,8 @@ void ha_maria::update_optimizer_costs(OPTIMIZER_COSTS *costs)
 IO_AND_CPU_COST ha_maria::rnd_pos_time(ha_rows rows)
 {
   IO_AND_CPU_COST cost= handler::rnd_pos_time(rows);
-  if (file->s->data_file_type != BLOCK_RECORD)
+  /* file may be 0 if this is an internal temporary file that is not yet opened */
+  if (file && file->s->data_file_type != BLOCK_RECORD)
   {
     /*
       Row data is not cached. costs.row_lookup_cost includes the cost of
