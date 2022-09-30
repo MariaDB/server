@@ -2965,7 +2965,7 @@ retry_later:
 	ib_wqueue_free(fts_optimize_wq);
 	fts_optimize_wq = NULL;
 
-	innobase_destroy_background_thd(fts_opt_thd);
+	destroy_background_thd(fts_opt_thd);
 	ib::info() << "FTS optimize thread exiting.";
 
 	os_event_set(fts_opt_shutdown_event);

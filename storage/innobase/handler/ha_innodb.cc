@@ -127,7 +127,6 @@ void thd_clear_error(MYSQL_THD thd);
 TABLE *find_fk_open_table(THD *thd, const char *db, size_t db_len,
 			  const char *table, size_t table_len);
 MYSQL_THD create_background_thd();
-void destroy_background_thd(MYSQL_THD thd);
 void reset_thd(MYSQL_THD thd);
 TABLE *get_purge_table(THD *thd);
 TABLE *open_purge_table(THD *thd, const char *db, size_t dblen,
@@ -1476,16 +1475,6 @@ innobase_create_background_thd(const char* name)
 	return thd;
 }
 
-
-/** Destroy a background purge thread THD.
-@param[in]	thd	MYSQL_THD to destroy */
-void
-innobase_destroy_background_thd(
-/*============================*/
-	MYSQL_THD thd)
-{
-	destroy_background_thd(thd);
-}
 
 /** Close opened tables, free memory, delete items for a MYSQL_THD.
 @param[in]	thd	MYSQL_THD to reset */
