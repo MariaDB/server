@@ -14656,6 +14656,15 @@ IO_AND_CPU_COST ha_rocksdb::keyread_time(uint index, ulong ranges,
   DBUG_RETURN(cost);
 }
 
+
+ulonglong ha_rocksdb::index_blocks(uint index, uint ranges, ha_rows rows)
+{
+  size_t len= table->key_storage_length(index);
+  ulonglong blocks= (rows * len / 4) / stats.block_size + ranges; // 75 % compression
+  return blocks * stats.block_size / IO_SIZE;
+}
+
+
 void ha_rocksdb::print_error(int error, myf errflag) {
   if (error == HA_ERR_ROCKSDB_STATUS_BUSY) {
     error = HA_ERR_LOCK_DEADLOCK;

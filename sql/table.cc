@@ -10446,15 +10446,24 @@ bool TABLE::export_structure(THD *thd, Row_definition_list *defs)
 inline void TABLE::initialize_opt_range_structures()
 {
   TRASH_ALLOC((void*)&opt_range_keys, sizeof(opt_range_keys));
-  TRASH_ALLOC(opt_range, s->keys * sizeof(*opt_range));
+  TRASH_ALLOC((void*)opt_range, s->keys * sizeof(*opt_range));
   TRASH_ALLOC(const_key_parts, s->keys * sizeof(*const_key_parts));
 }
 
 
 double TABLE::OPT_RANGE::index_only_fetch_cost(TABLE *table)
 {
-  return (index_only_cost +
+  return (table->file->cost(cost.index_cost)+
           (double) rows * table->s->optimizer_costs.key_copy_cost);
+}
+
+void TABLE::OPT_RANGE::get_costs(ALL_READ_COST *res)
+{
+  res->index_cost=       cost.index_cost;
+  res->row_cost=         cost.row_cost;
+  res->copy_cost=        cost.copy_cost;
+  res->max_index_blocks= max_index_blocks;
+  res->max_row_blocks=   max_row_blocks;
 }
 
 
