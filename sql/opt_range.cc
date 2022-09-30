@@ -2713,6 +2713,7 @@ int SQL_SELECT::test_quick_select(THD *thd, key_map keys_to_use,
   TABLE_READ_PLAN *best_trp= NULL;
   SEL_ARG **backup_keys= 0;
   ha_rows table_records= head->stat_records();
+  handler *file= head->file;
   /* We trust that if stat_records() is 0 the table is really empty! */
   bool impossible_range= table_records == 0;
   DBUG_ENTER("SQL_SELECT::test_quick_select");
@@ -2732,14 +2733,14 @@ int SQL_SELECT::test_quick_select(THD *thd, key_map keys_to_use,
     DBUG_RETURN(0);
   records= table_records;
   notnull_cond= head->notnull_cond;
-  if (head->file->ha_table_flags() & HA_NON_COMPARABLE_ROWID)
+  if (file->ha_table_flags() & HA_NON_COMPARABLE_ROWID)
     only_single_index_range_scan= 1;
 
   if (head->force_index || force_quick_range)
     read_time= DBL_MAX;
   else
   {
-    read_time= head->file->ha_scan_and_compare_time(records);
+    read_time= file->cost(file->ha_scan_and_compare_time(records));
     if (limit < records)
       notnull_cond= NULL;
   }
@@ -2775,7 +2776,7 @@ int SQL_SELECT::test_quick_select(THD *thd, key_map keys_to_use,
 
     /* set up parameter that is passed to all functions */
     param.thd= thd;
-    param.baseflag= head->file->ha_table_flags();
+    param.baseflag= file->ha_table_flags();
     param.prev_tables=prev_tables | const_tables;
     param.read_tables=read_tables;
     param.current_table= head->map;
@@ -2884,8 +2885,9 @@ int SQL_SELECT::test_quick_select(THD *thd, key_map keys_to_use,
     {
       double key_read_time;
       uint key_for_use= find_shortest_key(head, &head->covering_keys);
-      key_read_time= head->file->ha_key_scan_and_compare_time(key_for_use,
-                                                              records);
+      key_read_time= file->cost(file->
+                                ha_key_scan_and_compare_time(key_for_use,
+                                                             records));
       DBUG_PRINT("info",  ("'all'+'using index' scan will be using key %d, "
                            "read time %g", key_for_use, key_read_time));
 
@@ -5095,9 +5097,15 @@ static double get_sweep_read_cost(const PARAM *param, ha_rows records,
 {
   DBUG_ENTER("get_sweep_read_cost");
 #ifndef OLD_SWEEP_COST
-  double cost= (param->table->file->ha_rnd_pos_call_time(records) +
-                (add_time_for_compare ?
-                 records * param->thd->variables.optimizer_where_cost : 0));
+  handler *file= param->table->file;
+  IO_AND_CPU_COST engine_cost= file->ha_rnd_pos_call_time(records);
+  double cost;
+  if (add_time_for_compare)
+  {
+    engine_cost.cpu+= records * param->thd->variables.optimizer_where_cost;
+  }
+  cost= file->cost(engine_cost);
+
   DBUG_PRINT("return", ("cost: %g", cost));
   DBUG_RETURN(cost);
 #else
@@ -5481,9 +5489,9 @@ skip_to_ror_scan:
     double cost;
     if ((*cur_child)->is_ror)
     {
-      /* Ok, we have index_only cost, now get full rows lokoup cost */
-      cost= param->table->file->
-        ha_rnd_pos_call_and_compare_time((*cur_child)->records);
+      handler *file= param->table->file;
+      /* Ok, we have index_only cost, now get full rows scan cost */
+      cost= file->cost(file->ha_rnd_pos_call_and_compare_time((*cur_child)->records));
     }
     else
       cost= read_time;
@@ -6681,6 +6689,7 @@ ROR_SCAN_INFO *make_ror_scan(const PARAM *param, int idx, SEL_ARG *sel_arg)
   ROR_SCAN_INFO *ror_scan;
   my_bitmap_map *bitmap_buf;
   uint keynr;
+  handler *file= param->table->file;
   DBUG_ENTER("make_ror_scan");
 
   if (!(ror_scan= (ROR_SCAN_INFO*)alloc_root(param->mem_root,
@@ -6690,7 +6699,7 @@ ROR_SCAN_INFO *make_ror_scan(const PARAM *param, int idx, SEL_ARG *sel_arg)
   ror_scan->idx= idx;
   ror_scan->keynr= keynr= param->real_keynr[idx];
   ror_scan->key_rec_length= (param->table->key_info[keynr].key_length +
-                             param->table->file->ref_length);
+                             file->ref_length);
   ror_scan->sel_arg= sel_arg;
   ror_scan->records= param->quick_rows[keynr];
 
@@ -6717,8 +6726,8 @@ ROR_SCAN_INFO *make_ror_scan(const PARAM *param, int idx, SEL_ARG *sel_arg)
     ror queue.
   */
   ror_scan->index_read_cost=
-    param->table->file->ha_keyread_and_copy_time(ror_scan->keynr, 1,
-                                                 ror_scan->records, 0);
+    file->cost(file->ha_keyread_and_copy_time(ror_scan->keynr, 1,
+                                              ror_scan->records, 0));
   DBUG_RETURN(ror_scan);
 }
 
@@ -7664,8 +7673,8 @@ static TRP_RANGE *get_key_scans_params(PARAM *param, SEL_TREE *tree,
       Json_writer_object trace_idx(thd);
       trace_idx.add("index", param->table->key_info[keynr].name);
 
-      found_records= check_quick_select(param, idx, limit, read_index_only, key,
-                                        for_range_access, &mrr_flags,
+      found_records= check_quick_select(param, idx, limit, read_index_only,
+                                        key, for_range_access, &mrr_flags,
                                         &buf_size, &cost, &is_ror_scan);
 
       if (found_records == HA_POS_ERROR ||
@@ -11868,22 +11877,10 @@ ha_rows check_quick_select(PARAM *param, uint idx, ha_rows limit,
                             rows) :
                            1.0);                // ok as rows is 0
       range->rows= rows;
-      /* cost of finding a row without copy or checking the where */
-      range->find_cost= cost->find_cost();
-      /* cost of finding a row copying it to the row buffer */
-      range->fetch_cost= range->find_cost + cost->data_copy_cost();
-      /* Add comparing it to the where. Same as cost.total_cost() */
-      range->cost= (range->fetch_cost + cost->compare_cost());
-      /* Calculate the cost of just finding the key. Used by filtering */
-      if (param->table->file->is_clustering_key(keynr))
-	range->index_only_cost= range->find_cost;
-      else
-      {
-        range->index_only_cost= cost->index_only_cost();
-        DBUG_ASSERT(!(*mrr_flags & HA_MRR_INDEX_ONLY) ||
-                    range->index_only_cost ==
-                    range->find_cost);
-      }
+      range->cost= *cost;
+      range->max_index_blocks= file->index_blocks(keynr, range->ranges,
+                                                  rows);
+      range->max_row_blocks= MY_MIN(file->row_blocks(), rows);
       range->first_key_part_has_only_one_value=
         check_if_first_key_part_has_only_one_value(tree);
     }
@@ -15120,8 +15117,8 @@ void cost_group_min_max(TABLE* table, KEY *index_info, uint used_key_parts,
                                                              1);
     if (keys_per_group == 0) /* If there is no statistics try to guess */
     {
-      /* each group contains 1% of all records */
-      keys_per_group= (records / 100) + 1;
+      /* each group contains 10% of all records */
+      keys_per_group= (records / 10) + 1;
     }
   }
   if (keys_per_group > 1)
@@ -15168,12 +15165,11 @@ void cost_group_min_max(TABLE* table, KEY *index_info, uint used_key_parts,
   }
   DBUG_ASSERT(num_groups <= records);
 
-
   /* Calculate the number of blocks we will touch for the table or range scan */
   num_blocks= (records * key_length / INDEX_BLOCK_FILL_FACTOR_DIV *
                INDEX_BLOCK_FILL_FACTOR_MUL) / file->stats.block_size + 1;
 
-  io_cost= (have_max) ? num_groups*2 : num_groups;
+  io_cost= (have_max) ? num_groups * 2 : num_groups;
   set_if_smaller(io_cost, num_blocks);
 
   /*
@@ -15184,9 +15180,10 @@ void cost_group_min_max(TABLE* table, KEY *index_info, uint used_key_parts,
     group.
   */
   uint keyno= (uint) (index_info - table->key_info);
-  *read_cost= file->ha_keyread_and_compare_time(keyno, (ulong) num_groups,
-                                                num_groups,
-                                                io_cost);
+  *read_cost= file->cost(file->ha_keyread_and_compare_time(keyno,
+                                                           (ulong) num_groups,
+                                                           num_groups,
+                                                           io_cost));
   *out_records= num_groups;
 
   DBUG_PRINT("info",

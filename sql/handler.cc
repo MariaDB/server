@@ -3264,6 +3264,23 @@ LEX_CSTRING *handler::engine_name()
   return hton_name(ht);
 }
 
+
+/*
+  Calclate the number of index blocks we are going to access when
+  doing 'ranges' index dives reading a total of 'rows' rows.
+*/
+
+ulonglong handler::index_blocks(uint index, uint ranges, ha_rows rows)
+{
+  if (!stats.block_size)
+    return 0;                                   // No disk storage
+  size_t len= table->key_storage_length(index);
+  ulonglong blocks= (rows * len / INDEX_BLOCK_FILL_FACTOR_DIV *
+                     INDEX_BLOCK_FILL_FACTOR_MUL) / stats.block_size + ranges;
+  return blocks * stats.block_size / IO_SIZE;
+}
+
+
 /*
   Calculate cost for an index scan for given index and number of records.
 
@@ -3310,7 +3327,7 @@ IO_AND_CPU_COST handler::keyread_time(uint index, ulong ranges, ha_rows rows,
     else
       io_blocks= blocks * stats.block_size / IO_SIZE;
   }
-  cost.io= (double) io_blocks * avg_io_cost();
+  cost.io=  (double) io_blocks;
   cost.cpu= blocks * INDEX_BLOCK_COPY_COST;
   return cost;
 }
@@ -3323,36 +3340,35 @@ IO_AND_CPU_COST handler::keyread_time(uint index, ulong ranges, ha_rows rows,
   in which case there should an additional rnd_pos_time() cost.
 */
 
-double handler::ha_keyread_time(uint index, ulong ranges, ha_rows rows,
-                                ulonglong blocks)
+IO_AND_CPU_COST handler::ha_keyread_time(uint index, ulong ranges,
+                                         ha_rows rows,
+                                         ulonglong blocks)
 {
   if (rows < ranges)
     rows= ranges;
   IO_AND_CPU_COST cost= keyread_time(index, ranges, rows, blocks);
-  return (cost.io * DISK_READ_RATIO +
-          cost.cpu + ranges * KEY_LOOKUP_COST +
-          (rows - ranges) * KEY_NEXT_FIND_COST);
+  cost.cpu+= ranges * KEY_LOOKUP_COST + (rows - ranges) * KEY_NEXT_FIND_COST;
+  return cost;
 }
 
 
 /*
-  Read a row from a clustered index
+  Read rows from a clustered index
 
-  Cost is similar to ha_rnd_pos_call_time() as a index_read() on a clusterd
+  Cost is similar to ha_rnd_pos_call_time() as a index_read() on a clustered
   key has identical code as rnd_pos() (At least in InnoDB:)
 */
 
-double handler::ha_keyread_clustered_and_copy_time(uint index, ulong ranges,
-                                                   ha_rows rows,
-                                                   ulonglong blocks)
+IO_AND_CPU_COST
+handler::ha_keyread_clustered_time(uint index, ulong ranges,
+                                   ha_rows rows,
+                                   ulonglong blocks)
 {
   if (rows < ranges)
     rows= ranges;
   IO_AND_CPU_COST cost= keyread_time(index, ranges, rows, blocks);
-  return (cost.io * DISK_READ_RATIO +
-          cost.cpu + ranges * ROW_LOOKUP_COST +
-          (rows - ranges) * ROW_NEXT_FIND_COST +
-          rows * ROW_COPY_COST);
+  cost.cpu+= (ranges * ROW_LOOKUP_COST + (rows - ranges) * ROW_NEXT_FIND_COST);
+  return cost;
 }
 
 THD *handler::ha_thd(void) const
