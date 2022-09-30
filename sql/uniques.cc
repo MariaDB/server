@@ -348,7 +348,7 @@ double Unique::get_use_cost(THD *thd, uint *buffer, size_t nkeys, uint key_size,
     First, add cost of writing all trees to disk, assuming that all disk
     writes are sequential.
   */
-  disk_read_cost= DISK_READ_COST_THD(thd);
+  disk_read_cost= default_optimizer_costs.disk_read_cost;
   result += disk_read_cost * n_full_trees *
               ceil(((double) key_size)*max_elements_in_tree / DISK_CHUNK_SIZE);
   result += disk_read_cost * ceil(((double) key_size)*last_tree_elems / DISK_CHUNK_SIZE);
@@ -365,8 +365,7 @@ double Unique::get_use_cost(THD *thd, uint *buffer, size_t nkeys, uint key_size,
     Add cost of reading the resulting sequence, assuming there were no
     duplicate elements.
   */
-  result+= (ceil((double)key_size*nkeys/IO_SIZE) *
-            default_optimizer_costs.disk_read_cost);
+  result+= (ceil((double)key_size*nkeys/IO_SIZE) * disk_read_cost);
 
   return result;
 }
