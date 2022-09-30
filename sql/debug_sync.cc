@@ -1475,7 +1475,7 @@ static void debug_sync_execute(THD *thd, st_debug_sync_action *action)
         the required dynamic memory allocated.
       */
       while (stringcmp(&debug_sync_global.ds_signal, &action->wait_for) &&
-             !thd->killed && opt_debug_sync_timeout)
+             !(thd->killed & KILL_HARD_BIT) && opt_debug_sync_timeout)
       {
         error= mysql_cond_timedwait(&debug_sync_global.ds_cond,
                                     &debug_sync_global.ds_mutex,

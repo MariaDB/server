@@ -1925,7 +1925,7 @@ static void srv_shutdown_purge_tasks()
   std::unique_lock<std::mutex> lk(purge_thd_mutex);
   while (!purge_thds.empty())
   {
-    innobase_destroy_background_thd(purge_thds.front());
+    destroy_background_thd(purge_thds.front());
     purge_thds.pop_front();
   }
   n_purge_thds= 0;
