@@ -5266,9 +5266,6 @@ protected:
   bool m_vers_from_plain;
   bool m_online_alter;
 
-  uint get_master_cols() const { return m_online_alter ? 0 : m_cols.n_bits; }
-
-
   /* helper functions */
 
 

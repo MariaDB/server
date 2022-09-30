@@ -6039,12 +6039,16 @@ int Rows_log_event::do_apply_event(rpl_group_info *rgi)
                                &m_cols_ai : &m_cols);
       bitmap_intersect(table->write_set, after_image);
 
-      /* Mark extra replica columns for write */
+      /* Mark extra replica columns for read and write */
       for (Field **field_ptr= table->field; *field_ptr; ++field_ptr)
       {
         Field *field= *field_ptr;
-        if (field->field_index >= m_cols.n_bits && field->stored_in_db())
-          bitmap_set_bit(table->write_set, field->field_index);
+        if (field->field_index >= m_cols.n_bits)
+        {
+          bitmap_set_bit(table->read_set, field->field_index);
+          if (field->stored_in_db())
+            bitmap_set_bit(table->write_set, field->field_index);
+        }
       }
 
       this->slave_exec_mode= slave_exec_mode_options; // fix the mode
@@ -7955,12 +7959,9 @@ uint8 Write_rows_log_event::get_trg_event_map()
 /**
   @brief Compares table->record[0] and table->record[1]
 
-  @param masrter_columns  a number of columns on the source replica,
-                          0 if ONLINE ALTER TABLE
-
   @returns true if different.
 */
-static bool record_compare(TABLE *table, uint master_columns)
+static bool record_compare(TABLE *table)
 {
   bool result= false;
 
@@ -7970,16 +7971,8 @@ static bool record_compare(TABLE *table, uint master_columns)
     We should ensure that all extra columns (i.e. fieldnr > master_columns)
     have explicit values. If not, we will exclude them from comparison,
     as they can contain non-deterministic values.
-
-    master_columns == 0 case is optimization for ONLINE ALTER to check
-    all columns fast.
    */
-  bool all_values_set= master_columns == 0
-                       && bitmap_is_set_all(&table->has_value_set);
-  for (uint i = master_columns; all_values_set && i < table->s->fields; i++)
-  {
-    all_values_set= bitmap_is_set(&table->has_value_set, i);
-  }
+  bool all_values_set= bitmap_is_set_all(&table->has_value_set);
 
   /**
     Compare full record only if:
@@ -8022,7 +8015,7 @@ static bool record_compare(TABLE *table, uint master_columns)
       ALTER case, that were in the original table). For reference,
       replica tables can also contain extra fields.
      */
-    if (f->field_index > master_columns && !f->has_explicit_value())
+    if (!f->has_explicit_value())
       continue;
 
     if (f->is_null() != f->is_null(table->s->rec_buff_length)
@@ -8046,15 +8039,15 @@ record_compare_exit:
 uint Rows_log_event::key_parts_suit_event(const KEY *key) const
 {
   uint master_columns= m_online_alter ? 0 : m_cols.n_bits;
+
+  int next_number_field= key->table->found_next_number_field ?
+                         key->table->found_next_number_field->field_index : -1;
   uint p= 0;
   for (;p < key->ext_key_parts; p++)
   {
     Field *f= key->key_part[p].field;
     uint non_deterministic_default= f->default_value &&
                      f->default_value->flags | VCOL_NOT_STRICTLY_DETERMINISTIC;
-
-    int next_number_field= f->table->next_number_field ?
-                           f->table->next_number_field->field_index : -1;
 
     if (f->field_index >= master_columns
         && !bitmap_is_set(&m_table->has_value_set, f->field_index)
@@ -8461,7 +8454,7 @@ int Rows_log_event::find_row(rpl_group_info *rgi)
     /* We use this to test that the correct key is used in test cases. */
     DBUG_EXECUTE_IF("slave_crash_if_index_scan", abort(););
 
-    while (record_compare(table, get_master_cols()))
+    while (record_compare(table))
     {
       while ((error= table->file->ha_index_next(table->record[0])))
       {
@@ -8512,7 +8505,7 @@ int Rows_log_event::find_row(rpl_group_info *rgi)
         goto end;
       }
     }
-    while (record_compare(table, get_master_cols()));
+    while (record_compare(table));
     
     /* 
       Note: above record_compare will take into accout all record fields 

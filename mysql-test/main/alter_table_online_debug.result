@@ -864,7 +864,7 @@ insert t1 values (1),(2),(3),(4);
 set debug_sync= 'now wait_for downgraded';
 connection con2;
 set debug_sync= 'alter_table_online_downgraded signal downgraded wait_for goforit';
-alter table t1 add b int default(a+10), algorithm=copy, lock=none;
+alter table t1 add b int default(a), algorithm=copy, lock=none;
 connection default;
 update t1 set a=a+10 where a > 2;
 insert t1 values(5);
@@ -876,14 +876,15 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
-  `b` int(11) DEFAULT (`a` + 10)
+  `b` int(11) DEFAULT `a`
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1
 select * from t1;
 a	b
-1	11
-2	12
-13	23
-14	24
+1	1
+2	2
+13	3
+14	4
+15	5
 drop table t1;
 set debug_sync= 'reset';
 ## VCOL + CHECK
