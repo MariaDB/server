@@ -383,7 +383,7 @@ void print_sjm(SJ_MATERIALIZATION_INFO *sjm)
   }
   fprintf(DBUG_FILE, "  }\n");
   fprintf(DBUG_FILE, "  materialize_cost= %g\n",
-          sjm->materialization_cost.total_cost());
+          sjm->materialization_cost);
   fprintf(DBUG_FILE, "  rows= %g\n", sjm->rows);
   fprintf(DBUG_FILE, "}\n");
   DBUG_UNLOCK_FILE;
