@@ -1802,7 +1802,7 @@ sp_head::execute_trigger(THD *thd,
 
     my_error(ER_TABLEACCESS_DENIED_ERROR, MYF(0), priv_desc,
              thd->security_ctx->priv_user, thd->security_ctx->host_or_ip,
-             table_name->str);
+             db_name->str, table_name->str);
 
     m_security_ctx.restore_security_context(thd, save_ctx);
     DBUG_RETURN(TRUE);

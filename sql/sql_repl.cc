@@ -4112,7 +4112,7 @@ bool mysql_show_binlog_events(THD* thd)
     binlog_size= s.st_size;
     if (lex_mi->pos > binlog_size)
     {
-      sprintf(errmsg_buf, "Invalid pos specified. Requested from pos:%llu is "
+      snprintf(errmsg_buf, sizeof(errmsg_buf), "Invalid pos specified. Requested from pos:%llu is "
               "greater than actual file size:%lu\n", lex_mi->pos,
               (ulong)s.st_size);
       errmsg= errmsg_buf;

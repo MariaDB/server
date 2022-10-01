@@ -4,7 +4,7 @@ select * from performance_schema.threads
 where name='FOO';
 insert into performance_schema.threads
 set name='FOO', thread_id=1, processlist_id=2;
-ERROR 42000: INSERT command denied to user 'root'@'localhost' for table 'threads'
+ERROR 42000: INSERT command denied to user 'root'@'localhost' for table `performance_schema`.`threads`
 update performance_schema.threads
 set thread_id=12;
 ERROR HY000: Invalid performance_schema usage
@@ -25,9 +25,9 @@ instrumented
 YES
 delete from performance_schema.threads
 where id=1;
-ERROR 42000: DELETE command denied to user 'root'@'localhost' for table 'threads'
+ERROR 42000: DELETE command denied to user 'root'@'localhost' for table `performance_schema`.`threads`
 delete from performance_schema.threads;
-ERROR 42000: DELETE command denied to user 'root'@'localhost' for table 'threads'
+ERROR 42000: DELETE command denied to user 'root'@'localhost' for table `performance_schema`.`threads`
 LOCK TABLES performance_schema.threads READ;
 UNLOCK TABLES;
 LOCK TABLES performance_schema.threads WRITE;

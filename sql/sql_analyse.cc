@@ -409,7 +409,7 @@ void field_real::add()
 
   if ((decs = decimals()) >= FLOATING_POINT_DECIMALS)
   {
-    length= sprintf(buff, "%g", num);
+    length= snprintf(buff, sizeof(buff), "%g", num);
     if (rint(num) != num)
       max_notzero_dec_len = 1;
   }
@@ -420,7 +420,7 @@ void field_real::add()
     snprintf(buff, sizeof(buff)-1, "%-.*f", (int) decs, num);
     length = (uint) strlen(buff);
 #else
-    length= sprintf(buff, "%-.*f", (int) decs, num);
+    length= snprintf(buff, sizeof(buff), "%-.*f", (int) decs, num);
 #endif
 
     // We never need to check further than this
@@ -805,32 +805,32 @@ void field_str::get_opt_type(String *answer, ha_rows total_rows)
   if (can_be_still_num)
   {
     if (num_info.is_float)
-      sprintf(buff, "DOUBLE");	  // number was like 1e+50... TODO:
+      snprintf(buff, sizeof(buff), "DOUBLE");	  // number was like 1e+50... TODO:
     else if (num_info.decimals) // DOUBLE(%d,%d) sometime
     {
       if (num_info.dval > -FLT_MAX && num_info.dval < FLT_MAX)
-	sprintf(buff, "FLOAT(%d,%d)", (num_info.integers + num_info.decimals), num_info.decimals);
+	snprintf(buff, sizeof(buff), "FLOAT(%d,%d)", (num_info.integers + num_info.decimals), num_info.decimals);
       else
-	sprintf(buff, "DOUBLE(%d,%d)", (num_info.integers + num_info.decimals), num_info.decimals);
+	snprintf(buff, sizeof(buff), "DOUBLE(%d,%d)", (num_info.integers + num_info.decimals), num_info.decimals);
     }
     else if (ev_num_info.llval >= -128 &&
 	     ev_num_info.ullval <=
 	     (ulonglong) (ev_num_info.llval >= 0 ? 255 : 127))
-      sprintf(buff, "TINYINT(%d)", num_info.integers);
+      snprintf(buff, sizeof(buff), "TINYINT(%d)", num_info.integers);
     else if (ev_num_info.llval >= INT_MIN16 &&
 	     ev_num_info.ullval <= (ulonglong) (ev_num_info.llval >= 0 ?
 						UINT_MAX16 : INT_MAX16))
-      sprintf(buff, "SMALLINT(%d)", num_info.integers);
+      snprintf(buff, sizeof(buff), "SMALLINT(%d)", num_info.integers);
     else if (ev_num_info.llval >= INT_MIN24 &&
 	     ev_num_info.ullval <= (ulonglong) (ev_num_info.llval >= 0 ?
 						UINT_MAX24 : INT_MAX24))
-      sprintf(buff, "MEDIUMINT(%d)", num_info.integers);
+      snprintf(buff, sizeof(buff), "MEDIUMINT(%d)", num_info.integers);
     else if (ev_num_info.llval >= INT_MIN32 &&
 	     ev_num_info.ullval <= (ulonglong) (ev_num_info.llval >= 0 ?
 						UINT_MAX32 : INT_MAX32))
-      sprintf(buff, "INT(%d)", num_info.integers);
+      snprintf(buff, sizeof(buff), "INT(%d)", num_info.integers);
     else
-      sprintf(buff, "BIGINT(%d)", num_info.integers);
+      snprintf(buff, sizeof(buff), "BIGINT(%d)", num_info.integers);
     answer->append(buff, (uint) strlen(buff));
     if (ev_num_info.llval >= 0 && ev_num_info.min_dval >= 0)
       answer->append(STRING_WITH_LEN(" UNSIGNED"));
@@ -848,12 +848,12 @@ void field_str::get_opt_type(String *answer, ha_rows total_rows)
     }
     else if ((max_length * (total_rows - nulls)) < (sum + total_rows))
     {
-      sprintf(buff, "CHAR(%d)", (int) max_length);
+      snprintf(buff, sizeof(buff), "CHAR(%d)", (int) max_length);
       answer->append(buff, (uint) strlen(buff));
     }
     else
     {
-      sprintf(buff, "VARCHAR(%d)", (int) max_length);
+      snprintf(buff, sizeof(buff), "VARCHAR(%d)", (int) max_length);
       answer->append(buff, (uint) strlen(buff));
     }
   }
@@ -892,18 +892,18 @@ void field_real::get_opt_type(String *answer,
 				 0 : (item->decimals + 1));
 
     if (min_arg >= -128 && max_arg <= (min_arg >= 0 ? 255 : 127))
-      sprintf(buff, "TINYINT(%d)", len);
+      snprintf(buff, sizeof(buff), "TINYINT(%d)", len);
     else if (min_arg >= INT_MIN16 && max_arg <= (min_arg >= 0 ?
 						 UINT_MAX16 : INT_MAX16))
-      sprintf(buff, "SMALLINT(%d)", len);
+      snprintf(buff, sizeof(buff), "SMALLINT(%d)", len);
     else if (min_arg >= INT_MIN24 && max_arg <= (min_arg >= 0 ?
 						 UINT_MAX24 : INT_MAX24))
-      sprintf(buff, "MEDIUMINT(%d)", len);
+      snprintf(buff, sizeof(buff), "MEDIUMINT(%d)", len);
     else if (min_arg >= INT_MIN32 && max_arg <= (min_arg >= 0 ?
 						 UINT_MAX32 : INT_MAX32))
-      sprintf(buff, "INT(%d)", len);
+      snprintf(buff, sizeof(buff), "INT(%d)", len);
     else
-      sprintf(buff, "BIGINT(%d)", len);
+      snprintf(buff, sizeof(buff), "BIGINT(%d)", len);
     answer->append(buff, (uint) strlen(buff));
     if (min_arg >= 0)
       answer->append(STRING_WITH_LEN(" UNSIGNED"));
@@ -918,10 +918,10 @@ void field_real::get_opt_type(String *answer,
   else
   {
     if (min_arg >= -FLT_MAX && max_arg <= FLT_MAX)
-      sprintf(buff, "FLOAT(%d,%d)", (int) max_length - (item->decimals + 1) + max_notzero_dec_len,
+      snprintf(buff, sizeof(buff), "FLOAT(%d,%d)", (int) max_length - (item->decimals + 1) + max_notzero_dec_len,
 	      max_notzero_dec_len);
     else
-      sprintf(buff, "DOUBLE(%d,%d)", (int) max_length - (item->decimals + 1) + max_notzero_dec_len,
+      snprintf(buff, sizeof(buff), "DOUBLE(%d,%d)", (int) max_length - (item->decimals + 1) + max_notzero_dec_len,
 	      max_notzero_dec_len);
     answer->append(buff, (uint) strlen(buff));
   }
@@ -940,18 +940,18 @@ void field_longlong::get_opt_type(String *answer,
   char buff[MAX_FIELD_WIDTH];
 
   if (min_arg >= -128 && max_arg <= (min_arg >= 0 ? 255 : 127))
-    sprintf(buff, "TINYINT(%d)", (int) max_length);
+    snprintf(buff, sizeof(buff), "TINYINT(%d)", (int) max_length);
   else if (min_arg >= INT_MIN16 && max_arg <= (min_arg >= 0 ?
 					       UINT_MAX16 : INT_MAX16))
-    sprintf(buff, "SMALLINT(%d)", (int) max_length);
+    snprintf(buff, sizeof(buff), "SMALLINT(%d)", (int) max_length);
   else if (min_arg >= INT_MIN24 && max_arg <= (min_arg >= 0 ?
 					       UINT_MAX24 : INT_MAX24))
-    sprintf(buff, "MEDIUMINT(%d)", (int) max_length);
+    snprintf(buff, sizeof(buff), "MEDIUMINT(%d)", (int) max_length);
   else if (min_arg >= INT_MIN32 && max_arg <= (min_arg >= 0 ?
 					       UINT_MAX32 : INT_MAX32))
-    sprintf(buff, "INT(%d)", (int) max_length);
+    snprintf(buff, sizeof(buff), "INT(%d)", (int) max_length);
   else
-    sprintf(buff, "BIGINT(%d)", (int) max_length);
+    snprintf(buff, sizeof(buff), "BIGINT(%d)", (int) max_length);
   answer->append(buff, (uint) strlen(buff));
   if (min_arg >= 0)
     answer->append(STRING_WITH_LEN(" UNSIGNED"));
@@ -971,15 +971,15 @@ void field_ulonglong::get_opt_type(String *answer,
   char buff[MAX_FIELD_WIDTH];
 
   if (max_arg < 256)
-    sprintf(buff, "TINYINT(%d) UNSIGNED", (int) max_length);
+    snprintf(buff, sizeof(buff), "TINYINT(%d) UNSIGNED", (int) max_length);
    else if (max_arg <= ((2 * INT_MAX16) + 1))
-     sprintf(buff, "SMALLINT(%d) UNSIGNED", (int) max_length);
+     snprintf(buff, sizeof(buff), "SMALLINT(%d) UNSIGNED", (int) max_length);
   else if (max_arg <= ((2 * INT_MAX24) + 1))
-    sprintf(buff, "MEDIUMINT(%d) UNSIGNED", (int) max_length);
+    snprintf(buff, sizeof(buff), "MEDIUMINT(%d) UNSIGNED", (int) max_length);
   else if (max_arg < (((ulonglong) 1) << 32))
-    sprintf(buff, "INT(%d) UNSIGNED", (int) max_length);
+    snprintf(buff, sizeof(buff), "INT(%d) UNSIGNED", (int) max_length);
   else
-    sprintf(buff, "BIGINT(%d) UNSIGNED", (int) max_length);
+    snprintf(buff, sizeof(buff), "BIGINT(%d) UNSIGNED", (int) max_length);
   // if item is FIELD_ITEM, it _must_be_ Field_num in this class
   answer->append(buff, (uint) strlen(buff));
   if (item->type() == Item::FIELD_ITEM &&
@@ -1000,7 +1000,7 @@ void field_decimal::get_opt_type(String *answer,
   my_decimal_set_zero(&zero);
   my_bool is_unsigned= (zero.cmp(&min_arg) >= 0);
 
-  length= sprintf(buff, "DECIMAL(%d, %d)",
+  length= snprintf(buff, sizeof(buff), "DECIMAL(%d, %d)",
                   (int) (max_length - (item->decimals ? 1 : 0)),
                   item->decimals);
   if (is_unsigned)

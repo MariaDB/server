@@ -27,7 +27,7 @@ CREATE TABLE t1(f1 INT);
 GRANT SELECT ON T1 to user_1@localhost;
 connect  con1,localhost,user_1,,d1;
 select * from t1;
-ERROR 42000: SELECT command denied to user 'user_1'@'localhost' for table 't1'
+ERROR 42000: SELECT command denied to user 'user_1'@'localhost' for table `d1`.`t1`
 select * from T1;
 f1
 connection default;

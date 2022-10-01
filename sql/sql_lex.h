@@ -740,7 +740,7 @@ public:
 
   inline st_select_lex_node* get_master() { return master; }
   void include_down(st_select_lex_node *upper);
-  void add_slave(st_select_lex_node *slave_arg);
+  void attach_single(st_select_lex_node *slave_arg);
   void include_neighbour(st_select_lex_node *before);
   void link_chain_down(st_select_lex_node *first);
   void link_neighbour(st_select_lex_node *neighbour)

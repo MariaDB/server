@@ -1866,6 +1866,7 @@ drop table `t1`;
 create table t1(a int);
 create table t2(a int);
 create table t3(a int);
+mysqldump: Couldn't find table: "non_existing"
 
 /*!40101 SET @OLD_CHARACTER_SET_CLIENT=@@CHARACTER_SET_CLIENT */;
 /*!40101 SET @OLD_CHARACTER_SET_RESULTS=@@CHARACTER_SET_RESULTS */;
@@ -3443,6 +3444,8 @@ create table t1 ( id serial );
 create view v1 as select * from t1;
 drop table t1;
 mysqldump {
+mysqldump: Got error: 1356: "View 'test.v1' references invalid table(s) or column(s) or function(s) or definer/invoker of view lack rights to use them" when using LOCK TABLES
+mysqldump: Couldn't execute 'SHOW FIELDS FROM `v1`': View 'test.v1' references invalid table(s) or column(s) or function(s) or definer/invoker of view lack rights to use them (1356)
 
 -- failed on view `v1`: CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select `test`.`t1`.`id` AS `id` from `t1`
 
@@ -3736,6 +3739,9 @@ DROP TABLE t1;
 CREATE TABLE t1(a int);
 INSERT INTO t1 VALUES (1), (2);
 mysqldump: Input filename too long: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+mysqldump: Got error: 1083: "Field separator argument is not what is expected; check the manual" when executing 'SELECT INTO OUTFILE'
+mysqldump: Got error: 1083: "Field separator argument is not what is expected; check the manual" when executing 'SELECT INTO OUTFILE'
+mysqldump: Got error: 1083: "Field separator argument is not what is expected; check the manual" when executing 'SELECT INTO OUTFILE'
 DROP TABLE t1;
 CREATE TABLE t2 (a INT) ENGINE=MyISAM;
 CREATE TABLE t3 (a INT) ENGINE=MyISAM;
@@ -3829,6 +3835,7 @@ grant all privileges on mysqldump_test_db.*  to user2;
 connect  user27293,localhost,user1,,mysqldump_test_db,$MASTER_MYPORT,$MASTER_MYSOCK;
 connection user27293;
 create procedure mysqldump_test_db.sp1() select 'hello';
+mysqldump: user2 has insufficient privileges to SHOW CREATE PROCEDURE `sp1`!
 
 -- insufficient privileges to SHOW CREATE PROCEDURE `sp1`
 -- does user2 have permissions on mysql.proc?
@@ -4060,6 +4067,7 @@ UNLOCK TABLES;
 /*!40014 SET UNIQUE_CHECKS=@OLD_UNIQUE_CHECKS */;
 /*!40111 SET SQL_NOTES=@OLD_SQL_NOTES */;
 
+mysqldump: Got error: 1146: "Table 'test.???????????????????????' doesn't exist" when using LOCK TABLES
 /*!40103 SET @OLD_TIME_ZONE=@@TIME_ZONE */;
 /*!40103 SET TIME_ZONE='+00:00' */;
 /*!40014 SET @OLD_UNIQUE_CHECKS=@@UNIQUE_CHECKS, UNIQUE_CHECKS=0 */;
@@ -4283,6 +4291,7 @@ Abernathy
 aberrant
 aberration
 drop table words;
+mysqlimport: Error: 1146, Table 'test.words' doesn't exist, when using table: words
 drop table t1;
 drop table t2;
 drop table words2;
@@ -4603,6 +4612,8 @@ CREATE TABLE t1 (a INT, b CHAR(10) CHARSET koi8r, c CHAR(10) CHARSET latin1);
 CREATE TABLE t2 LIKE t1;
 INSERT INTO t1 VALUES (1, 'ABC-–ê–ë–í', 'DEF-√Ç√É√Ñ'), (2, NULL, NULL);
 # error on multi-character ENCLOSED/ESCAPED BY
+mysqldump: Got error: 1083: "Field separator argument is not what is expected; check the manual" when executing 'SELECT INTO OUTFILE'
+mysqldump: Got error: 1083: "Field separator argument is not what is expected; check the manual" when executing 'SELECT INTO OUTFILE'
 # default '--default-charset' (binary):
 ##################################################
 1	ABC-·‚˜	DEF-¬√ƒ
@@ -5089,6 +5100,7 @@ connection conn_1;
 		<field name="c1">3</field>
 	</row>
 	</table_data>
+mysqldump: user1 has insufficient privileges to SHOW CREATE FUNCTION `hello1`!
 	<triggers name="t2">
 		<trigger Trigger="trig1" sql_mode="" character_set_client="latin1" collation_connection="latin1_swedish_ci" Database_Collation="latin1_swedish_ci" Created="--TIME--">
 <![CDATA[
@@ -5392,6 +5404,8 @@ ROUTINE_NAME
 proc
 one
 DROP DATABASE bug25717383;
+mysqldump: Got error: 2005: "Unknown MySQL server host 'unknownhost'" when trying to connect
+mysqldump: Couldn't execute 'SHOW SLAVE STATUS': MySQL server has gone away (2006)
 Usage: mysqldump [OPTIONS] database [tables]
 OR     mysqldump [OPTIONS] --databases DB1 [DB2 DB3...]
 OR     mysqldump [OPTIONS] --all-databases
@@ -5621,6 +5635,7 @@ t1_id int,
 CONSTRAINT fk
 FOREIGN KEY (t1_id) REFERENCES t1 (id)
 ) ENGINE = InnoDB;
+mysqlimport: Error: 1452, Cannot add or update a child row: a foreign key constraint fails (`test`.`t2`, CONSTRAINT `fk` FOREIGN KEY (`t1_id`) REFERENCES `t1` (`id`)), when using table: t2
 select count(*) from t2;
 count(*)
 1
@@ -6299,6 +6314,7 @@ j integer
 INSERT INTO t VALUES (1,1),(2,2),(3,3),(4,4);
 # Dump database 1
 # Restore from database 1 to database 2
+ERROR 1100 (HY000) at line 45: Table 'seq_t_i' was not locked with LOCK TABLES
 SETVAL(`seq_t_i`, 1, 0)
 1
 DROP DATABASE IF EXISTS test1;

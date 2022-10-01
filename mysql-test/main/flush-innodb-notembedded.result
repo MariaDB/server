@@ -30,7 +30,7 @@ disconnect con1;
 connection default;
 connect con1, localhost, user5;
 FLUSH TABLE db1.t1 FOR EXPORT;
-ERROR 42000: SELECT command denied to user 'user5'@'localhost' for table 't1'
+ERROR 42000: SELECT command denied to user 'user5'@'localhost' for table `db1`.`t1`
 disconnect con1;
 connection default;
 DROP USER user1@localhost, user2@localhost, user3@localhost,

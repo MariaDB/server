@@ -15575,7 +15575,8 @@ with_clause:
              lex->derived_tables|= DERIVED_WITH;
              lex->with_cte_resolution= true;
              lex->curr_with_clause= with_clause;
-             with_clause->add_to_list(Lex->with_clauses_list_last_next);
+             with_clause->add_to_list(&lex->with_clauses_list,
+                                      lex->with_clauses_list_last_next);
              if (lex->current_select &&
                  lex->current_select->parsing_place == BEFORE_OPT_LIST)
                lex->current_select->parsing_place= NO_MATTER;

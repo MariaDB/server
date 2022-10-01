@@ -1849,7 +1849,7 @@ connection u_1;
 user_1@localhost	db_storedproc
 USE db_storedproc;
 CALL sp11();
-ERROR 42000: INSERT command denied to user 'user_1'@'localhost' for table 't1'
+ERROR 42000: INSERT command denied to user 'user_1'@'localhost' for table `mysql`.`t1`
 commit work;
 disconnect u_1;
 connection default;
