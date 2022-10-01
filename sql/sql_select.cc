@@ -69,6 +69,7 @@
 #include "my_json_writer.h"
 #include "opt_trace.h"
 #include "create_tmp_table.h"
+#include "derived_handler.h"
 
 /*
   A key part number that means we're using a fulltext scan.
@@ -14382,6 +14383,7 @@ void JOIN_TAB::cleanup()
     delete filesort->select;
   delete filesort;
   filesort= NULL;
+
   /* Skip non-existing derived tables/views result tables */
   if (table &&
       (table->s->tmp_table != INTERNAL_TMP_TABLE || table->is_created()))
@@ -14882,11 +14884,11 @@ void JOIN::cleanup(bool full)
     delete pushdown_query;
     pushdown_query= 0;
 
-    if (!join_tab)
+    List_iterator<TABLE_LIST> li(*join_list);
+    TABLE_LIST *table_ref;
+    while ((table_ref= li++))
     {
-      List_iterator<TABLE_LIST> li(*join_list);
-      TABLE_LIST *table_ref;
-      while ((table_ref= li++))
+      if (!join_tab)
       {
         if (table_ref->table &&
             table_ref->jtbm_subselect &&
@@ -14896,6 +14898,13 @@ void JOIN::cleanup(bool full)
           table_ref->table= NULL;
         }
       }
+      if (table_ref->pushdown_derived)
+      {
+        delete table_ref->pushdown_derived;
+        table_ref->pushdown_derived= NULL;
+      }
+      delete table_ref->dt_handler;
+      table_ref->dt_handler= NULL;
     }
   }
   /* Restore ref array to original state */
@@ -28514,12 +28523,6 @@ bool mysql_explain_union(THD *thd, SELECT_LEX_UNIT *unit, select_result *result)
                       first->having, thd->lex->proc_list.first,
                       first->options | thd->variables.option_bits | SELECT_DESCRIBE,
                       result, unit, first);
-  }
-
-  if (unit->derived && unit->derived->pushdown_derived)
-  {
-    delete unit->derived->pushdown_derived;
-    unit->derived->pushdown_derived= NULL;
   }
 
   DBUG_RETURN(res || thd->is_error());

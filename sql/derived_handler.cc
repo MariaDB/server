@@ -44,12 +44,6 @@ Pushdown_derived::Pushdown_derived(TABLE_LIST *tbl, derived_handler *h)
 }
 
 
-Pushdown_derived::~Pushdown_derived()
-{
-  delete handler;
-}
-
-
 int Pushdown_derived::execute()
 {
   int err;

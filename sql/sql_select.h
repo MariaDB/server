@@ -2488,8 +2488,6 @@ public:
 
   Pushdown_derived(TABLE_LIST *tbl, derived_handler *h);
 
-  ~Pushdown_derived();
-
   int execute(); 
 };
 
