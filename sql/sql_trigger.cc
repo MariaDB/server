@@ -1482,8 +1482,7 @@ bool Table_triggers_list::check_n_load(THD *thd, const LEX_CSTRING *db,
 
         trigger->sql_mode= sql_mode;
         trigger->definition= *trg_create_str;
-        trigger->hr_create_time=
-          my_hrtime_t({trg_create_time ? *trg_create_time : 0});
+        trigger->hr_create_time.val= trg_create_time ? *trg_create_time : 0;
         /*
           Fix time if in 100th of second (comparison with max uint * 100
           (max possible timestamp in the old format))

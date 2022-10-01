@@ -3879,9 +3879,9 @@ Statement::Statement(LEX *lex_arg, MEM_ROOT *mem_root_arg,
   id(id_arg),
   column_usage(MARK_COLUMNS_READ),
   lex(lex_arg),
-  hr_prepare_time({0}),
   db(null_clex_str)
 {
+  hr_prepare_time.val= 0,
   name= null_clex_str;
 }
 
