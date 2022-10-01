@@ -570,7 +570,9 @@ INSERT INTO t2 VALUES (1,'Scargill');
 CREATE TABLE t3 (a int, b int) ENGINE = InnoDB;
 INSERT INTO t3 VALUES (1,1), (2,1);
 
+set @tmp=@@optimizer_switch, @@optimizer_switch='materialization=off';
 --echo # t2 should use full text index
+--echo # The subquery should be DEPENDENT SUBQUERY
 EXPLAIN
 SELECT count(*) FROM t1 WHERE 
   not exists(
@@ -578,7 +580,6 @@ SELECT count(*) FROM t1 WHERE
    WHERE t3.a=t1.a AND MATCH(b2) AGAINST('scargill' IN BOOLEAN MODE)
   );
 
-# INNODB_FTS: INVESTIGATE
 --echo # should return 0
 SELECT count(*) FROM t1 WHERE 
   not exists(
@@ -593,6 +594,7 @@ SELECT count(*) FROM t1 WHERE
    WHERE t3.a=t1.a AND MATCH(b2) AGAINST('scargill' IN BOOLEAN MODE)
   );
 
+set optimizer_switch=@tmp;
 DROP TABLE t1,t2,t3;
 
 #
