@@ -1,5 +1,6 @@
 --source include/have_innodb.inc
 --source include/have_partition.inc
+--source include/have_sequence.inc
 
 # Helper statement
 let $get_handler_status_counts= SELECT * FROM INFORMATION_SCHEMA.SESSION_STATUS
@@ -874,7 +875,7 @@ SELECT * FROM t1 PARTITION (p0);
 ALTER TABLE t1 EXCHANGE PARTITION p0 WITH TABLE t2;
 SELECT * FROM t1 PARTITION (p0);
 UNLOCK TABLES;
-DROP TABLE t1;
+DROP TABLE t1, t2;
 
 --echo #
 --echo # MDEV-18371 Server crashes in ha_innobase::cmp_ref upon UPDATE with PARTITION clause.
@@ -885,10 +886,41 @@ INSERT INTO t1 VALUES (3,0),(8,2),(7,8),(3,4),(2,4),(0,7),(4,3),(3,6);
 FLUSH TABLES;
 UPDATE t1 PARTITION (p3,p1) SET a = 2 WHERE a = 3;
 SELECT * FROM t1;
+DROP TABLE t1;
 
+--echo #
+--echo # MDEV-21134 Crash with partitioned table, PARTITION syntax, and index_merge.
+--echo #
 
-# Cleanup
-DROP TABLE t1, t2;
+create table t1 (
+    pk int primary key,
+    a int,
+    b int,
+    filler char(32),
+    key (a),
+    key (b)
+    ) engine=myisam  partition by range(pk) (
+      partition p0 values less than (10),
+      partition p1 values less than MAXVALUE
+      ) ;
+
+insert into t1 select 
+seq,
+  MOD(seq, 100),
+  MOD(seq, 100),
+  'filler-data-filler-data'
+  from
+  seq_1_to_5000;
+
+explain select * from t1 partition (p1) where a=10 and b=10;
+flush tables;
+select * from t1 partition (p1)where a=10 and b=10;
+
+DROP TABLE t1;
+
+--echo #
+--echo # End of 10.3 tests
+--echo #
 
 --echo #
 --echo # MDEV-18982: INSERT using explicit patition pruning with column list
@@ -898,3 +930,8 @@ create table t1 (a int) partition by hash(a);
 insert into t1 partition (p0) (a) values (1);
 select * from t1;
 drop table t1;
+
+--echo #
+--echo # End of 10.4 tests
+--echo #
+

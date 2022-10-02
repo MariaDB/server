@@ -349,6 +349,7 @@ public:
   }
   void qs_append(const char *str, size_t len);
   void qs_append_hex(const char *str, uint32 len);
+  void qs_append_hex_uint32(uint32 num);
   void qs_append(double d);
   void qs_append(const double *d);
   inline void qs_append(const char c)
@@ -591,7 +592,13 @@ public:
     }
     return false;
   }
-
+  bool append_hex_uint32(uint32 num)
+  {
+    if (reserve(8))
+      return true;
+    qs_append_hex_uint32(num);
+    return false;
+  }
   bool append_with_step(const char *s, uint32 arg_length, uint32 step_alloc)
   {
     uint32 new_length= arg_length + str_length;
@@ -933,6 +940,17 @@ public:
   {
     return append(&ls);
   }
+  bool append_name_value(const LEX_CSTRING &name,
+                         const LEX_CSTRING &value,
+                         uchar quot= '\0')
+  {
+    return
+      append(name) ||
+      append('=') ||
+      (quot && append(quot)) ||
+      append(value) ||
+      (quot && append(quot));
+  }
   bool append(const char *s, size_t size);
   bool append_with_prefill(const char *s, uint32 arg_length,
 			   uint32 full_length, char fill_char);
@@ -943,6 +961,37 @@ public:
   bool append(const LEX_CSTRING &s, CHARSET_INFO *cs)
   {
     return append(s.str, s.length, cs);
+  }
+
+  /*
+    Append a bitmask in an uint32 with a translation into a
+    C-style human readable representation, e.g.:
+      0x05 -> "(flag04|flag01)"
+
+    @param flags  - the flags to translate
+    @param names  - an array of flag names
+    @param count  - the number of available elements in "names"
+  */
+  bool append_flag32_names(uint32 flags, const char *names[], size_t count)
+  {
+    bool added= false;
+    if (flags && append('('))
+      return true;
+    for (ulong i= 0; i <= 31; i++)
+    {
+      ulong bit= 31 - i;
+      if (flags & (1 << bit))
+      {
+        if (added && append('|'))
+          return true;
+        if (append(bit < count ? names[bit] : "?"))
+          return true;
+        added= true;
+      }
+    }
+    if (flags && append(')'))
+      return true;
+    return false;
   }
 
   void strip_sp();

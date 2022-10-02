@@ -410,9 +410,17 @@ bool With_element::check_dependencies_in_spec()
 { 
   for (st_select_lex *sl=  spec->first_select(); sl; sl= sl->next_select())
   {
-    st_unit_ctxt_elem ctxt0= {NULL, owner->owner};
-    st_unit_ctxt_elem ctxt1= {&ctxt0, spec};
-    check_dependencies_in_select(sl, &ctxt1, false, &sl->with_dep);
+    if (owner->with_recursive)
+    {
+      st_unit_ctxt_elem ctxt0= {NULL, owner->owner};
+      st_unit_ctxt_elem ctxt1= {&ctxt0, spec};
+      check_dependencies_in_select(sl, &ctxt1, false, &sl->with_dep);
+    }
+    else
+    {
+      st_unit_ctxt_elem ctxt= {NULL, spec};
+      check_dependencies_in_select(sl, &ctxt, false, &sl->with_dep);
+    }
     base_dep_map|= sl->with_dep;
   }
   return false;
@@ -480,29 +488,50 @@ With_element *With_clause::find_table_def(TABLE_LIST *table,
 With_element *find_table_def_in_with_clauses(TABLE_LIST *tbl,
                                              st_unit_ctxt_elem *ctxt)
 {
-  With_element *barrier= NULL;
+  With_element *found= 0;
   for (st_unit_ctxt_elem *unit_ctxt_elem= ctxt;
        unit_ctxt_elem;
        unit_ctxt_elem= unit_ctxt_elem->prev)
   {
     st_select_lex_unit *unit= unit_ctxt_elem->unit;
     With_clause *with_clause= unit->with_clause;
-    if (with_clause &&
-	(tbl->with= with_clause->find_table_def(tbl, barrier)))
-      return tbl->with;
-    barrier= NULL;
-    if (unit->with_element && !unit->with_element->get_owner()->with_recursive)
+    /*
+      First look for the table definition in the with clause attached to 'unit'
+      if there is any such clause.
+    */
+    if (with_clause)
     {
-      /* 
-        This unit is the specification if the with element unit->with_element.
-        The with element belongs to a with clause without the specifier RECURSIVE.
-        So when searching for the matching definition of tbl this with clause must
-        be looked up to this with element
-      */
-      barrier= unit->with_element;
+      found= with_clause->find_table_def(tbl, NULL);
+      if (found)
+        break;
+    }
+    /*
+      If 'unit' is the unit that defines a with element then reset 'unit'
+      to the unit whose attached with clause contains this with element.
+    */
+    With_element *with_elem= unit->with_element;
+    if (with_elem)
+    {
+      if (!(unit_ctxt_elem= unit_ctxt_elem->prev))
+        break;
+      unit= unit_ctxt_elem->unit;
+    }
+    with_clause= unit->with_clause;
+    /*
+      Now look for the table definition in this with clause. If the with clause
+      contains RECURSIVE the search is performed through all CTE definitions in
+      clause, otherwise up to the definition of 'with_elem' unless it is NULL.
+    */
+    if (with_clause)
+    {
+      found= with_clause->find_table_def(tbl,
+                                         with_clause->with_recursive ?
+			                 NULL : with_elem);
+      if (found)
+	break;
     }
   }
-  return NULL;
+  return found;
 }
 
 
@@ -532,22 +561,30 @@ void With_element::check_dependencies_in_select(st_select_lex *sl,
                                                 bool in_subq,
                                                 table_map *dep_map)
 {
-  With_clause *with_clause= sl->get_with_clause();
+  bool is_spec_select= sl->get_with_element() == this;
+
   for (TABLE_LIST *tbl= sl->table_list.first; tbl; tbl= tbl->next_local)
   {
-    if (tbl->derived || tbl->nested_join)
+    if (tbl->with || tbl->derived || tbl->nested_join)
       continue;
     tbl->with_internal_reference_map= 0;
     /*
-      If there is a with clause attached to the unit containing sl
-      look first for the definition of tbl in this with clause.
-      If such definition is not found there look in the with
-      clauses of the upper levels.
+      Look first for the definition of tbl in the with clause to which
+      this with element belongs. If such definition is not found there
+      look in the with clauses of the upper levels via the context
+      chain of embedding with elements.
       If the definition of tbl is found somewhere in with clauses
-       then tbl->with is set to point to this definition 
+      then tbl->with is set to point to this definition.
     */
-    if (with_clause && !tbl->with)
-      tbl->with= with_clause->find_table_def(tbl, NULL);
+    if (is_spec_select)
+    {
+      With_clause *with_clause= sl->master_unit()->with_clause;
+      if (with_clause)
+        tbl->with= with_clause->find_table_def(tbl, NULL);
+      if (!tbl->with)
+        tbl->with= owner->find_table_def(tbl,
+                                         owner->with_recursive ? NULL : this);
+    }
     if (!tbl->with)
       tbl->with= find_table_def_in_with_clauses(tbl, ctxt);
 
@@ -574,8 +611,7 @@ void With_element::check_dependencies_in_select(st_select_lex *sl,
   st_select_lex_unit *inner_unit= sl->first_inner_unit();
   for (; inner_unit; inner_unit= inner_unit->next_unit())
   {
-    if (!inner_unit->with_element)
-      check_dependencies_in_unit(inner_unit, ctxt, in_subq, dep_map);
+    check_dependencies_in_unit(inner_unit, ctxt, in_subq, dep_map);
   }
 }
 
@@ -653,10 +689,14 @@ void With_element::check_dependencies_in_unit(st_select_lex_unit *unit,
                                               bool in_subq,
                                               table_map *dep_map)
 {
-  if (unit->with_clause)
-    check_dependencies_in_with_clause(unit->with_clause, ctxt, in_subq, dep_map);
-  in_subq |= unit->item != NULL;
   st_unit_ctxt_elem unit_ctxt_elem= {ctxt, unit};
+  if (unit->with_clause)
+  {
+    (void) unit->with_clause->check_dependencies();
+    check_dependencies_in_with_clause(unit->with_clause, &unit_ctxt_elem,
+                                      in_subq, dep_map);
+  }
+  in_subq |= unit->item != NULL;
   st_select_lex *sl= unit->first_select();
   for (; sl; sl= sl->next_select())
   {

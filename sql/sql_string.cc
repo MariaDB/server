@@ -164,6 +164,17 @@ void Static_binary_string::qs_append_hex(const char *str, uint32 len)
 }
 
 
+void Static_binary_string::qs_append_hex_uint32(uint32 num)
+{
+  char *to= Ptr + str_length;
+  APPEND_HEX(to, (uchar) (num >> 24));
+  APPEND_HEX(to, (uchar) (num >> 16));
+  APPEND_HEX(to, (uchar) (num >> 8));
+  APPEND_HEX(to, (uchar) num);
+  str_length+= 8;
+}
+
+
 // Convert a string to its HEX representation
 bool Binary_string::set_hex(const char *str, uint32 len)
 {

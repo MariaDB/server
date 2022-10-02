@@ -7,21 +7,21 @@ OBJECT_TYPE	OBJECT_SCHEMA	OBJECT_NAME	COUNT_STAR	SUM_TIMER_WAIT	MIN_TIMER_WAIT	A
 insert into performance_schema.events_statements_summary_by_program
 set object_name='XXYYZZ', count_star=1, sum_timer_wait=2, min_timer_wait=3,
 avg_timer_wait=4, max_timer_wait=5;
-ERROR 42000: INSERT command denied to user 'root'@'localhost' for table 'events_statements_summary_by_program'
+ERROR 42000: INSERT command denied to user 'root'@'localhost' for table `performance_schema`.`events_statements_summary_by_program`
 update performance_schema.events_statements_summary_by_program
 set count_star=12;
-ERROR 42000: UPDATE command denied to user 'root'@'localhost' for table 'events_statements_summary_by_program'
+ERROR 42000: UPDATE command denied to user 'root'@'localhost' for table `performance_schema`.`events_statements_summary_by_program`
 update performance_schema.events_statements_summary_by_program
 set count_star=12 where object_name like "XXYYZZ";
-ERROR 42000: UPDATE command denied to user 'root'@'localhost' for table 'events_statements_summary_by_program'
+ERROR 42000: UPDATE command denied to user 'root'@'localhost' for table `performance_schema`.`events_statements_summary_by_program`
 delete from performance_schema.events_statements_summary_by_program
 where count_star=1;
-ERROR 42000: DELETE command denied to user 'root'@'localhost' for table 'events_statements_summary_by_program'
+ERROR 42000: DELETE command denied to user 'root'@'localhost' for table `performance_schema`.`events_statements_summary_by_program`
 delete from performance_schema.events_statements_summary_by_program;
-ERROR 42000: DELETE command denied to user 'root'@'localhost' for table 'events_statements_summary_by_program'
+ERROR 42000: DELETE command denied to user 'root'@'localhost' for table `performance_schema`.`events_statements_summary_by_program`
 LOCK TABLES performance_schema.events_statements_summary_by_program READ;
-ERROR 42000: SELECT, LOCK TABLES command denied to user 'root'@'localhost' for table 'events_statements_summary_by_program'
+ERROR 42000: SELECT, LOCK TABLES command denied to user 'root'@'localhost' for table `performance_schema`.`events_statements_summary_by_program`
 UNLOCK TABLES;
 LOCK TABLES performance_schema.events_statements_summary_by_program WRITE;
-ERROR 42000: SELECT, LOCK TABLES command denied to user 'root'@'localhost' for table 'events_statements_summary_by_program'
+ERROR 42000: SELECT, LOCK TABLES command denied to user 'root'@'localhost' for table `performance_schema`.`events_statements_summary_by_program`
 UNLOCK TABLES;

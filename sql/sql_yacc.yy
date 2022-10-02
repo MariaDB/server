@@ -13364,7 +13364,7 @@ opt_returning:
             {
               SELECT_LEX *sl= Lex->returning();
               sl->set_master_unit(0);
-              Select->add_slave(Lex->create_unit(sl));
+              Select->attach_single(Lex->create_unit(sl));
               sl->include_global((st_select_lex_node**)&Lex->all_selects_list);
               Lex->push_select(sl);
             }
@@ -14892,7 +14892,8 @@ with_clause:
              lex->derived_tables|= DERIVED_WITH;
              lex->with_cte_resolution= true;
              lex->curr_with_clause= with_clause;
-             with_clause->add_to_list(Lex->with_clauses_list_last_next);
+             with_clause->add_to_list(&lex->with_clauses_list,
+                                      lex->with_clauses_list_last_next);
              if (lex->current_select &&
                  lex->current_select->parsing_place == BEFORE_OPT_LIST)
                lex->current_select->parsing_place= NO_MATTER;

@@ -18,7 +18,7 @@ connect  foo,localhost,foo;
 flush tables;
 ERROR 42000: Access denied; you need (at least one of) the RELOAD privilege(s) for this operation
 select * from mysql.roles_mapping;
-ERROR 42000: SELECT command denied to user 'foo'@'localhost' for table 'roles_mapping'
+ERROR 42000: SELECT command denied to user 'foo'@'localhost' for table `mysql`.`roles_mapping`
 show tables from mysqltest1;
 ERROR 42000: Access denied for user 'foo'@'localhost' to database 'mysqltest1'
 set role role1;
@@ -38,7 +38,7 @@ a	b
 1	2
 3	4
 select * from mysqltest1.t2;
-ERROR 42000: SELECT command denied to user 'foo'@'localhost' for table 't2'
+ERROR 42000: SELECT command denied to user 'foo'@'localhost' for table `mysqltest1`.`t2`
 select a from mysqltest1.t2;
 a
 5
@@ -64,11 +64,11 @@ ROLE_NAME
 role1
 flush tables;
 select * from mysql.roles_mapping;
-ERROR 42000: SELECT command denied to user 'foo'@'localhost' for table 'roles_mapping'
+ERROR 42000: SELECT command denied to user 'foo'@'localhost' for table `mysql`.`roles_mapping`
 select * from mysqltest1.t1;
-ERROR 42000: SELECT command denied to user 'foo'@'localhost' for table 't1'
+ERROR 42000: SELECT command denied to user 'foo'@'localhost' for table `mysqltest1`.`t1`
 select a from mysqltest1.t2;
-ERROR 42000: SELECT command denied to user 'foo'@'localhost' for table 't2'
+ERROR 42000: SELECT command denied to user 'foo'@'localhost' for table `mysqltest1`.`t2`
 set role none;
 connection default;
 grant reload on *.* to role1;
@@ -92,7 +92,7 @@ a	b
 1	2
 3	4
 select * from mysqltest1.t2;
-ERROR 42000: SELECT command denied to user 'foo'@'localhost' for table 't2'
+ERROR 42000: SELECT command denied to user 'foo'@'localhost' for table `mysqltest1`.`t2`
 select a from mysqltest1.t2;
 a
 5
@@ -105,11 +105,11 @@ drop role role1;
 connection foo;
 flush tables;
 select * from mysql.roles_mapping;
-ERROR 42000: SELECT command denied to user 'foo'@'localhost' for table 'roles_mapping'
+ERROR 42000: SELECT command denied to user 'foo'@'localhost' for table `mysql`.`roles_mapping`
 select * from mysqltest1.t1;
-ERROR 42000: SELECT command denied to user 'foo'@'localhost' for table 't1'
+ERROR 42000: SELECT command denied to user 'foo'@'localhost' for table `mysqltest1`.`t1`
 select a from mysqltest1.t2;
-ERROR 42000: SELECT command denied to user 'foo'@'localhost' for table 't2'
+ERROR 42000: SELECT command denied to user 'foo'@'localhost' for table `mysqltest1`.`t2`
 show grants;
 Grants for foo@localhost
 GRANT USAGE ON *.* TO `foo`@`localhost`

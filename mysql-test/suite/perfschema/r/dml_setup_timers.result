@@ -41,7 +41,7 @@ Warnings:
 Warning	1681	'performance_schema.setup_timers' is deprecated and will be removed in a future release
 insert into performance_schema.setup_timers
 set name='FOO', timer_name='CYCLE';
-ERROR 42000: INSERT command denied to user 'root'@'localhost' for table 'setup_timers'
+ERROR 42000: INSERT command denied to user 'root'@'localhost' for table `performance_schema`.`setup_timers`
 update performance_schema.setup_timers
 set name='FOO';
 ERROR HY000: Invalid performance_schema usage
@@ -63,10 +63,10 @@ set timer_name='CYCLE';
 Warnings:
 Warning	1681	'performance_schema.setup_timers' is deprecated and will be removed in a future release
 delete from performance_schema.setup_timers;
-ERROR 42000: DELETE command denied to user 'root'@'localhost' for table 'setup_timers'
+ERROR 42000: DELETE command denied to user 'root'@'localhost' for table `performance_schema`.`setup_timers`
 delete from performance_schema.setup_timers
 where name='Wait';
-ERROR 42000: DELETE command denied to user 'root'@'localhost' for table 'setup_timers'
+ERROR 42000: DELETE command denied to user 'root'@'localhost' for table `performance_schema`.`setup_timers`
 LOCK TABLES performance_schema.setup_timers READ;
 UNLOCK TABLES;
 LOCK TABLES performance_schema.setup_timers WRITE;

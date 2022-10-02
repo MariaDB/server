@@ -3759,7 +3759,22 @@ int ha_partition::open(const char *name, int mode, uint test_if_locked)
     for (i= 0; i < m_tot_parts; i++)
     {
       if (!bitmap_is_set(&m_is_clone_of->m_opened_partitions, i))
+      {
+        /* Here we should just create the handler instance, not open it. */
+        if (!(m_file[i]= get_new_handler(table->s, m_clone_mem_root,
+                                         file[i]->ht)))
+        {
+          error= HA_ERR_INITIALIZATION;
+          file= &m_file[i];
+          goto err_handler;
+        }
+        if (m_file[i]->set_ha_share_ref(file[i]->ha_share))
+        {
+          error= HA_ERR_INITIALIZATION;
+          goto err_handler;
+        }
         continue;
+      }
 
       if (unlikely((error= create_partition_name(name_buff, sizeof(name_buff),
                                                  name, name_buffer_ptr,

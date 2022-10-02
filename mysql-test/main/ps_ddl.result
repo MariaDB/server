@@ -216,7 +216,7 @@ new trigger: 10
 drop trigger t1_bd;
 set @val=11;
 execute stmt using @val;
-call p_verify_reprepare_count(1);
+call p_verify_reprepare_count(0);
 SUCCESS
 
 select @message;
@@ -226,7 +226,7 @@ Test 6-e: removing a relevant trigger
 drop trigger t1_bi;
 set @val=12;
 execute stmt using @val;
-call p_verify_reprepare_count(1);
+call p_verify_reprepare_count(0);
 SUCCESS
 
 select @message;
@@ -386,7 +386,7 @@ a
 flush table t1;
 set @var=9;
 execute stmt using @var;
-call p_verify_reprepare_count(1);
+call p_verify_reprepare_count(0);
 SUCCESS
 
 select * from t2;
@@ -834,7 +834,7 @@ a	b	c
 10	20	50
 20	40	100
 30	60	150
-call p_verify_reprepare_count(1);
+call p_verify_reprepare_count(0);
 SUCCESS
 
 # Check that we properly handle ALTER VIEW statements.
@@ -1214,7 +1214,7 @@ drop trigger v2_bi;
 set @message=null;
 set @var=9;
 execute stmt using @var;
-call p_verify_reprepare_count(1);
+call p_verify_reprepare_count(0);
 SUCCESS
 
 select @message;
@@ -2590,7 +2590,7 @@ SELECT * FROM t1;
 a
 2048
 1025
-1024
+2048
 DROP TABLE t1;
 #
 # End of 10.1 tests
