@@ -172,9 +172,9 @@ Grants for testuser4@localhost
 GRANT TRIGGER ON *.* TO `testuser4`@`localhost`
 # TRIGGER Privilege + no SELECT Privilege on t1 --> result for query
 SELECT * FROM db_datadict.t1;
-ERROR 42000: SELECT command denied to user 'testuser4'@'localhost' for table 't1'
+ERROR 42000: SELECT command denied to user 'testuser4'@'localhost' for table `db_datadict`.`t1`
 DESC db_datadict.t1;
-ERROR 42000: SELECT command denied to user 'testuser4'@'localhost' for table 't1'
+ERROR 42000: SELECT command denied to user 'testuser4'@'localhost' for table `db_datadict`.`t1`
 SELECT * FROM information_schema.triggers
 WHERE trigger_name = 'trg1';
 TRIGGER_CATALOG	TRIGGER_SCHEMA	TRIGGER_NAME	EVENT_MANIPULATION	EVENT_OBJECT_CATALOG	EVENT_OBJECT_SCHEMA	EVENT_OBJECT_TABLE	ACTION_ORDER	ACTION_CONDITION	ACTION_STATEMENT	ACTION_ORIENTATION	ACTION_TIMING	ACTION_REFERENCE_OLD_TABLE	ACTION_REFERENCE_NEW_TABLE	ACTION_REFERENCE_OLD_ROW	ACTION_REFERENCE_NEW_ROW	CREATED	SQL_MODE	DEFINER	CHARACTER_SET_CLIENT	COLLATION_CONNECTION	DATABASE_COLLATION

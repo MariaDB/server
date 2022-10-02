@@ -304,5 +304,27 @@ INSERT INTO t2 VALUES (10),(20),(30),(40);
 DROP TABLE t2;
 DROP TABLE t1;
 #
+# MDEV-28533 CONNECT engine does not quote columns involved in WHERE clause
+#
+CREATE TABLE t1 (id int, `spaced col` varchar(10),`nospace` varchar(10));
+insert into t1 values (1,1,'x1'),(2,'C-003','x2');
+SELECT * from t1;
+id	spaced col	nospace
+1	1	x1
+2	C-003	x2
+CREATE TABLE t2 (id int, `spaced col` varchar(10), `nospace` varchar(10)) ENGINE=CONNECT TABLE_TYPE=MYSQL DBNAME='test' TABNAME='t1' OPTION_LIST='host=localhost,user=root,port=PORT';
+SELECT * from t2;
+id	spaced col	nospace
+1	1	x1
+2	C-003	x2
+SELECT `id` FROM t2 WHERE t2.`nospace` = 'x1';
+id
+1
+SELECT `id` FROM t2 WHERE t2.`spaced col` = 'C-003';
+id
+2
+DROP TABLE t1;
+DROP TABLE t2;
+#
 # End of 10.3 tests
 #
