@@ -6344,6 +6344,24 @@ Item_equal *Item_field::find_item_equal(COND_EQUAL *cond_equal)
 }
 
 
+/*
+  Check if field is is equal to current field or any of the fields in
+  item_equal
+*/
+
+bool Item_field::contains(Field *field_arg)
+{
+  if (field == field_arg)
+    return 1;
+  /*
+    Check if there is a multiple equality that allows to infer that field
+    (see also: compute_part_of_sort_key_for_equals)
+  */
+  if (item_equal && item_equal->contains(field_arg))
+    return 1;
+  return 0;
+}
+
 /**
   Set a pointer to the multiple equality the field reference belongs to
   (if any).
