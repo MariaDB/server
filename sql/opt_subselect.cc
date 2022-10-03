@@ -3640,12 +3640,12 @@ bool Duplicate_weedout_picker::check_qep(JOIN *join,
 
       if (p->table->emb_sj_nest)
       {
-        sj_inner_fanout= COST_MULT(sj_inner_fanout, p->records_read);
+        sj_inner_fanout= COST_MULT(sj_inner_fanout, p->records_out);
         dups_removed_fanout |= p->table->table->map;
       }
       else
       {
-        sj_outer_fanout= COST_MULT(sj_outer_fanout, p->records_read);
+        sj_outer_fanout= COST_MULT(sj_outer_fanout, p->records_out);
         temptable_rec_size += p->table->table->file->ref_length;
       }
     }
@@ -3664,10 +3664,9 @@ bool Duplicate_weedout_picker::check_qep(JOIN *join,
                                                  sj_outer_fanout,
                                                  temptable_rec_size,
                                                  0, 0);
-    double prefix_record_count= join->positions[first_tab].prefix_record_count;
     double write_cost= (one_cost.create +
-                        prefix_record_count * sj_outer_fanout * one_cost.write);
-    double full_lookup_cost= (prefix_record_count * sj_outer_fanout *
+                        first_weedout_table_rec_count * sj_outer_fanout * one_cost.write);
+    double full_lookup_cost= (first_weedout_table_rec_count* sj_outer_fanout *
                               sj_inner_fanout * one_cost.lookup);
     *read_time= dups_cost + write_cost + full_lookup_cost;
     
@@ -3679,7 +3678,7 @@ bool Duplicate_weedout_picker::check_qep(JOIN *join,
       Json_writer_object trace(join->thd);
       trace.
         add("strategy", "DuplicateWeedout").
-        add("prefix_row_count", prefix_record_count).
+        add("prefix_row_count", first_weedout_table_rec_count).
         add("tmp_table_rows", sj_outer_fanout).
         add("sj_inner_fanout", sj_inner_fanout).
         add("rows", *record_count).
