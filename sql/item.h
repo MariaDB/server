@@ -3780,6 +3780,7 @@ public:
   Item_equal *get_item_equal() override { return item_equal; }
   void set_item_equal(Item_equal *item_eq) override { item_equal= item_eq; }
   Item_equal *find_item_equal(COND_EQUAL *cond_equal) override;
+  bool contains(Field *field);
   Item* propagate_equal_fields(THD *, const Context &, COND_EQUAL *) override;
   Item *replace_equal_field(THD *thd, uchar *arg) override;
   uint32 max_display_length() const override
