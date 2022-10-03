@@ -18847,6 +18847,14 @@ void optimize_wo_join_buffering(JOIN *join, uint first_tab, uint last_tab,
   join->cur_sj_inner_tables= save_cur_sj_inner_tables;
 
   *reopt_cost= cost;
+  if (rec_count < *outer_rec_count)
+  {
+    /*
+      The tables inside the subquery produce smaller fanout than outer tables.
+      This can happen in edge cases.
+    */
+    *outer_rec_count= rec_count;
+  }
 }
 
 
