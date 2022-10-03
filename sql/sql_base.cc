@@ -7569,10 +7569,12 @@ int setup_wild(THD *thd, TABLE_LIST *tables, List<Item> &fields,
   Item *item;
   List_iterator<Item> it(fields);
   Query_arena *arena, backup;
+  uint *with_wild= returning_field ? &(thd->lex->returning()->with_wild) :
+                                     &(select_lex->with_wild);
   DBUG_ENTER("setup_wild");
 
-  if (!select_lex->with_wild)
-    DBUG_RETURN(0);
+  if (!(*with_wild))
+     DBUG_RETURN(0);
 
   /*
     Don't use arena if we are not in prepared statements or stored procedures
@@ -7581,7 +7583,7 @@ int setup_wild(THD *thd, TABLE_LIST *tables, List<Item> &fields,
   arena= thd->activate_stmt_arena_if_needed(&backup);
 
   thd->lex->current_select->cur_pos_in_select_list= 0;
-  while (select_lex->with_wild && (item= it++))
+  while (*with_wild && (item= it++))
   {
     if (item->type() == Item::FIELD_ITEM &&
         ((Item_field*) item)->field_name.str == star_clex_str.str &&
@@ -7619,12 +7621,12 @@ int setup_wild(THD *thd, TABLE_LIST *tables, List<Item> &fields,
 	*/
 	sum_func_list->elements+= fields.elements - elem;
       }
-      select_lex->with_wild--;
+      (*with_wild)--;
     }
     else
       thd->lex->current_select->cur_pos_in_select_list++;
   }
-  DBUG_ASSERT(!select_lex->with_wild);
+  DBUG_ASSERT(!(*with_wild));
   thd->lex->current_select->cur_pos_in_select_list= UNDEF_POS;
   if (arena)
     thd->restore_active_arena(arena, &backup);

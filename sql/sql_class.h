@@ -7333,7 +7333,12 @@ public:
 
 inline bool add_item_to_list(THD *thd, Item *item)
 {
-  bool res= thd->lex->current_select->add_item_to_list(thd, item);
+  bool res;
+  LEX *lex= thd->lex;
+  if (lex->current_select->parsing_place == IN_RETURNING)
+    res= lex->returning()->add_item_to_list(thd, item);
+  else
+    res= lex->current_select->add_item_to_list(thd, item);
   return res;
 }
 
