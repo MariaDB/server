@@ -24261,6 +24261,7 @@ static int test_if_order_by_key(JOIN *join,
   uint key_parts;
   bool have_pk_suffix= false;
   uint pk= table->s->primary_key;
+  ORDER::enum_order keypart_order;
   DBUG_ENTER("test_if_order_by_key");
  
   if ((table->file->ha_table_flags() & HA_PRIMARY_KEY_IN_READ_INDEX) && 
@@ -24273,16 +24274,23 @@ static int test_if_order_by_key(JOIN *join,
   for (; order ; order=order->next, const_key_parts>>=1)
   {
     Item_field *item_field= ((Item_field*) (*order->item)->real_item());
-    Field *field= item_field->field;
     int flag;
 
     /*
       Skip key parts that are constants in the WHERE clause.
       These are already skipped in the ORDER BY by const_expression_in_where()
+      for top level queries.
     */
     for (; const_key_parts & 1 ; const_key_parts>>= 1)
-      key_part++; 
-    
+    {
+      if (item_field->contains(key_part->field))
+      {
+        /* Subquery with ORDER BY, continue with next field */
+        goto next_order_field;
+      }
+      key_part++;
+    }
+
     /*
       This check was in this function historically (although I think it's
       better to check it outside of this function):
@@ -24307,36 +24315,27 @@ static int test_if_order_by_key(JOIN *join,
       goto ok;
     }
 
-    if (key_part == key_part_end)
+    if (key_part == key_part_end ||
+        !key_part->field->part_of_sortkey.is_set(idx))
     {
       /*
-        There are some items left in ORDER BY that we don't
+        There are some items left in ORDER BY that we don't have in the key
       */
       DBUG_RETURN(0);
     }
 
-    if (key_part->field != field)
-    {
-      /*
-        Check if there is a multiple equality that allows to infer that field
-        and key_part->field are equal 
-        (see also: compute_part_of_sort_key_for_equals)
-      */
-      if (item_field->item_equal && 
-          item_field->item_equal->contains(key_part->field))
-        field= key_part->field;
-    }
-    if (key_part->field != field || !field->part_of_sortkey.is_set(idx))
+    if (!item_field->contains(key_part->field))
       DBUG_RETURN(0);
 
-    const ORDER::enum_order keypart_order= 
-      (key_part->key_part_flag & HA_REVERSE_SORT) ? 
-      ORDER::ORDER_DESC : ORDER::ORDER_ASC;
+    keypart_order= ((key_part->key_part_flag & HA_REVERSE_SORT) ?
+                    ORDER::ORDER_DESC : ORDER::ORDER_ASC);
     /* set flag to 1 if we can use read-next on key, else to -1 */
     flag= (order->direction == keypart_order) ? 1 : -1;
     if (reverse && flag != reverse)
       DBUG_RETURN(0);
     reverse=flag;				// Remember if reverse
+
+next_order_field:
     if (key_part < key_part_end)
       key_part++;
   }
