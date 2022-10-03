@@ -337,7 +337,9 @@ drop table t1,t2;
 #
 # End of 10.10 tests
 #
-create table t1 (c1 integer, c2 integer, c3 integer) engine=InnoDB;
+set @save_default_engine= @@default_storage_engine;
+set default_storage_engine=InnoDB;
+create table t1 (c1 integer, c2 integer, c3 integer);
 insert into t1(c1,c2,c3) values (1,1,1);
 insert into t1(c1,c2,c3) values (1,2,2);
 insert into t1(c1,c2,c3) values (1,3,3);
@@ -351,13 +353,19 @@ Test without any index
 #
 # Delete with value from subquery on the same table, no search clause. ALL access
 #
-start transaction;
+explain delete from t1
+where c1=(select a.c3
+from t1 a
+where a.c3 = t1.c3);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	8	Using where
+2	DEPENDENT SUBQUERY	a	ALL	NULL	NULL	NULL	NULL	8	Using where
 delete from t1
 where c1=(select a.c3
 from t1 a
 where a.c3 = t1.c3);
 affected rows: 1
-select * from t1;
+select * from t1 order by c3;
 c1	c2	c3
 1	2	2
 1	3	3
@@ -366,18 +374,27 @@ c1	c2	c3
 2	3	6
 2	4	7
 2	5	8
-rollback;
+insert into t1(c1,c2,c3) values (1,1,1);
 #
 # Delete with search clause on the same table
 #
-start transaction;
-delete from t1
+explain delete from t1
 where c1 <2
 and exists (select 'X'
                  from t1 a
 where a.c1 = t1.c2);
-affected rows: 2
-select * from t1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	8	Using where
+2	DEPENDENT SUBQUERY	a	ALL	NULL	NULL	NULL	NULL	8	Using where
+analyze delete from t1
+where c1 <2
+and exists (select 'X'
+                 from t1 a
+where a.c1 = t1.c2);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	8	8.00	100.00	25.00	Using where
+2	DEPENDENT SUBQUERY	a	ALL	NULL	NULL	NULL	NULL	8	4.00	100.00	16.67	Using where
+select * from t1 order by c3;
 c1	c2	c3
 1	3	3
 2	1	4
@@ -385,44 +402,58 @@ c1	c2	c3
 2	3	6
 2	4	7
 2	5	8
-rollback;
+insert into t1(c1,c2,c3) values (1,1,1);
+insert into t1(c1,c2,c3) values (1,2,2);
 #
 # Delete via RANGE or INDEX access if an index or a primary key exists
 #
-start transaction;
+explain delete from t1 where exists (select 'X' from t1 a where a.c2 = t1.c2) and c2 >= 3;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	8	Using where
+2	DEPENDENT SUBQUERY	a	ALL	NULL	NULL	NULL	NULL	8	Using where
 delete from t1 where exists (select 'X' from t1 a where a.c2 = t1.c2) and c2 >= 3;
 affected rows: 4
-select * from t1;
+select * from t1 order by c3;
 c1	c2	c3
 1	1	1
 1	2	2
 2	1	4
 2	2	5
-rollback;
+insert into t1(c1,c2,c3) values (1,3,3);
+insert into t1(c1,c2,c3) values (2,3,6);
+insert into t1(c1,c2,c3) values (2,4,7);
+insert into t1(c1,c2,c3) values (2,5,8);
 #
-# Delete with order by (need fix MDEV-29428)
+# Delete with order by
 #
-start transaction;
-delete from t1 where exists (select 'X' from t1 a where a.c2 = t1.c2) and c2 >= 3 order by c2;
-affected rows: 4
-select * from t1;
+explain delete from t1 where exists (select 'X' from t1 a where a.c2 = t1.c2) and c2 >= 3 order by c2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	8	Using where
+2	DEPENDENT SUBQUERY	a	ALL	NULL	NULL	NULL	NULL	8	Using where
+analyze delete from t1 where exists (select 'X' from t1 a where a.c2 = t1.c2) and c2 >= 3 order by c2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	8	8.00	100.00	50.00	Using where
+2	DEPENDENT SUBQUERY	a	ALL	NULL	NULL	NULL	NULL	8	3.88	100.00	25.81	Using where
+select * from t1 order by c3;
 c1	c2	c3
 1	1	1
 1	2	2
 2	1	4
 2	2	5
-rollback;
+insert into t1(c1,c2,c3) values (1,3,3);
+insert into t1(c1,c2,c3) values (2,3,6);
+insert into t1(c1,c2,c3) values (2,4,7);
+insert into t1(c1,c2,c3) values (2,5,8);
 #
 # Delete using the index or primary key (c3)
 #
-start transaction;
 explain delete from t1 where c3 in (select distinct a.c1 from t1 a where t1.c2=a.c2);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	8	
 1	PRIMARY	a	ALL	NULL	NULL	NULL	NULL	8	Using where; FirstMatch(t1)
 delete from t1 where c3 in (select distinct a.c1 from t1 a where t1.c2=a.c2);
 affected rows: 2
-select * from t1;
+select * from t1 order by c3;
 c1	c2	c3
 1	3	3
 2	1	4
@@ -430,18 +461,28 @@ c1	c2	c3
 2	3	6
 2	4	7
 2	5	8
-rollback;
+insert into t1(c1,c2,c3) values (1,1,1);
+insert into t1(c1,c2,c3) values (1,2,2);
 #
 # Delete with a limit - can be delete
 #
-start transaction;
-delete from t1 
+explain delete from t1 
 where c1 in (select a.c2
 from t1 a
-where a.c3 = t1.c3)
+where a.c2 = t1.c3)
 limit 1;
-affected rows: 1
-select * from t1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	8	Using where
+1	PRIMARY	a	ALL	NULL	NULL	NULL	NULL	8	Using where; FirstMatch(t1)
+analyze delete from t1 
+where c1 in (select a.c2
+from t1 a
+where a.c2 = t1.c3)
+limit 1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	8	7.00	100.00	14.29	Using where
+1	PRIMARY	a	ALL	NULL	NULL	NULL	NULL	8	1.00	100.00	100.00	Using where; FirstMatch(t1)
+select * from t1 order by c3;
 c1	c2	c3
 1	2	2
 1	3	3
@@ -450,11 +491,10 @@ c1	c2	c3
 2	3	6
 2	4	7
 2	5	8
-rollback;
+insert into t1(c1,c2,c3) values (1,1,1);
 #
 # Delete with a limit and an order by
 #
-start transaction;
 select * from t1 
 where c1 in (select a.c2
 from t1 a
@@ -463,13 +503,21 @@ order by c3 desc;
 c1	c2	c3
 2	2	5
 1	1	1
+explain delete from t1 
+where c1 in (select a.c2
+from t1 a
+where a.c3 = t1.c3)
+order by c3 desc limit 1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	8	Using where; Using filesort
+2	DEPENDENT SUBQUERY	a	ALL	NULL	NULL	NULL	NULL	8	Using where
 delete from t1 
 where c1 in (select a.c2
 from t1 a
 where a.c3 = t1.c3)
 order by c3 desc limit 1;
 affected rows: 1
-select * from t1;
+select * from t1 order by c3;
 c1	c2	c3
 1	1	1
 1	2	2
@@ -478,17 +526,25 @@ c1	c2	c3
 2	3	6
 2	4	7
 2	5	8
-rollback;
+insert into t1(c1,c2,c3) values (2,2,5);
 #
 Delete using a view in subquery
 #
-start transaction;
-delete from t1 
+explain delete from t1 
 where t1.c2 in ( select max(a.c2)
 from v1 a
 where a.c1 = t1.c1) ;
-affected rows: 2
-select * from t1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	8	Using where
+2	DEPENDENT SUBQUERY	t1	ALL	NULL	NULL	NULL	NULL	8	Using where
+analyze delete from t1 
+where t1.c2 in ( select max(a.c2)
+from v1 a
+where a.c1 = t1.c1) ;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	8	8.00	100.00	25.00	Using where
+2	DEPENDENT SUBQUERY	t1	ALL	NULL	NULL	NULL	NULL	8	8.00	100.00	12.50	Using where
+select * from t1 order by c3;
 c1	c2	c3
 1	1	1
 1	3	3
@@ -496,18 +552,26 @@ c1	c2	c3
 2	3	6
 2	4	7
 2	5	8
-rollback;
+insert into t1(c1,c2,c3) values (1,2,2);
+insert into t1(c1,c2,c3) values (2,2,5);
 #
 # Delete throw a view
 #
-start transaction;
+explain delete from v1
+where v1.c1 in (select max(a.c1)
+from t1 a
+where a.c2 = v1.c2) 
+and c3 > 3;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	8	Using where
+2	DEPENDENT SUBQUERY	a	ALL	NULL	NULL	NULL	NULL	8	Using where
 delete from v1
 where v1.c1 in (select max(a.c1)
 from t1 a
 where a.c2 = v1.c2) 
 and c3 > 3;
 affected rows: 1
-select * from t1;
+select * from t1 order by c3;
 c1	c2	c3
 1	1	1
 1	2	2
@@ -516,12 +580,11 @@ c1	c2	c3
 2	3	6
 2	4	7
 2	5	8
-rollback;
+insert into t1(c1,c2,c3) values (2,2,5);
 #
 # Delete through  a view and using the view in subquery
 #
-start transaction;
-delete from v1 
+explain delete from v1 
 where v1.c2 in (select max(a.c2)
 from t1 a
 where a.c3 = v1.c3) 
@@ -529,8 +592,23 @@ and c1 < 10
 and exists (select 'X'
                  from v1 a
 where a.c1 = v1.c1);
-affected rows: 2
-select * from t1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	8	Using where
+3	DEPENDENT SUBQUERY	t1	ALL	NULL	NULL	NULL	NULL	8	Using where
+2	DEPENDENT SUBQUERY	a	ALL	NULL	NULL	NULL	NULL	8	Using where
+analyze delete from v1 
+where v1.c2 in (select max(a.c2)
+from t1 a
+where a.c3 = v1.c3) 
+and c1 < 10 
+and exists (select 'X'
+                 from v1 a
+where a.c1 = v1.c1);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	8	8.00	100.00	25.00	Using where
+3	DEPENDENT SUBQUERY	t1	ALL	NULL	NULL	NULL	NULL	8	7.50	100.00	13.33	Using where
+2	DEPENDENT SUBQUERY	a	ALL	NULL	NULL	NULL	NULL	8	8.00	100.00	12.50	Using where
+select * from t1 order by c3;
 c1	c2	c3
 1	1	1
 1	3	3
@@ -538,19 +616,26 @@ c1	c2	c3
 2	3	6
 2	4	7
 2	5	8
-rollback;
+insert into t1(c1,c2,c3) values (1,2,2);
+insert into t1(c1,c2,c3) values (2,2,5);
 Test with an index
 create index t1_c2 on t1 (c2,c1);
 #
 # Delete with value from subquery on the same table, no search clause. ALL access
 #
-start transaction;
+explain delete from t1
+where c1=(select a.c3
+from t1 a
+where a.c3 = t1.c3);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	8	Using where
+2	DEPENDENT SUBQUERY	a	ALL	NULL	NULL	NULL	NULL	8	Using where
 delete from t1
 where c1=(select a.c3
 from t1 a
 where a.c3 = t1.c3);
 affected rows: 1
-select * from t1;
+select * from t1 order by c3;
 c1	c2	c3
 1	2	2
 1	3	3
@@ -559,18 +644,27 @@ c1	c2	c3
 2	3	6
 2	4	7
 2	5	8
-rollback;
+insert into t1(c1,c2,c3) values (1,1,1);
 #
 # Delete with search clause on the same table
 #
-start transaction;
-delete from t1
+explain delete from t1
 where c1 <2
 and exists (select 'X'
                  from t1 a
 where a.c1 = t1.c2);
-affected rows: 2
-select * from t1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	8	Using where
+2	DEPENDENT SUBQUERY	a	index	NULL	t1_c2	10	NULL	8	Using where; Using index
+analyze delete from t1
+where c1 <2
+and exists (select 'X'
+                 from t1 a
+where a.c1 = t1.c2);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	8	8.00	100.00	25.00	Using where
+2	DEPENDENT SUBQUERY	a	index	NULL	t1_c2	10	NULL	8	3.67	100.00	18.18	Using where; Using index
+select * from t1 order by c3;
 c1	c2	c3
 1	3	3
 2	1	4
@@ -578,44 +672,58 @@ c1	c2	c3
 2	3	6
 2	4	7
 2	5	8
-rollback;
+insert into t1(c1,c2,c3) values (1,1,1);
+insert into t1(c1,c2,c3) values (1,2,2);
 #
 # Delete via RANGE or INDEX access if an index or a primary key exists
 #
-start transaction;
+explain delete from t1 where exists (select 'X' from t1 a where a.c2 = t1.c2) and c2 >= 3;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	range	t1_c2	t1_c2	5	NULL	4	Using index condition; Using where
+2	DEPENDENT SUBQUERY	a	ref	t1_c2	t1_c2	5	test.t1.c2	1	Using index
 delete from t1 where exists (select 'X' from t1 a where a.c2 = t1.c2) and c2 >= 3;
 affected rows: 4
-select * from t1;
+select * from t1 order by c3;
 c1	c2	c3
 1	1	1
 1	2	2
 2	1	4
 2	2	5
-rollback;
+insert into t1(c1,c2,c3) values (1,3,3);
+insert into t1(c1,c2,c3) values (2,3,6);
+insert into t1(c1,c2,c3) values (2,4,7);
+insert into t1(c1,c2,c3) values (2,5,8);
 #
-# Delete with order by (need fix MDEV-29428)
+# Delete with order by
 #
-start transaction;
-delete from t1 where exists (select 'X' from t1 a where a.c2 = t1.c2) and c2 >= 3 order by c2;
-affected rows: 4
-select * from t1;
+explain delete from t1 where exists (select 'X' from t1 a where a.c2 = t1.c2) and c2 >= 3 order by c2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	range	t1_c2	t1_c2	5	NULL	8	Using index condition; Using where
+2	DEPENDENT SUBQUERY	a	ref	t1_c2	t1_c2	5	test.t1.c2	1	Using index
+analyze delete from t1 where exists (select 'X' from t1 a where a.c2 = t1.c2) and c2 >= 3 order by c2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	PRIMARY	t1	range	t1_c2	t1_c2	5	NULL	8	4.00	100.00	100.00	Using index condition; Using where
+2	DEPENDENT SUBQUERY	a	ref	t1_c2	t1_c2	5	test.t1.c2	1	1.00	100.00	100.00	Using index
+select * from t1 order by c3;
 c1	c2	c3
 1	1	1
 1	2	2
 2	1	4
 2	2	5
-rollback;
+insert into t1(c1,c2,c3) values (1,3,3);
+insert into t1(c1,c2,c3) values (2,3,6);
+insert into t1(c1,c2,c3) values (2,4,7);
+insert into t1(c1,c2,c3) values (2,5,8);
 #
 # Delete using the index or primary key (c3)
 #
-start transaction;
 explain delete from t1 where c3 in (select distinct a.c1 from t1 a where t1.c2=a.c2);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t1	ALL	t1_c2	NULL	NULL	NULL	8	Using where
 1	PRIMARY	a	ref	t1_c2	t1_c2	10	test.t1.c2,test.t1.c3	1	Using index; FirstMatch(t1)
 delete from t1 where c3 in (select distinct a.c1 from t1 a where t1.c2=a.c2);
 affected rows: 2
-select * from t1;
+select * from t1 order by c3;
 c1	c2	c3
 1	3	3
 2	1	4
@@ -623,18 +731,28 @@ c1	c2	c3
 2	3	6
 2	4	7
 2	5	8
-rollback;
+insert into t1(c1,c2,c3) values (1,1,1);
+insert into t1(c1,c2,c3) values (1,2,2);
 #
 # Delete with a limit - can be delete
 #
-start transaction;
-delete from t1 
+explain delete from t1 
 where c1 in (select a.c2
 from t1 a
-where a.c3 = t1.c3)
+where a.c2 = t1.c3)
 limit 1;
-affected rows: 1
-select * from t1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	8	Using where
+1	PRIMARY	a	ref	t1_c2	t1_c2	5	test.t1.c1	1	Using index; FirstMatch(t1)
+analyze delete from t1 
+where c1 in (select a.c2
+from t1 a
+where a.c2 = t1.c3)
+limit 1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	8	7.00	100.00	14.29	Using where
+1	PRIMARY	a	ref	t1_c2	t1_c2	5	test.t1.c1	1	1.00	100.00	100.00	Using index; FirstMatch(t1)
+select * from t1 order by c3;
 c1	c2	c3
 1	2	2
 1	3	3
@@ -643,11 +761,10 @@ c1	c2	c3
 2	3	6
 2	4	7
 2	5	8
-rollback;
+insert into t1(c1,c2,c3) values (1,1,1);
 #
 # Delete with a limit and an order by
 #
-start transaction;
 select * from t1 
 where c1 in (select a.c2
 from t1 a
@@ -656,13 +773,21 @@ order by c3 desc;
 c1	c2	c3
 2	2	5
 1	1	1
+explain delete from t1 
+where c1 in (select a.c2
+from t1 a
+where a.c3 = t1.c3)
+order by c3 desc limit 1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	8	Using where; Using filesort
+2	DEPENDENT SUBQUERY	a	index_subquery	t1_c2	t1_c2	5	func	1	Using where
 delete from t1 
 where c1 in (select a.c2
 from t1 a
 where a.c3 = t1.c3)
 order by c3 desc limit 1;
 affected rows: 1
-select * from t1;
+select * from t1 order by c3;
 c1	c2	c3
 1	1	1
 1	2	2
@@ -671,17 +796,25 @@ c1	c2	c3
 2	3	6
 2	4	7
 2	5	8
-rollback;
+insert into t1(c1,c2,c3) values (2,2,5);
 #
 Delete using a view in subquery
 #
-start transaction;
-delete from t1 
+explain delete from t1 
 where t1.c2 in ( select max(a.c2)
 from v1 a
 where a.c1 = t1.c1) ;
-affected rows: 2
-select * from t1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	8	Using where
+2	DEPENDENT SUBQUERY	t1	ref	t1_c2	t1_c2	10	const,test.t1.c1	1	Using index
+analyze delete from t1 
+where t1.c2 in ( select max(a.c2)
+from v1 a
+where a.c1 = t1.c1) ;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	8	8.00	100.00	25.00	Using where
+2	DEPENDENT SUBQUERY	t1	ref	t1_c2	t1_c2	10	const,test.t1.c1	1	1.00	100.00	100.00	Using index
+select * from t1 order by c3;
 c1	c2	c3
 1	1	1
 1	3	3
@@ -689,18 +822,26 @@ c1	c2	c3
 2	3	6
 2	4	7
 2	5	8
-rollback;
+insert into t1(c1,c2,c3) values (1,2,2);
+insert into t1(c1,c2,c3) values (2,2,5);
 #
 # Delete throw a view
 #
-start transaction;
+explain delete from v1
+where v1.c1 in (select max(a.c1)
+from t1 a
+where a.c2 = v1.c2) 
+and c3 > 3;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	t1_c2	NULL	NULL	NULL	8	Using where
+2	DEPENDENT SUBQUERY	a	ref	t1_c2	t1_c2	5	test.t1.c2	1	Using index
 delete from v1
 where v1.c1 in (select max(a.c1)
 from t1 a
 where a.c2 = v1.c2) 
 and c3 > 3;
 affected rows: 1
-select * from t1;
+select * from t1 order by c3;
 c1	c2	c3
 1	1	1
 1	2	2
@@ -709,12 +850,11 @@ c1	c2	c3
 2	3	6
 2	4	7
 2	5	8
-rollback;
+insert into t1(c1,c2,c3) values (2,2,5);
 #
 # Delete through  a view and using the view in subquery
 #
-start transaction;
-delete from v1 
+explain delete from v1 
 where v1.c2 in (select max(a.c2)
 from t1 a
 where a.c3 = v1.c3) 
@@ -722,8 +862,23 @@ and c1 < 10
 and exists (select 'X'
                  from v1 a
 where a.c1 = v1.c1);
-affected rows: 2
-select * from t1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	t1_c2	NULL	NULL	NULL	8	Using where
+3	DEPENDENT SUBQUERY	t1	ref	t1_c2	t1_c2	10	const,test.t1.c1	1	Using index
+2	DEPENDENT SUBQUERY	a	ALL	NULL	NULL	NULL	NULL	8	Using where
+analyze delete from v1 
+where v1.c2 in (select max(a.c2)
+from t1 a
+where a.c3 = v1.c3) 
+and c1 < 10 
+and exists (select 'X'
+                 from v1 a
+where a.c1 = v1.c1);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	PRIMARY	t1	ALL	t1_c2	NULL	NULL	NULL	8	8.00	100.00	25.00	Using where
+3	DEPENDENT SUBQUERY	t1	ref	t1_c2	t1_c2	10	const,test.t1.c1	1	1.00	100.00	100.00	Using index
+2	DEPENDENT SUBQUERY	a	ALL	NULL	NULL	NULL	NULL	8	8.00	100.00	12.50	Using where
+select * from t1 order by c3;
 c1	c2	c3
 1	1	1
 1	3	3
@@ -731,20 +886,27 @@ c1	c2	c3
 2	3	6
 2	4	7
 2	5	8
-rollback;
+insert into t1(c1,c2,c3) values (1,2,2);
+insert into t1(c1,c2,c3) values (2,2,5);
 Test with a primary key
 drop index t1_c2 on t1;
 alter table t1 add primary key (c3);
 #
 # Delete with value from subquery on the same table, no search clause. ALL access
 #
-start transaction;
+explain delete from t1
+where c1=(select a.c3
+from t1 a
+where a.c3 = t1.c3);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	8	Using where
+2	DEPENDENT SUBQUERY	a	eq_ref	PRIMARY	PRIMARY	4	test.t1.c3	1	Using index
 delete from t1
 where c1=(select a.c3
 from t1 a
 where a.c3 = t1.c3);
 affected rows: 1
-select * from t1;
+select * from t1 order by c3;
 c1	c2	c3
 1	2	2
 1	3	3
@@ -753,18 +915,27 @@ c1	c2	c3
 2	3	6
 2	4	7
 2	5	8
-rollback;
+insert into t1(c1,c2,c3) values (1,1,1);
 #
 # Delete with search clause on the same table
 #
-start transaction;
-delete from t1
+explain delete from t1
 where c1 <2
 and exists (select 'X'
                  from t1 a
 where a.c1 = t1.c2);
-affected rows: 2
-select * from t1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	8	Using where
+2	DEPENDENT SUBQUERY	a	ALL	NULL	NULL	NULL	NULL	8	Using where
+analyze delete from t1
+where c1 <2
+and exists (select 'X'
+                 from t1 a
+where a.c1 = t1.c2);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	8	8.00	100.00	25.00	Using where
+2	DEPENDENT SUBQUERY	a	ALL	NULL	NULL	NULL	NULL	8	4.33	100.00	15.38	Using where
+select * from t1 order by c3;
 c1	c2	c3
 1	3	3
 2	1	4
@@ -772,44 +943,58 @@ c1	c2	c3
 2	3	6
 2	4	7
 2	5	8
-rollback;
+insert into t1(c1,c2,c3) values (1,1,1);
+insert into t1(c1,c2,c3) values (1,2,2);
 #
 # Delete via RANGE or INDEX access if an index or a primary key exists
 #
-start transaction;
+explain delete from t1 where exists (select 'X' from t1 a where a.c2 = t1.c2) and c2 >= 3;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	8	Using where
+2	DEPENDENT SUBQUERY	a	ALL	NULL	NULL	NULL	NULL	8	Using where
 delete from t1 where exists (select 'X' from t1 a where a.c2 = t1.c2) and c2 >= 3;
 affected rows: 4
-select * from t1;
+select * from t1 order by c3;
 c1	c2	c3
 1	1	1
 1	2	2
 2	1	4
 2	2	5
-rollback;
+insert into t1(c1,c2,c3) values (1,3,3);
+insert into t1(c1,c2,c3) values (2,3,6);
+insert into t1(c1,c2,c3) values (2,4,7);
+insert into t1(c1,c2,c3) values (2,5,8);
 #
-# Delete with order by (need fix MDEV-29428)
+# Delete with order by
 #
-start transaction;
-delete from t1 where exists (select 'X' from t1 a where a.c2 = t1.c2) and c2 >= 3 order by c2;
-affected rows: 4
-select * from t1;
+explain delete from t1 where exists (select 'X' from t1 a where a.c2 = t1.c2) and c2 >= 3 order by c2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	8	Using where
+2	DEPENDENT SUBQUERY	a	ALL	NULL	NULL	NULL	NULL	8	Using where
+analyze delete from t1 where exists (select 'X' from t1 a where a.c2 = t1.c2) and c2 >= 3 order by c2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	8	8.00	100.00	50.00	Using where
+2	DEPENDENT SUBQUERY	a	ALL	NULL	NULL	NULL	NULL	8	3.38	100.00	29.63	Using where
+select * from t1 order by c3;
 c1	c2	c3
 1	1	1
 1	2	2
 2	1	4
 2	2	5
-rollback;
+insert into t1(c1,c2,c3) values (1,3,3);
+insert into t1(c1,c2,c3) values (2,3,6);
+insert into t1(c1,c2,c3) values (2,4,7);
+insert into t1(c1,c2,c3) values (2,5,8);
 #
 # Delete using the index or primary key (c3)
 #
-start transaction;
 explain delete from t1 where c3 in (select distinct a.c1 from t1 a where t1.c2=a.c2);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	a	ALL	NULL	NULL	NULL	NULL	8	Using where; Start temporary
 1	PRIMARY	t1	eq_ref	PRIMARY	PRIMARY	4	test.a.c1	1	Using where; End temporary
 delete from t1 where c3 in (select distinct a.c1 from t1 a where t1.c2=a.c2);
 affected rows: 2
-select * from t1;
+select * from t1 order by c3;
 c1	c2	c3
 1	3	3
 2	1	4
@@ -817,18 +1002,28 @@ c1	c2	c3
 2	3	6
 2	4	7
 2	5	8
-rollback;
+insert into t1(c1,c2,c3) values (1,1,1);
+insert into t1(c1,c2,c3) values (1,2,2);
 #
 # Delete with a limit - can be delete
 #
-start transaction;
-delete from t1 
+explain delete from t1 
 where c1 in (select a.c2
 from t1 a
-where a.c3 = t1.c3)
+where a.c2 = t1.c3)
 limit 1;
-affected rows: 1
-select * from t1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	a	ALL	NULL	NULL	NULL	NULL	8	Using where; Start temporary
+1	PRIMARY	t1	eq_ref	PRIMARY	PRIMARY	4	test.a.c2	1	Using where; End temporary
+analyze delete from t1 
+where c1 in (select a.c2
+from t1 a
+where a.c2 = t1.c3)
+limit 1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	PRIMARY	a	ALL	NULL	NULL	NULL	NULL	8	1.00	100.00	100.00	Using where; Start temporary
+1	PRIMARY	t1	eq_ref	PRIMARY	PRIMARY	4	test.a.c2	1	1.00	100.00	100.00	Using where; End temporary
+select * from t1 order by c3;
 c1	c2	c3
 1	2	2
 1	3	3
@@ -837,11 +1032,10 @@ c1	c2	c3
 2	3	6
 2	4	7
 2	5	8
-rollback;
+insert into t1(c1,c2,c3) values (1,1,1);
 #
 # Delete with a limit and an order by
 #
-start transaction;
 select * from t1 
 where c1 in (select a.c2
 from t1 a
@@ -850,13 +1044,21 @@ order by c3 desc;
 c1	c2	c3
 2	2	5
 1	1	1
+explain delete from t1 
+where c1 in (select a.c2
+from t1 a
+where a.c3 = t1.c3)
+order by c3 desc limit 1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	index	NULL	PRIMARY	4	NULL	1	Using where
+2	DEPENDENT SUBQUERY	a	eq_ref	PRIMARY	PRIMARY	4	test.t1.c3	1	Using where
 delete from t1 
 where c1 in (select a.c2
 from t1 a
 where a.c3 = t1.c3)
 order by c3 desc limit 1;
 affected rows: 1
-select * from t1;
+select * from t1 order by c3;
 c1	c2	c3
 1	1	1
 1	2	2
@@ -865,17 +1067,25 @@ c1	c2	c3
 2	3	6
 2	4	7
 2	5	8
-rollback;
+insert into t1(c1,c2,c3) values (2,2,5);
 #
 Delete using a view in subquery
 #
-start transaction;
-delete from t1 
+explain delete from t1 
 where t1.c2 in ( select max(a.c2)
 from v1 a
 where a.c1 = t1.c1) ;
-affected rows: 2
-select * from t1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	8	Using where
+2	DEPENDENT SUBQUERY	t1	ALL	NULL	NULL	NULL	NULL	8	Using where
+analyze delete from t1 
+where t1.c2 in ( select max(a.c2)
+from v1 a
+where a.c1 = t1.c1) ;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	8	8.00	100.00	25.00	Using where
+2	DEPENDENT SUBQUERY	t1	ALL	NULL	NULL	NULL	NULL	8	8.00	100.00	12.50	Using where
+select * from t1 order by c3;
 c1	c2	c3
 1	1	1
 1	3	3
@@ -883,18 +1093,26 @@ c1	c2	c3
 2	3	6
 2	4	7
 2	5	8
-rollback;
+insert into t1(c1,c2,c3) values (1,2,2);
+insert into t1(c1,c2,c3) values (2,2,5);
 #
 # Delete throw a view
 #
-start transaction;
+explain delete from v1
+where v1.c1 in (select max(a.c1)
+from t1 a
+where a.c2 = v1.c2) 
+and c3 > 3;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	range	PRIMARY	PRIMARY	4	NULL	5	Using where
+2	DEPENDENT SUBQUERY	a	ALL	NULL	NULL	NULL	NULL	8	Using where
 delete from v1
 where v1.c1 in (select max(a.c1)
 from t1 a
 where a.c2 = v1.c2) 
 and c3 > 3;
 affected rows: 1
-select * from t1;
+select * from t1 order by c3;
 c1	c2	c3
 1	1	1
 1	2	2
@@ -903,12 +1121,11 @@ c1	c2	c3
 2	3	6
 2	4	7
 2	5	8
-rollback;
+insert into t1(c1,c2,c3) values (2,2,5);
 #
 # Delete through  a view and using the view in subquery
 #
-start transaction;
-delete from v1 
+explain delete from v1 
 where v1.c2 in (select max(a.c2)
 from t1 a
 where a.c3 = v1.c3) 
@@ -916,8 +1133,23 @@ and c1 < 10
 and exists (select 'X'
                  from v1 a
 where a.c1 = v1.c1);
-affected rows: 2
-select * from t1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	8	Using where
+3	DEPENDENT SUBQUERY	t1	ALL	NULL	NULL	NULL	NULL	8	Using where
+2	DEPENDENT SUBQUERY	a	eq_ref	PRIMARY	PRIMARY	4	test.t1.c3	1	
+analyze delete from v1 
+where v1.c2 in (select max(a.c2)
+from t1 a
+where a.c3 = v1.c3) 
+and c1 < 10 
+and exists (select 'X'
+                 from v1 a
+where a.c1 = v1.c1);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	8	8.00	100.00	25.00	Using where
+3	DEPENDENT SUBQUERY	t1	ALL	NULL	NULL	NULL	NULL	8	3.50	100.00	28.57	Using where
+2	DEPENDENT SUBQUERY	a	eq_ref	PRIMARY	PRIMARY	4	test.t1.c3	1	1.00	100.00	100.00	
+select * from t1 order by c3;
 c1	c2	c3
 1	1	1
 1	3	3
@@ -925,10 +1157,11 @@ c1	c2	c3
 2	3	6
 2	4	7
 2	5	8
-rollback;
+insert into t1(c1,c2,c3) values (1,2,2);
+insert into t1(c1,c2,c3) values (2,2,5);
 drop view v1;
 drop table t1;
-create temporary table t1 (c1 integer, c2 integer, c3 integer) engine=InnoDB;
+create temporary table t1 (c1 integer, c2 integer, c3 integer);
 insert into t1(c1,c2,c3) values (1,1,1);
 insert into t1(c1,c2,c3) values (1,2,2);
 insert into t1(c1,c2,c3) values (1,3,3);
@@ -941,13 +1174,19 @@ Test without any index
 #
 # Delete with value from subquery on the same table, no search clause. ALL access
 #
-start transaction;
+explain delete from t1
+where c1=(select a.c3
+from t1 a
+where a.c3 = t1.c3);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	8	Using where
+2	DEPENDENT SUBQUERY	a	ALL	NULL	NULL	NULL	NULL	8	Using where
 delete from t1
 where c1=(select a.c3
 from t1 a
 where a.c3 = t1.c3);
 affected rows: 1
-select * from t1;
+select * from t1 order by c3;
 c1	c2	c3
 1	2	2
 1	3	3
@@ -956,18 +1195,27 @@ c1	c2	c3
 2	3	6
 2	4	7
 2	5	8
-rollback;
+insert into t1(c1,c2,c3) values (1,1,1);
 #
 # Delete with search clause on the same table
 #
-start transaction;
-delete from t1
+explain delete from t1
 where c1 <2
 and exists (select 'X'
                  from t1 a
 where a.c1 = t1.c2);
-affected rows: 2
-select * from t1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	8	Using where
+2	DEPENDENT SUBQUERY	a	ALL	NULL	NULL	NULL	NULL	8	Using where
+analyze delete from t1
+where c1 <2
+and exists (select 'X'
+                 from t1 a
+where a.c1 = t1.c2);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	8	8.00	100.00	25.00	Using where
+2	DEPENDENT SUBQUERY	a	ALL	NULL	NULL	NULL	NULL	8	4.00	100.00	16.67	Using where
+select * from t1 order by c3;
 c1	c2	c3
 1	3	3
 2	1	4
@@ -975,44 +1223,58 @@ c1	c2	c3
 2	3	6
 2	4	7
 2	5	8
-rollback;
+insert into t1(c1,c2,c3) values (1,1,1);
+insert into t1(c1,c2,c3) values (1,2,2);
 #
 # Delete via RANGE or INDEX access if an index or a primary key exists
 #
-start transaction;
+explain delete from t1 where exists (select 'X' from t1 a where a.c2 = t1.c2) and c2 >= 3;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	8	Using where
+2	DEPENDENT SUBQUERY	a	ALL	NULL	NULL	NULL	NULL	8	Using where
 delete from t1 where exists (select 'X' from t1 a where a.c2 = t1.c2) and c2 >= 3;
 affected rows: 4
-select * from t1;
+select * from t1 order by c3;
 c1	c2	c3
 1	1	1
 1	2	2
 2	1	4
 2	2	5
-rollback;
+insert into t1(c1,c2,c3) values (1,3,3);
+insert into t1(c1,c2,c3) values (2,3,6);
+insert into t1(c1,c2,c3) values (2,4,7);
+insert into t1(c1,c2,c3) values (2,5,8);
 #
-# Delete with order by (need fix MDEV-29428)
+# Delete with order by
 #
-start transaction;
-delete from t1 where exists (select 'X' from t1 a where a.c2 = t1.c2) and c2 >= 3 order by c2;
-affected rows: 4
-select * from t1;
+explain delete from t1 where exists (select 'X' from t1 a where a.c2 = t1.c2) and c2 >= 3 order by c2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	15	Using where
+2	DEPENDENT SUBQUERY	a	ALL	NULL	NULL	NULL	NULL	15	Using where
+analyze delete from t1 where exists (select 'X' from t1 a where a.c2 = t1.c2) and c2 >= 3 order by c2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	15	8.00	100.00	50.00	Using where
+2	DEPENDENT SUBQUERY	a	ALL	NULL	NULL	NULL	NULL	15	3.88	100.00	25.81	Using where
+select * from t1 order by c3;
 c1	c2	c3
 1	1	1
 1	2	2
 2	1	4
 2	2	5
-rollback;
+insert into t1(c1,c2,c3) values (1,3,3);
+insert into t1(c1,c2,c3) values (2,3,6);
+insert into t1(c1,c2,c3) values (2,4,7);
+insert into t1(c1,c2,c3) values (2,5,8);
 #
 # Delete using the index or primary key (c3)
 #
-start transaction;
 explain delete from t1 where c3 in (select distinct a.c1 from t1 a where t1.c2=a.c2);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	12	
-1	PRIMARY	a	ALL	NULL	NULL	NULL	NULL	12	Using where; FirstMatch(t1)
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	15	
+1	PRIMARY	a	ALL	NULL	NULL	NULL	NULL	15	Using where; FirstMatch(t1)
 delete from t1 where c3 in (select distinct a.c1 from t1 a where t1.c2=a.c2);
 affected rows: 2
-select * from t1;
+select * from t1 order by c3;
 c1	c2	c3
 1	3	3
 2	1	4
@@ -1020,18 +1282,28 @@ c1	c2	c3
 2	3	6
 2	4	7
 2	5	8
-rollback;
+insert into t1(c1,c2,c3) values (1,1,1);
+insert into t1(c1,c2,c3) values (1,2,2);
 #
 # Delete with a limit - can be delete
 #
-start transaction;
-delete from t1 
+explain delete from t1 
 where c1 in (select a.c2
 from t1 a
-where a.c3 = t1.c3)
+where a.c2 = t1.c3)
 limit 1;
-affected rows: 1
-select * from t1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	15	Using where
+1	PRIMARY	a	ALL	NULL	NULL	NULL	NULL	15	Using where; FirstMatch(t1)
+analyze delete from t1 
+where c1 in (select a.c2
+from t1 a
+where a.c2 = t1.c3)
+limit 1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	15	7.00	100.00	14.29	Using where
+1	PRIMARY	a	ALL	NULL	NULL	NULL	NULL	15	1.00	100.00	100.00	Using where; FirstMatch(t1)
+select * from t1 order by c3;
 c1	c2	c3
 1	2	2
 1	3	3
@@ -1040,11 +1312,10 @@ c1	c2	c3
 2	3	6
 2	4	7
 2	5	8
-rollback;
+insert into t1(c1,c2,c3) values (1,1,1);
 #
 # Delete with a limit and an order by
 #
-start transaction;
 select * from t1 
 where c1 in (select a.c2
 from t1 a
@@ -1053,13 +1324,21 @@ order by c3 desc;
 c1	c2	c3
 2	2	5
 1	1	1
+explain delete from t1 
+where c1 in (select a.c2
+from t1 a
+where a.c3 = t1.c3)
+order by c3 desc limit 1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	22	Using where; Using filesort
+2	DEPENDENT SUBQUERY	a	ALL	NULL	NULL	NULL	NULL	22	Using where
 delete from t1 
 where c1 in (select a.c2
 from t1 a
 where a.c3 = t1.c3)
 order by c3 desc limit 1;
 affected rows: 1
-select * from t1;
+select * from t1 order by c3;
 c1	c2	c3
 1	1	1
 1	2	2
@@ -1068,19 +1347,25 @@ c1	c2	c3
 2	3	6
 2	4	7
 2	5	8
-rollback;
+insert into t1(c1,c2,c3) values (2,2,5);
 Test with an index
 create index t1_c2 on t1 (c2,c1);
 #
 # Delete with value from subquery on the same table, no search clause. ALL access
 #
-start transaction;
+explain delete from t1
+where c1=(select a.c3
+from t1 a
+where a.c3 = t1.c3);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	8	Using where
+2	DEPENDENT SUBQUERY	a	ALL	NULL	NULL	NULL	NULL	8	Using where
 delete from t1
 where c1=(select a.c3
 from t1 a
 where a.c3 = t1.c3);
 affected rows: 1
-select * from t1;
+select * from t1 order by c3;
 c1	c2	c3
 1	2	2
 1	3	3
@@ -1089,18 +1374,27 @@ c1	c2	c3
 2	3	6
 2	4	7
 2	5	8
-rollback;
+insert into t1(c1,c2,c3) values (1,1,1);
 #
 # Delete with search clause on the same table
 #
-start transaction;
-delete from t1
+explain delete from t1
 where c1 <2
 and exists (select 'X'
                  from t1 a
 where a.c1 = t1.c2);
-affected rows: 2
-select * from t1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	8	Using where
+2	DEPENDENT SUBQUERY	a	index	NULL	t1_c2	10	NULL	8	Using where; Using index
+analyze delete from t1
+where c1 <2
+and exists (select 'X'
+                 from t1 a
+where a.c1 = t1.c2);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	8	8.00	100.00	25.00	Using where
+2	DEPENDENT SUBQUERY	a	index	NULL	t1_c2	10	NULL	8	3.67	100.00	18.18	Using where; Using index
+select * from t1 order by c3;
 c1	c2	c3
 1	3	3
 2	1	4
@@ -1108,44 +1402,58 @@ c1	c2	c3
 2	3	6
 2	4	7
 2	5	8
-rollback;
+insert into t1(c1,c2,c3) values (1,1,1);
+insert into t1(c1,c2,c3) values (1,2,2);
 #
 # Delete via RANGE or INDEX access if an index or a primary key exists
 #
-start transaction;
+explain delete from t1 where exists (select 'X' from t1 a where a.c2 = t1.c2) and c2 >= 3;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	range	t1_c2	t1_c2	5	NULL	4	Using index condition; Using where
+2	DEPENDENT SUBQUERY	a	ref	t1_c2	t1_c2	5	test.t1.c2	4	Using index
 delete from t1 where exists (select 'X' from t1 a where a.c2 = t1.c2) and c2 >= 3;
 affected rows: 4
-select * from t1;
+select * from t1 order by c3;
 c1	c2	c3
 1	1	1
 1	2	2
 2	1	4
 2	2	5
-rollback;
+insert into t1(c1,c2,c3) values (1,3,3);
+insert into t1(c1,c2,c3) values (2,3,6);
+insert into t1(c1,c2,c3) values (2,4,7);
+insert into t1(c1,c2,c3) values (2,5,8);
 #
-# Delete with order by (need fix MDEV-29428)
+# Delete with order by
 #
-start transaction;
-delete from t1 where exists (select 'X' from t1 a where a.c2 = t1.c2) and c2 >= 3 order by c2;
-affected rows: 4
-select * from t1;
+explain delete from t1 where exists (select 'X' from t1 a where a.c2 = t1.c2) and c2 >= 3 order by c2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	range	t1_c2	t1_c2	5	NULL	8	Using index condition; Using where
+2	DEPENDENT SUBQUERY	a	ref	t1_c2	t1_c2	5	test.t1.c2	4	Using index
+analyze delete from t1 where exists (select 'X' from t1 a where a.c2 = t1.c2) and c2 >= 3 order by c2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	PRIMARY	t1	range	t1_c2	t1_c2	5	NULL	8	4.00	100.00	100.00	Using index condition; Using where
+2	DEPENDENT SUBQUERY	a	ref	t1_c2	t1_c2	5	test.t1.c2	4	1.00	100.00	100.00	Using index
+select * from t1 order by c3;
 c1	c2	c3
 1	1	1
 1	2	2
 2	1	4
 2	2	5
-rollback;
+insert into t1(c1,c2,c3) values (1,3,3);
+insert into t1(c1,c2,c3) values (2,3,6);
+insert into t1(c1,c2,c3) values (2,4,7);
+insert into t1(c1,c2,c3) values (2,5,8);
 #
 # Delete using the index or primary key (c3)
 #
-start transaction;
 explain delete from t1 where c3 in (select distinct a.c1 from t1 a where t1.c2=a.c2);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	ALL	t1_c2	NULL	NULL	NULL	12	Using where
+1	PRIMARY	t1	ALL	t1_c2	NULL	NULL	NULL	15	Using where
 1	PRIMARY	a	ref	t1_c2	t1_c2	10	test.t1.c2,test.t1.c3	4	Using index; FirstMatch(t1)
 delete from t1 where c3 in (select distinct a.c1 from t1 a where t1.c2=a.c2);
 affected rows: 2
-select * from t1;
+select * from t1 order by c3;
 c1	c2	c3
 1	3	3
 2	1	4
@@ -1153,18 +1461,28 @@ c1	c2	c3
 2	3	6
 2	4	7
 2	5	8
-rollback;
+insert into t1(c1,c2,c3) values (1,1,1);
+insert into t1(c1,c2,c3) values (1,2,2);
 #
 # Delete with a limit - can be delete
 #
-start transaction;
-delete from t1 
+explain delete from t1 
 where c1 in (select a.c2
 from t1 a
-where a.c3 = t1.c3)
+where a.c2 = t1.c3)
 limit 1;
-affected rows: 1
-select * from t1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	15	Using where
+1	PRIMARY	a	ref	t1_c2	t1_c2	5	test.t1.c1	4	Using index; FirstMatch(t1)
+analyze delete from t1 
+where c1 in (select a.c2
+from t1 a
+where a.c2 = t1.c3)
+limit 1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	15	7.00	100.00	14.29	Using where
+1	PRIMARY	a	ref	t1_c2	t1_c2	5	test.t1.c1	4	1.00	100.00	100.00	Using index; FirstMatch(t1)
+select * from t1 order by c3;
 c1	c2	c3
 1	2	2
 1	3	3
@@ -1173,11 +1491,10 @@ c1	c2	c3
 2	3	6
 2	4	7
 2	5	8
-rollback;
+insert into t1(c1,c2,c3) values (1,1,1);
 #
 # Delete with a limit and an order by
 #
-start transaction;
 select * from t1 
 where c1 in (select a.c2
 from t1 a
@@ -1186,13 +1503,21 @@ order by c3 desc;
 c1	c2	c3
 2	2	5
 1	1	1
+explain delete from t1 
+where c1 in (select a.c2
+from t1 a
+where a.c3 = t1.c3)
+order by c3 desc limit 1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	22	Using where; Using filesort
+2	DEPENDENT SUBQUERY	a	index_subquery	t1_c2	t1_c2	5	func	4	Using where
 delete from t1 
 where c1 in (select a.c2
 from t1 a
 where a.c3 = t1.c3)
 order by c3 desc limit 1;
 affected rows: 1
-select * from t1;
+select * from t1 order by c3;
 c1	c2	c3
 1	1	1
 1	2	2
@@ -1201,20 +1526,26 @@ c1	c2	c3
 2	3	6
 2	4	7
 2	5	8
-rollback;
+insert into t1(c1,c2,c3) values (2,2,5);
 Test with a primary key
 drop index t1_c2 on t1;
 alter table t1 add primary key (c3);
 #
 # Delete with value from subquery on the same table, no search clause. ALL access
 #
-start transaction;
+explain delete from t1
+where c1=(select a.c3
+from t1 a
+where a.c3 = t1.c3);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	8	Using where
+2	DEPENDENT SUBQUERY	a	eq_ref	PRIMARY	PRIMARY	4	test.t1.c3	1	Using index
 delete from t1
 where c1=(select a.c3
 from t1 a
 where a.c3 = t1.c3);
 affected rows: 1
-select * from t1;
+select * from t1 order by c3;
 c1	c2	c3
 1	2	2
 1	3	3
@@ -1223,18 +1554,27 @@ c1	c2	c3
 2	3	6
 2	4	7
 2	5	8
-rollback;
+insert into t1(c1,c2,c3) values (1,1,1);
 #
 # Delete with search clause on the same table
 #
-start transaction;
-delete from t1
+explain delete from t1
 where c1 <2
 and exists (select 'X'
                  from t1 a
 where a.c1 = t1.c2);
-affected rows: 2
-select * from t1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	8	Using where
+2	DEPENDENT SUBQUERY	a	ALL	NULL	NULL	NULL	NULL	8	Using where
+analyze delete from t1
+where c1 <2
+and exists (select 'X'
+                 from t1 a
+where a.c1 = t1.c2);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	8	8.00	100.00	25.00	Using where
+2	DEPENDENT SUBQUERY	a	ALL	NULL	NULL	NULL	NULL	8	4.33	100.00	15.38	Using where
+select * from t1 order by c3;
 c1	c2	c3
 1	3	3
 2	1	4
@@ -1242,44 +1582,58 @@ c1	c2	c3
 2	3	6
 2	4	7
 2	5	8
-rollback;
+insert into t1(c1,c2,c3) values (1,1,1);
+insert into t1(c1,c2,c3) values (1,2,2);
 #
 # Delete via RANGE or INDEX access if an index or a primary key exists
 #
-start transaction;
+explain delete from t1 where exists (select 'X' from t1 a where a.c2 = t1.c2) and c2 >= 3;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	8	Using where
+2	DEPENDENT SUBQUERY	a	ALL	NULL	NULL	NULL	NULL	8	Using where
 delete from t1 where exists (select 'X' from t1 a where a.c2 = t1.c2) and c2 >= 3;
 affected rows: 4
-select * from t1;
+select * from t1 order by c3;
 c1	c2	c3
 1	1	1
 1	2	2
 2	1	4
 2	2	5
-rollback;
+insert into t1(c1,c2,c3) values (1,3,3);
+insert into t1(c1,c2,c3) values (2,3,6);
+insert into t1(c1,c2,c3) values (2,4,7);
+insert into t1(c1,c2,c3) values (2,5,8);
 #
-# Delete with order by (need fix MDEV-29428)
+# Delete with order by
 #
-start transaction;
-delete from t1 where exists (select 'X' from t1 a where a.c2 = t1.c2) and c2 >= 3 order by c2;
-affected rows: 4
-select * from t1;
+explain delete from t1 where exists (select 'X' from t1 a where a.c2 = t1.c2) and c2 >= 3 order by c2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	12	Using where
+2	DEPENDENT SUBQUERY	a	ALL	NULL	NULL	NULL	NULL	12	Using where
+analyze delete from t1 where exists (select 'X' from t1 a where a.c2 = t1.c2) and c2 >= 3 order by c2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	12	8.00	100.00	50.00	Using where
+2	DEPENDENT SUBQUERY	a	ALL	NULL	NULL	NULL	NULL	12	3.38	100.00	29.63	Using where
+select * from t1 order by c3;
 c1	c2	c3
 1	1	1
 1	2	2
 2	1	4
 2	2	5
-rollback;
+insert into t1(c1,c2,c3) values (1,3,3);
+insert into t1(c1,c2,c3) values (2,3,6);
+insert into t1(c1,c2,c3) values (2,4,7);
+insert into t1(c1,c2,c3) values (2,5,8);
 #
 # Delete using the index or primary key (c3)
 #
-start transaction;
 explain delete from t1 where c3 in (select distinct a.c1 from t1 a where t1.c2=a.c2);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	a	ALL	NULL	NULL	NULL	NULL	12	Using where; Start temporary
 1	PRIMARY	t1	eq_ref	PRIMARY	PRIMARY	4	test.a.c1	1	Using where; End temporary
 delete from t1 where c3 in (select distinct a.c1 from t1 a where t1.c2=a.c2);
 affected rows: 2
-select * from t1;
+select * from t1 order by c3;
 c1	c2	c3
 1	3	3
 2	1	4
@@ -1287,18 +1641,28 @@ c1	c2	c3
 2	3	6
 2	4	7
 2	5	8
-rollback;
+insert into t1(c1,c2,c3) values (1,1,1);
+insert into t1(c1,c2,c3) values (1,2,2);
 #
 # Delete with a limit - can be delete
 #
-start transaction;
-delete from t1 
+explain delete from t1 
 where c1 in (select a.c2
 from t1 a
-where a.c3 = t1.c3)
+where a.c2 = t1.c3)
 limit 1;
-affected rows: 1
-select * from t1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	a	ALL	NULL	NULL	NULL	NULL	12	Using where; Start temporary
+1	PRIMARY	t1	eq_ref	PRIMARY	PRIMARY	4	test.a.c2	1	Using where; End temporary
+analyze delete from t1 
+where c1 in (select a.c2
+from t1 a
+where a.c2 = t1.c3)
+limit 1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	PRIMARY	a	ALL	NULL	NULL	NULL	NULL	12	1.00	100.00	100.00	Using where; Start temporary
+1	PRIMARY	t1	eq_ref	PRIMARY	PRIMARY	4	test.a.c2	1	1.00	100.00	100.00	Using where; End temporary
+select * from t1 order by c3;
 c1	c2	c3
 1	2	2
 1	3	3
@@ -1307,11 +1671,10 @@ c1	c2	c3
 2	3	6
 2	4	7
 2	5	8
-rollback;
+insert into t1(c1,c2,c3) values (1,1,1);
 #
 # Delete with a limit and an order by
 #
-start transaction;
 select * from t1 
 where c1 in (select a.c2
 from t1 a
@@ -1320,13 +1683,21 @@ order by c3 desc;
 c1	c2	c3
 2	2	5
 1	1	1
+explain delete from t1 
+where c1 in (select a.c2
+from t1 a
+where a.c3 = t1.c3)
+order by c3 desc limit 1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	index	NULL	PRIMARY	4	NULL	1	Using where
+2	DEPENDENT SUBQUERY	a	eq_ref	PRIMARY	PRIMARY	4	test.t1.c3	1	Using where
 delete from t1 
 where c1 in (select a.c2
 from t1 a
 where a.c3 = t1.c3)
 order by c3 desc limit 1;
 affected rows: 1
-select * from t1;
+select * from t1 order by c3;
 c1	c2	c3
 1	1	1
 1	2	2
@@ -1335,7 +1706,7 @@ c1	c2	c3
 2	3	6
 2	4	7
 2	5	8
-rollback;
+insert into t1(c1,c2,c3) values (2,2,5);
 drop table t1;
 #
 # Test on dynamic columns (blob)
@@ -1348,38 +1719,38 @@ INSERT INTO assets VALUES ('MariaDB T-shirt', COLUMN_CREATE('color', 'blue', 'si
 INSERT INTO assets VALUES ('Thinkpad Laptop', COLUMN_CREATE('color', 'black', 'price', 500));
 INSERT INTO assets VALUES ('Fridge', COLUMN_CREATE('color', 'white', 'warranty', '5 years'));
 INSERT INTO assets VALUES ('Microwave', COLUMN_CREATE('warranty', '3 years'));
-SELECT item_name, COLUMN_GET(dynamic_cols, 'color' as char) AS color FROM assets;
+SELECT item_name, COLUMN_GET(dynamic_cols, 'color' as char) AS color FROM assets ORDER BY item_name;
 item_name	color
-MariaDB T-shirt	blue
-Thinkpad Laptop	black
 Fridge	white
-Microwave	NULL
-UPDATE assets SET dynamic_cols=COLUMN_DELETE(dynamic_cols, 'color') WHERE item_name='Fridge';
-SELECT item_name, COLUMN_GET(dynamic_cols, 'color' as char) AS color FROM assets;
-item_name	color
 MariaDB T-shirt	blue
-Thinkpad Laptop	black
-Fridge	NULL
 Microwave	NULL
+Thinkpad Laptop	black
+UPDATE assets SET dynamic_cols=COLUMN_DELETE(dynamic_cols, 'color') WHERE item_name='Fridge';
+SELECT item_name, COLUMN_GET(dynamic_cols, 'color' as char) AS color FROM assets ORDER BY item_name;
+item_name	color
+Fridge	NULL
+MariaDB T-shirt	blue
+Microwave	NULL
+Thinkpad Laptop	black
 DELETE FROM assets
 WHERE item_name in (select b.item_name
 from assets b
 where COLUMN_GET(b.dynamic_cols, 'color' as char) ='black');
-SELECT item_name, COLUMN_GET(dynamic_cols, 'color' as char) AS color FROM assets;
+SELECT item_name, COLUMN_GET(dynamic_cols, 'color' as char) AS color FROM assets ORDER BY item_name;
 item_name	color
-MariaDB T-shirt	blue
 Fridge	NULL
+MariaDB T-shirt	blue
 Microwave	NULL
 DELETE FROM assets WHERE item_name='Microwave';
-SELECT item_name, COLUMN_GET(dynamic_cols, 'color' as char) AS color FROM assets;
+SELECT item_name, COLUMN_GET(dynamic_cols, 'color' as char) AS color FROM assets ORDER BY item_name;
 item_name	color
-MariaDB T-shirt	blue
 Fridge	NULL
+MariaDB T-shirt	blue
 drop table assets ;
 #
 # Test on fulltext columns
 #
-CREATE TABLE ft2(copy TEXT,FULLTEXT(copy)) ENGINE=MyISAM;
+CREATE TABLE ft2(copy TEXT,FULLTEXT(copy));
 INSERT INTO ft2(copy) VALUES
 ('MySQL vs MariaDB database'),
 ('Oracle vs MariaDB database'),
@@ -1399,6 +1770,2871 @@ DELETE FROM ft2 WHERE  MATCH(copy) AGAINST('database');
 SELECT * FROM ft2 WHERE MATCH(copy) AGAINST('database');
 copy
 drop table ft2;
+set default_storage_engine=Aria;
+create table t1 (c1 integer, c2 integer, c3 integer);
+insert into t1(c1,c2,c3) values (1,1,1);
+insert into t1(c1,c2,c3) values (1,2,2);
+insert into t1(c1,c2,c3) values (1,3,3);
+insert into t1(c1,c2,c3) values (2,1,4);
+insert into t1(c1,c2,c3) values (2,2,5);
+insert into t1(c1,c2,c3) values (2,3,6);
+insert into t1(c1,c2,c3) values (2,4,7);
+insert into t1(c1,c2,c3) values (2,5,8);
+create view v1 as select * from t1 where c2=2;
+Test without any index
+#
+# Delete with value from subquery on the same table, no search clause. ALL access
+#
+explain delete from t1
+where c1=(select a.c3
+from t1 a
+where a.c3 = t1.c3);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	8	Using where
+2	DEPENDENT SUBQUERY	a	ALL	NULL	NULL	NULL	NULL	8	Using where
+delete from t1
+where c1=(select a.c3
+from t1 a
+where a.c3 = t1.c3);
+affected rows: 1
+select * from t1 order by c3;
+c1	c2	c3
+1	2	2
+1	3	3
+2	1	4
+2	2	5
+2	3	6
+2	4	7
+2	5	8
+insert into t1(c1,c2,c3) values (1,1,1);
+#
+# Delete with search clause on the same table
+#
+explain delete from t1
+where c1 <2
+and exists (select 'X'
+                 from t1 a
+where a.c1 = t1.c2);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	8	Using where
+2	DEPENDENT SUBQUERY	a	ALL	NULL	NULL	NULL	NULL	8	Using where
+analyze delete from t1
+where c1 <2
+and exists (select 'X'
+                 from t1 a
+where a.c1 = t1.c2);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	8	8.00	100.00	25.00	Using where
+2	DEPENDENT SUBQUERY	a	ALL	NULL	NULL	NULL	NULL	8	4.33	100.00	15.38	Using where
+select * from t1 order by c3;
+c1	c2	c3
+1	3	3
+2	1	4
+2	2	5
+2	3	6
+2	4	7
+2	5	8
+insert into t1(c1,c2,c3) values (1,1,1);
+insert into t1(c1,c2,c3) values (1,2,2);
+#
+# Delete via RANGE or INDEX access if an index or a primary key exists
+#
+explain delete from t1 where exists (select 'X' from t1 a where a.c2 = t1.c2) and c2 >= 3;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	8	Using where
+2	DEPENDENT SUBQUERY	a	ALL	NULL	NULL	NULL	NULL	8	Using where
+delete from t1 where exists (select 'X' from t1 a where a.c2 = t1.c2) and c2 >= 3;
+affected rows: 4
+select * from t1 order by c3;
+c1	c2	c3
+1	1	1
+1	2	2
+2	1	4
+2	2	5
+insert into t1(c1,c2,c3) values (1,3,3);
+insert into t1(c1,c2,c3) values (2,3,6);
+insert into t1(c1,c2,c3) values (2,4,7);
+insert into t1(c1,c2,c3) values (2,5,8);
+#
+# Delete with order by
+#
+explain delete from t1 where exists (select 'X' from t1 a where a.c2 = t1.c2) and c2 >= 3 order by c2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	8	Using where
+2	DEPENDENT SUBQUERY	a	ALL	NULL	NULL	NULL	NULL	8	Using where
+analyze delete from t1 where exists (select 'X' from t1 a where a.c2 = t1.c2) and c2 >= 3 order by c2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	8	8.00	100.00	50.00	Using where
+2	DEPENDENT SUBQUERY	a	ALL	NULL	NULL	NULL	NULL	8	3.38	100.00	29.63	Using where
+select * from t1 order by c3;
+c1	c2	c3
+1	1	1
+1	2	2
+2	1	4
+2	2	5
+insert into t1(c1,c2,c3) values (1,3,3);
+insert into t1(c1,c2,c3) values (2,3,6);
+insert into t1(c1,c2,c3) values (2,4,7);
+insert into t1(c1,c2,c3) values (2,5,8);
+#
+# Delete using the index or primary key (c3)
+#
+explain delete from t1 where c3 in (select distinct a.c1 from t1 a where t1.c2=a.c2);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	8	
+1	PRIMARY	a	ALL	NULL	NULL	NULL	NULL	8	Using where; FirstMatch(t1)
+delete from t1 where c3 in (select distinct a.c1 from t1 a where t1.c2=a.c2);
+affected rows: 2
+select * from t1 order by c3;
+c1	c2	c3
+1	3	3
+2	1	4
+2	2	5
+2	3	6
+2	4	7
+2	5	8
+insert into t1(c1,c2,c3) values (1,1,1);
+insert into t1(c1,c2,c3) values (1,2,2);
+#
+# Delete with a limit - can be delete
+#
+explain delete from t1 
+where c1 in (select a.c2
+from t1 a
+where a.c2 = t1.c3)
+limit 1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	8	Using where
+1	PRIMARY	a	ALL	NULL	NULL	NULL	NULL	8	Using where; FirstMatch(t1)
+analyze delete from t1 
+where c1 in (select a.c2
+from t1 a
+where a.c2 = t1.c3)
+limit 1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	8	2.00	100.00	50.00	Using where
+1	PRIMARY	a	ALL	NULL	NULL	NULL	NULL	8	2.00	100.00	50.00	Using where; FirstMatch(t1)
+select * from t1 order by c3;
+c1	c2	c3
+1	2	2
+1	3	3
+2	1	4
+2	2	5
+2	3	6
+2	4	7
+2	5	8
+insert into t1(c1,c2,c3) values (1,1,1);
+#
+# Delete with a limit and an order by
+#
+select * from t1 
+where c1 in (select a.c2
+from t1 a
+where a.c3 = t1.c3)
+order by c3 desc;
+c1	c2	c3
+2	2	5
+1	1	1
+explain delete from t1 
+where c1 in (select a.c2
+from t1 a
+where a.c3 = t1.c3)
+order by c3 desc limit 1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	8	Using where; Using filesort
+2	DEPENDENT SUBQUERY	a	ALL	NULL	NULL	NULL	NULL	8	Using where
+delete from t1 
+where c1 in (select a.c2
+from t1 a
+where a.c3 = t1.c3)
+order by c3 desc limit 1;
+affected rows: 1
+select * from t1 order by c3;
+c1	c2	c3
+1	1	1
+1	2	2
+1	3	3
+2	1	4
+2	3	6
+2	4	7
+2	5	8
+insert into t1(c1,c2,c3) values (2,2,5);
+#
+Delete using a view in subquery
+#
+explain delete from t1 
+where t1.c2 in ( select max(a.c2)
+from v1 a
+where a.c1 = t1.c1) ;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	8	Using where
+2	DEPENDENT SUBQUERY	t1	ALL	NULL	NULL	NULL	NULL	8	Using where
+analyze delete from t1 
+where t1.c2 in ( select max(a.c2)
+from v1 a
+where a.c1 = t1.c1) ;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	8	8.00	100.00	25.00	Using where
+2	DEPENDENT SUBQUERY	t1	ALL	NULL	NULL	NULL	NULL	8	8.00	100.00	12.50	Using where
+select * from t1 order by c3;
+c1	c2	c3
+1	1	1
+1	3	3
+2	1	4
+2	3	6
+2	4	7
+2	5	8
+insert into t1(c1,c2,c3) values (1,2,2);
+insert into t1(c1,c2,c3) values (2,2,5);
+#
+# Delete throw a view
+#
+explain delete from v1
+where v1.c1 in (select max(a.c1)
+from t1 a
+where a.c2 = v1.c2) 
+and c3 > 3;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	8	Using where
+2	DEPENDENT SUBQUERY	a	ALL	NULL	NULL	NULL	NULL	8	Using where
+delete from v1
+where v1.c1 in (select max(a.c1)
+from t1 a
+where a.c2 = v1.c2) 
+and c3 > 3;
+affected rows: 1
+select * from t1 order by c3;
+c1	c2	c3
+1	1	1
+1	2	2
+1	3	3
+2	1	4
+2	3	6
+2	4	7
+2	5	8
+insert into t1(c1,c2,c3) values (2,2,5);
+#
+# Delete through  a view and using the view in subquery
+#
+explain delete from v1 
+where v1.c2 in (select max(a.c2)
+from t1 a
+where a.c3 = v1.c3) 
+and c1 < 10 
+and exists (select 'X'
+                 from v1 a
+where a.c1 = v1.c1);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	8	Using where
+3	DEPENDENT SUBQUERY	t1	ALL	NULL	NULL	NULL	NULL	8	Using where
+2	DEPENDENT SUBQUERY	a	ALL	NULL	NULL	NULL	NULL	8	Using where
+analyze delete from v1 
+where v1.c2 in (select max(a.c2)
+from t1 a
+where a.c3 = v1.c3) 
+and c1 < 10 
+and exists (select 'X'
+                 from v1 a
+where a.c1 = v1.c1);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	8	8.00	100.00	25.00	Using where
+3	DEPENDENT SUBQUERY	t1	ALL	NULL	NULL	NULL	NULL	8	3.00	100.00	33.33	Using where
+2	DEPENDENT SUBQUERY	a	ALL	NULL	NULL	NULL	NULL	8	8.00	100.00	12.50	Using where
+select * from t1 order by c3;
+c1	c2	c3
+1	1	1
+1	3	3
+2	1	4
+2	3	6
+2	4	7
+2	5	8
+insert into t1(c1,c2,c3) values (1,2,2);
+insert into t1(c1,c2,c3) values (2,2,5);
+Test with an index
+create index t1_c2 on t1 (c2,c1);
+#
+# Delete with value from subquery on the same table, no search clause. ALL access
+#
+explain delete from t1
+where c1=(select a.c3
+from t1 a
+where a.c3 = t1.c3);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	8	Using where
+2	DEPENDENT SUBQUERY	a	ALL	NULL	NULL	NULL	NULL	8	Using where
+delete from t1
+where c1=(select a.c3
+from t1 a
+where a.c3 = t1.c3);
+affected rows: 1
+select * from t1 order by c3;
+c1	c2	c3
+1	2	2
+1	3	3
+2	1	4
+2	2	5
+2	3	6
+2	4	7
+2	5	8
+insert into t1(c1,c2,c3) values (1,1,1);
+#
+# Delete with search clause on the same table
+#
+explain delete from t1
+where c1 <2
+and exists (select 'X'
+                 from t1 a
+where a.c1 = t1.c2);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	8	Using where
+2	DEPENDENT SUBQUERY	a	index	NULL	t1_c2	10	NULL	8	Using where; Using index
+analyze delete from t1
+where c1 <2
+and exists (select 'X'
+                 from t1 a
+where a.c1 = t1.c2);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	8	8.00	100.00	25.00	Using where
+2	DEPENDENT SUBQUERY	a	index	NULL	t1_c2	10	NULL	8	3.67	100.00	18.18	Using where; Using index
+select * from t1 order by c3;
+c1	c2	c3
+1	3	3
+2	1	4
+2	2	5
+2	3	6
+2	4	7
+2	5	8
+insert into t1(c1,c2,c3) values (1,1,1);
+insert into t1(c1,c2,c3) values (1,2,2);
+#
+# Delete via RANGE or INDEX access if an index or a primary key exists
+#
+explain delete from t1 where exists (select 'X' from t1 a where a.c2 = t1.c2) and c2 >= 3;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	range	t1_c2	t1_c2	5	NULL	5	Using index condition; Using where
+2	DEPENDENT SUBQUERY	a	ref	t1_c2	t1_c2	5	test.t1.c2	1	Using index
+delete from t1 where exists (select 'X' from t1 a where a.c2 = t1.c2) and c2 >= 3;
+affected rows: 4
+select * from t1 order by c3;
+c1	c2	c3
+1	1	1
+1	2	2
+2	1	4
+2	2	5
+insert into t1(c1,c2,c3) values (1,3,3);
+insert into t1(c1,c2,c3) values (2,3,6);
+insert into t1(c1,c2,c3) values (2,4,7);
+insert into t1(c1,c2,c3) values (2,5,8);
+#
+# Delete with order by
+#
+explain delete from t1 where exists (select 'X' from t1 a where a.c2 = t1.c2) and c2 >= 3 order by c2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	range	t1_c2	t1_c2	5	NULL	5	Using index condition; Using where
+2	DEPENDENT SUBQUERY	a	ref	t1_c2	t1_c2	5	test.t1.c2	1	Using index
+analyze delete from t1 where exists (select 'X' from t1 a where a.c2 = t1.c2) and c2 >= 3 order by c2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	PRIMARY	t1	range	t1_c2	t1_c2	5	NULL	5	4.00	100.00	100.00	Using index condition; Using where
+2	DEPENDENT SUBQUERY	a	ref	t1_c2	t1_c2	5	test.t1.c2	1	1.00	100.00	100.00	Using index
+select * from t1 order by c3;
+c1	c2	c3
+1	1	1
+1	2	2
+2	1	4
+2	2	5
+insert into t1(c1,c2,c3) values (1,3,3);
+insert into t1(c1,c2,c3) values (2,3,6);
+insert into t1(c1,c2,c3) values (2,4,7);
+insert into t1(c1,c2,c3) values (2,5,8);
+#
+# Delete using the index or primary key (c3)
+#
+explain delete from t1 where c3 in (select distinct a.c1 from t1 a where t1.c2=a.c2);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	t1_c2	NULL	NULL	NULL	8	Using where
+1	PRIMARY	a	ref	t1_c2	t1_c2	10	test.t1.c2,test.t1.c3	2	Using index; FirstMatch(t1)
+delete from t1 where c3 in (select distinct a.c1 from t1 a where t1.c2=a.c2);
+affected rows: 2
+select * from t1 order by c3;
+c1	c2	c3
+1	3	3
+2	1	4
+2	2	5
+2	3	6
+2	4	7
+2	5	8
+insert into t1(c1,c2,c3) values (1,1,1);
+insert into t1(c1,c2,c3) values (1,2,2);
+#
+# Delete with a limit - can be delete
+#
+explain delete from t1 
+where c1 in (select a.c2
+from t1 a
+where a.c2 = t1.c3)
+limit 1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	8	Using where
+1	PRIMARY	a	ref	t1_c2	t1_c2	5	test.t1.c1	1	Using index; FirstMatch(t1)
+analyze delete from t1 
+where c1 in (select a.c2
+from t1 a
+where a.c2 = t1.c3)
+limit 1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	8	5.00	100.00	20.00	Using where
+1	PRIMARY	a	ref	t1_c2	t1_c2	5	test.t1.c1	1	1.00	100.00	100.00	Using index; FirstMatch(t1)
+select * from t1 order by c3;
+c1	c2	c3
+1	2	2
+1	3	3
+2	1	4
+2	2	5
+2	3	6
+2	4	7
+2	5	8
+insert into t1(c1,c2,c3) values (1,1,1);
+#
+# Delete with a limit and an order by
+#
+select * from t1 
+where c1 in (select a.c2
+from t1 a
+where a.c3 = t1.c3)
+order by c3 desc;
+c1	c2	c3
+2	2	5
+1	1	1
+explain delete from t1 
+where c1 in (select a.c2
+from t1 a
+where a.c3 = t1.c3)
+order by c3 desc limit 1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	8	Using where; Using filesort
+2	DEPENDENT SUBQUERY	a	index_subquery	t1_c2	t1_c2	5	func	1	Using where
+delete from t1 
+where c1 in (select a.c2
+from t1 a
+where a.c3 = t1.c3)
+order by c3 desc limit 1;
+affected rows: 1
+select * from t1 order by c3;
+c1	c2	c3
+1	1	1
+1	2	2
+1	3	3
+2	1	4
+2	3	6
+2	4	7
+2	5	8
+insert into t1(c1,c2,c3) values (2,2,5);
+#
+Delete using a view in subquery
+#
+explain delete from t1 
+where t1.c2 in ( select max(a.c2)
+from v1 a
+where a.c1 = t1.c1) ;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	8	Using where
+2	DEPENDENT SUBQUERY	t1	ref	t1_c2	t1_c2	10	const,test.t1.c1	2	Using index
+analyze delete from t1 
+where t1.c2 in ( select max(a.c2)
+from v1 a
+where a.c1 = t1.c1) ;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	8	8.00	100.00	25.00	Using where
+2	DEPENDENT SUBQUERY	t1	ref	t1_c2	t1_c2	10	const,test.t1.c1	2	1.00	100.00	100.00	Using index
+select * from t1 order by c3;
+c1	c2	c3
+1	1	1
+1	3	3
+2	1	4
+2	3	6
+2	4	7
+2	5	8
+insert into t1(c1,c2,c3) values (1,2,2);
+insert into t1(c1,c2,c3) values (2,2,5);
+#
+# Delete throw a view
+#
+explain delete from v1
+where v1.c1 in (select max(a.c1)
+from t1 a
+where a.c2 = v1.c2) 
+and c3 > 3;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ref	t1_c2	t1_c2	5	const	2	Using where
+2	DEPENDENT SUBQUERY	a	ref	t1_c2	t1_c2	5	test.t1.c2	1	Using index
+delete from v1
+where v1.c1 in (select max(a.c1)
+from t1 a
+where a.c2 = v1.c2) 
+and c3 > 3;
+affected rows: 1
+select * from t1 order by c3;
+c1	c2	c3
+1	1	1
+1	2	2
+1	3	3
+2	1	4
+2	3	6
+2	4	7
+2	5	8
+insert into t1(c1,c2,c3) values (2,2,5);
+#
+# Delete through  a view and using the view in subquery
+#
+explain delete from v1 
+where v1.c2 in (select max(a.c2)
+from t1 a
+where a.c3 = v1.c3) 
+and c1 < 10 
+and exists (select 'X'
+                 from v1 a
+where a.c1 = v1.c1);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	range	t1_c2	t1_c2	10	NULL	2	Using index condition; Using where
+3	DEPENDENT SUBQUERY	t1	ref	t1_c2	t1_c2	10	const,test.t1.c1	2	Using index
+2	DEPENDENT SUBQUERY	a	ALL	NULL	NULL	NULL	NULL	8	Using where
+analyze delete from v1 
+where v1.c2 in (select max(a.c2)
+from t1 a
+where a.c3 = v1.c3) 
+and c1 < 10 
+and exists (select 'X'
+                 from v1 a
+where a.c1 = v1.c1);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	PRIMARY	t1	range	t1_c2	t1_c2	10	NULL	2	2.00	25.00	100.00	Using index condition; Using where
+3	DEPENDENT SUBQUERY	t1	ref	t1_c2	t1_c2	10	const,test.t1.c1	2	1.00	100.00	100.00	Using index
+2	DEPENDENT SUBQUERY	a	ALL	NULL	NULL	NULL	NULL	8	8.00	100.00	12.50	Using where
+select * from t1 order by c3;
+c1	c2	c3
+1	1	1
+1	3	3
+2	1	4
+2	3	6
+2	4	7
+2	5	8
+insert into t1(c1,c2,c3) values (1,2,2);
+insert into t1(c1,c2,c3) values (2,2,5);
+Test with a primary key
+drop index t1_c2 on t1;
+alter table t1 add primary key (c3);
+#
+# Delete with value from subquery on the same table, no search clause. ALL access
+#
+explain delete from t1
+where c1=(select a.c3
+from t1 a
+where a.c3 = t1.c3);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	8	Using where
+2	DEPENDENT SUBQUERY	a	eq_ref	PRIMARY	PRIMARY	4	test.t1.c3	1	Using index
+delete from t1
+where c1=(select a.c3
+from t1 a
+where a.c3 = t1.c3);
+affected rows: 1
+select * from t1 order by c3;
+c1	c2	c3
+1	2	2
+1	3	3
+2	1	4
+2	2	5
+2	3	6
+2	4	7
+2	5	8
+insert into t1(c1,c2,c3) values (1,1,1);
+#
+# Delete with search clause on the same table
+#
+explain delete from t1
+where c1 <2
+and exists (select 'X'
+                 from t1 a
+where a.c1 = t1.c2);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	8	Using where
+2	DEPENDENT SUBQUERY	a	ALL	NULL	NULL	NULL	NULL	8	Using where
+analyze delete from t1
+where c1 <2
+and exists (select 'X'
+                 from t1 a
+where a.c1 = t1.c2);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	8	8.00	100.00	25.00	Using where
+2	DEPENDENT SUBQUERY	a	ALL	NULL	NULL	NULL	NULL	8	3.67	100.00	18.18	Using where
+select * from t1 order by c3;
+c1	c2	c3
+1	3	3
+2	1	4
+2	2	5
+2	3	6
+2	4	7
+2	5	8
+insert into t1(c1,c2,c3) values (1,1,1);
+insert into t1(c1,c2,c3) values (1,2,2);
+#
+# Delete via RANGE or INDEX access if an index or a primary key exists
+#
+explain delete from t1 where exists (select 'X' from t1 a where a.c2 = t1.c2) and c2 >= 3;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	8	Using where
+2	DEPENDENT SUBQUERY	a	ALL	NULL	NULL	NULL	NULL	8	Using where
+delete from t1 where exists (select 'X' from t1 a where a.c2 = t1.c2) and c2 >= 3;
+affected rows: 4
+select * from t1 order by c3;
+c1	c2	c3
+1	1	1
+1	2	2
+2	1	4
+2	2	5
+insert into t1(c1,c2,c3) values (1,3,3);
+insert into t1(c1,c2,c3) values (2,3,6);
+insert into t1(c1,c2,c3) values (2,4,7);
+insert into t1(c1,c2,c3) values (2,5,8);
+#
+# Delete with order by
+#
+explain delete from t1 where exists (select 'X' from t1 a where a.c2 = t1.c2) and c2 >= 3 order by c2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	8	Using where
+2	DEPENDENT SUBQUERY	a	ALL	NULL	NULL	NULL	NULL	8	Using where
+analyze delete from t1 where exists (select 'X' from t1 a where a.c2 = t1.c2) and c2 >= 3 order by c2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	8	8.00	100.00	50.00	Using where
+2	DEPENDENT SUBQUERY	a	ALL	NULL	NULL	NULL	NULL	8	3.88	100.00	25.81	Using where
+select * from t1 order by c3;
+c1	c2	c3
+1	1	1
+1	2	2
+2	1	4
+2	2	5
+insert into t1(c1,c2,c3) values (1,3,3);
+insert into t1(c1,c2,c3) values (2,3,6);
+insert into t1(c1,c2,c3) values (2,4,7);
+insert into t1(c1,c2,c3) values (2,5,8);
+#
+# Delete using the index or primary key (c3)
+#
+explain delete from t1 where c3 in (select distinct a.c1 from t1 a where t1.c2=a.c2);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	a	ALL	NULL	NULL	NULL	NULL	8	Using where; Start temporary
+1	PRIMARY	t1	eq_ref	PRIMARY	PRIMARY	4	test.a.c1	1	Using where; End temporary
+delete from t1 where c3 in (select distinct a.c1 from t1 a where t1.c2=a.c2);
+affected rows: 2
+select * from t1 order by c3;
+c1	c2	c3
+1	3	3
+2	1	4
+2	2	5
+2	3	6
+2	4	7
+2	5	8
+insert into t1(c1,c2,c3) values (1,1,1);
+insert into t1(c1,c2,c3) values (1,2,2);
+#
+# Delete with a limit - can be delete
+#
+explain delete from t1 
+where c1 in (select a.c2
+from t1 a
+where a.c2 = t1.c3)
+limit 1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	a	ALL	NULL	NULL	NULL	NULL	8	Using where; Start temporary
+1	PRIMARY	t1	eq_ref	PRIMARY	PRIMARY	4	test.a.c2	1	Using where; End temporary
+analyze delete from t1 
+where c1 in (select a.c2
+from t1 a
+where a.c2 = t1.c3)
+limit 1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	PRIMARY	a	ALL	NULL	NULL	NULL	NULL	8	4.00	100.00	100.00	Using where; Start temporary
+1	PRIMARY	t1	eq_ref	PRIMARY	PRIMARY	4	test.a.c2	1	1.00	100.00	25.00	Using where; End temporary
+select * from t1 order by c3;
+c1	c2	c3
+1	2	2
+1	3	3
+2	1	4
+2	2	5
+2	3	6
+2	4	7
+2	5	8
+insert into t1(c1,c2,c3) values (1,1,1);
+#
+# Delete with a limit and an order by
+#
+select * from t1 
+where c1 in (select a.c2
+from t1 a
+where a.c3 = t1.c3)
+order by c3 desc;
+c1	c2	c3
+2	2	5
+1	1	1
+explain delete from t1 
+where c1 in (select a.c2
+from t1 a
+where a.c3 = t1.c3)
+order by c3 desc limit 1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	index	NULL	PRIMARY	4	NULL	1	Using where
+2	DEPENDENT SUBQUERY	a	eq_ref	PRIMARY	PRIMARY	4	test.t1.c3	1	Using where
+delete from t1 
+where c1 in (select a.c2
+from t1 a
+where a.c3 = t1.c3)
+order by c3 desc limit 1;
+affected rows: 1
+select * from t1 order by c3;
+c1	c2	c3
+1	1	1
+1	2	2
+1	3	3
+2	1	4
+2	3	6
+2	4	7
+2	5	8
+insert into t1(c1,c2,c3) values (2,2,5);
+#
+Delete using a view in subquery
+#
+explain delete from t1 
+where t1.c2 in ( select max(a.c2)
+from v1 a
+where a.c1 = t1.c1) ;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	8	Using where
+2	DEPENDENT SUBQUERY	t1	ALL	NULL	NULL	NULL	NULL	8	Using where
+analyze delete from t1 
+where t1.c2 in ( select max(a.c2)
+from v1 a
+where a.c1 = t1.c1) ;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	8	8.00	100.00	25.00	Using where
+2	DEPENDENT SUBQUERY	t1	ALL	NULL	NULL	NULL	NULL	8	8.00	100.00	12.50	Using where
+select * from t1 order by c3;
+c1	c2	c3
+1	1	1
+1	3	3
+2	1	4
+2	3	6
+2	4	7
+2	5	8
+insert into t1(c1,c2,c3) values (1,2,2);
+insert into t1(c1,c2,c3) values (2,2,5);
+#
+# Delete throw a view
+#
+explain delete from v1
+where v1.c1 in (select max(a.c1)
+from t1 a
+where a.c2 = v1.c2) 
+and c3 > 3;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	PRIMARY	NULL	NULL	NULL	8	Using where
+2	DEPENDENT SUBQUERY	a	ALL	NULL	NULL	NULL	NULL	8	Using where
+delete from v1
+where v1.c1 in (select max(a.c1)
+from t1 a
+where a.c2 = v1.c2) 
+and c3 > 3;
+affected rows: 1
+select * from t1 order by c3;
+c1	c2	c3
+1	1	1
+1	2	2
+1	3	3
+2	1	4
+2	3	6
+2	4	7
+2	5	8
+insert into t1(c1,c2,c3) values (2,2,5);
+#
+# Delete through  a view and using the view in subquery
+#
+explain delete from v1 
+where v1.c2 in (select max(a.c2)
+from t1 a
+where a.c3 = v1.c3) 
+and c1 < 10 
+and exists (select 'X'
+                 from v1 a
+where a.c1 = v1.c1);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	8	Using where
+3	DEPENDENT SUBQUERY	t1	ALL	NULL	NULL	NULL	NULL	8	Using where
+2	DEPENDENT SUBQUERY	a	eq_ref	PRIMARY	PRIMARY	4	test.t1.c3	1	
+analyze delete from v1 
+where v1.c2 in (select max(a.c2)
+from t1 a
+where a.c3 = v1.c3) 
+and c1 < 10 
+and exists (select 'X'
+                 from v1 a
+where a.c1 = v1.c1);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	8	8.00	100.00	25.00	Using where
+3	DEPENDENT SUBQUERY	t1	ALL	NULL	NULL	NULL	NULL	8	1.50	100.00	66.67	Using where
+2	DEPENDENT SUBQUERY	a	eq_ref	PRIMARY	PRIMARY	4	test.t1.c3	1	1.00	100.00	100.00	
+select * from t1 order by c3;
+c1	c2	c3
+1	1	1
+1	3	3
+2	1	4
+2	3	6
+2	4	7
+2	5	8
+insert into t1(c1,c2,c3) values (1,2,2);
+insert into t1(c1,c2,c3) values (2,2,5);
+drop view v1;
+drop table t1;
+create temporary table t1 (c1 integer, c2 integer, c3 integer);
+insert into t1(c1,c2,c3) values (1,1,1);
+insert into t1(c1,c2,c3) values (1,2,2);
+insert into t1(c1,c2,c3) values (1,3,3);
+insert into t1(c1,c2,c3) values (2,1,4);
+insert into t1(c1,c2,c3) values (2,2,5);
+insert into t1(c1,c2,c3) values (2,3,6);
+insert into t1(c1,c2,c3) values (2,4,7);
+insert into t1(c1,c2,c3) values (2,5,8);
+Test without any index
+#
+# Delete with value from subquery on the same table, no search clause. ALL access
+#
+explain delete from t1
+where c1=(select a.c3
+from t1 a
+where a.c3 = t1.c3);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	8	Using where
+2	DEPENDENT SUBQUERY	a	ALL	NULL	NULL	NULL	NULL	8	Using where
+delete from t1
+where c1=(select a.c3
+from t1 a
+where a.c3 = t1.c3);
+affected rows: 1
+select * from t1 order by c3;
+c1	c2	c3
+1	2	2
+1	3	3
+2	1	4
+2	2	5
+2	3	6
+2	4	7
+2	5	8
+insert into t1(c1,c2,c3) values (1,1,1);
+#
+# Delete with search clause on the same table
+#
+explain delete from t1
+where c1 <2
+and exists (select 'X'
+                 from t1 a
+where a.c1 = t1.c2);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	8	Using where
+2	DEPENDENT SUBQUERY	a	ALL	NULL	NULL	NULL	NULL	8	Using where
+analyze delete from t1
+where c1 <2
+and exists (select 'X'
+                 from t1 a
+where a.c1 = t1.c2);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	8	8.00	100.00	25.00	Using where
+2	DEPENDENT SUBQUERY	a	ALL	NULL	NULL	NULL	NULL	8	4.33	100.00	15.38	Using where
+select * from t1 order by c3;
+c1	c2	c3
+1	3	3
+2	1	4
+2	2	5
+2	3	6
+2	4	7
+2	5	8
+insert into t1(c1,c2,c3) values (1,1,1);
+insert into t1(c1,c2,c3) values (1,2,2);
+#
+# Delete via RANGE or INDEX access if an index or a primary key exists
+#
+explain delete from t1 where exists (select 'X' from t1 a where a.c2 = t1.c2) and c2 >= 3;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	8	Using where
+2	DEPENDENT SUBQUERY	a	ALL	NULL	NULL	NULL	NULL	8	Using where
+delete from t1 where exists (select 'X' from t1 a where a.c2 = t1.c2) and c2 >= 3;
+affected rows: 4
+select * from t1 order by c3;
+c1	c2	c3
+1	1	1
+1	2	2
+2	1	4
+2	2	5
+insert into t1(c1,c2,c3) values (1,3,3);
+insert into t1(c1,c2,c3) values (2,3,6);
+insert into t1(c1,c2,c3) values (2,4,7);
+insert into t1(c1,c2,c3) values (2,5,8);
+#
+# Delete with order by
+#
+explain delete from t1 where exists (select 'X' from t1 a where a.c2 = t1.c2) and c2 >= 3 order by c2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	8	Using where
+2	DEPENDENT SUBQUERY	a	ALL	NULL	NULL	NULL	NULL	8	Using where
+analyze delete from t1 where exists (select 'X' from t1 a where a.c2 = t1.c2) and c2 >= 3 order by c2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	8	8.00	100.00	50.00	Using where
+2	DEPENDENT SUBQUERY	a	ALL	NULL	NULL	NULL	NULL	8	3.38	100.00	29.63	Using where
+select * from t1 order by c3;
+c1	c2	c3
+1	1	1
+1	2	2
+2	1	4
+2	2	5
+insert into t1(c1,c2,c3) values (1,3,3);
+insert into t1(c1,c2,c3) values (2,3,6);
+insert into t1(c1,c2,c3) values (2,4,7);
+insert into t1(c1,c2,c3) values (2,5,8);
+#
+# Delete using the index or primary key (c3)
+#
+explain delete from t1 where c3 in (select distinct a.c1 from t1 a where t1.c2=a.c2);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	8	
+1	PRIMARY	a	ALL	NULL	NULL	NULL	NULL	8	Using where; FirstMatch(t1)
+delete from t1 where c3 in (select distinct a.c1 from t1 a where t1.c2=a.c2);
+affected rows: 2
+select * from t1 order by c3;
+c1	c2	c3
+1	3	3
+2	1	4
+2	2	5
+2	3	6
+2	4	7
+2	5	8
+insert into t1(c1,c2,c3) values (1,1,1);
+insert into t1(c1,c2,c3) values (1,2,2);
+#
+# Delete with a limit - can be delete
+#
+explain delete from t1 
+where c1 in (select a.c2
+from t1 a
+where a.c2 = t1.c3)
+limit 1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	8	Using where
+1	PRIMARY	a	ALL	NULL	NULL	NULL	NULL	8	Using where; FirstMatch(t1)
+analyze delete from t1 
+where c1 in (select a.c2
+from t1 a
+where a.c2 = t1.c3)
+limit 1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	8	2.00	100.00	50.00	Using where
+1	PRIMARY	a	ALL	NULL	NULL	NULL	NULL	8	2.00	100.00	50.00	Using where; FirstMatch(t1)
+select * from t1 order by c3;
+c1	c2	c3
+1	2	2
+1	3	3
+2	1	4
+2	2	5
+2	3	6
+2	4	7
+2	5	8
+insert into t1(c1,c2,c3) values (1,1,1);
+#
+# Delete with a limit and an order by
+#
+select * from t1 
+where c1 in (select a.c2
+from t1 a
+where a.c3 = t1.c3)
+order by c3 desc;
+c1	c2	c3
+2	2	5
+1	1	1
+explain delete from t1 
+where c1 in (select a.c2
+from t1 a
+where a.c3 = t1.c3)
+order by c3 desc limit 1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	8	Using where; Using filesort
+2	DEPENDENT SUBQUERY	a	ALL	NULL	NULL	NULL	NULL	8	Using where
+delete from t1 
+where c1 in (select a.c2
+from t1 a
+where a.c3 = t1.c3)
+order by c3 desc limit 1;
+affected rows: 1
+select * from t1 order by c3;
+c1	c2	c3
+1	1	1
+1	2	2
+1	3	3
+2	1	4
+2	3	6
+2	4	7
+2	5	8
+insert into t1(c1,c2,c3) values (2,2,5);
+Test with an index
+create index t1_c2 on t1 (c2,c1);
+#
+# Delete with value from subquery on the same table, no search clause. ALL access
+#
+explain delete from t1
+where c1=(select a.c3
+from t1 a
+where a.c3 = t1.c3);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	8	Using where
+2	DEPENDENT SUBQUERY	a	ALL	NULL	NULL	NULL	NULL	8	Using where
+delete from t1
+where c1=(select a.c3
+from t1 a
+where a.c3 = t1.c3);
+affected rows: 1
+select * from t1 order by c3;
+c1	c2	c3
+1	2	2
+1	3	3
+2	1	4
+2	2	5
+2	3	6
+2	4	7
+2	5	8
+insert into t1(c1,c2,c3) values (1,1,1);
+#
+# Delete with search clause on the same table
+#
+explain delete from t1
+where c1 <2
+and exists (select 'X'
+                 from t1 a
+where a.c1 = t1.c2);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	8	Using where
+2	DEPENDENT SUBQUERY	a	index	NULL	t1_c2	10	NULL	8	Using where; Using index
+analyze delete from t1
+where c1 <2
+and exists (select 'X'
+                 from t1 a
+where a.c1 = t1.c2);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	8	8.00	100.00	25.00	Using where
+2	DEPENDENT SUBQUERY	a	index	NULL	t1_c2	10	NULL	8	3.67	100.00	18.18	Using where; Using index
+select * from t1 order by c3;
+c1	c2	c3
+1	3	3
+2	1	4
+2	2	5
+2	3	6
+2	4	7
+2	5	8
+insert into t1(c1,c2,c3) values (1,1,1);
+insert into t1(c1,c2,c3) values (1,2,2);
+#
+# Delete via RANGE or INDEX access if an index or a primary key exists
+#
+explain delete from t1 where exists (select 'X' from t1 a where a.c2 = t1.c2) and c2 >= 3;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	range	t1_c2	t1_c2	5	NULL	5	Using index condition; Using where
+2	DEPENDENT SUBQUERY	a	ref	t1_c2	t1_c2	5	test.t1.c2	1	Using index
+delete from t1 where exists (select 'X' from t1 a where a.c2 = t1.c2) and c2 >= 3;
+affected rows: 4
+select * from t1 order by c3;
+c1	c2	c3
+1	1	1
+1	2	2
+2	1	4
+2	2	5
+insert into t1(c1,c2,c3) values (1,3,3);
+insert into t1(c1,c2,c3) values (2,3,6);
+insert into t1(c1,c2,c3) values (2,4,7);
+insert into t1(c1,c2,c3) values (2,5,8);
+#
+# Delete with order by
+#
+explain delete from t1 where exists (select 'X' from t1 a where a.c2 = t1.c2) and c2 >= 3 order by c2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	range	t1_c2	t1_c2	5	NULL	5	Using index condition; Using where
+2	DEPENDENT SUBQUERY	a	ref	t1_c2	t1_c2	5	test.t1.c2	1	Using index
+analyze delete from t1 where exists (select 'X' from t1 a where a.c2 = t1.c2) and c2 >= 3 order by c2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	PRIMARY	t1	range	t1_c2	t1_c2	5	NULL	5	4.00	100.00	100.00	Using index condition; Using where
+2	DEPENDENT SUBQUERY	a	ref	t1_c2	t1_c2	5	test.t1.c2	1	1.00	100.00	100.00	Using index
+select * from t1 order by c3;
+c1	c2	c3
+1	1	1
+1	2	2
+2	1	4
+2	2	5
+insert into t1(c1,c2,c3) values (1,3,3);
+insert into t1(c1,c2,c3) values (2,3,6);
+insert into t1(c1,c2,c3) values (2,4,7);
+insert into t1(c1,c2,c3) values (2,5,8);
+#
+# Delete using the index or primary key (c3)
+#
+explain delete from t1 where c3 in (select distinct a.c1 from t1 a where t1.c2=a.c2);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	t1_c2	NULL	NULL	NULL	8	Using where
+1	PRIMARY	a	ref	t1_c2	t1_c2	10	test.t1.c2,test.t1.c3	2	Using index; FirstMatch(t1)
+delete from t1 where c3 in (select distinct a.c1 from t1 a where t1.c2=a.c2);
+affected rows: 2
+select * from t1 order by c3;
+c1	c2	c3
+1	3	3
+2	1	4
+2	2	5
+2	3	6
+2	4	7
+2	5	8
+insert into t1(c1,c2,c3) values (1,1,1);
+insert into t1(c1,c2,c3) values (1,2,2);
+#
+# Delete with a limit - can be delete
+#
+explain delete from t1 
+where c1 in (select a.c2
+from t1 a
+where a.c2 = t1.c3)
+limit 1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	8	Using where
+1	PRIMARY	a	ref	t1_c2	t1_c2	5	test.t1.c1	1	Using index; FirstMatch(t1)
+analyze delete from t1 
+where c1 in (select a.c2
+from t1 a
+where a.c2 = t1.c3)
+limit 1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	8	2.00	100.00	50.00	Using where
+1	PRIMARY	a	ref	t1_c2	t1_c2	5	test.t1.c1	1	1.00	100.00	100.00	Using index; FirstMatch(t1)
+select * from t1 order by c3;
+c1	c2	c3
+1	2	2
+1	3	3
+2	1	4
+2	2	5
+2	3	6
+2	4	7
+2	5	8
+insert into t1(c1,c2,c3) values (1,1,1);
+#
+# Delete with a limit and an order by
+#
+select * from t1 
+where c1 in (select a.c2
+from t1 a
+where a.c3 = t1.c3)
+order by c3 desc;
+c1	c2	c3
+2	2	5
+1	1	1
+explain delete from t1 
+where c1 in (select a.c2
+from t1 a
+where a.c3 = t1.c3)
+order by c3 desc limit 1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	8	Using where; Using filesort
+2	DEPENDENT SUBQUERY	a	index_subquery	t1_c2	t1_c2	5	func	1	Using where
+delete from t1 
+where c1 in (select a.c2
+from t1 a
+where a.c3 = t1.c3)
+order by c3 desc limit 1;
+affected rows: 1
+select * from t1 order by c3;
+c1	c2	c3
+1	1	1
+1	2	2
+1	3	3
+2	1	4
+2	3	6
+2	4	7
+2	5	8
+insert into t1(c1,c2,c3) values (2,2,5);
+Test with a primary key
+drop index t1_c2 on t1;
+alter table t1 add primary key (c3);
+#
+# Delete with value from subquery on the same table, no search clause. ALL access
+#
+explain delete from t1
+where c1=(select a.c3
+from t1 a
+where a.c3 = t1.c3);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	8	Using where
+2	DEPENDENT SUBQUERY	a	eq_ref	PRIMARY	PRIMARY	4	test.t1.c3	1	Using index
+delete from t1
+where c1=(select a.c3
+from t1 a
+where a.c3 = t1.c3);
+affected rows: 1
+select * from t1 order by c3;
+c1	c2	c3
+1	2	2
+1	3	3
+2	1	4
+2	2	5
+2	3	6
+2	4	7
+2	5	8
+insert into t1(c1,c2,c3) values (1,1,1);
+#
+# Delete with search clause on the same table
+#
+explain delete from t1
+where c1 <2
+and exists (select 'X'
+                 from t1 a
+where a.c1 = t1.c2);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	8	Using where
+2	DEPENDENT SUBQUERY	a	ALL	NULL	NULL	NULL	NULL	8	Using where
+analyze delete from t1
+where c1 <2
+and exists (select 'X'
+                 from t1 a
+where a.c1 = t1.c2);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	8	8.00	100.00	25.00	Using where
+2	DEPENDENT SUBQUERY	a	ALL	NULL	NULL	NULL	NULL	8	4.33	100.00	15.38	Using where
+select * from t1 order by c3;
+c1	c2	c3
+1	3	3
+2	1	4
+2	2	5
+2	3	6
+2	4	7
+2	5	8
+insert into t1(c1,c2,c3) values (1,1,1);
+insert into t1(c1,c2,c3) values (1,2,2);
+#
+# Delete via RANGE or INDEX access if an index or a primary key exists
+#
+explain delete from t1 where exists (select 'X' from t1 a where a.c2 = t1.c2) and c2 >= 3;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	8	Using where
+2	DEPENDENT SUBQUERY	a	ALL	NULL	NULL	NULL	NULL	8	Using where
+delete from t1 where exists (select 'X' from t1 a where a.c2 = t1.c2) and c2 >= 3;
+affected rows: 4
+select * from t1 order by c3;
+c1	c2	c3
+1	1	1
+1	2	2
+2	1	4
+2	2	5
+insert into t1(c1,c2,c3) values (1,3,3);
+insert into t1(c1,c2,c3) values (2,3,6);
+insert into t1(c1,c2,c3) values (2,4,7);
+insert into t1(c1,c2,c3) values (2,5,8);
+#
+# Delete with order by
+#
+explain delete from t1 where exists (select 'X' from t1 a where a.c2 = t1.c2) and c2 >= 3 order by c2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	8	Using where
+2	DEPENDENT SUBQUERY	a	ALL	NULL	NULL	NULL	NULL	8	Using where
+analyze delete from t1 where exists (select 'X' from t1 a where a.c2 = t1.c2) and c2 >= 3 order by c2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	8	8.00	100.00	50.00	Using where
+2	DEPENDENT SUBQUERY	a	ALL	NULL	NULL	NULL	NULL	8	3.38	100.00	29.63	Using where
+select * from t1 order by c3;
+c1	c2	c3
+1	1	1
+1	2	2
+2	1	4
+2	2	5
+insert into t1(c1,c2,c3) values (1,3,3);
+insert into t1(c1,c2,c3) values (2,3,6);
+insert into t1(c1,c2,c3) values (2,4,7);
+insert into t1(c1,c2,c3) values (2,5,8);
+#
+# Delete using the index or primary key (c3)
+#
+explain delete from t1 where c3 in (select distinct a.c1 from t1 a where t1.c2=a.c2);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	a	ALL	NULL	NULL	NULL	NULL	8	Using where; Start temporary
+1	PRIMARY	t1	eq_ref	PRIMARY	PRIMARY	4	test.a.c1	1	Using where; End temporary
+delete from t1 where c3 in (select distinct a.c1 from t1 a where t1.c2=a.c2);
+affected rows: 2
+select * from t1 order by c3;
+c1	c2	c3
+1	3	3
+2	1	4
+2	2	5
+2	3	6
+2	4	7
+2	5	8
+insert into t1(c1,c2,c3) values (1,1,1);
+insert into t1(c1,c2,c3) values (1,2,2);
+#
+# Delete with a limit - can be delete
+#
+explain delete from t1 
+where c1 in (select a.c2
+from t1 a
+where a.c2 = t1.c3)
+limit 1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	a	ALL	NULL	NULL	NULL	NULL	8	Using where; Start temporary
+1	PRIMARY	t1	eq_ref	PRIMARY	PRIMARY	4	test.a.c2	1	Using where; End temporary
+analyze delete from t1 
+where c1 in (select a.c2
+from t1 a
+where a.c2 = t1.c3)
+limit 1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	PRIMARY	a	ALL	NULL	NULL	NULL	NULL	8	2.00	100.00	100.00	Using where; Start temporary
+1	PRIMARY	t1	eq_ref	PRIMARY	PRIMARY	4	test.a.c2	1	1.00	100.00	50.00	Using where; End temporary
+select * from t1 order by c3;
+c1	c2	c3
+1	2	2
+1	3	3
+2	1	4
+2	2	5
+2	3	6
+2	4	7
+2	5	8
+insert into t1(c1,c2,c3) values (1,1,1);
+#
+# Delete with a limit and an order by
+#
+select * from t1 
+where c1 in (select a.c2
+from t1 a
+where a.c3 = t1.c3)
+order by c3 desc;
+c1	c2	c3
+2	2	5
+1	1	1
+explain delete from t1 
+where c1 in (select a.c2
+from t1 a
+where a.c3 = t1.c3)
+order by c3 desc limit 1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	index	NULL	PRIMARY	4	NULL	1	Using where
+2	DEPENDENT SUBQUERY	a	eq_ref	PRIMARY	PRIMARY	4	test.t1.c3	1	Using where
+delete from t1 
+where c1 in (select a.c2
+from t1 a
+where a.c3 = t1.c3)
+order by c3 desc limit 1;
+affected rows: 1
+select * from t1 order by c3;
+c1	c2	c3
+1	1	1
+1	2	2
+1	3	3
+2	1	4
+2	3	6
+2	4	7
+2	5	8
+insert into t1(c1,c2,c3) values (2,2,5);
+drop table t1;
+#
+# Test on dynamic columns (blob)
+#
+create table assets (
+item_name varchar(32) primary key, -- A common attribute for all items
+dynamic_cols  blob  -- Dynamic columns will be stored here
+);
+INSERT INTO assets VALUES ('MariaDB T-shirt', COLUMN_CREATE('color', 'blue', 'size', 'XL'));
+INSERT INTO assets VALUES ('Thinkpad Laptop', COLUMN_CREATE('color', 'black', 'price', 500));
+INSERT INTO assets VALUES ('Fridge', COLUMN_CREATE('color', 'white', 'warranty', '5 years'));
+INSERT INTO assets VALUES ('Microwave', COLUMN_CREATE('warranty', '3 years'));
+SELECT item_name, COLUMN_GET(dynamic_cols, 'color' as char) AS color FROM assets ORDER BY item_name;
+item_name	color
+Fridge	white
+MariaDB T-shirt	blue
+Microwave	NULL
+Thinkpad Laptop	black
+UPDATE assets SET dynamic_cols=COLUMN_DELETE(dynamic_cols, 'color') WHERE item_name='Fridge';
+SELECT item_name, COLUMN_GET(dynamic_cols, 'color' as char) AS color FROM assets ORDER BY item_name;
+item_name	color
+Fridge	NULL
+MariaDB T-shirt	blue
+Microwave	NULL
+Thinkpad Laptop	black
+DELETE FROM assets
+WHERE item_name in (select b.item_name
+from assets b
+where COLUMN_GET(b.dynamic_cols, 'color' as char) ='black');
+SELECT item_name, COLUMN_GET(dynamic_cols, 'color' as char) AS color FROM assets ORDER BY item_name;
+item_name	color
+Fridge	NULL
+MariaDB T-shirt	blue
+Microwave	NULL
+DELETE FROM assets WHERE item_name='Microwave';
+SELECT item_name, COLUMN_GET(dynamic_cols, 'color' as char) AS color FROM assets ORDER BY item_name;
+item_name	color
+Fridge	NULL
+MariaDB T-shirt	blue
+drop table assets ;
+#
+# Test on fulltext columns
+#
+CREATE TABLE ft2(copy TEXT,FULLTEXT(copy));
+INSERT INTO ft2(copy) VALUES
+('MySQL vs MariaDB database'),
+('Oracle vs MariaDB database'),
+('PostgreSQL vs MariaDB database'),
+('MariaDB overview'),
+('Foreign keys'),
+('Primary keys'),
+('Indexes'),
+('Transactions'),
+('Triggers');
+SELECT * FROM ft2 WHERE MATCH(copy) AGAINST('database');
+copy
+MySQL vs MariaDB database
+Oracle vs MariaDB database
+PostgreSQL vs MariaDB database
+DELETE FROM ft2 WHERE  MATCH(copy) AGAINST('database');
+SELECT * FROM ft2 WHERE MATCH(copy) AGAINST('database');
+copy
+drop table ft2;
+set default_storage_engine=MyISAM;
+create table t1 (c1 integer, c2 integer, c3 integer);
+insert into t1(c1,c2,c3) values (1,1,1);
+insert into t1(c1,c2,c3) values (1,2,2);
+insert into t1(c1,c2,c3) values (1,3,3);
+insert into t1(c1,c2,c3) values (2,1,4);
+insert into t1(c1,c2,c3) values (2,2,5);
+insert into t1(c1,c2,c3) values (2,3,6);
+insert into t1(c1,c2,c3) values (2,4,7);
+insert into t1(c1,c2,c3) values (2,5,8);
+create view v1 as select * from t1 where c2=2;
+Test without any index
+#
+# Delete with value from subquery on the same table, no search clause. ALL access
+#
+explain delete from t1
+where c1=(select a.c3
+from t1 a
+where a.c3 = t1.c3);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	8	Using where
+2	DEPENDENT SUBQUERY	a	ALL	NULL	NULL	NULL	NULL	8	Using where
+delete from t1
+where c1=(select a.c3
+from t1 a
+where a.c3 = t1.c3);
+affected rows: 1
+select * from t1 order by c3;
+c1	c2	c3
+1	2	2
+1	3	3
+2	1	4
+2	2	5
+2	3	6
+2	4	7
+2	5	8
+insert into t1(c1,c2,c3) values (1,1,1);
+#
+# Delete with search clause on the same table
+#
+explain delete from t1
+where c1 <2
+and exists (select 'X'
+                 from t1 a
+where a.c1 = t1.c2);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	8	Using where
+2	DEPENDENT SUBQUERY	a	ALL	NULL	NULL	NULL	NULL	8	Using where
+analyze delete from t1
+where c1 <2
+and exists (select 'X'
+                 from t1 a
+where a.c1 = t1.c2);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	8	8.00	100.00	25.00	Using where
+2	DEPENDENT SUBQUERY	a	ALL	NULL	NULL	NULL	NULL	8	4.33	100.00	15.38	Using where
+select * from t1 order by c3;
+c1	c2	c3
+1	3	3
+2	1	4
+2	2	5
+2	3	6
+2	4	7
+2	5	8
+insert into t1(c1,c2,c3) values (1,1,1);
+insert into t1(c1,c2,c3) values (1,2,2);
+#
+# Delete via RANGE or INDEX access if an index or a primary key exists
+#
+explain delete from t1 where exists (select 'X' from t1 a where a.c2 = t1.c2) and c2 >= 3;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	8	Using where
+2	DEPENDENT SUBQUERY	a	ALL	NULL	NULL	NULL	NULL	8	Using where
+delete from t1 where exists (select 'X' from t1 a where a.c2 = t1.c2) and c2 >= 3;
+affected rows: 4
+select * from t1 order by c3;
+c1	c2	c3
+1	1	1
+1	2	2
+2	1	4
+2	2	5
+insert into t1(c1,c2,c3) values (1,3,3);
+insert into t1(c1,c2,c3) values (2,3,6);
+insert into t1(c1,c2,c3) values (2,4,7);
+insert into t1(c1,c2,c3) values (2,5,8);
+#
+# Delete with order by
+#
+explain delete from t1 where exists (select 'X' from t1 a where a.c2 = t1.c2) and c2 >= 3 order by c2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	8	Using where
+2	DEPENDENT SUBQUERY	a	ALL	NULL	NULL	NULL	NULL	8	Using where
+analyze delete from t1 where exists (select 'X' from t1 a where a.c2 = t1.c2) and c2 >= 3 order by c2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	8	8.00	100.00	50.00	Using where
+2	DEPENDENT SUBQUERY	a	ALL	NULL	NULL	NULL	NULL	8	3.62	100.00	27.59	Using where
+select * from t1 order by c3;
+c1	c2	c3
+1	1	1
+1	2	2
+2	1	4
+2	2	5
+insert into t1(c1,c2,c3) values (1,3,3);
+insert into t1(c1,c2,c3) values (2,3,6);
+insert into t1(c1,c2,c3) values (2,4,7);
+insert into t1(c1,c2,c3) values (2,5,8);
+#
+# Delete using the index or primary key (c3)
+#
+explain delete from t1 where c3 in (select distinct a.c1 from t1 a where t1.c2=a.c2);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	8	
+1	PRIMARY	a	ALL	NULL	NULL	NULL	NULL	8	Using where; FirstMatch(t1)
+delete from t1 where c3 in (select distinct a.c1 from t1 a where t1.c2=a.c2);
+affected rows: 2
+select * from t1 order by c3;
+c1	c2	c3
+1	3	3
+2	1	4
+2	2	5
+2	3	6
+2	4	7
+2	5	8
+insert into t1(c1,c2,c3) values (1,1,1);
+insert into t1(c1,c2,c3) values (1,2,2);
+#
+# Delete with a limit - can be delete
+#
+explain delete from t1 
+where c1 in (select a.c2
+from t1 a
+where a.c2 = t1.c3)
+limit 1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	8	Using where
+1	PRIMARY	a	ALL	NULL	NULL	NULL	NULL	8	Using where; FirstMatch(t1)
+analyze delete from t1 
+where c1 in (select a.c2
+from t1 a
+where a.c2 = t1.c3)
+limit 1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	8	2.00	100.00	50.00	Using where
+1	PRIMARY	a	ALL	NULL	NULL	NULL	NULL	8	2.00	100.00	50.00	Using where; FirstMatch(t1)
+select * from t1 order by c3;
+c1	c2	c3
+1	2	2
+1	3	3
+2	1	4
+2	2	5
+2	3	6
+2	4	7
+2	5	8
+insert into t1(c1,c2,c3) values (1,1,1);
+#
+# Delete with a limit and an order by
+#
+select * from t1 
+where c1 in (select a.c2
+from t1 a
+where a.c3 = t1.c3)
+order by c3 desc;
+c1	c2	c3
+2	2	5
+1	1	1
+explain delete from t1 
+where c1 in (select a.c2
+from t1 a
+where a.c3 = t1.c3)
+order by c3 desc limit 1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	8	Using where; Using filesort
+2	DEPENDENT SUBQUERY	a	ALL	NULL	NULL	NULL	NULL	8	Using where
+delete from t1 
+where c1 in (select a.c2
+from t1 a
+where a.c3 = t1.c3)
+order by c3 desc limit 1;
+affected rows: 1
+select * from t1 order by c3;
+c1	c2	c3
+1	1	1
+1	2	2
+1	3	3
+2	1	4
+2	3	6
+2	4	7
+2	5	8
+insert into t1(c1,c2,c3) values (2,2,5);
+#
+Delete using a view in subquery
+#
+explain delete from t1 
+where t1.c2 in ( select max(a.c2)
+from v1 a
+where a.c1 = t1.c1) ;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	8	Using where
+2	DEPENDENT SUBQUERY	t1	ALL	NULL	NULL	NULL	NULL	8	Using where
+analyze delete from t1 
+where t1.c2 in ( select max(a.c2)
+from v1 a
+where a.c1 = t1.c1) ;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	8	8.00	100.00	25.00	Using where
+2	DEPENDENT SUBQUERY	t1	ALL	NULL	NULL	NULL	NULL	8	8.00	100.00	12.50	Using where
+select * from t1 order by c3;
+c1	c2	c3
+1	1	1
+1	3	3
+2	1	4
+2	3	6
+2	4	7
+2	5	8
+insert into t1(c1,c2,c3) values (1,2,2);
+insert into t1(c1,c2,c3) values (2,2,5);
+#
+# Delete throw a view
+#
+explain delete from v1
+where v1.c1 in (select max(a.c1)
+from t1 a
+where a.c2 = v1.c2) 
+and c3 > 3;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	8	Using where
+2	DEPENDENT SUBQUERY	a	ALL	NULL	NULL	NULL	NULL	8	Using where
+delete from v1
+where v1.c1 in (select max(a.c1)
+from t1 a
+where a.c2 = v1.c2) 
+and c3 > 3;
+affected rows: 1
+select * from t1 order by c3;
+c1	c2	c3
+1	1	1
+1	2	2
+1	3	3
+2	1	4
+2	3	6
+2	4	7
+2	5	8
+insert into t1(c1,c2,c3) values (2,2,5);
+#
+# Delete through  a view and using the view in subquery
+#
+explain delete from v1 
+where v1.c2 in (select max(a.c2)
+from t1 a
+where a.c3 = v1.c3) 
+and c1 < 10 
+and exists (select 'X'
+                 from v1 a
+where a.c1 = v1.c1);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	8	Using where
+3	DEPENDENT SUBQUERY	t1	ALL	NULL	NULL	NULL	NULL	8	Using where
+2	DEPENDENT SUBQUERY	a	ALL	NULL	NULL	NULL	NULL	8	Using where
+analyze delete from v1 
+where v1.c2 in (select max(a.c2)
+from t1 a
+where a.c3 = v1.c3) 
+and c1 < 10 
+and exists (select 'X'
+                 from v1 a
+where a.c1 = v1.c1);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	8	8.00	100.00	25.00	Using where
+3	DEPENDENT SUBQUERY	t1	ALL	NULL	NULL	NULL	NULL	8	3.00	100.00	33.33	Using where
+2	DEPENDENT SUBQUERY	a	ALL	NULL	NULL	NULL	NULL	8	8.00	100.00	12.50	Using where
+select * from t1 order by c3;
+c1	c2	c3
+1	1	1
+1	3	3
+2	1	4
+2	3	6
+2	4	7
+2	5	8
+insert into t1(c1,c2,c3) values (1,2,2);
+insert into t1(c1,c2,c3) values (2,2,5);
+Test with an index
+create index t1_c2 on t1 (c2,c1);
+#
+# Delete with value from subquery on the same table, no search clause. ALL access
+#
+explain delete from t1
+where c1=(select a.c3
+from t1 a
+where a.c3 = t1.c3);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	8	Using where
+2	DEPENDENT SUBQUERY	a	ALL	NULL	NULL	NULL	NULL	8	Using where
+delete from t1
+where c1=(select a.c3
+from t1 a
+where a.c3 = t1.c3);
+affected rows: 1
+select * from t1 order by c3;
+c1	c2	c3
+1	2	2
+1	3	3
+2	1	4
+2	2	5
+2	3	6
+2	4	7
+2	5	8
+insert into t1(c1,c2,c3) values (1,1,1);
+#
+# Delete with search clause on the same table
+#
+explain delete from t1
+where c1 <2
+and exists (select 'X'
+                 from t1 a
+where a.c1 = t1.c2);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	8	Using where
+2	DEPENDENT SUBQUERY	a	index	NULL	t1_c2	10	NULL	8	Using where; Using index
+analyze delete from t1
+where c1 <2
+and exists (select 'X'
+                 from t1 a
+where a.c1 = t1.c2);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	8	8.00	100.00	25.00	Using where
+2	DEPENDENT SUBQUERY	a	index	NULL	t1_c2	10	NULL	8	3.67	100.00	18.18	Using where; Using index
+select * from t1 order by c3;
+c1	c2	c3
+1	3	3
+2	1	4
+2	2	5
+2	3	6
+2	4	7
+2	5	8
+insert into t1(c1,c2,c3) values (1,1,1);
+insert into t1(c1,c2,c3) values (1,2,2);
+#
+# Delete via RANGE or INDEX access if an index or a primary key exists
+#
+explain delete from t1 where exists (select 'X' from t1 a where a.c2 = t1.c2) and c2 >= 3;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	range	t1_c2	t1_c2	5	NULL	4	Using index condition; Using where
+2	DEPENDENT SUBQUERY	a	ref	t1_c2	t1_c2	5	test.t1.c2	1	Using index
+delete from t1 where exists (select 'X' from t1 a where a.c2 = t1.c2) and c2 >= 3;
+affected rows: 4
+select * from t1 order by c3;
+c1	c2	c3
+1	1	1
+1	2	2
+2	1	4
+2	2	5
+insert into t1(c1,c2,c3) values (1,3,3);
+insert into t1(c1,c2,c3) values (2,3,6);
+insert into t1(c1,c2,c3) values (2,4,7);
+insert into t1(c1,c2,c3) values (2,5,8);
+#
+# Delete with order by
+#
+explain delete from t1 where exists (select 'X' from t1 a where a.c2 = t1.c2) and c2 >= 3 order by c2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	range	t1_c2	t1_c2	5	NULL	4	Using index condition; Using where
+2	DEPENDENT SUBQUERY	a	ref	t1_c2	t1_c2	5	test.t1.c2	1	Using index
+analyze delete from t1 where exists (select 'X' from t1 a where a.c2 = t1.c2) and c2 >= 3 order by c2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	PRIMARY	t1	range	t1_c2	t1_c2	5	NULL	4	4.00	100.00	100.00	Using index condition; Using where
+2	DEPENDENT SUBQUERY	a	ref	t1_c2	t1_c2	5	test.t1.c2	1	1.00	100.00	100.00	Using index
+select * from t1 order by c3;
+c1	c2	c3
+1	1	1
+1	2	2
+2	1	4
+2	2	5
+insert into t1(c1,c2,c3) values (1,3,3);
+insert into t1(c1,c2,c3) values (2,3,6);
+insert into t1(c1,c2,c3) values (2,4,7);
+insert into t1(c1,c2,c3) values (2,5,8);
+#
+# Delete using the index or primary key (c3)
+#
+explain delete from t1 where c3 in (select distinct a.c1 from t1 a where t1.c2=a.c2);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	t1_c2	NULL	NULL	NULL	8	Using where
+1	PRIMARY	a	ref	t1_c2	t1_c2	10	test.t1.c2,test.t1.c3	2	Using index; FirstMatch(t1)
+delete from t1 where c3 in (select distinct a.c1 from t1 a where t1.c2=a.c2);
+affected rows: 2
+select * from t1 order by c3;
+c1	c2	c3
+1	3	3
+2	1	4
+2	2	5
+2	3	6
+2	4	7
+2	5	8
+insert into t1(c1,c2,c3) values (1,1,1);
+insert into t1(c1,c2,c3) values (1,2,2);
+#
+# Delete with a limit - can be delete
+#
+explain delete from t1 
+where c1 in (select a.c2
+from t1 a
+where a.c2 = t1.c3)
+limit 1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	8	Using where
+1	PRIMARY	a	ref	t1_c2	t1_c2	5	test.t1.c1	1	Using index; FirstMatch(t1)
+analyze delete from t1 
+where c1 in (select a.c2
+from t1 a
+where a.c2 = t1.c3)
+limit 1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	8	5.00	100.00	20.00	Using where
+1	PRIMARY	a	ref	t1_c2	t1_c2	5	test.t1.c1	1	1.00	100.00	100.00	Using index; FirstMatch(t1)
+select * from t1 order by c3;
+c1	c2	c3
+1	2	2
+1	3	3
+2	1	4
+2	2	5
+2	3	6
+2	4	7
+2	5	8
+insert into t1(c1,c2,c3) values (1,1,1);
+#
+# Delete with a limit and an order by
+#
+select * from t1 
+where c1 in (select a.c2
+from t1 a
+where a.c3 = t1.c3)
+order by c3 desc;
+c1	c2	c3
+2	2	5
+1	1	1
+explain delete from t1 
+where c1 in (select a.c2
+from t1 a
+where a.c3 = t1.c3)
+order by c3 desc limit 1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	8	Using where; Using filesort
+2	DEPENDENT SUBQUERY	a	index_subquery	t1_c2	t1_c2	5	func	1	Using where
+delete from t1 
+where c1 in (select a.c2
+from t1 a
+where a.c3 = t1.c3)
+order by c3 desc limit 1;
+affected rows: 1
+select * from t1 order by c3;
+c1	c2	c3
+1	1	1
+1	2	2
+1	3	3
+2	1	4
+2	3	6
+2	4	7
+2	5	8
+insert into t1(c1,c2,c3) values (2,2,5);
+#
+Delete using a view in subquery
+#
+explain delete from t1 
+where t1.c2 in ( select max(a.c2)
+from v1 a
+where a.c1 = t1.c1) ;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	8	Using where
+2	DEPENDENT SUBQUERY	t1	ref	t1_c2	t1_c2	10	const,test.t1.c1	2	Using index
+analyze delete from t1 
+where t1.c2 in ( select max(a.c2)
+from v1 a
+where a.c1 = t1.c1) ;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	8	8.00	100.00	25.00	Using where
+2	DEPENDENT SUBQUERY	t1	ref	t1_c2	t1_c2	10	const,test.t1.c1	2	1.00	100.00	100.00	Using index
+select * from t1 order by c3;
+c1	c2	c3
+1	1	1
+1	3	3
+2	1	4
+2	3	6
+2	4	7
+2	5	8
+insert into t1(c1,c2,c3) values (1,2,2);
+insert into t1(c1,c2,c3) values (2,2,5);
+#
+# Delete throw a view
+#
+explain delete from v1
+where v1.c1 in (select max(a.c1)
+from t1 a
+where a.c2 = v1.c2) 
+and c3 > 3;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ref	t1_c2	t1_c2	5	const	2	Using where
+2	DEPENDENT SUBQUERY	a	ref	t1_c2	t1_c2	5	test.t1.c2	1	Using index
+delete from v1
+where v1.c1 in (select max(a.c1)
+from t1 a
+where a.c2 = v1.c2) 
+and c3 > 3;
+affected rows: 1
+select * from t1 order by c3;
+c1	c2	c3
+1	1	1
+1	2	2
+1	3	3
+2	1	4
+2	3	6
+2	4	7
+2	5	8
+insert into t1(c1,c2,c3) values (2,2,5);
+#
+# Delete through  a view and using the view in subquery
+#
+explain delete from v1 
+where v1.c2 in (select max(a.c2)
+from t1 a
+where a.c3 = v1.c3) 
+and c1 < 10 
+and exists (select 'X'
+                 from v1 a
+where a.c1 = v1.c1);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	range	t1_c2	t1_c2	10	NULL	2	Using index condition; Using where
+3	DEPENDENT SUBQUERY	t1	ref	t1_c2	t1_c2	10	const,test.t1.c1	2	Using index
+2	DEPENDENT SUBQUERY	a	ALL	NULL	NULL	NULL	NULL	8	Using where
+analyze delete from v1 
+where v1.c2 in (select max(a.c2)
+from t1 a
+where a.c3 = v1.c3) 
+and c1 < 10 
+and exists (select 'X'
+                 from v1 a
+where a.c1 = v1.c1);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	PRIMARY	t1	range	t1_c2	t1_c2	10	NULL	2	2.00	25.00	100.00	Using index condition; Using where
+3	DEPENDENT SUBQUERY	t1	ref	t1_c2	t1_c2	10	const,test.t1.c1	2	1.00	100.00	100.00	Using index
+2	DEPENDENT SUBQUERY	a	ALL	NULL	NULL	NULL	NULL	8	8.00	100.00	12.50	Using where
+select * from t1 order by c3;
+c1	c2	c3
+1	1	1
+1	3	3
+2	1	4
+2	3	6
+2	4	7
+2	5	8
+insert into t1(c1,c2,c3) values (1,2,2);
+insert into t1(c1,c2,c3) values (2,2,5);
+Test with a primary key
+drop index t1_c2 on t1;
+alter table t1 add primary key (c3);
+#
+# Delete with value from subquery on the same table, no search clause. ALL access
+#
+explain delete from t1
+where c1=(select a.c3
+from t1 a
+where a.c3 = t1.c3);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	8	Using where
+2	DEPENDENT SUBQUERY	a	eq_ref	PRIMARY	PRIMARY	4	test.t1.c3	1	Using index
+delete from t1
+where c1=(select a.c3
+from t1 a
+where a.c3 = t1.c3);
+affected rows: 1
+select * from t1 order by c3;
+c1	c2	c3
+1	2	2
+1	3	3
+2	1	4
+2	2	5
+2	3	6
+2	4	7
+2	5	8
+insert into t1(c1,c2,c3) values (1,1,1);
+#
+# Delete with search clause on the same table
+#
+explain delete from t1
+where c1 <2
+and exists (select 'X'
+                 from t1 a
+where a.c1 = t1.c2);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	8	Using where
+2	DEPENDENT SUBQUERY	a	ALL	NULL	NULL	NULL	NULL	8	Using where
+analyze delete from t1
+where c1 <2
+and exists (select 'X'
+                 from t1 a
+where a.c1 = t1.c2);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	8	8.00	100.00	25.00	Using where
+2	DEPENDENT SUBQUERY	a	ALL	NULL	NULL	NULL	NULL	8	3.67	100.00	18.18	Using where
+select * from t1 order by c3;
+c1	c2	c3
+1	3	3
+2	1	4
+2	2	5
+2	3	6
+2	4	7
+2	5	8
+insert into t1(c1,c2,c3) values (1,1,1);
+insert into t1(c1,c2,c3) values (1,2,2);
+#
+# Delete via RANGE or INDEX access if an index or a primary key exists
+#
+explain delete from t1 where exists (select 'X' from t1 a where a.c2 = t1.c2) and c2 >= 3;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	8	Using where
+2	DEPENDENT SUBQUERY	a	ALL	NULL	NULL	NULL	NULL	8	Using where
+delete from t1 where exists (select 'X' from t1 a where a.c2 = t1.c2) and c2 >= 3;
+affected rows: 4
+select * from t1 order by c3;
+c1	c2	c3
+1	1	1
+1	2	2
+2	1	4
+2	2	5
+insert into t1(c1,c2,c3) values (1,3,3);
+insert into t1(c1,c2,c3) values (2,3,6);
+insert into t1(c1,c2,c3) values (2,4,7);
+insert into t1(c1,c2,c3) values (2,5,8);
+#
+# Delete with order by
+#
+explain delete from t1 where exists (select 'X' from t1 a where a.c2 = t1.c2) and c2 >= 3 order by c2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	8	Using where
+2	DEPENDENT SUBQUERY	a	ALL	NULL	NULL	NULL	NULL	8	Using where
+analyze delete from t1 where exists (select 'X' from t1 a where a.c2 = t1.c2) and c2 >= 3 order by c2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	8	8.00	100.00	50.00	Using where
+2	DEPENDENT SUBQUERY	a	ALL	NULL	NULL	NULL	NULL	8	4.12	100.00	24.24	Using where
+select * from t1 order by c3;
+c1	c2	c3
+1	1	1
+1	2	2
+2	1	4
+2	2	5
+insert into t1(c1,c2,c3) values (1,3,3);
+insert into t1(c1,c2,c3) values (2,3,6);
+insert into t1(c1,c2,c3) values (2,4,7);
+insert into t1(c1,c2,c3) values (2,5,8);
+#
+# Delete using the index or primary key (c3)
+#
+explain delete from t1 where c3 in (select distinct a.c1 from t1 a where t1.c2=a.c2);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	a	ALL	NULL	NULL	NULL	NULL	8	Using where; Start temporary
+1	PRIMARY	t1	eq_ref	PRIMARY	PRIMARY	4	test.a.c1	1	Using where; End temporary
+delete from t1 where c3 in (select distinct a.c1 from t1 a where t1.c2=a.c2);
+affected rows: 2
+select * from t1 order by c3;
+c1	c2	c3
+1	3	3
+2	1	4
+2	2	5
+2	3	6
+2	4	7
+2	5	8
+insert into t1(c1,c2,c3) values (1,1,1);
+insert into t1(c1,c2,c3) values (1,2,2);
+#
+# Delete with a limit - can be delete
+#
+explain delete from t1 
+where c1 in (select a.c2
+from t1 a
+where a.c2 = t1.c3)
+limit 1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	a	ALL	NULL	NULL	NULL	NULL	8	Using where; Start temporary
+1	PRIMARY	t1	eq_ref	PRIMARY	PRIMARY	4	test.a.c2	1	Using where; End temporary
+analyze delete from t1 
+where c1 in (select a.c2
+from t1 a
+where a.c2 = t1.c3)
+limit 1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	PRIMARY	a	ALL	NULL	NULL	NULL	NULL	8	4.00	100.00	100.00	Using where; Start temporary
+1	PRIMARY	t1	eq_ref	PRIMARY	PRIMARY	4	test.a.c2	1	1.00	100.00	25.00	Using where; End temporary
+select * from t1 order by c3;
+c1	c2	c3
+1	2	2
+1	3	3
+2	1	4
+2	2	5
+2	3	6
+2	4	7
+2	5	8
+insert into t1(c1,c2,c3) values (1,1,1);
+#
+# Delete with a limit and an order by
+#
+select * from t1 
+where c1 in (select a.c2
+from t1 a
+where a.c3 = t1.c3)
+order by c3 desc;
+c1	c2	c3
+2	2	5
+1	1	1
+explain delete from t1 
+where c1 in (select a.c2
+from t1 a
+where a.c3 = t1.c3)
+order by c3 desc limit 1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	index	NULL	PRIMARY	4	NULL	1	Using where
+2	DEPENDENT SUBQUERY	a	eq_ref	PRIMARY	PRIMARY	4	test.t1.c3	1	Using where
+delete from t1 
+where c1 in (select a.c2
+from t1 a
+where a.c3 = t1.c3)
+order by c3 desc limit 1;
+affected rows: 1
+select * from t1 order by c3;
+c1	c2	c3
+1	1	1
+1	2	2
+1	3	3
+2	1	4
+2	3	6
+2	4	7
+2	5	8
+insert into t1(c1,c2,c3) values (2,2,5);
+#
+Delete using a view in subquery
+#
+explain delete from t1 
+where t1.c2 in ( select max(a.c2)
+from v1 a
+where a.c1 = t1.c1) ;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	8	Using where
+2	DEPENDENT SUBQUERY	t1	ALL	NULL	NULL	NULL	NULL	8	Using where
+analyze delete from t1 
+where t1.c2 in ( select max(a.c2)
+from v1 a
+where a.c1 = t1.c1) ;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	8	8.00	100.00	25.00	Using where
+2	DEPENDENT SUBQUERY	t1	ALL	NULL	NULL	NULL	NULL	8	8.00	100.00	12.50	Using where
+select * from t1 order by c3;
+c1	c2	c3
+1	1	1
+1	3	3
+2	1	4
+2	3	6
+2	4	7
+2	5	8
+insert into t1(c1,c2,c3) values (1,2,2);
+insert into t1(c1,c2,c3) values (2,2,5);
+#
+# Delete throw a view
+#
+explain delete from v1
+where v1.c1 in (select max(a.c1)
+from t1 a
+where a.c2 = v1.c2) 
+and c3 > 3;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	PRIMARY	NULL	NULL	NULL	8	Using where
+2	DEPENDENT SUBQUERY	a	ALL	NULL	NULL	NULL	NULL	8	Using where
+delete from v1
+where v1.c1 in (select max(a.c1)
+from t1 a
+where a.c2 = v1.c2) 
+and c3 > 3;
+affected rows: 1
+select * from t1 order by c3;
+c1	c2	c3
+1	1	1
+1	2	2
+1	3	3
+2	1	4
+2	3	6
+2	4	7
+2	5	8
+insert into t1(c1,c2,c3) values (2,2,5);
+#
+# Delete through  a view and using the view in subquery
+#
+explain delete from v1 
+where v1.c2 in (select max(a.c2)
+from t1 a
+where a.c3 = v1.c3) 
+and c1 < 10 
+and exists (select 'X'
+                 from v1 a
+where a.c1 = v1.c1);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	8	Using where
+3	DEPENDENT SUBQUERY	t1	ALL	NULL	NULL	NULL	NULL	8	Using where
+2	DEPENDENT SUBQUERY	a	eq_ref	PRIMARY	PRIMARY	4	test.t1.c3	1	
+analyze delete from v1 
+where v1.c2 in (select max(a.c2)
+from t1 a
+where a.c3 = v1.c3) 
+and c1 < 10 
+and exists (select 'X'
+                 from v1 a
+where a.c1 = v1.c1);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	8	8.00	100.00	25.00	Using where
+3	DEPENDENT SUBQUERY	t1	ALL	NULL	NULL	NULL	NULL	8	1.50	100.00	66.67	Using where
+2	DEPENDENT SUBQUERY	a	eq_ref	PRIMARY	PRIMARY	4	test.t1.c3	1	1.00	100.00	100.00	
+select * from t1 order by c3;
+c1	c2	c3
+1	1	1
+1	3	3
+2	1	4
+2	3	6
+2	4	7
+2	5	8
+insert into t1(c1,c2,c3) values (1,2,2);
+insert into t1(c1,c2,c3) values (2,2,5);
+drop view v1;
+drop table t1;
+create temporary table t1 (c1 integer, c2 integer, c3 integer);
+insert into t1(c1,c2,c3) values (1,1,1);
+insert into t1(c1,c2,c3) values (1,2,2);
+insert into t1(c1,c2,c3) values (1,3,3);
+insert into t1(c1,c2,c3) values (2,1,4);
+insert into t1(c1,c2,c3) values (2,2,5);
+insert into t1(c1,c2,c3) values (2,3,6);
+insert into t1(c1,c2,c3) values (2,4,7);
+insert into t1(c1,c2,c3) values (2,5,8);
+Test without any index
+#
+# Delete with value from subquery on the same table, no search clause. ALL access
+#
+explain delete from t1
+where c1=(select a.c3
+from t1 a
+where a.c3 = t1.c3);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	8	Using where
+2	DEPENDENT SUBQUERY	a	ALL	NULL	NULL	NULL	NULL	8	Using where
+delete from t1
+where c1=(select a.c3
+from t1 a
+where a.c3 = t1.c3);
+affected rows: 1
+select * from t1 order by c3;
+c1	c2	c3
+1	2	2
+1	3	3
+2	1	4
+2	2	5
+2	3	6
+2	4	7
+2	5	8
+insert into t1(c1,c2,c3) values (1,1,1);
+#
+# Delete with search clause on the same table
+#
+explain delete from t1
+where c1 <2
+and exists (select 'X'
+                 from t1 a
+where a.c1 = t1.c2);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	8	Using where
+2	DEPENDENT SUBQUERY	a	ALL	NULL	NULL	NULL	NULL	8	Using where
+analyze delete from t1
+where c1 <2
+and exists (select 'X'
+                 from t1 a
+where a.c1 = t1.c2);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	8	8.00	100.00	25.00	Using where
+2	DEPENDENT SUBQUERY	a	ALL	NULL	NULL	NULL	NULL	8	4.33	100.00	15.38	Using where
+select * from t1 order by c3;
+c1	c2	c3
+1	3	3
+2	1	4
+2	2	5
+2	3	6
+2	4	7
+2	5	8
+insert into t1(c1,c2,c3) values (1,1,1);
+insert into t1(c1,c2,c3) values (1,2,2);
+#
+# Delete via RANGE or INDEX access if an index or a primary key exists
+#
+explain delete from t1 where exists (select 'X' from t1 a where a.c2 = t1.c2) and c2 >= 3;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	8	Using where
+2	DEPENDENT SUBQUERY	a	ALL	NULL	NULL	NULL	NULL	8	Using where
+delete from t1 where exists (select 'X' from t1 a where a.c2 = t1.c2) and c2 >= 3;
+affected rows: 4
+select * from t1 order by c3;
+c1	c2	c3
+1	1	1
+1	2	2
+2	1	4
+2	2	5
+insert into t1(c1,c2,c3) values (1,3,3);
+insert into t1(c1,c2,c3) values (2,3,6);
+insert into t1(c1,c2,c3) values (2,4,7);
+insert into t1(c1,c2,c3) values (2,5,8);
+#
+# Delete with order by
+#
+explain delete from t1 where exists (select 'X' from t1 a where a.c2 = t1.c2) and c2 >= 3 order by c2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	8	Using where
+2	DEPENDENT SUBQUERY	a	ALL	NULL	NULL	NULL	NULL	8	Using where
+analyze delete from t1 where exists (select 'X' from t1 a where a.c2 = t1.c2) and c2 >= 3 order by c2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	8	8.00	100.00	50.00	Using where
+2	DEPENDENT SUBQUERY	a	ALL	NULL	NULL	NULL	NULL	8	3.62	100.00	27.59	Using where
+select * from t1 order by c3;
+c1	c2	c3
+1	1	1
+1	2	2
+2	1	4
+2	2	5
+insert into t1(c1,c2,c3) values (1,3,3);
+insert into t1(c1,c2,c3) values (2,3,6);
+insert into t1(c1,c2,c3) values (2,4,7);
+insert into t1(c1,c2,c3) values (2,5,8);
+#
+# Delete using the index or primary key (c3)
+#
+explain delete from t1 where c3 in (select distinct a.c1 from t1 a where t1.c2=a.c2);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	8	
+1	PRIMARY	a	ALL	NULL	NULL	NULL	NULL	8	Using where; FirstMatch(t1)
+delete from t1 where c3 in (select distinct a.c1 from t1 a where t1.c2=a.c2);
+affected rows: 2
+select * from t1 order by c3;
+c1	c2	c3
+1	3	3
+2	1	4
+2	2	5
+2	3	6
+2	4	7
+2	5	8
+insert into t1(c1,c2,c3) values (1,1,1);
+insert into t1(c1,c2,c3) values (1,2,2);
+#
+# Delete with a limit - can be delete
+#
+explain delete from t1 
+where c1 in (select a.c2
+from t1 a
+where a.c2 = t1.c3)
+limit 1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	8	Using where
+1	PRIMARY	a	ALL	NULL	NULL	NULL	NULL	8	Using where; FirstMatch(t1)
+analyze delete from t1 
+where c1 in (select a.c2
+from t1 a
+where a.c2 = t1.c3)
+limit 1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	8	2.00	100.00	50.00	Using where
+1	PRIMARY	a	ALL	NULL	NULL	NULL	NULL	8	2.00	100.00	50.00	Using where; FirstMatch(t1)
+select * from t1 order by c3;
+c1	c2	c3
+1	2	2
+1	3	3
+2	1	4
+2	2	5
+2	3	6
+2	4	7
+2	5	8
+insert into t1(c1,c2,c3) values (1,1,1);
+#
+# Delete with a limit and an order by
+#
+select * from t1 
+where c1 in (select a.c2
+from t1 a
+where a.c3 = t1.c3)
+order by c3 desc;
+c1	c2	c3
+2	2	5
+1	1	1
+explain delete from t1 
+where c1 in (select a.c2
+from t1 a
+where a.c3 = t1.c3)
+order by c3 desc limit 1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	8	Using where; Using filesort
+2	DEPENDENT SUBQUERY	a	ALL	NULL	NULL	NULL	NULL	8	Using where
+delete from t1 
+where c1 in (select a.c2
+from t1 a
+where a.c3 = t1.c3)
+order by c3 desc limit 1;
+affected rows: 1
+select * from t1 order by c3;
+c1	c2	c3
+1	1	1
+1	2	2
+1	3	3
+2	1	4
+2	3	6
+2	4	7
+2	5	8
+insert into t1(c1,c2,c3) values (2,2,5);
+Test with an index
+create index t1_c2 on t1 (c2,c1);
+#
+# Delete with value from subquery on the same table, no search clause. ALL access
+#
+explain delete from t1
+where c1=(select a.c3
+from t1 a
+where a.c3 = t1.c3);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	8	Using where
+2	DEPENDENT SUBQUERY	a	ALL	NULL	NULL	NULL	NULL	8	Using where
+delete from t1
+where c1=(select a.c3
+from t1 a
+where a.c3 = t1.c3);
+affected rows: 1
+select * from t1 order by c3;
+c1	c2	c3
+1	2	2
+1	3	3
+2	1	4
+2	2	5
+2	3	6
+2	4	7
+2	5	8
+insert into t1(c1,c2,c3) values (1,1,1);
+#
+# Delete with search clause on the same table
+#
+explain delete from t1
+where c1 <2
+and exists (select 'X'
+                 from t1 a
+where a.c1 = t1.c2);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	8	Using where
+2	DEPENDENT SUBQUERY	a	index	NULL	t1_c2	10	NULL	8	Using where; Using index
+analyze delete from t1
+where c1 <2
+and exists (select 'X'
+                 from t1 a
+where a.c1 = t1.c2);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	8	8.00	100.00	25.00	Using where
+2	DEPENDENT SUBQUERY	a	index	NULL	t1_c2	10	NULL	8	3.67	100.00	18.18	Using where; Using index
+select * from t1 order by c3;
+c1	c2	c3
+1	3	3
+2	1	4
+2	2	5
+2	3	6
+2	4	7
+2	5	8
+insert into t1(c1,c2,c3) values (1,1,1);
+insert into t1(c1,c2,c3) values (1,2,2);
+#
+# Delete via RANGE or INDEX access if an index or a primary key exists
+#
+explain delete from t1 where exists (select 'X' from t1 a where a.c2 = t1.c2) and c2 >= 3;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	range	t1_c2	t1_c2	5	NULL	4	Using index condition; Using where
+2	DEPENDENT SUBQUERY	a	ref	t1_c2	t1_c2	5	test.t1.c2	1	Using index
+delete from t1 where exists (select 'X' from t1 a where a.c2 = t1.c2) and c2 >= 3;
+affected rows: 4
+select * from t1 order by c3;
+c1	c2	c3
+1	1	1
+1	2	2
+2	1	4
+2	2	5
+insert into t1(c1,c2,c3) values (1,3,3);
+insert into t1(c1,c2,c3) values (2,3,6);
+insert into t1(c1,c2,c3) values (2,4,7);
+insert into t1(c1,c2,c3) values (2,5,8);
+#
+# Delete with order by
+#
+explain delete from t1 where exists (select 'X' from t1 a where a.c2 = t1.c2) and c2 >= 3 order by c2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	range	t1_c2	t1_c2	5	NULL	4	Using index condition; Using where
+2	DEPENDENT SUBQUERY	a	ref	t1_c2	t1_c2	5	test.t1.c2	1	Using index
+analyze delete from t1 where exists (select 'X' from t1 a where a.c2 = t1.c2) and c2 >= 3 order by c2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	PRIMARY	t1	range	t1_c2	t1_c2	5	NULL	4	4.00	100.00	100.00	Using index condition; Using where
+2	DEPENDENT SUBQUERY	a	ref	t1_c2	t1_c2	5	test.t1.c2	1	1.00	100.00	100.00	Using index
+select * from t1 order by c3;
+c1	c2	c3
+1	1	1
+1	2	2
+2	1	4
+2	2	5
+insert into t1(c1,c2,c3) values (1,3,3);
+insert into t1(c1,c2,c3) values (2,3,6);
+insert into t1(c1,c2,c3) values (2,4,7);
+insert into t1(c1,c2,c3) values (2,5,8);
+#
+# Delete using the index or primary key (c3)
+#
+explain delete from t1 where c3 in (select distinct a.c1 from t1 a where t1.c2=a.c2);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	t1_c2	NULL	NULL	NULL	8	Using where
+1	PRIMARY	a	ref	t1_c2	t1_c2	10	test.t1.c2,test.t1.c3	2	Using index; FirstMatch(t1)
+delete from t1 where c3 in (select distinct a.c1 from t1 a where t1.c2=a.c2);
+affected rows: 2
+select * from t1 order by c3;
+c1	c2	c3
+1	3	3
+2	1	4
+2	2	5
+2	3	6
+2	4	7
+2	5	8
+insert into t1(c1,c2,c3) values (1,1,1);
+insert into t1(c1,c2,c3) values (1,2,2);
+#
+# Delete with a limit - can be delete
+#
+explain delete from t1 
+where c1 in (select a.c2
+from t1 a
+where a.c2 = t1.c3)
+limit 1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	8	Using where
+1	PRIMARY	a	ref	t1_c2	t1_c2	5	test.t1.c1	1	Using index; FirstMatch(t1)
+analyze delete from t1 
+where c1 in (select a.c2
+from t1 a
+where a.c2 = t1.c3)
+limit 1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	8	2.00	100.00	50.00	Using where
+1	PRIMARY	a	ref	t1_c2	t1_c2	5	test.t1.c1	1	1.00	100.00	100.00	Using index; FirstMatch(t1)
+select * from t1 order by c3;
+c1	c2	c3
+1	2	2
+1	3	3
+2	1	4
+2	2	5
+2	3	6
+2	4	7
+2	5	8
+insert into t1(c1,c2,c3) values (1,1,1);
+#
+# Delete with a limit and an order by
+#
+select * from t1 
+where c1 in (select a.c2
+from t1 a
+where a.c3 = t1.c3)
+order by c3 desc;
+c1	c2	c3
+2	2	5
+1	1	1
+explain delete from t1 
+where c1 in (select a.c2
+from t1 a
+where a.c3 = t1.c3)
+order by c3 desc limit 1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	8	Using where; Using filesort
+2	DEPENDENT SUBQUERY	a	index_subquery	t1_c2	t1_c2	5	func	1	Using where
+delete from t1 
+where c1 in (select a.c2
+from t1 a
+where a.c3 = t1.c3)
+order by c3 desc limit 1;
+affected rows: 1
+select * from t1 order by c3;
+c1	c2	c3
+1	1	1
+1	2	2
+1	3	3
+2	1	4
+2	3	6
+2	4	7
+2	5	8
+insert into t1(c1,c2,c3) values (2,2,5);
+Test with a primary key
+drop index t1_c2 on t1;
+alter table t1 add primary key (c3);
+#
+# Delete with value from subquery on the same table, no search clause. ALL access
+#
+explain delete from t1
+where c1=(select a.c3
+from t1 a
+where a.c3 = t1.c3);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	8	Using where
+2	DEPENDENT SUBQUERY	a	eq_ref	PRIMARY	PRIMARY	4	test.t1.c3	1	Using index
+delete from t1
+where c1=(select a.c3
+from t1 a
+where a.c3 = t1.c3);
+affected rows: 1
+select * from t1 order by c3;
+c1	c2	c3
+1	2	2
+1	3	3
+2	1	4
+2	2	5
+2	3	6
+2	4	7
+2	5	8
+insert into t1(c1,c2,c3) values (1,1,1);
+#
+# Delete with search clause on the same table
+#
+explain delete from t1
+where c1 <2
+and exists (select 'X'
+                 from t1 a
+where a.c1 = t1.c2);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	8	Using where
+2	DEPENDENT SUBQUERY	a	ALL	NULL	NULL	NULL	NULL	8	Using where
+analyze delete from t1
+where c1 <2
+and exists (select 'X'
+                 from t1 a
+where a.c1 = t1.c2);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	8	8.00	100.00	25.00	Using where
+2	DEPENDENT SUBQUERY	a	ALL	NULL	NULL	NULL	NULL	8	4.00	100.00	16.67	Using where
+select * from t1 order by c3;
+c1	c2	c3
+1	3	3
+2	1	4
+2	2	5
+2	3	6
+2	4	7
+2	5	8
+insert into t1(c1,c2,c3) values (1,1,1);
+insert into t1(c1,c2,c3) values (1,2,2);
+#
+# Delete via RANGE or INDEX access if an index or a primary key exists
+#
+explain delete from t1 where exists (select 'X' from t1 a where a.c2 = t1.c2) and c2 >= 3;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	8	Using where
+2	DEPENDENT SUBQUERY	a	ALL	NULL	NULL	NULL	NULL	8	Using where
+delete from t1 where exists (select 'X' from t1 a where a.c2 = t1.c2) and c2 >= 3;
+affected rows: 4
+select * from t1 order by c3;
+c1	c2	c3
+1	1	1
+1	2	2
+2	1	4
+2	2	5
+insert into t1(c1,c2,c3) values (1,3,3);
+insert into t1(c1,c2,c3) values (2,3,6);
+insert into t1(c1,c2,c3) values (2,4,7);
+insert into t1(c1,c2,c3) values (2,5,8);
+#
+# Delete with order by
+#
+explain delete from t1 where exists (select 'X' from t1 a where a.c2 = t1.c2) and c2 >= 3 order by c2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	8	Using where
+2	DEPENDENT SUBQUERY	a	ALL	NULL	NULL	NULL	NULL	8	Using where
+analyze delete from t1 where exists (select 'X' from t1 a where a.c2 = t1.c2) and c2 >= 3 order by c2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	8	8.00	100.00	50.00	Using where
+2	DEPENDENT SUBQUERY	a	ALL	NULL	NULL	NULL	NULL	8	3.62	100.00	27.59	Using where
+select * from t1 order by c3;
+c1	c2	c3
+1	1	1
+1	2	2
+2	1	4
+2	2	5
+insert into t1(c1,c2,c3) values (1,3,3);
+insert into t1(c1,c2,c3) values (2,3,6);
+insert into t1(c1,c2,c3) values (2,4,7);
+insert into t1(c1,c2,c3) values (2,5,8);
+#
+# Delete using the index or primary key (c3)
+#
+explain delete from t1 where c3 in (select distinct a.c1 from t1 a where t1.c2=a.c2);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	a	ALL	NULL	NULL	NULL	NULL	8	Using where; Start temporary
+1	PRIMARY	t1	eq_ref	PRIMARY	PRIMARY	4	test.a.c1	1	Using where; End temporary
+delete from t1 where c3 in (select distinct a.c1 from t1 a where t1.c2=a.c2);
+affected rows: 2
+select * from t1 order by c3;
+c1	c2	c3
+1	3	3
+2	1	4
+2	2	5
+2	3	6
+2	4	7
+2	5	8
+insert into t1(c1,c2,c3) values (1,1,1);
+insert into t1(c1,c2,c3) values (1,2,2);
+#
+# Delete with a limit - can be delete
+#
+explain delete from t1 
+where c1 in (select a.c2
+from t1 a
+where a.c2 = t1.c3)
+limit 1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	a	ALL	NULL	NULL	NULL	NULL	8	Using where; Start temporary
+1	PRIMARY	t1	eq_ref	PRIMARY	PRIMARY	4	test.a.c2	1	Using where; End temporary
+analyze delete from t1 
+where c1 in (select a.c2
+from t1 a
+where a.c2 = t1.c3)
+limit 1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	PRIMARY	a	ALL	NULL	NULL	NULL	NULL	8	2.00	100.00	100.00	Using where; Start temporary
+1	PRIMARY	t1	eq_ref	PRIMARY	PRIMARY	4	test.a.c2	1	1.00	100.00	50.00	Using where; End temporary
+select * from t1 order by c3;
+c1	c2	c3
+1	2	2
+1	3	3
+2	1	4
+2	2	5
+2	3	6
+2	4	7
+2	5	8
+insert into t1(c1,c2,c3) values (1,1,1);
+#
+# Delete with a limit and an order by
+#
+select * from t1 
+where c1 in (select a.c2
+from t1 a
+where a.c3 = t1.c3)
+order by c3 desc;
+c1	c2	c3
+2	2	5
+1	1	1
+explain delete from t1 
+where c1 in (select a.c2
+from t1 a
+where a.c3 = t1.c3)
+order by c3 desc limit 1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	index	NULL	PRIMARY	4	NULL	1	Using where
+2	DEPENDENT SUBQUERY	a	eq_ref	PRIMARY	PRIMARY	4	test.t1.c3	1	Using where
+delete from t1 
+where c1 in (select a.c2
+from t1 a
+where a.c3 = t1.c3)
+order by c3 desc limit 1;
+affected rows: 1
+select * from t1 order by c3;
+c1	c2	c3
+1	1	1
+1	2	2
+1	3	3
+2	1	4
+2	3	6
+2	4	7
+2	5	8
+insert into t1(c1,c2,c3) values (2,2,5);
+drop table t1;
+#
+# Test on dynamic columns (blob)
+#
+create table assets (
+item_name varchar(32) primary key, -- A common attribute for all items
+dynamic_cols  blob  -- Dynamic columns will be stored here
+);
+INSERT INTO assets VALUES ('MariaDB T-shirt', COLUMN_CREATE('color', 'blue', 'size', 'XL'));
+INSERT INTO assets VALUES ('Thinkpad Laptop', COLUMN_CREATE('color', 'black', 'price', 500));
+INSERT INTO assets VALUES ('Fridge', COLUMN_CREATE('color', 'white', 'warranty', '5 years'));
+INSERT INTO assets VALUES ('Microwave', COLUMN_CREATE('warranty', '3 years'));
+SELECT item_name, COLUMN_GET(dynamic_cols, 'color' as char) AS color FROM assets ORDER BY item_name;
+item_name	color
+Fridge	white
+MariaDB T-shirt	blue
+Microwave	NULL
+Thinkpad Laptop	black
+UPDATE assets SET dynamic_cols=COLUMN_DELETE(dynamic_cols, 'color') WHERE item_name='Fridge';
+SELECT item_name, COLUMN_GET(dynamic_cols, 'color' as char) AS color FROM assets ORDER BY item_name;
+item_name	color
+Fridge	NULL
+MariaDB T-shirt	blue
+Microwave	NULL
+Thinkpad Laptop	black
+DELETE FROM assets
+WHERE item_name in (select b.item_name
+from assets b
+where COLUMN_GET(b.dynamic_cols, 'color' as char) ='black');
+SELECT item_name, COLUMN_GET(dynamic_cols, 'color' as char) AS color FROM assets ORDER BY item_name;
+item_name	color
+Fridge	NULL
+MariaDB T-shirt	blue
+Microwave	NULL
+DELETE FROM assets WHERE item_name='Microwave';
+SELECT item_name, COLUMN_GET(dynamic_cols, 'color' as char) AS color FROM assets ORDER BY item_name;
+item_name	color
+Fridge	NULL
+MariaDB T-shirt	blue
+drop table assets ;
+#
+# Test on fulltext columns
+#
+CREATE TABLE ft2(copy TEXT,FULLTEXT(copy));
+INSERT INTO ft2(copy) VALUES
+('MySQL vs MariaDB database'),
+('Oracle vs MariaDB database'),
+('PostgreSQL vs MariaDB database'),
+('MariaDB overview'),
+('Foreign keys'),
+('Primary keys'),
+('Indexes'),
+('Transactions'),
+('Triggers');
+SELECT * FROM ft2 WHERE MATCH(copy) AGAINST('database');
+copy
+MySQL vs MariaDB database
+Oracle vs MariaDB database
+PostgreSQL vs MariaDB database
+DELETE FROM ft2 WHERE  MATCH(copy) AGAINST('database');
+SELECT * FROM ft2 WHERE MATCH(copy) AGAINST('database');
+copy
+drop table ft2;
+set @@default_storage_engine= @save_default_engine;
 #
 # End of 10.11 tests
 #

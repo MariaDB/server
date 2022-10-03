@@ -1,87 +1,100 @@
---echo #
---echo # Delete with value from subquery on the same table, no search clause. ALL access
---echo #
-start transaction;
---enable_info ONCE
-delete from t1
-   where c1=(select a.c3
-             from t1 a
-            where a.c3 = t1.c3);
-select * from t1;
-rollback;
+create table t1 (c1 integer, c2 integer, c3 integer);
+
+insert into t1(c1,c2,c3) values (1,1,1);
+insert into t1(c1,c2,c3) values (1,2,2);
+insert into t1(c1,c2,c3) values (1,3,3);
+insert into t1(c1,c2,c3) values (2,1,4);
+insert into t1(c1,c2,c3) values (2,2,5);
+insert into t1(c1,c2,c3) values (2,3,6);
+insert into t1(c1,c2,c3) values (2,4,7);
+insert into t1(c1,c2,c3) values (2,5,8);
+
+create view v1 as select * from t1 where c2=2;
+--let $with_view=1
+
+--echo Test without any index
+--source include/delete_use_source_cases.inc
+
+--echo Test with an index
+create index t1_c2 on t1 (c2,c1);
+--source include/delete_use_source_cases.inc
+
+--echo Test with a primary key
+drop index t1_c2 on t1;
+alter table t1 add primary key (c3);
+--source include/delete_use_source_cases.inc
+
+drop view v1;
+drop table t1;
+
+create temporary table t1 (c1 integer, c2 integer, c3 integer);
+insert into t1(c1,c2,c3) values (1,1,1);
+insert into t1(c1,c2,c3) values (1,2,2);
+insert into t1(c1,c2,c3) values (1,3,3);
+insert into t1(c1,c2,c3) values (2,1,4);
+insert into t1(c1,c2,c3) values (2,2,5);
+insert into t1(c1,c2,c3) values (2,3,6);
+insert into t1(c1,c2,c3) values (2,4,7);
+insert into t1(c1,c2,c3) values (2,5,8);
+
+--let $with_view=0
+
+--echo Test without any index
+--source include/delete_use_source_cases.inc
+
+--echo Test with an index
+create index t1_c2 on t1 (c2,c1);
+--source include/delete_use_source_cases.inc
+
+--echo Test with a primary key
+drop index t1_c2 on t1;
+alter table t1 add primary key (c3);
+--source include/delete_use_source_cases.inc
+
+drop table t1;
+
 
 --echo #
---echo # Delete with search clause on the same table
+--echo # Test on dynamic columns (blob)
 --echo #
-start transaction;
---enable_info ONCE
-delete from t1
-   where c1 <2
-   and exists (select 'X'
-                 from t1 a
-                where a.c1 = t1.c2);
-select * from t1;
-rollback;
-
---echo #
---echo # Delete via RANGE or INDEX access if an index or a primary key exists
---echo #
-start transaction;
---enable_info ONCE
-delete from t1 where exists (select 'X' from t1 a where a.c2 = t1.c2) and c2 >= 3;
-select * from t1;
-rollback;
-
-
---echo #
---echo # Delete with order by (need fix MDEV-29428)
---echo #
-start transaction;
---enable_info ONCE
-delete from t1 where exists (select 'X' from t1 a where a.c2 = t1.c2) and c2 >= 3 order by c2;
-select * from t1;
-rollback;
+create table assets (
+  item_name varchar(32) primary key, -- A common attribute for all items
+  dynamic_cols  blob  -- Dynamic columns will be stored here
+);
+INSERT INTO assets VALUES ('MariaDB T-shirt', COLUMN_CREATE('color', 'blue', 'size', 'XL'));
+INSERT INTO assets VALUES ('Thinkpad Laptop', COLUMN_CREATE('color', 'black', 'price', 500));
+INSERT INTO assets VALUES ('Fridge', COLUMN_CREATE('color', 'white', 'warranty', '5 years'));
+INSERT INTO assets VALUES ('Microwave', COLUMN_CREATE('warranty', '3 years'));
+SELECT item_name, COLUMN_GET(dynamic_cols, 'color' as char) AS color FROM assets ORDER BY item_name;
+UPDATE assets SET dynamic_cols=COLUMN_DELETE(dynamic_cols, 'color') WHERE item_name='Fridge';
+SELECT item_name, COLUMN_GET(dynamic_cols, 'color' as char) AS color FROM assets ORDER BY item_name;
+DELETE FROM assets
+ WHERE item_name in (select b.item_name
+                       from assets b
+                      where COLUMN_GET(b.dynamic_cols, 'color' as char) ='black');
+SELECT item_name, COLUMN_GET(dynamic_cols, 'color' as char) AS color FROM assets ORDER BY item_name;
+DELETE FROM assets WHERE item_name='Microwave';
+SELECT item_name, COLUMN_GET(dynamic_cols, 'color' as char) AS color FROM assets ORDER BY item_name;
+drop table assets ;
 
 
 --echo #
---echo # Delete using the index or primary key (c3)
+--echo # Test on fulltext columns
 --echo #
-start transaction;
-explain delete from t1 where c3 in (select distinct a.c1 from t1 a where t1.c2=a.c2);
---enable_info ONCE
-delete from t1 where c3 in (select distinct a.c1 from t1 a where t1.c2=a.c2);
-select * from t1;
-rollback;
+CREATE TABLE ft2(copy TEXT,FULLTEXT(copy));
+INSERT INTO ft2(copy) VALUES
+ ('MySQL vs MariaDB database'),
+ ('Oracle vs MariaDB database'),
+ ('PostgreSQL vs MariaDB database'),
+ ('MariaDB overview'),
+ ('Foreign keys'),
+ ('Primary keys'),
+ ('Indexes'),
+ ('Transactions'),
+ ('Triggers');
 
+SELECT * FROM ft2 WHERE MATCH(copy) AGAINST('database');
+DELETE FROM ft2 WHERE  MATCH(copy) AGAINST('database');
+SELECT * FROM ft2 WHERE MATCH(copy) AGAINST('database');
+drop table ft2;
 
---echo #
---echo # Delete with a limit - can be delete
---echo #
-start transaction;
---enable_info ONCE
-delete from t1 
-    where c1 in (select a.c2
-                    from t1 a
-                    where a.c3 = t1.c3)
-    limit 1;
-select * from t1;
-rollback;
-
---echo #
---echo # Delete with a limit and an order by
---echo #
-
-start transaction;
- select * from t1 
-    where c1 in (select a.c2
-                    from t1 a
-                    where a.c3 = t1.c3)
-  order by c3 desc;
---enable_info ONCE
-delete from t1 
-    where c1 in (select a.c2
-                    from t1 a
-                    where a.c3 = t1.c3)
-  order by c3 desc limit 1;
-select * from t1;
-rollback;
