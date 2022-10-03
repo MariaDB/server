@@ -414,19 +414,20 @@ void wsrep_recover_sr_from_storage(THD *orig_thd)
     if (!wsrep_schema)
     {
       WSREP_ERROR("Wsrep schema not initialized when trying to recover "
-                  "streaming transactions");
-      unireg_abort(1);
+                  "streaming transactions: wsrep_on %d", WSREP_ON);
+      trans_commit(orig_thd);
     }
     if (wsrep_schema->recover_sr_transactions(orig_thd))
     {
-      WSREP_ERROR("Failed to recover SR transactions from schema");
-      unireg_abort(1);
+      WSREP_ERROR("Failed to recover SR transactions from schema: wsrep_on : %d", WSREP_ON);
+      trans_commit(orig_thd);
     }
     break;
   default:
     /* */
-    WSREP_ERROR("Unsupported wsrep SR store type: %lu", wsrep_SR_store_type);
-    unireg_abort(1);
+    WSREP_ERROR("Unsupported wsrep SR store type: %lu wsrep_on: %d",
+                wsrep_SR_store_type, WSREP_ON);
+    trans_commit(orig_thd);
     break;
   }
 }
