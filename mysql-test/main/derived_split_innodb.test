@@ -146,7 +146,7 @@ EXPLAIN
 SELECT *
 FROM
   t1 JOIN
-  (SELECT t1.a, t1.b FROM t1, t2 WHERE t1.b = t2.c GROUP BY t1.a, t1.b) as dt
+  (SELECT t1_inner.a, t1_inner.b FROM t1 as t1_inner, t2 as t2_inner WHERE t1_inner.b = t2_inner.c GROUP BY t1_inner.a, t1_inner.b) as dt
 WHERE
   t1.a = dt.a;
 
