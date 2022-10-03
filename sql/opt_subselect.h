@@ -300,6 +300,7 @@ public:
     if (best_loose_scan_cost != DBL_MAX)
     {
       pos->records_read=    best_loose_scan_records;
+      pos->records_init= pos->records_out= pos->records_read;
       pos->key=             best_loose_scan_start_key;
       pos->cond_selectivity= 1.0;
       pos->loosescan_picker.loosescan_key=   best_loose_scan_key;
