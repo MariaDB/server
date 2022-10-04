@@ -3593,6 +3593,9 @@ int handler::ha_rnd_next(uchar *buf)
   }
 
   table->status=result ? STATUS_NOT_FOUND: 0;
+
+  DEBUG_SYNC(ha_thd(), "handler_rnd_next_end");
+
   DBUG_RETURN(result);
 }
 

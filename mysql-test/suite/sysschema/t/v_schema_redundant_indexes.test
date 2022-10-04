@@ -34,6 +34,7 @@ CREATE TABLE rkey.rkey (
   KEY (i, j, k)
  );
 
+--sorted_result
  SELECT * FROM sys.schema_redundant_indexes;
 
  DROP DATABASE rkey;

@@ -85,23 +85,7 @@ drop table t1,t2,t0;
 --echo # group_by min max optimization
 --echo #
 CREATE TABLE t1 (id INT NOT NULL AUTO_INCREMENT PRIMARY KEY, a INT NOT NULL, KEY(a));
---disable_query_log
-INSERT INTO t1(a) VALUES (1), (2), (3), (4);
-INSERT INTO t1(a) SELECT a FROM t1;
-INSERT INTO t1(a) SELECT a FROM t1;
-INSERT INTO t1(a) SELECT a FROM t1;
-INSERT INTO t1(a) SELECT a FROM t1;
-INSERT INTO t1(a) SELECT a FROM t1;
-INSERT INTO t1(a) SELECT a FROM t1;
-INSERT INTO t1(a) SELECT a FROM t1;
-INSERT INTO t1(a) SELECT a FROM t1;
-INSERT INTO t1(a) SELECT a FROM t1;
-INSERT INTO t1(a) SELECT a FROM t1;
-INSERT INTO t1(a) SELECT a FROM t1;
-INSERT INTO t1(a) SELECT a FROM t1;
-INSERT INTO t1(a) SELECT a FROM t1;
-INSERT INTO t1(a) SELECT a FROM t1;
---enable_query_log
+insert into t1 select seq, mod(seq,4)+1 from seq_1_to_65536;
 
 analyze table t1;
 EXPLAIN SELECT DISTINCT a FROM t1;
@@ -115,6 +99,7 @@ CREATE TABLE t1 (a INT, b INT, c int, d int,  KEY(a,b,c,d));
 INSERT INTO t1 VALUES (1,1,1,1), (2,2,2,2), (3,3,3,3), (4,4,4,4), (1,0,1,1), (3,2,3,3), (4,5,4,4);
 ANALYZE TABLE t1;
 EXPLAIN SELECT MIN(d) FROM t1 where b=2 and c=3  group by a;
+set statement optimizer_scan_setup_cost=0 for EXPLAIN SELECT MIN(d) FROM t1 where b=2 and c=3  group by a;
 select * from information_schema.OPTIMIZER_TRACE;
 DROP TABLE t1;
 
@@ -138,10 +123,6 @@ drop table t1;
 --echo # Late ORDER BY optimization
 --echo #
 
-create table ten(a int);
-insert into ten values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
-create table one_k(a int primary key);
-insert into one_k select A.a + B.a* 10 + C.a * 100 from ten A, ten B, ten C;
 create table t1  (
   pk int not null,
   a int,
@@ -153,18 +134,16 @@ create table t1  (
   KEY a_b(a,b)
 );
  
-insert into t1
-select a, a,a,a, 'filler-dataaa' from test.one_k;
+insert into t1 select seq, seq,seq,seq, 'filler-dataaa' from seq_0_to_999;
 update t1 set a=1 where pk between 0 and 180;
 update t1 set b=2 where pk between 0 and 20;
 analyze table t1;
+explain  select * from t1 where a=1 and b=2 order by c limit 1;
+update t1 set b=2 where pk between 20 and 40;
 set optimizer_trace='enabled=on';
 explain  select * from t1 where a=1 and b=2 order by c limit 1;
-
-update t1 set b=2 where pk between 20 and 40;
-explain  select * from t1 where a=1 and b=2 order by c limit 1;
 select * from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
-drop table t1,ten,one_k;
+drop table t1;
 
 --echo #
 --echo # TABLE ELIMINATION
@@ -204,33 +183,22 @@ drop table t0, t1, t2, t3;
 --echo # IN subquery to sem-join is traced
 --echo #
 
-create table t0 (a int);
-insert into t0 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
-
 create table t1(a int, b int);
-insert into t1 values (0,0),(1,1),(2,2);
-create table t2 as select * from t1;
+insert into t1 select seq,seq from seq_0_to_3;
 
-create table t11(a int, b int);
-
-create table t10 (pk int, a int);
-insert into t10 select a,a from t0;
-create table t12 like t10;
-insert into t12 select * from t10;
-
-analyze table t1,t10;
+create table t2 (p int, a int);
+insert into t2 select seq,seq from seq_1_to_10;
 
 set optimizer_trace='enabled=on';
-explain extended select * from t1 where a in (select pk from t10);
+explain extended select * from t1 where a in (select p from t2);
+insert into t2 select seq,seq from seq_10_to_100;
+explain extended select * from t1 where a in (select p from t2);
 select * from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
-drop table t0,t1,t11,t10,t12,t2;
+drop table t1,t2;
 
 --echo #
 --echo # Selectivities for columns and indexes.
 --echo #
-
-create table t0 (a int);
-insert into t0 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
 
 create table t1 (
 pk int,
@@ -239,7 +207,7 @@ b int,
 key pk(pk),
 key pk_a(pk,a),
 key pk_a_b(pk,a,b));
-insert into t1 select a,a,a from t0;
+insert into t1 select seq,seq,seq from seq_0_to_9;
 
 ANALYZE TABLE t1 PERSISTENT FOR COLUMNS (a,b) INDEXES ();
 set @save_optimizer_use_condition_selectivity=@@optimizer_use_condition_selectivity;
@@ -251,7 +219,7 @@ explain select * from t1 where pk = 2 and a=5 and b=1;
 select * from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
 set @@optimizer_use_condition_selectivity=@save_optimizer_use_condition_selectivity;
 set @@use_stat_tables= @save_use_stat_tables;
-drop table t0,t1;
+drop table t1;
 set optimizer_trace="enabled=off";
 
 --echo #
@@ -942,7 +910,6 @@ set @save_histogram_size= @@histogram_size;
 set @save_optimizer_use_condition_selectivity= @@optimizer_use_condition_selectivity;
 set optimizer_switch='rowid_filter=on';
 set use_stat_tables='preferably';
-set optimizer_use_condition_selectivity=4;
 set histogram_size=127;
 create table t1 (a int, b int, c int, key(a),key(b));
 insert into t1 select seq, seq*2, seq/10 from seq_1_to_1000;
@@ -957,8 +924,12 @@ create table t1 (a int, b int, c int, key(a),key(b));
 insert into t1 select mod(seq,10), seq, seq from seq_1_to_10000;
 analyze table t1;
 
+set optimizer_use_condition_selectivity=2;
+explain format=json select * from three, t1 where t1.a=three.a and t1.b<5000 and t1.c<1000;
+set optimizer_use_condition_selectivity=4;
 --optimizer_trace
 explain format=json select * from three, t1 where t1.a=three.a and t1.b<5000 and t1.c<1000;
+
 drop table three, t1;
 
 set  @@optimizer_switch= @save_optimizer_switch;

@@ -771,12 +771,12 @@ ANALYZE
             "r_other_time_ms": "REPLACED",
             "filtered": 100,
             "r_filtered": 0,
-            "attached_condition": "<in_optimizer>(t2.b,<exists>(subquery#2))"
+            "attached_condition": "<in_optimizer>(t2.b,t2.b in (subquery#2))"
           },
           "buffer_type": "flat",
           "buffer_size": "65",
           "join_type": "BNL",
-          "attached_condition": "<in_optimizer>(t2.b,<exists>(subquery#2))",
+          "attached_condition": "<in_optimizer>(t2.b,t2.b in (subquery#2))",
           "r_filtered": null,
           "r_unpack_time_ms": "REPLACED"
         }
@@ -786,21 +786,20 @@ ANALYZE
       {
         "query_block": {
           "select_id": 2,
-          "r_loops": 2,
+          "r_loops": 1,
           "r_total_time_ms": "REPLACED",
           "nested_loop": [
             {
               "table": {
                 "table_name": "t1",
                 "access_type": "ALL",
-                "r_loops": 2,
+                "r_loops": 1,
                 "rows": 2,
                 "r_rows": 2,
                 "r_table_time_ms": "REPLACED",
                 "r_other_time_ms": "REPLACED",
                 "filtered": 100,
-                "r_filtered": 0,
-                "attached_condition": "4 = t1.a"
+                "r_filtered": 100
               }
             }
           ]
@@ -809,6 +808,8 @@ ANALYZE
     ]
   }
 }
+SELECT STRAIGHT_JOIN * FROM t1, t2 WHERE b IN ( SELECT a FROM t1 );
+a	b
 drop table t1,t2;
 #
 # MDEV-8864: Server crash #2 in Item_field::print on ANALYZE FORMAT=JSON

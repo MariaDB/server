@@ -256,7 +256,7 @@ FLUSH STATUS;
 FLUSH TABLES;
 EXPLAIN EXTENDED SELECT * FROM t1            WHERE 1 IN (SELECT 1 FROM t2 WHERE t2.b < 3);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where; FirstMatch
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	3	33.33	Using where; FirstMatch
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using join buffer (flat, BNL join)
 Warnings:
 Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` semi join (`test`.`t2`) where `test`.`t2`.`b` < 3
@@ -332,55 +332,58 @@ CREATE TABLE t1 (a INT);
 INSERT INTO t1 VALUES (1), (2), (3);
 CREATE TABLE t2 (b INT);
 INSERT INTO t2 VALUES (1), (2), (3), (1000);
+CREATE TABLE t3 like t2;
+insert into t3 select * from t2;
+insert into t3 select seq from seq_1001_to_2000;
 #
-# query:  UPDATE        t1, t2 SET a = 10 WHERE a IN (SELECT b FROM t2 WHERE t2.b < 3)
-# select: SELECT * FROM t1, t2            WHERE a IN (SELECT b FROM t2 WHERE t2.b < 3)
+# query:  UPDATE        t1, t2 SET a = 10 WHERE a IN (SELECT b FROM t3 WHERE t3.b < 3)
+# select: SELECT * FROM t1, t2            WHERE a IN (SELECT b FROM t3 WHERE t3.b < 3)
 #
 Warnings:
 Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-EXPLAIN UPDATE        t1, t2 SET a = 10 WHERE a IN (SELECT b FROM t2 WHERE t2.b < 3);
+EXPLAIN UPDATE        t1, t2 SET a = 10 WHERE a IN (SELECT b FROM t3 WHERE t3.b < 3);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	3	
 1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	4	func	1	
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	4	
-2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	4	Using where
+2	MATERIALIZED	t3	ALL	NULL	NULL	NULL	NULL	1004	Using where
 FLUSH STATUS;
 FLUSH TABLES;
-EXPLAIN EXTENDED UPDATE        t1, t2 SET a = 10 WHERE a IN (SELECT b FROM t2 WHERE t2.b < 3);
+EXPLAIN EXTENDED UPDATE        t1, t2 SET a = 10 WHERE a IN (SELECT b FROM t3 WHERE t3.b < 3);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	
 1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	4	func	1	100.00	
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	4	100.00	
-2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	4	100.00	Using where
+2	MATERIALIZED	t3	ALL	NULL	NULL	NULL	NULL	1004	100.00	Using where
 # Status of EXPLAIN EXTENDED query
 Variable_name	Value
-Handler_read_key	4
+Handler_read_key	6
 FLUSH STATUS;
 FLUSH TABLES;
-EXPLAIN EXTENDED SELECT * FROM t1, t2            WHERE a IN (SELECT b FROM t2 WHERE t2.b < 3);
+EXPLAIN EXTENDED SELECT * FROM t1, t2            WHERE a IN (SELECT b FROM t3 WHERE t3.b < 3);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	
 1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	4	func	1	100.00	
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	4	100.00	Using join buffer (flat, BNL join)
-2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	4	100.00	Using where
+2	MATERIALIZED	t3	ALL	NULL	NULL	NULL	NULL	1004	100.00	Using where
 Warnings:
-Note	1003	select `test`.`t1`.`a` AS `a`,`test`.`t2`.`b` AS `b` from `test`.`t1` semi join (`test`.`t2`) join `test`.`t2` where `test`.`t2`.`b` < 3
+Note	1003	select `test`.`t1`.`a` AS `a`,`test`.`t2`.`b` AS `b` from `test`.`t1` semi join (`test`.`t3`) join `test`.`t2` where `test`.`t3`.`b` < 3
 # Status of EXPLAIN EXTENDED "equivalent" SELECT query execution
 Variable_name	Value
-Handler_read_key	4
+Handler_read_key	6
 Warnings:
 Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 # Status of "equivalent" SELECT query execution:
 Variable_name	Value
-Handler_read_key	7
-Handler_read_rnd_next	14
+Handler_read_key	9
+Handler_read_rnd_next	1014
 # Status of testing query execution:
 Variable_name	Value
-Handler_read_key	7
-Handler_read_rnd_next	19
+Handler_read_key	9
+Handler_read_rnd_next	1019
 Handler_update	2
 
-DROP TABLE t1, t2;
+DROP TABLE t1, t2, t3;
 #8
 CREATE TABLE t1 (a INT);
 INSERT INTO t1 VALUES (1), (2), (3);
@@ -790,12 +793,12 @@ Warnings:
 Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 EXPLAIN DELETE   FROM t1 WHERE t1.a > 0 ORDER BY t1.a;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	PRIMARY	NULL	NULL	NULL	6	Using where; Using filesort
+1	SIMPLE	t1	range	PRIMARY	PRIMARY	4	NULL	3	Using where
 FLUSH STATUS;
 FLUSH TABLES;
 EXPLAIN EXTENDED DELETE   FROM t1 WHERE t1.a > 0 ORDER BY t1.a;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ALL	PRIMARY	NULL	NULL	NULL	6	100.00	Using where; Using filesort
+1	SIMPLE	t1	range	PRIMARY	PRIMARY	4	NULL	3	100.00	Using where
 # Status of EXPLAIN EXTENDED query
 Variable_name	Value
 Handler_read_key	3
@@ -818,11 +821,8 @@ Handler_read_next	3
 # Status of testing query execution:
 Variable_name	Value
 Handler_delete	3
-Handler_read_key	3
-Handler_read_rnd	3
-Handler_read_rnd_next	7
-Sort_rows	3
-Sort_scan	1
+Handler_read_key	4
+Handler_read_next	3
 
 DROP TABLE t1;
 #17
@@ -1003,10 +1003,9 @@ FLUSH TABLES;
 EXPLAIN EXTENDED SELECT * FROM t1     WHERE a IN (SELECT a FROM t2);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	
-1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	4	func	1	100.00	
-2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	4	100.00	
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	4	100.00	Using where; FirstMatch(t1); Using join buffer (flat, BNL join)
 Warnings:
-Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` semi join (`test`.`t2`) where 1
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` semi join (`test`.`t2`) where `test`.`t2`.`a` = `test`.`t1`.`a`
 # Status of EXPLAIN EXTENDED "equivalent" SELECT query execution
 Variable_name	Value
 Handler_read_key	4
@@ -1014,7 +1013,7 @@ Warnings:
 Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 # Status of "equivalent" SELECT query execution:
 Variable_name	Value
-Handler_read_key	7
+Handler_read_key	4
 Handler_read_rnd_next	9
 # Status of testing query execution:
 Variable_name	Value
@@ -2661,13 +2660,13 @@ Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be
 EXPLAIN UPDATE t1 SET t1.f2=(SELECT MAX(t2.f4) FROM t2 WHERE t2.f3=t1.f1);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	2	
-2	DEPENDENT SUBQUERY	t2	ALL	IDX	NULL	NULL	NULL	2	Using where
+2	DEPENDENT SUBQUERY	t2	ref	IDX	IDX	5	test.t1.f1	2	
 FLUSH STATUS;
 FLUSH TABLES;
 EXPLAIN EXTENDED UPDATE t1 SET t1.f2=(SELECT MAX(t2.f4) FROM t2 WHERE t2.f3=t1.f1);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	
-2	DEPENDENT SUBQUERY	t2	ALL	IDX	NULL	NULL	NULL	2	100.00	Using where
+2	DEPENDENT SUBQUERY	t2	ref	IDX	IDX	5	test.t1.f1	2	100.00	
 Warnings:
 Note	1276	Field or reference 'test.t1.f1' of SELECT #2 was resolved in SELECT #1
 # Status of EXPLAIN EXTENDED query
@@ -2678,7 +2677,7 @@ FLUSH TABLES;
 EXPLAIN EXTENDED SELECT              (SELECT MAX(t2.f4) FROM t2 WHERE t2.f3=t1.f1) FROM t1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	
-2	DEPENDENT SUBQUERY	t2	ALL	IDX	NULL	NULL	NULL	2	100.00	Using where
+2	DEPENDENT SUBQUERY	t2	ref	IDX	IDX	5	test.t1.f1	2	100.00	
 Warnings:
 Note	1276	Field or reference 'test.t1.f1' of SELECT #2 was resolved in SELECT #1
 Note	1003	/* select#1 */ select <expr_cache><`test`.`t1`.`f1`>((/* select#2 */ select max(`test`.`t2`.`f4`) from `test`.`t2` where `test`.`t2`.`f3` = `test`.`t1`.`f1`)) AS `(SELECT MAX(t2.f4) FROM t2 WHERE t2.f3=t1.f1)` from `test`.`t1`
@@ -2689,12 +2688,14 @@ Warnings:
 Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 # Status of "equivalent" SELECT query execution:
 Variable_name	Value
-Handler_read_key	9
-Handler_read_rnd_next	9
+Handler_read_key	11
+Handler_read_next	2
+Handler_read_rnd_next	3
 # Status of testing query execution:
 Variable_name	Value
-Handler_read_key	7
-Handler_read_rnd_next	9
+Handler_read_key	9
+Handler_read_next	2
+Handler_read_rnd_next	3
 Handler_update	2
 
 DROP TABLE t1, t2;

@@ -72,8 +72,11 @@ connection child2_1;
 SET NAMES utf8;
 SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %';
 argument
-select `a`,`b` from `auto_test_remote`.`ta_r2` order by `a`,`b`
-select `a`,`b` from `auto_test_remote`.`ta_r3` order by `a`,`b`
+select `a`,`b` from `auto_test_remote`.`ta_r3` where `a` = 11 order by `b`
+select `a`,`b` from `auto_test_remote`.`ta_r3` where `a` = 12 order by `b`
+select `a`,`b` from `auto_test_remote`.`ta_r3` where `a` = 13 order by `b`
+select `a`,`b` from `auto_test_remote`.`ta_r3` where `a` = 14 order by `b`
+select `a`,`b` from `auto_test_remote`.`ta_r3` where `a` = 15 order by `b`
 SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %'
 SELECT a, b, c FROM ta_r2 ORDER BY a ;
 SELECT a, b, c FROM ta_r3 ORDER BY a;

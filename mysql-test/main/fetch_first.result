@@ -834,6 +834,14 @@ fetch first 2 rows with ties;
 first_name	last_name
 Alice	Fowler
 Bob	Trasc
+explain select first_name, last_name
+from t1
+where first_name != 'John'
+group by first_name, last_name
+order by first_name
+fetch first 2 rows with ties;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	t1_name	t1_name	206	NULL	3	Using where; Using index for group-by
 select first_name, last_name
 from t1
 where first_name != 'John'
@@ -843,7 +851,6 @@ fetch first 2 rows with ties;
 first_name	last_name
 Alice	Fowler
 Bob	Trasc
-Silvia	Ganush
 #
 # Test CTE support.
 #

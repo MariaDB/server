@@ -66,6 +66,7 @@ INSERT INTO t1 VALUES("left3",  ST_GeomFromText('POLYGON (( -3 0, -3 2, -1 2, -1
 
 SET @p = ST_GeomFromText('POLYGON (( 0 0, 0 2, 2 2, 2 0, 0 0))');
 SELECT name, ST_AsText(square) from t1 where MBRContains(@p, square);
+--sorted_result
 SELECT name, ST_AsText(square) from t1 where MBRDisjoint(@p, square);
 SELECT name, ST_AsText(square) from t1 where MBREquals(@p, square);
 SELECT name, ST_AsText(square) from t1 where MBRIntersects(@p, square);

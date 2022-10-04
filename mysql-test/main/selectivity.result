@@ -74,16 +74,16 @@ s_acctbal desc, n_name, s_name, p_partkey;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	region	ALL	PRIMARY	NULL	NULL	NULL	5	20.00	Using where; Using temporary; Using filesort
 1	PRIMARY	part	ALL	PRIMARY	NULL	NULL	NULL	200	0.63	Using where; Using join buffer (flat, BNL join)
-1	PRIMARY	partsupp	ref	PRIMARY,i_ps_partkey,i_ps_suppkey	i_ps_partkey	4	dbt3_s001.part.p_partkey	3	100.00	Using where
+1	PRIMARY	partsupp	ref	PRIMARY,i_ps_partkey,i_ps_suppkey	PRIMARY	4	dbt3_s001.part.p_partkey	3	100.00	Using where
 1	PRIMARY	supplier	eq_ref	PRIMARY,i_s_nationkey	PRIMARY	4	dbt3_s001.partsupp.ps_suppkey	1	100.00	Using where
 1	PRIMARY	nation	eq_ref	PRIMARY,i_n_regionkey	PRIMARY	4	dbt3_s001.supplier.s_nationkey	1	100.00	Using where
-2	DEPENDENT SUBQUERY	region	ALL	PRIMARY	NULL	NULL	NULL	5	20.00	Using where
-2	DEPENDENT SUBQUERY	partsupp	ref	PRIMARY,i_ps_partkey,i_ps_suppkey	i_ps_partkey	4	dbt3_s001.part.p_partkey	3	100.00	
+2	DEPENDENT SUBQUERY	partsupp	ref	PRIMARY,i_ps_partkey,i_ps_suppkey	PRIMARY	4	dbt3_s001.part.p_partkey	3	100.00	
 2	DEPENDENT SUBQUERY	supplier	eq_ref	PRIMARY,i_s_nationkey	PRIMARY	4	dbt3_s001.partsupp.ps_suppkey	1	100.00	Using where
 2	DEPENDENT SUBQUERY	nation	eq_ref	PRIMARY,i_n_regionkey	PRIMARY	4	dbt3_s001.supplier.s_nationkey	1	100.00	Using where
+2	DEPENDENT SUBQUERY	region	eq_ref	PRIMARY	PRIMARY	4	dbt3_s001.nation.n_regionkey	1	20.00	Using where
 Warnings:
 Note	1276	Field or reference 'dbt3_s001.part.p_partkey' of SELECT #2 was resolved in SELECT #1
-Note	1003	/* select#1 */ select `dbt3_s001`.`supplier`.`s_acctbal` AS `s_acctbal`,`dbt3_s001`.`supplier`.`s_name` AS `s_name`,`dbt3_s001`.`nation`.`n_name` AS `n_name`,`dbt3_s001`.`part`.`p_partkey` AS `p_partkey`,`dbt3_s001`.`part`.`p_mfgr` AS `p_mfgr`,`dbt3_s001`.`supplier`.`s_address` AS `s_address`,`dbt3_s001`.`supplier`.`s_phone` AS `s_phone`,`dbt3_s001`.`supplier`.`s_comment` AS `s_comment` from `dbt3_s001`.`part` join `dbt3_s001`.`supplier` join `dbt3_s001`.`partsupp` join `dbt3_s001`.`nation` join `dbt3_s001`.`region` where `dbt3_s001`.`partsupp`.`ps_partkey` = `dbt3_s001`.`part`.`p_partkey` and `dbt3_s001`.`supplier`.`s_suppkey` = `dbt3_s001`.`partsupp`.`ps_suppkey` and `dbt3_s001`.`nation`.`n_nationkey` = `dbt3_s001`.`supplier`.`s_nationkey` and `dbt3_s001`.`nation`.`n_regionkey` = `dbt3_s001`.`region`.`r_regionkey` and `dbt3_s001`.`region`.`r_name` = 'ASIA' and (`dbt3_s001`.`part`.`p_size` = 9 or `dbt3_s001`.`part`.`p_size` = 19999) and `dbt3_s001`.`part`.`p_type` like '%TIN' and `dbt3_s001`.`partsupp`.`ps_supplycost` = <expr_cache><`dbt3_s001`.`part`.`p_partkey`>((/* select#2 */ select min(`dbt3_s001`.`partsupp`.`ps_supplycost`) from `dbt3_s001`.`partsupp` join `dbt3_s001`.`supplier` join `dbt3_s001`.`nation` join `dbt3_s001`.`region` where `dbt3_s001`.`supplier`.`s_suppkey` = `dbt3_s001`.`partsupp`.`ps_suppkey` and `dbt3_s001`.`nation`.`n_nationkey` = `dbt3_s001`.`supplier`.`s_nationkey` and `dbt3_s001`.`nation`.`n_regionkey` = `dbt3_s001`.`region`.`r_regionkey` and `dbt3_s001`.`region`.`r_name` = 'ASIA' and `dbt3_s001`.`part`.`p_partkey` = `dbt3_s001`.`partsupp`.`ps_partkey`)) order by `dbt3_s001`.`supplier`.`s_acctbal` desc,`dbt3_s001`.`nation`.`n_name`,`dbt3_s001`.`supplier`.`s_name`,`dbt3_s001`.`part`.`p_partkey`
+Note	1003	/* select#1 */ select `dbt3_s001`.`supplier`.`s_acctbal` AS `s_acctbal`,`dbt3_s001`.`supplier`.`s_name` AS `s_name`,`dbt3_s001`.`nation`.`n_name` AS `n_name`,`dbt3_s001`.`part`.`p_partkey` AS `p_partkey`,`dbt3_s001`.`part`.`p_mfgr` AS `p_mfgr`,`dbt3_s001`.`supplier`.`s_address` AS `s_address`,`dbt3_s001`.`supplier`.`s_phone` AS `s_phone`,`dbt3_s001`.`supplier`.`s_comment` AS `s_comment` from `dbt3_s001`.`part` join `dbt3_s001`.`supplier` join `dbt3_s001`.`partsupp` join `dbt3_s001`.`nation` join `dbt3_s001`.`region` where `dbt3_s001`.`partsupp`.`ps_partkey` = `dbt3_s001`.`part`.`p_partkey` and `dbt3_s001`.`supplier`.`s_suppkey` = `dbt3_s001`.`partsupp`.`ps_suppkey` and `dbt3_s001`.`nation`.`n_nationkey` = `dbt3_s001`.`supplier`.`s_nationkey` and `dbt3_s001`.`nation`.`n_regionkey` = `dbt3_s001`.`region`.`r_regionkey` and `dbt3_s001`.`region`.`r_name` = 'ASIA' and (`dbt3_s001`.`part`.`p_size` = 9 or `dbt3_s001`.`part`.`p_size` = 19999) and `dbt3_s001`.`part`.`p_type` like '%TIN' and `dbt3_s001`.`partsupp`.`ps_supplycost` = <expr_cache><`dbt3_s001`.`part`.`p_partkey`>((/* select#2 */ select min(`dbt3_s001`.`partsupp`.`ps_supplycost`) from `dbt3_s001`.`partsupp` join `dbt3_s001`.`supplier` join `dbt3_s001`.`nation` join `dbt3_s001`.`region` where `dbt3_s001`.`supplier`.`s_suppkey` = `dbt3_s001`.`partsupp`.`ps_suppkey` and `dbt3_s001`.`nation`.`n_nationkey` = `dbt3_s001`.`supplier`.`s_nationkey` and `dbt3_s001`.`region`.`r_regionkey` = `dbt3_s001`.`nation`.`n_regionkey` and `dbt3_s001`.`region`.`r_name` = 'ASIA' and `dbt3_s001`.`part`.`p_partkey` = `dbt3_s001`.`partsupp`.`ps_partkey`)) order by `dbt3_s001`.`supplier`.`s_acctbal` desc,`dbt3_s001`.`nation`.`n_name`,`dbt3_s001`.`supplier`.`s_name`,`dbt3_s001`.`part`.`p_partkey`
 set optimizer_use_condition_selectivity=4;
 explain extended
 select
@@ -118,13 +118,13 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	supplier	ref	PRIMARY,i_s_nationkey	i_s_nationkey	5	dbt3_s001.nation.n_nationkey	1	100.00	
 1	PRIMARY	part	ALL	PRIMARY	NULL	NULL	NULL	200	2.08	Using where; Using join buffer (flat, BNL join)
 1	PRIMARY	partsupp	eq_ref	PRIMARY,i_ps_partkey,i_ps_suppkey	PRIMARY	8	dbt3_s001.part.p_partkey,dbt3_s001.supplier.s_suppkey	1	100.00	Using where
-2	DEPENDENT SUBQUERY	region	ALL	PRIMARY	NULL	NULL	NULL	5	20.00	Using where
-2	DEPENDENT SUBQUERY	partsupp	ref	PRIMARY,i_ps_partkey,i_ps_suppkey	i_ps_partkey	4	dbt3_s001.part.p_partkey	3	100.00	
+2	DEPENDENT SUBQUERY	partsupp	ref	PRIMARY,i_ps_partkey,i_ps_suppkey	PRIMARY	4	dbt3_s001.part.p_partkey	3	100.00	
 2	DEPENDENT SUBQUERY	supplier	eq_ref	PRIMARY,i_s_nationkey	PRIMARY	4	dbt3_s001.partsupp.ps_suppkey	1	100.00	Using where
 2	DEPENDENT SUBQUERY	nation	eq_ref	PRIMARY,i_n_regionkey	PRIMARY	4	dbt3_s001.supplier.s_nationkey	1	100.00	Using where
+2	DEPENDENT SUBQUERY	region	eq_ref	PRIMARY	PRIMARY	4	dbt3_s001.nation.n_regionkey	1	20.00	Using where
 Warnings:
 Note	1276	Field or reference 'dbt3_s001.part.p_partkey' of SELECT #2 was resolved in SELECT #1
-Note	1003	/* select#1 */ select `dbt3_s001`.`supplier`.`s_acctbal` AS `s_acctbal`,`dbt3_s001`.`supplier`.`s_name` AS `s_name`,`dbt3_s001`.`nation`.`n_name` AS `n_name`,`dbt3_s001`.`part`.`p_partkey` AS `p_partkey`,`dbt3_s001`.`part`.`p_mfgr` AS `p_mfgr`,`dbt3_s001`.`supplier`.`s_address` AS `s_address`,`dbt3_s001`.`supplier`.`s_phone` AS `s_phone`,`dbt3_s001`.`supplier`.`s_comment` AS `s_comment` from `dbt3_s001`.`part` join `dbt3_s001`.`supplier` join `dbt3_s001`.`partsupp` join `dbt3_s001`.`nation` join `dbt3_s001`.`region` where `dbt3_s001`.`partsupp`.`ps_partkey` = `dbt3_s001`.`part`.`p_partkey` and `dbt3_s001`.`partsupp`.`ps_suppkey` = `dbt3_s001`.`supplier`.`s_suppkey` and `dbt3_s001`.`part`.`p_size` = 9 and `dbt3_s001`.`supplier`.`s_nationkey` = `dbt3_s001`.`nation`.`n_nationkey` and `dbt3_s001`.`nation`.`n_regionkey` = `dbt3_s001`.`region`.`r_regionkey` and `dbt3_s001`.`region`.`r_name` = 'ASIA' and `dbt3_s001`.`part`.`p_type` like '%TIN' and `dbt3_s001`.`partsupp`.`ps_supplycost` = <expr_cache><`dbt3_s001`.`part`.`p_partkey`>((/* select#2 */ select min(`dbt3_s001`.`partsupp`.`ps_supplycost`) from `dbt3_s001`.`partsupp` join `dbt3_s001`.`supplier` join `dbt3_s001`.`nation` join `dbt3_s001`.`region` where `dbt3_s001`.`supplier`.`s_suppkey` = `dbt3_s001`.`partsupp`.`ps_suppkey` and `dbt3_s001`.`nation`.`n_nationkey` = `dbt3_s001`.`supplier`.`s_nationkey` and `dbt3_s001`.`nation`.`n_regionkey` = `dbt3_s001`.`region`.`r_regionkey` and `dbt3_s001`.`region`.`r_name` = 'ASIA' and `dbt3_s001`.`part`.`p_partkey` = `dbt3_s001`.`partsupp`.`ps_partkey`)) order by `dbt3_s001`.`supplier`.`s_acctbal` desc,`dbt3_s001`.`nation`.`n_name`,`dbt3_s001`.`supplier`.`s_name`,`dbt3_s001`.`part`.`p_partkey`
+Note	1003	/* select#1 */ select `dbt3_s001`.`supplier`.`s_acctbal` AS `s_acctbal`,`dbt3_s001`.`supplier`.`s_name` AS `s_name`,`dbt3_s001`.`nation`.`n_name` AS `n_name`,`dbt3_s001`.`part`.`p_partkey` AS `p_partkey`,`dbt3_s001`.`part`.`p_mfgr` AS `p_mfgr`,`dbt3_s001`.`supplier`.`s_address` AS `s_address`,`dbt3_s001`.`supplier`.`s_phone` AS `s_phone`,`dbt3_s001`.`supplier`.`s_comment` AS `s_comment` from `dbt3_s001`.`part` join `dbt3_s001`.`supplier` join `dbt3_s001`.`partsupp` join `dbt3_s001`.`nation` join `dbt3_s001`.`region` where `dbt3_s001`.`partsupp`.`ps_partkey` = `dbt3_s001`.`part`.`p_partkey` and `dbt3_s001`.`partsupp`.`ps_suppkey` = `dbt3_s001`.`supplier`.`s_suppkey` and `dbt3_s001`.`part`.`p_size` = 9 and `dbt3_s001`.`supplier`.`s_nationkey` = `dbt3_s001`.`nation`.`n_nationkey` and `dbt3_s001`.`nation`.`n_regionkey` = `dbt3_s001`.`region`.`r_regionkey` and `dbt3_s001`.`region`.`r_name` = 'ASIA' and `dbt3_s001`.`part`.`p_type` like '%TIN' and `dbt3_s001`.`partsupp`.`ps_supplycost` = <expr_cache><`dbt3_s001`.`part`.`p_partkey`>((/* select#2 */ select min(`dbt3_s001`.`partsupp`.`ps_supplycost`) from `dbt3_s001`.`partsupp` join `dbt3_s001`.`supplier` join `dbt3_s001`.`nation` join `dbt3_s001`.`region` where `dbt3_s001`.`supplier`.`s_suppkey` = `dbt3_s001`.`partsupp`.`ps_suppkey` and `dbt3_s001`.`nation`.`n_nationkey` = `dbt3_s001`.`supplier`.`s_nationkey` and `dbt3_s001`.`region`.`r_regionkey` = `dbt3_s001`.`nation`.`n_regionkey` and `dbt3_s001`.`region`.`r_name` = 'ASIA' and `dbt3_s001`.`part`.`p_partkey` = `dbt3_s001`.`partsupp`.`ps_partkey`)) order by `dbt3_s001`.`supplier`.`s_acctbal` desc,`dbt3_s001`.`nation`.`n_name`,`dbt3_s001`.`supplier`.`s_name`,`dbt3_s001`.`part`.`p_partkey`
 === Q15 ===
 create view revenue0 (supplier_no, total_revenue) as
 select l_suppkey, sum(l_extendedprice * (1 - l_discount))
@@ -490,7 +490,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	4	func	1	100.00	
 2	MATERIALIZED	part	ALL	PRIMARY	NULL	NULL	NULL	200	100.00	Using where
 2	MATERIALIZED	partsupp	ref	PRIMARY,i_ps_partkey,i_ps_suppkey	i_ps_partkey	4	dbt3_s001.part.p_partkey	3	100.00	Using where
-4	DEPENDENT SUBQUERY	lineitem	ref	i_l_shipdate,i_l_suppkey_partkey,i_l_partkey,i_l_suppkey	i_l_suppkey_partkey	10	dbt3_s001.partsupp.ps_partkey,dbt3_s001.partsupp.ps_suppkey	8	100.00	Using where
+4	DEPENDENT SUBQUERY	lineitem	ref	i_l_shipdate,i_l_suppkey_partkey,i_l_partkey,i_l_suppkey	i_l_suppkey_partkey	10	dbt3_s001.partsupp.ps_partkey,dbt3_s001.partsupp.ps_suppkey	8	15.14	Using where
 Warnings:
 Note	1276	Field or reference 'dbt3_s001.partsupp.ps_partkey' of SELECT #4 was resolved in SELECT #2
 Note	1276	Field or reference 'dbt3_s001.partsupp.ps_suppkey' of SELECT #4 was resolved in SELECT #2
@@ -542,7 +542,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	nation	ALL	PRIMARY	NULL	NULL	NULL	25	4.00	Using where; Using temporary; Using filesort
 1	PRIMARY	supplier	ref	PRIMARY,i_s_nationkey	i_s_nationkey	5	dbt3_s001.nation.n_nationkey	1	100.00	
 1	PRIMARY	part	ALL	PRIMARY	NULL	NULL	NULL	200	4.17	Using where
-1	PRIMARY	partsupp	eq_ref	PRIMARY,i_ps_partkey,i_ps_suppkey	PRIMARY	8	dbt3_s001.part.p_partkey,dbt3_s001.supplier.s_suppkey	1	100.00	Using where; FirstMatch(supplier)
+1	PRIMARY	partsupp	eq_ref	PRIMARY,i_ps_partkey,i_ps_suppkey	PRIMARY	8	dbt3_s001.part.p_partkey,dbt3_s001.supplier.s_suppkey	1	11.99	Using where; FirstMatch(supplier)
 4	DEPENDENT SUBQUERY	lineitem	ref	i_l_shipdate,i_l_suppkey_partkey,i_l_partkey,i_l_suppkey	i_l_suppkey_partkey	10	dbt3_s001.partsupp.ps_partkey,dbt3_s001.partsupp.ps_suppkey	8	15.14	Using where
 Warnings:
 Note	1276	Field or reference 'dbt3_s001.partsupp.ps_partkey' of SELECT #4 was resolved in SELECT #2
@@ -597,7 +597,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	nation	ALL	PRIMARY	NULL	NULL	NULL	25	4.00	Using where; Using temporary; Using filesort
 1	PRIMARY	supplier	ref	PRIMARY,i_s_nationkey	i_s_nationkey	5	dbt3_s001.nation.n_nationkey	1	100.00	
 1	PRIMARY	part	ALL	PRIMARY	NULL	NULL	NULL	200	7.03	Using where
-1	PRIMARY	partsupp	eq_ref	PRIMARY,i_ps_partkey,i_ps_suppkey	PRIMARY	8	dbt3_s001.part.p_partkey,dbt3_s001.supplier.s_suppkey	1	100.00	Using where; FirstMatch(supplier)
+1	PRIMARY	partsupp	eq_ref	PRIMARY,i_ps_partkey,i_ps_suppkey	PRIMARY	8	dbt3_s001.part.p_partkey,dbt3_s001.supplier.s_suppkey	1	7.11	Using where; FirstMatch(supplier)
 4	DEPENDENT SUBQUERY	lineitem	ref	i_l_shipdate,i_l_suppkey_partkey,i_l_partkey,i_l_suppkey	i_l_suppkey_partkey	10	dbt3_s001.partsupp.ps_partkey,dbt3_s001.partsupp.ps_suppkey	8	15.14	Using where
 Warnings:
 Note	1276	Field or reference 'dbt3_s001.partsupp.ps_partkey' of SELECT #4 was resolved in SELECT #2
@@ -652,7 +652,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	nation	ALL	PRIMARY	NULL	NULL	NULL	25	4.00	Using where; Using temporary; Using filesort
 1	PRIMARY	supplier	ref	PRIMARY,i_s_nationkey	i_s_nationkey	5	dbt3_s001.nation.n_nationkey	1	100.00	
 1	PRIMARY	part	ALL	PRIMARY	NULL	NULL	NULL	200	7.81	Using where
-1	PRIMARY	partsupp	eq_ref	PRIMARY,i_ps_partkey,i_ps_suppkey	PRIMARY	8	dbt3_s001.part.p_partkey,dbt3_s001.supplier.s_suppkey	1	100.00	Using where; FirstMatch(supplier)
+1	PRIMARY	partsupp	eq_ref	PRIMARY,i_ps_partkey,i_ps_suppkey	PRIMARY	8	dbt3_s001.part.p_partkey,dbt3_s001.supplier.s_suppkey	1	6.40	Using where; FirstMatch(supplier)
 4	DEPENDENT SUBQUERY	lineitem	ref	i_l_shipdate,i_l_suppkey_partkey,i_l_partkey,i_l_suppkey	i_l_suppkey_partkey	10	dbt3_s001.partsupp.ps_partkey,dbt3_s001.partsupp.ps_suppkey	8	15.14	Using where
 Warnings:
 Note	1276	Field or reference 'dbt3_s001.partsupp.ps_partkey' of SELECT #4 was resolved in SELECT #2
@@ -707,7 +707,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	nation	ALL	PRIMARY	NULL	NULL	NULL	25	4.00	Using where; Using temporary; Using filesort
 1	PRIMARY	supplier	ref	PRIMARY,i_s_nationkey	i_s_nationkey	5	dbt3_s001.nation.n_nationkey	1	100.00	
 1	PRIMARY	part	ALL	PRIMARY	NULL	NULL	NULL	200	7.81	Using where
-1	PRIMARY	partsupp	eq_ref	PRIMARY,i_ps_partkey,i_ps_suppkey	PRIMARY	8	dbt3_s001.part.p_partkey,dbt3_s001.supplier.s_suppkey	1	100.00	Using where; FirstMatch(supplier)
+1	PRIMARY	partsupp	eq_ref	PRIMARY,i_ps_partkey,i_ps_suppkey	PRIMARY	8	dbt3_s001.part.p_partkey,dbt3_s001.supplier.s_suppkey	1	6.40	Using where; FirstMatch(supplier)
 4	DEPENDENT SUBQUERY	lineitem	ref	i_l_shipdate,i_l_suppkey_partkey,i_l_partkey,i_l_suppkey	i_l_suppkey_partkey	10	dbt3_s001.partsupp.ps_partkey,dbt3_s001.partsupp.ps_suppkey	8	15.14	Using where
 Warnings:
 Note	1276	Field or reference 'dbt3_s001.partsupp.ps_partkey' of SELECT #4 was resolved in SELECT #2
@@ -1641,27 +1641,51 @@ drop function f1;
 #
 create table t1 (a int, b int, key (b), key (a));
 insert into t1
-select (rand(1)*1000)/10, (rand(1001)*1000)/20 from seq_1_to_1000;
-analyze table t1 persistent for all;
+select (rand(1)*1000)/30, (rand(1001)*1000)/40 from seq_1_to_1000;
+analyze table t1 ;
 Table	Op	Msg_type	Msg_text
 test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	Table is already up to date
+select count(*) from t1 where b=2;
+count(*)
+42
+select count(*) from t1 where a in (17,51,5);
+count(*)
+62
 # Check what info the optimizer has about selectivities
 explain extended select * from t1 use index () where a in (17,51,5);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	1000	2.90	Using where
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	1000	6.20	Using where
 Warnings:
 Note	1003	select `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b` from `test`.`t1` USE INDEX () where `test`.`t1`.`a` in (17,51,5)
 explain extended select * from t1 use index () where b=2;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	1000	2.40	Using where
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	1000	4.20	Using where
 Warnings:
 Note	1003	select `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b` from `test`.`t1` USE INDEX () where `test`.`t1`.`b` = 2
 # Now, the equality is used for ref access, while the range condition
 # gives selectivity data
 explain extended select * from t1 where a in (17,51,5) and b=2;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ref|filter	b,a	b|a	5|5	const	24 (3%)	2.90	Using where; Using rowid filter
+1	SIMPLE	t1	ref|filter	b,a	b|a	5|5	const	42 (6%)	6.30	Using where; Using rowid filter
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b` from `test`.`t1` where `test`.`t1`.`b` = 2 and `test`.`t1`.`a` in (17,51,5)
+truncate table t1;
+insert into t1
+select (rand(1)*1000)/10, (rand(1001)*1000)/50 from seq_1_to_1000;
+analyze table t1 ;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	Table is already up to date
+select count(*) from t1 where b=2;
+count(*)
+59
+select count(*) from t1 where a in (17,51,5);
+count(*)
+29
+explain extended select * from t1 where a in (17,51,5) and b=2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	range|filter	b,a	a|b	5|5	NULL	29 (6%)	5.80	Using index condition; Using where; Using rowid filter
 Warnings:
 Note	1003	select `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b` from `test`.`t1` where `test`.`t1`.`b` = 2 and `test`.`t1`.`a` in (17,51,5)
 drop table t1;
@@ -1868,7 +1892,7 @@ WHERE A.a=t1.a AND t2.b < 20);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	100	Using where
 2	DEPENDENT SUBQUERY	A	ref	PRIMARY,a	a	5	test.t1.a	1	
-2	DEPENDENT SUBQUERY	t2	ref	a,b	a	5	test.A.id	1	Using where
+2	DEPENDENT SUBQUERY	t2	ref|filter	a,b	a|b	5|5	test.A.id	1 (10%)	Using where; Using rowid filter
 EXPLAIN  SELECT * FROM t1 A, t1 B WHERE A.a = B.a and A.id = 65;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	A	const	PRIMARY,a	PRIMARY	4	const	1	
@@ -1880,7 +1904,7 @@ WHERE A.a=t1.a AND t2.b < 20);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	100	Using where
 2	DEPENDENT SUBQUERY	A	ref	PRIMARY,a	a	5	test.t1.a	1	
-2	DEPENDENT SUBQUERY	t2	ref	a,b	a	5	test.A.id	1	Using where
+2	DEPENDENT SUBQUERY	t2	ref|filter	a,b	a|b	5|5	test.A.id	1 (10%)	Using where; Using rowid filter
 set optimizer_switch= @save_optimizer_switch;
 set optimizer_use_condition_selectivity= @save_optimizer_use_condition_selectivity;
 drop table t1,t2;

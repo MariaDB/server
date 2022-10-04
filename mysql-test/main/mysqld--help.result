@@ -764,6 +764,10 @@ The following specify which files/extra groups are read (specified before remain
  key.
  --optimizer-row-next-find-cost=# 
  Cost of finding the next row when scanning the table.
+ --optimizer-rowid-compare-cost=# 
+ Cost of comparing two rowid's
+ --optimizer-rowid-copy-cost=# 
+ Cost of copying a rowid
  --optimizer-scan-setup-cost=# 
  Extra cost added to TABLE and INDEX scans to get
  optimizer to prefer index lookups.
@@ -1748,6 +1752,8 @@ optimizer-prune-level 2
 optimizer-row-copy-cost 6.0866e-05
 optimizer-row-lookup-cost 0.000130839
 optimizer-row-next-find-cost 4.5916e-05
+optimizer-rowid-compare-cost 2.653e-06
+optimizer-rowid-copy-cost 2.653e-06
 optimizer-scan-setup-cost 0.01
 optimizer-search-depth 62
 optimizer-selectivity-sampling-limit 100

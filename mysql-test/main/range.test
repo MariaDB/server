@@ -3,6 +3,8 @@
 # Problem with range optimizer
 #
 --source include/have_innodb.inc
+--source include/have_sequence.inc
+
 SET optimizer_use_condition_selectivity=4;
 
 set @innodb_stats_persistent_save= @@innodb_stats_persistent;
@@ -263,9 +265,9 @@ WHERE
 );
 DROP TABLE t1;
 
-#
-# Test of problem with IN on many different keyparts. (Bug #4157)
-#
+--echo #
+--echo # Test of problem with IN on many different keyparts. (Bug #4157)
+--echo #
 
 CREATE TABLE t1 (
 id int( 11 ) unsigned NOT NULL AUTO_INCREMENT ,
@@ -284,7 +286,10 @@ KEY recount( owner, line )
 ) ENGINE = MYISAM;
 
 INSERT into t1 (owner,id,columnid,line) values (11,15,15,1),(11,13,13,5);
+INSERT into t1 (owner,id,columnid,line) select 11,seq+20,seq,seq from seq_1_to_100;
 
+explain SELECT id, columnid, tableid, content, showid, line, ordinal FROM t1 WHERE owner=11 AND ((columnid IN ( 15, 13, 14 ) AND line IN ( 1, 2, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 31 )) OR (columnid IN ( 13, 14 ) AND line IN ( 15 ))) LIMIT 0 , 30;
+--sorted_result
 SELECT id, columnid, tableid, content, showid, line, ordinal FROM t1 WHERE owner=11 AND ((columnid IN ( 15, 13, 14 ) AND line IN ( 1, 2, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 31 )) OR (columnid IN ( 13, 14 ) AND line IN ( 15 ))) LIMIT 0 , 30;
 drop table t1;
 
@@ -1025,7 +1030,8 @@ create table t2 (a int, b int, filler char(100));
 insert into t2 select A.a + 10 * (B.a + 10 * C.a), 10, 'filler' from t1 A,
 t1 B, t1 C where A.a < 5;
 
-insert into t2 select 1000, b, 'filler' from t2 limit 250;
+insert into t2 select 1000, b, 'filler' from t2 limit 50;
+select count(*) from t2;
 alter table t2 add index (a,b);
 # t2 values 
 #  ( 1  , 10, 'filler')
@@ -1033,11 +1039,11 @@ alter table t2 add index (a,b);
 #  ( 3  , 10, 'filler')
 #  (... , 10, 'filler')
 #   ...
-#  (1000, 10, 'filler') - 250 times
+#  (1000, 10, 'filler') - 100 times
 
-# 250 rows, 1 row
+# 50 rows, 1 row
 
---echo # In following EXPLAIN the access method should be ref, #rows~=250
+--echo # In following EXPLAIN the access method should be ref, #rows~=50
 --echo # (and not 2) when we are not using rowid-ordered scans
 
 explain select * from t2 where a=1000 and b<11;
@@ -1984,7 +1990,9 @@ eval explain format=json $q5;
 --sorted_result
 eval $q5;
 eval prepare stmt from "$q5";
+--sorted_result
 execute stmt;
+--sorted_result
 execute stmt;
 deallocate prepare stmt;
   
