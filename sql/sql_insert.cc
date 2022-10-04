@@ -4780,7 +4780,7 @@ TABLE *select_create::create_table_from_items(THD *thd, List<Item> *items,
     {
       /*
         The pointer to the newly created temporary table has been stored in
-        table->create_info.
+        create_info->table.
       */
       table_list->table= create_info->table;
       if (!table_list->table)
@@ -4798,7 +4798,6 @@ TABLE *select_create::create_table_from_items(THD *thd, List<Item> *items,
     table_list->table= 0;                     // Create failed
 
 err:
-  DBUG_ASSERT(!table_list->table || frm.str || !atomic_replace);
   my_free(const_cast<uchar *>(frm.str));
 
   if (unlikely(!(table= table_list->table)))
