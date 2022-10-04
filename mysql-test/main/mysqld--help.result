@@ -693,11 +693,15 @@ The following specify which files/extra groups are read (specified before remain
  max_connections*5 or max_connections + table_cache*2
  (whichever is larger) number of file descriptors
  (Automatically configured unless set explicitly)
- --optimizer-cache-hit-ratio=# 
- Expected hit rate of the row and index cache in storage
- engines. The value should be an integer between 0 and 99,
- where 0 means cache is empty and 99 means that value is
- almost always in the cache.
+ --optimizer-disk-read-cost=# 
+ Cost of reading a block of IO_SIZE (4096) from a disk (in
+ usec).
+ --optimizer-disk-read-ratio=# 
+ Chance that we have to do a disk read to find a row or
+ index entry from the engine cache
+ (cache_misses/total_cache_requests).  0.0 means that
+ everything is cached and 1.0 means that nothing is
+ expected to be in the engine cache.
  --optimizer-index-block-copy-cost=# 
  Cost of copying a key block from the cache to intern
  storage as part of an index scan.
@@ -706,6 +710,8 @@ The following specify which files/extra groups are read (specified before remain
  --optimizer-key-copy-cost=# 
  Cost of finding the next key in the engine and copying it
  to the SQL layer.
+ --optimizer-key-lookup-cost=# 
+ Cost for finding a key based on a key value
  --optimizer-key-next-find-cost=# 
  Cost of finding the next key and rowid when using
  filters.
@@ -721,6 +727,14 @@ The following specify which files/extra groups are read (specified before remain
  --optimizer-row-copy-cost=# 
  Cost of copying a row from the engine or the join cache
  to the SQL layer.
+ --optimizer-row-lookup-cost=# 
+ Cost of finding a row based on a rowid or a clustered
+ key.
+ --optimizer-row-next-find-cost=# 
+ Cost of finding the next row when scanning the table.
+ --optimizer-scan-setup-cost=# 
+ Extra cost added to TABLE and INDEX scans to get
+ optimizer to prefer index lookups.
  --optimizer-search-depth=# 
  Maximum depth of search performed by the query optimizer.
  Values larger than the number of relations in a query
@@ -775,6 +789,8 @@ The following specify which files/extra groups are read (specified before remain
  record samples
  --optimizer-where-cost=# 
  Cost of checking the row against the WHERE clause.
+ Increasing this will have the optimizer to prefer plans
+ with less row combinations.
  --performance-schema 
  Enable the performance schema.
  --performance-schema-accounts-size=# 
@@ -1675,21 +1691,26 @@ old-alter-table DEFAULT
 old-mode UTF8_IS_UTF8MB3
 old-passwords FALSE
 old-style-user-limits FALSE
-optimizer-cache-hit-ratio 50
-optimizer-index-block-copy-cost 0.2
-optimizer-key-compare-cost 0.05
-optimizer-key-copy-cost 0.025
-optimizer-key-next-find-cost 0.0125
+optimizer-disk-read-cost 0.01024
+optimizer-disk-read-ratio 0.02
+optimizer-index-block-copy-cost 3.56e-05
+optimizer-key-compare-cost 1.1361e-05
+optimizer-key-copy-cost 1.5685e-05
+optimizer-key-lookup-cost 0.000435777
+optimizer-key-next-find-cost 8.2347e-05
 optimizer-max-sel-arg-weight 32000
 optimizer-prune-level 1
-optimizer-row-copy-cost 0.05
+optimizer-row-copy-cost 6.0866e-05
+optimizer-row-lookup-cost 0.000130839
+optimizer-row-next-find-cost 4.5916e-05
+optimizer-scan-setup-cost 0.01
 optimizer-search-depth 62
 optimizer-selectivity-sampling-limit 100
 optimizer-switch index_merge=on,index_merge_union=on,index_merge_sort_union=on,index_merge_intersection=on,index_merge_sort_intersection=off,engine_condition_pushdown=off,index_condition_pushdown=on,derived_merge=on,derived_with_keys=on,firstmatch=on,loosescan=on,materialization=on,in_to_exists=on,semijoin=on,partial_match_rowid_merge=on,partial_match_table_scan=on,subquery_cache=on,mrr=off,mrr_cost_based=off,mrr_sort_keys=off,outer_join_with_cache=on,semijoin_with_cache=on,join_cache_incremental=on,join_cache_hashed=on,join_cache_bka=on,optimize_join_buffer_size=on,table_elimination=on,extended_keys=on,exists_to_in=on,orderby_uses_equalities=on,condition_pushdown_for_derived=on,split_materialized=on,condition_pushdown_for_subquery=on,rowid_filter=on,condition_pushdown_from_having=on
 optimizer-trace 
 optimizer-trace-max-mem-size 1048576
 optimizer-use-condition-selectivity 4
-optimizer-where-cost 0.2
+optimizer-where-cost 3.2e-05
 performance-schema FALSE
 performance-schema-accounts-size -1
 performance-schema-consumer-events-stages-current FALSE

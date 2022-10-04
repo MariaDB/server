@@ -308,15 +308,15 @@ Handler_read_rnd_next	0
 #                when extended_keys=on
 #
 create table t0 (a int);
-insert into t0 values (1), (2), (3), (4), (5);
+insert into t0 select seq from seq_1_to_5;
 create index i_p_size on part(p_size);
 explain
-select * from t0, part ignore index (primary)
+select straight_join * from t0, part ignore index (primary)
 where p_partkey=t0.a and p_size=1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t0	ALL	NULL	NULL	NULL	NULL	5	Using where
 1	SIMPLE	part	eq_ref	i_p_size	i_p_size	9	const,dbt3_s001.t0.a	1	
-select * from t0,  part ignore index (primary)
+select straight_join * from t0,  part ignore index (primary)
 where p_partkey=t0.a and p_size=1;
 a	p_partkey	p_name	p_mfgr	p_brand	p_type	p_size	p_container	p_retailprice	p_comment
 2	2	blush rosy metallic lemon navajo	Manufacturer#1	Brand#13	LARGE BRUSHED BRASS	1	LG CASE	902	final platelets hang f
@@ -381,17 +381,18 @@ INSERT INTO t2 VALUES
 (10), (11), (12), (13), (14), 
 (15), (16), (17), (18), (19), (24);
 EXPLAIN
-SELECT a FROM t1 AS t, t2 
-WHERE c = a AND b IN (SELECT b FROM t1, t2 WHERE b = t.b);
+SELECT a FROM t1 AS t, t2 as t2_out 
+WHERE t2_out.c = t.a AND t.b IN (SELECT b FROM t1, t2 WHERE b = t.b);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t	index	a,b	b	7	NULL	10	Using index
-1	PRIMARY	t1	ref	b	b	3	test.t.b	2	Using index
-1	PRIMARY	t2	index	NULL	PRIMARY	4	NULL	11	Using index; FirstMatch(t)
-1	PRIMARY	t2	eq_ref	PRIMARY	PRIMARY	4	test.t.a	1	Using index
-SELECT a FROM t1 AS t, t2 
-WHERE c = a AND b IN (SELECT b FROM t1, t2 WHERE b = t.b);
+1	PRIMARY	t1	index	b	b	7	NULL	10	Using index; Start temporary
+1	PRIMARY	t	ref	a,b	b	3	test.t1.b	2	Using index
+1	PRIMARY	t2	index	NULL	PRIMARY	4	NULL	11	Using index; End temporary; Using join buffer (flat, BNL join)
+1	PRIMARY	t2_out	eq_ref	PRIMARY	PRIMARY	4	test.t.a	1	Using index
+SELECT a FROM t1 AS t, t2 as t2_out 
+WHERE t2_out.c = t.a AND t.b IN (SELECT b FROM t1, t2 WHERE b = t.b);
 a
 24
+Last_query_cost	0.119652
 DROP TABLE t1,t2;
 #
 # LP Bug #923236: hash join + extended_keys = on 
@@ -638,7 +639,7 @@ test.t2	analyze	status	Engine-independent statistics collected
 test.t2	analyze	status	OK
 explain select a from t1 where b is null order by a desc limit 2;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	b	b	9	NULL	3	Using where; Using filesort
+1	SIMPLE	t1	index	b	PRIMARY	8	NULL	2	Using where
 select a from t1 where b is null order by a desc limit 2;
 a
 3

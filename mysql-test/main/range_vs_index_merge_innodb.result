@@ -73,7 +73,7 @@ EXPLAIN
 SELECT * FROM City
 WHERE (Population > 101000 AND Population < 115000);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	City	range	Population	Population	4	NULL	459	Using index condition
+1	SIMPLE	City	ALL	Population	NULL	NULL	NULL	4079	Using where
 EXPLAIN 
 SELECT * FROM City
 WHERE (Population > 101000 AND Population < 102000);
@@ -191,7 +191,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 EXPLAIN
 SELECT  * FROM City WHERE (Name BETWEEN 'P' AND 'S');
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	City	range	Name	Name	35	NULL	385	Using index condition
+1	SIMPLE	City	ALL	Name	NULL	NULL	NULL	4079	Using where
 EXPLAIN
 SELECT  * FROM City WHERE (Population > 101000 AND Population < 110000);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
@@ -347,7 +347,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 EXPLAIN
 SELECT * FROM City WHERE Name LIKE 'H%' OR Name LIKE 'P%' ;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	City	range	Name	Name	35	NULL	395	Using index condition
+1	SIMPLE	City	ALL	Name	NULL	NULL	NULL	4079	Using where
 EXPLAIN
 SELECT * FROM City WHERE Name LIKE 'Ha%' OR Name LIKE 'Pa%' ;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
@@ -365,7 +365,7 @@ WHERE ((ID < 800) AND (Name LIKE 'Ha%' OR (Country > 'A' AND Country < 'ARG')))
 OR ((ID BETWEEN 900 AND 1500) AND 
 (Name LIKE 'Pa%' OR (Population > 103000 AND Population < 105000)));
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	City	index_merge	PRIMARY,Population,Country,Name	Name,Country,Population	39,3,4	NULL	212	Using sort_union(Name,Country,Population); Using where
+1	SIMPLE	City	range	PRIMARY,Population,Country,Name	PRIMARY	4	NULL	1400	Using where
 EXPLAIN
 SELECT * FROM City
 WHERE ((ID < 200) AND (Name LIKE 'Ha%' OR (Country > 'A' AND Country < 'ARG')))
@@ -588,7 +588,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 EXPLAIN 
 SELECT * FROM City WHERE Country < 'C';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	City	range	Country	Country	3	NULL	446	Using index condition
+1	SIMPLE	City	ALL	Country	NULL	NULL	NULL	4079	Using where
 EXPLAIN 
 SELECT * FROM City WHERE Country < 'AGO';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
@@ -596,7 +596,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 EXPLAIN 
 SELECT * FROM City WHERE Name BETWEEN 'P' AND 'S';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	City	range	Name	Name	35	NULL	385	Using index condition
+1	SIMPLE	City	ALL	Name	NULL	NULL	NULL	4079	Using where
 EXPLAIN 
 SELECT * FROM City WHERE Name BETWEEN 'P' AND 'Pb';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
@@ -620,7 +620,7 @@ WHERE ((Population > 101000 AND Population < 102000) AND
 ((ID BETWEEN 3400 AND 3800) AND 
 (Country < 'AGO' OR Name LIKE 'Pa%'));
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	City	index_merge	PRIMARY,Population,Country,Name	Country,Name,Population	3,39,4	NULL	115	Using sort_union(Country,Name,Population); Using where
+1	SIMPLE	City	index_merge	PRIMARY,Population,Country,Name	Population,PRIMARY	4,4	NULL	440	Using sort_union(Population,PRIMARY); Using where
 EXPLAIN
 SELECT * FROM City
 WHERE ((Population > 101000 AND Population < 110000) AND
@@ -1242,7 +1242,7 @@ SELECT * FROM City
 WHERE ((Name > 'Ca' AND Name < 'Cf') OR (Country > 'E' AND Country < 'H'))
 AND (Population >= 100000 AND Population < 120000);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	City	index_merge	Country,Name,Population	Name,Country	35,3	NULL	#	Using sort_union(Name,Country); Using where
+1	SIMPLE	City	ALL	Country,Name,Population	NULL	NULL	NULL	#	Using where
 FLUSH STATUS;
 SELECT * FROM City
 WHERE ((Name > 'Ca' AND Name < 'Cf') OR (Country > 'E' AND Country < 'H'))
@@ -1310,14 +1310,14 @@ ID	Name	Country	Population
 SHOW STATUS LIKE 'Handler_read_%';
 Variable_name	Value
 Handler_read_first	0
-Handler_read_key	2
+Handler_read_key	0
 Handler_read_last	0
-Handler_read_next	385
+Handler_read_next	0
 Handler_read_prev	0
 Handler_read_retry	0
-Handler_read_rnd	377
+Handler_read_rnd	0
 Handler_read_rnd_deleted	0
-Handler_read_rnd_next	0
+Handler_read_rnd_next	4080
 EXPLAIN 
 SELECT * FROM City
 WHERE ((Name > 'Ca' AND Name < 'Cf') OR (Country > 'E' AND Country < 'H'))
@@ -1660,7 +1660,7 @@ SELECT COUNT(*) FROM t1
 WHERE c  = 'i'  OR b IN ( 'Arkansas' , 'd' , 'pdib' , 'can' )  OR
 (pk BETWEEN 120 AND 79 + 255 OR a IN ( 4 , 179 , 1 ) ) AND a > 8 ;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	index_merge	PRIMARY,idx1,idx2,idx3	idx3,idx2,idx1,PRIMARY	67,13,3,4	NULL	9	Using sort_union(idx3,idx2,idx1,PRIMARY); Using where
+1	SIMPLE	t1	ALL	PRIMARY,idx1,idx2,idx3	NULL	NULL	NULL	87	Using where
 DROP TABLE t1;
 CREATE TABLE t1 (
 f1 int, f2 int, f3 int, f4 int, f5 int,
@@ -1900,37 +1900,6 @@ INDEX (Percentage)
 DROP INDEX Country ON City;
 CREATE INDEX CountryName ON City(Country,Name);
 CREATE INDEX Name ON City(Name);
-select * from City
-where
-Country='FIN' AND Name IN ('Lahti','Imatra') OR
-Country='RUS' AND Name IN ('St Petersburg', 'Moscow') OR
-Country='SWE' AND Name IN ('Stockholm', 'Uppsala') OR
-Country='DEU' AND Name IN ('Berlin', 'Bonn') OR
-Country='BEL' AND Name IN ('Antwerpen', 'Gent') OR
-Country='PRT' AND Name IN ('Braga', 'Porto') OR
-Country='FRA' AND Name IN ('Paris', 'Marcel') OR
-Country='POL' AND Name IN ('Warszawa', 'Wroclaw') OR
-Country='NOR' AND Name IN ('Oslo', 'Bergen') OR
-Country='ITA' AND Name IN ('Napoli', 'Venezia');
-ID	Name	Country	Population
-175	Antwerpen	BEL	446525
-2808	Bergen	NOR	230948
-3068	Berlin	DEU	3386667
-3087	Bonn	DEU	301048
-2918	Braga	PRT	90535
-176	Gent	BEL	224180
-3242	Lahti	FIN	96921
-3580	Moscow	RUS	8389200
-1466	Napoli	ITA	1002619
-2807	Oslo	NOR	508726
-2974	Paris	FRA	2125246
-2915	Porto	PRT	273060
-3581	St Petersburg	RUS	4694000
-3048	Stockholm	SWE	750348
-3051	Uppsala	SWE	189569
-1474	Venezia	ITA	277305
-2928	Warszawa	POL	1615369
-2931	Wroclaw	POL	636765
 explain select * from City
 where
 Country='FIN' AND Name IN ('Lahti','Imatra') OR
@@ -1944,7 +1913,38 @@ Country='POL' AND Name IN ('Warszawa', 'Wroclaw') OR
 Country='NOR' AND Name IN ('Oslo', 'Bergen') OR
 Country='ITA' AND Name IN ('Napoli', 'Venezia');
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	City	range	CountryName,Name	Name	35	NULL	20	Using index condition; Using where
+1	SIMPLE	City	range	CountryName,Name	CountryName	38	NULL	20	Using index condition
+select * from City
+where
+Country='FIN' AND Name IN ('Lahti','Imatra') OR
+Country='RUS' AND Name IN ('St Petersburg', 'Moscow') OR
+Country='SWE' AND Name IN ('Stockholm', 'Uppsala') OR
+Country='DEU' AND Name IN ('Berlin', 'Bonn') OR
+Country='BEL' AND Name IN ('Antwerpen', 'Gent') OR
+Country='PRT' AND Name IN ('Braga', 'Porto') OR
+Country='FRA' AND Name IN ('Paris', 'Marcel') OR
+Country='POL' AND Name IN ('Warszawa', 'Wroclaw') OR
+Country='NOR' AND Name IN ('Oslo', 'Bergen') OR
+Country='ITA' AND Name IN ('Napoli', 'Venezia');
+ID	Name	Country	Population
+1466	Napoli	ITA	1002619
+1474	Venezia	ITA	277305
+175	Antwerpen	BEL	446525
+176	Gent	BEL	224180
+2807	Oslo	NOR	508726
+2808	Bergen	NOR	230948
+2915	Porto	PRT	273060
+2918	Braga	PRT	90535
+2928	Warszawa	POL	1615369
+2931	Wroclaw	POL	636765
+2974	Paris	FRA	2125246
+3048	Stockholm	SWE	750348
+3051	Uppsala	SWE	189569
+3068	Berlin	DEU	3386667
+3087	Bonn	DEU	301048
+3242	Lahti	FIN	96921
+3580	Moscow	RUS	8389200
+3581	St Petersburg	RUS	4694000
 DROP DATABASE world;
 set session optimizer_switch='index_merge_sort_intersection=default';
 set global innodb_stats_persistent= @innodb_stats_persistent_save;

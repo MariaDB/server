@@ -88,7 +88,7 @@ explain select * from t1 where pk1 != 0  and key1 = 1	{
                 "range_analysis": {
                   "table_scan": {
                     "rows": 1000,
-                    "cost": 253
+                    "cost": 0.1764192
                   },
                   "potential_range_indexes": [
                     {
@@ -117,8 +117,9 @@ explain select * from t1 where pk1 != 0  and key1 = 1	{
                         "using_mrr": false,
                         "index_only": false,
                         "rows": 1000,
-                        "cost": 252.02,
-                        "chosen": true
+                        "cost": 0.19660976,
+                        "chosen": false,
+                        "cause": "cost"
                       },
                       {
                         "index": "key1",
@@ -127,7 +128,7 @@ explain select * from t1 where pk1 != 0  and key1 = 1	{
                         "using_mrr": false,
                         "index_only": false,
                         "rows": 1,
-                        "cost": 1.270146475,
+                        "cost": 0.00415068,
                         "chosen": true
                       }
                     ],
@@ -135,10 +136,10 @@ explain select * from t1 where pk1 != 0  and key1 = 1	{
                       "intersecting_indexes": [
                         {
                           "index": "key1",
-                          "index_scan_cost": 0.525146475,
-                          "cumulated_index_scan_cost": 0.525146475,
-                          "disk_sweep_cost": 0.752076843,
-                          "cumulative_total_cost": 1.277223319,
+                          "index_scan_cost": 0.001661605,
+                          "cumulated_index_scan_cost": 0.001661605,
+                          "disk_sweep_cost": 0.00171364,
+                          "cumulative_total_cost": 0.003375245,
                           "usable": true,
                           "matching_rows_now": 1,
                           "intersect_covering_with_this_index": false,
@@ -150,7 +151,7 @@ explain select * from t1 where pk1 != 0  and key1 = 1	{
                         "cause": "cost"
                       },
                       "chosen": false,
-                      "cause": "cost"
+                      "cause": "too few indexes to merge"
                     },
                     "analyzing_index_merge_union": []
                   },
@@ -166,7 +167,7 @@ explain select * from t1 where pk1 != 0  and key1 = 1	{
                       "ranges": ["(1) <= (key1) <= (1)"]
                     },
                     "rows_for_plan": 1,
-                    "cost_for_plan": 1.270146475,
+                    "cost_for_plan": 0.00415068,
                     "chosen": true
                   }
                 }
@@ -176,7 +177,7 @@ explain select * from t1 where pk1 != 0  and key1 = 1	{
                 "rowid_filters": [
                   {
                     "key": "key1",
-                    "build_cost": 0.526146475,
+                    "build_cost": 0.001669448,
                     "rows": 1
                   }
                 ]
@@ -212,7 +213,7 @@ explain select * from t1 where pk1 != 0  and key1 = 1	{
                       "index": "key1",
                       "used_range_estimates": true,
                       "rows": 1,
-                      "cost": 1.250146475,
+                      "cost": 0.00274516,
                       "chosen": true
                     },
                     {
@@ -223,22 +224,21 @@ explain select * from t1 where pk1 != 0  and key1 = 1	{
                   ],
                   "chosen_access_method": {
                     "type": "ref",
-                    "records_read": 1,
-                    "records_out": 1,
-                    "cost": 1.250146475,
+                    "rows_read": 1,
+                    "rows_out": 1,
+                    "cost": 0.00274516,
                     "uses_join_buffering": false
                   }
                 },
                 "rows_for_plan": 1,
-                "cost_for_plan": 1.250146475,
-                "pruned_by_hanging_leaf": true
+                "cost_for_plan": 0.00274516
               }
             ]
           },
           {
             "best_join_order": ["t1"],
             "rows": 1,
-            "cost": 1.250146475
+            "cost": 0.00274516
           },
           {
             "substitute_best_equal": {
