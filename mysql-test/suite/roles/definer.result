@@ -50,9 +50,9 @@ a+b	c	current_role()
 select * from test.v3;
 ERROR 28000: Access denied for user 'foo'@'localhost' (using password: NO)
 create definer=role4 view test.v4 as select a+b,c from t1;
-ERROR 42000: ANY command denied to user 'foo'@'localhost' for table 't1'
+ERROR 42000: ANY command denied to user 'foo'@'localhost' for table `mysqltest1`.`t1`
 select * from t1;
-ERROR 42000: SELECT command denied to user 'foo'@'localhost' for table 't1'
+ERROR 42000: SELECT command denied to user 'foo'@'localhost' for table `mysqltest1`.`t1`
 set role role4;
 select * from t1;
 a	b	c
@@ -113,7 +113,7 @@ tr1	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE
 insert t1 values (111, 222, 333)	latin1	latin1_swedish_ci	latin1_swedish_ci	#
 set role none;
 insert t2 values (11,22,33);
-ERROR 42000: INSERT command denied to user ''@'' for table 't1'
+ERROR 42000: INSERT command denied to user ''@'' for table `mysqltest1`.`t1`
 select * from t1;
 a	b	c
 1	10	100
@@ -179,7 +179,7 @@ pr1	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE
 insert t1 values (111, 222, 333)	latin1	latin1_swedish_ci	latin1_swedish_ci
 set role none;
 call pr1();
-ERROR 42000: INSERT command denied to user ''@'' for table 't1'
+ERROR 42000: INSERT command denied to user ''@'' for table `mysqltest1`.`t1`
 select * from t1;
 a	b	c
 1	10	100

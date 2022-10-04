@@ -1,5 +1,6 @@
 --source include/have_innodb.inc
 --source include/have_debug.inc
+--source include/have_debug_sync.inc
 
 # The test demonstrates that intermediate tables (ALTER TABLE...ALGORITHM=COPY)
 # are not always properly locked, e.g., can be dropped after

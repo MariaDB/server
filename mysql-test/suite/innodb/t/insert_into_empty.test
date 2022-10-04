@@ -315,3 +315,15 @@ INSERT INTO t1 VALUES (1),(2);
 ALTER TABLE t1 REBUILD PARTITION p0;
 # Cleanup
 DROP TABLE t1;
+
+--echo #
+--echo #  MDEV-29570  InnoDB fails to clean bulk buffer when server
+--echo #			does rollback operation
+--echo #
+CREATE TABLE t1 (pk INT PRIMARY KEY) ENGINE=InnoDB
+		 PARTITION BY RANGE (pk) (
+			PARTITION pn VALUES LESS THAN (20));
+--error ER_NO_PARTITION_FOR_GIVEN_VALUE
+INSERT INTO t1 VALUES (1),(21);
+# Cleanup
+DROP TABLE t1;

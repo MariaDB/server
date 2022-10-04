@@ -1021,13 +1021,13 @@ bool JDOC::SerializeValue(PJVAL jvp)
     case TYPE_DTM:
       return js->Escape(jvp->Strp);
     case TYPE_INTG:
-      sprintf(buf, "%d", jvp->N);
+      snprintf(buf, sizeof(buf), "%d", jvp->N);
       return js->WriteStr(buf);
     case TYPE_BINT:
-      sprintf(buf, "%lld", jvp->LLn);
+      snprintf(buf, sizeof(buf), "%lld", jvp->LLn);
       return js->WriteStr(buf);
     case TYPE_DBL:  // dfp to limit to the default number of decimals
-      sprintf(buf, "%.*f", MY_MIN(jvp->Nd, dfp), jvp->F);
+      snprintf(buf, sizeof(buf), "%.*f", MY_MIN(jvp->Nd, dfp), jvp->F);
       return js->WriteStr(buf);
     case TYPE_NULL:
       return js->WriteStr("null");

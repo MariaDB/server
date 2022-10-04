@@ -5895,7 +5895,7 @@ int item_create_init()
     DBUG_RETURN(1);
 #endif
 
-#ifndef DBUG_OFF
+#ifdef DBUG_TRACE
   for (uint i=0 ; i < native_functions_hash.records ; i++)
   {
     Native_func_registry *func;

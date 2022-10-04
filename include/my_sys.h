@@ -958,6 +958,17 @@ extern ulonglong my_getcputime(void);
 #define hrtime_sec_part(X)              ((ulong)((X).val % HRTIME_RESOLUTION))
 #define my_time(X)                      hrtime_to_time(my_hrtime_coarse())
 
+/**
+  Make high resolution time from two parts.
+*/
+
+static inline my_hrtime_t make_hr_time(my_time_t time, ulong time_sec_part)
+{
+  my_hrtime_t res= {((ulonglong) time)*1000000 + time_sec_part};
+  return res;
+}
+
+
 #if STACK_DIRECTION < 0
 #define available_stack_size(CUR,END) (long) ((char*)(CUR) - (char*)(END))
 #else

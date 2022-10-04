@@ -2768,7 +2768,8 @@ main(int argc, char **argv)
     trunc_tables= trunc_tables_const;
 
   printf("set @wsrep_is_on=(%s);\n", wsrep_is_on);
-  printf("SELECT concat('%%', GROUP_CONCAT(OPTION), '%%') INTO @replicate_opt "
+  printf("SET STATEMENT SQL_MODE='' FOR "
+         "SELECT concat('%%', GROUP_CONCAT(OPTION), '%%') INTO @replicate_opt "
          " FROM"
          "   (SELECT DISTINCT concat('REPLICATE_', UPPER(ENGINE)) AS OPTION"
          "    FROM information_schema.TABLES"
