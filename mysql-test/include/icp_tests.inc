@@ -486,7 +486,7 @@ CREATE TABLE t1 (
 );
 
 INSERT INTO t1 VALUES (1,9),(2,7),(3,6),(4,3),(5,1);
-
+insert into t1 select seq,seq from seq_100_to_110;
 EXPLAIN SELECT pk, c1 FROM t1 WHERE (pk<3 or pk>3);
 
 SET SESSION optimizer_switch='index_condition_pushdown=off';
@@ -723,7 +723,6 @@ DROP TABLE t1;
 
 CREATE TABLE t1 (b int NOT NULL, c int, a varchar(1024), PRIMARY KEY (b));
 INSERT INTO t1 VALUES (1,4,'Ill');
-insert into t1 select seq+100,5,seq from seq_1_to_100;
 
 CREATE TABLE t2 (a varchar(1024), KEY (a(512)));
 INSERT INTO t2 VALUES
@@ -856,6 +855,8 @@ ANALYZE TABLE t1,t2;
 
 SET @save_optimize_switch=@@optimizer_switch;
 SET optimizer_switch='materialization=on';
+set @save_optimizer_where_cost=@@optimizer_where_cost;
+set @@optimizer_where_cost=1;
 
 EXPLAIN
 SELECT COUNT(*) FROM t1 AS t, t2
@@ -873,6 +874,7 @@ WHERE c = g
            OR a = 0 AND h < 'z' );
 
 SET optimizer_switch=@save_optimizer_switch;
+set @@optimizer_where_cost=@save_optimizer_where_cost;
 
 DROP TABLE t1,t2;
 

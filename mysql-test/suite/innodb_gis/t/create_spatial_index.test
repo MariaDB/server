@@ -97,6 +97,8 @@ ANALYZE TABLE tab;
 --echo # Test  the MBRContains
 SET @g1 = ST_GeomFromText( 'POLYGON((7 1,6 2,6 3,10 3,10 1,7 1))');
 
+# Show plan if we cannot use index order
+EXPLAIN SELECT c1,ST_Astext(c4) FROM tab WHERE MBRContains(tab.c4, @g1) ORDER BY c1+0;
 EXPLAIN SELECT c1,ST_Astext(c4) FROM tab WHERE MBRContains(tab.c4, @g1) ORDER BY c1;
 
 SELECT c1,ST_Astext(c4) FROM tab WHERE MBRContains(tab.c4, @g1) ORDER BY c1;

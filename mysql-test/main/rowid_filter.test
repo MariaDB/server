@@ -361,7 +361,10 @@ SELECT * FROM t1 INNER JOIN t2 ON ( pk1+1 = pk2+2 AND a1 = a2 )
 
 eval $q;
 eval EXPLAIN EXTENDED $q;
+set @@optimizer_where_cost=0.0356*4;
+eval EXPLAIN EXTENDED $q;
 eval EXPLAIN FORMAT=JSON $q;
+set @@optimizer_where_cost=default;
 
 DROP TABLE t1,t2;
 
@@ -410,16 +413,7 @@ drop table t10, t11, t1;
 set @save_optimizer_switch= @@optimizer_switch;
 SET @@optimizer_switch="index_merge_sort_union=OFF";
 CREATE TABLE t1 (a INT, b INT, INDEX(a), INDEX(b));
-INSERT INTO t1 VALUES (0,0),(1,0),(-1,1), (-2,1), (-2,3), (-3,4), (-2,4);
-INSERT INTO t1 SELECT * FROM t1;
-INSERT INTO t1 SELECT * FROM t1;
-INSERT INTO t1 SELECT * FROM t1;
-INSERT INTO t1 SELECT * FROM t1;
-INSERT INTO t1 SELECT * FROM t1;
-INSERT INTO t1 SELECT * FROM t1;
-
-ANALYZE table t1 PERSISTENT FOR ALL;
-
+INSERT INTO t1 VALUES (0,0),(0,0),(1,0),(-1,1), (-2,1), (-2,3), (-3,4), (-2,4),(3,3),(3,4),(3,5),(8,8),(8,9),(1,0),(2,0),(0,0),(0,0);
 explain
 SELECT * FROM t1 WHERE a > 0 AND b=0;
 SELECT * FROM t1 WHERE a > 0 AND b=0;

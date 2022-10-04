@@ -1192,7 +1192,10 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t2	index	k2	k3	5	NULL	111	Using where
 EXPLAIN SELECT id,c3 FROM t2 WHERE c2=11 ORDER BY c3 LIMIT 4000;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	ref	k2	k2	5	const	7341	Using where; Using filesort
+1	SIMPLE	t2	range	k2	k2	5	NULL	7341	Using index condition; Using filesort
+EXPLAIN SELECT id,c3 FROM t2 WHERE c2=11 ORDER BY c3 LIMIT 6000;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	ALL	k2	NULL	NULL	NULL	40960	Using where; Using filesort
 EXPLAIN SELECT id,c3 FROM t2 WHERE c2 BETWEEN 10 AND 12 ORDER BY c3 LIMIT 20;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t2	index	k2	k3	5	NULL	73	Using where
@@ -1577,19 +1580,20 @@ ANALYZE
             "r_sort_mode": "sort_key,addon_fields",
             "table": {
               "table_name": "t1",
-              "access_type": "index",
+              "access_type": "ref_or_null",
               "possible_keys": ["a_c", "a"],
               "key": "a_c",
               "key_length": "10",
               "used_key_parts": ["a", "c"],
+              "ref": ["const", "const"],
               "r_loops": 1,
               "rows": 2,
-              "r_rows": 2,
+              "r_rows": 1,
               "r_table_time_ms": "REPLACED",
               "r_other_time_ms": "REPLACED",
               "filtered": 50,
-              "r_filtered": 50,
-              "attached_condition": "t1.a = 2 and (t1.c = 10 or t1.c is null)",
+              "r_filtered": 100,
+              "attached_condition": "t1.c = 10 or t1.c is null",
               "using_index": true
             }
           }
@@ -1601,26 +1605,11 @@ ANALYZE
 EXPLAIN
 SELECT 1 AS col FROM t1 WHERE a=2 AND (c=10 OR c IS NULL) ORDER BY c;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	index	a_c,a	a_c	10	NULL	2	Using where; Using index; Using filesort
+1	SIMPLE	t1	ref_or_null	a_c,a	a_c	10	const,const	2	Using where; Using index; Using filesort
 # Must return 1 row
 SELECT 1 AS col FROM t1 WHERE a=2 AND (c=10 OR c IS NULL) ORDER BY c;
 col
 1
-# With more rows "filesort" is removed
-INSERT INTO t1 select seq,seq from seq_1_to_2;
-EXPLAIN
-SELECT 1 AS col FROM t1 WHERE a=2 AND (c=10 OR c IS NULL) ORDER BY c;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	a_c,a	a_c	10	NULL	2	Using where; Using index
-SELECT 1 AS col FROM t1 WHERE a=2 AND (c=10 OR c IS NULL) ORDER BY c;
-col
-1
-# With more rows "range" changes to "ref_or_null"
-INSERT INTO t1 select seq,seq from seq_3_to_10;
-EXPLAIN
-SELECT 1 AS col FROM t1 WHERE a=2 AND (c=10 OR c IS NULL) ORDER BY c;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ref_or_null	a_c,a	a_c	10	const,const	2	Using where; Using index; Using filesort
 # Must use ref-or-null on the a_c index
 EXPLAIN
 SELECT 1 AS col FROM t1 WHERE a=2 AND (c=10 OR c IS NULL) ORDER BY c DESC;
@@ -3130,7 +3119,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	t1	system	NULL	NULL	NULL	NULL	1	100.00	
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	2	100.00	
 1	PRIMARY	t3a	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where; Start temporary
-1	PRIMARY	t3b	ref	f3_key	f3_key	6	test.t3a.f3	1	100.00	Using where; End temporary
+1	PRIMARY	t3b	ref	f3_key	f3_key	6	test.t3a.f3	1	41.67	Using where; End temporary
 Warnings:
 Note	1003	select concat('foo',`test`.`t2`.`f2`) AS `field` from `test`.`t2` semi join ((`test`.`t3` `t3a` join `test`.`t3` `t3b`)) where `test`.`t3a`.`f3` < 'foo' or `test`.`t3b`.`f3` <> 'foo' order by concat('foo',`test`.`t2`.`f2`)
 DROP TABLE t1,t2,t3;
@@ -3184,7 +3173,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 # See above query
 EXPLAIN SELECT id1 FROM t2 WHERE id2=1 AND id3=1 ORDER BY date DESC LIMIT 0,4;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	range	id_23_date,id_234_date	id_23_date	2	NULL	8	Using where
+1	SIMPLE	t2	ref	id_23_date,id_234_date	id_23_date	2	const,const	8	Using where
 drop table t1,t2;
 #
 # MDEV-8989: ORDER BY optimizer ignores equality propagation
@@ -3565,8 +3554,8 @@ WHERE books.library_id = 8663 AND
 books.scheduled_for_removal=0 )
 ORDER BY wings.id;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	PRIMARY	wings	ALL	PRIMARY	NULL	NULL	NULL	2	100.00	Using temporary; Using filesort
-1	PRIMARY	books	ALL	library_idx	NULL	NULL	NULL	2	100.00	Using where; FirstMatch(wings); Using join buffer (flat, BNL join)
+1	PRIMARY	wings	ALL	PRIMARY	NULL	NULL	NULL	2	100.00	Using filesort
+1	PRIMARY	books	ref	library_idx	library_idx	4	const	2	50.00	Using where; FirstMatch(wings)
 Warnings:
 Note	1003	select `test`.`wings`.`id` AS `wing_id`,`test`.`wings`.`department_id` AS `department_id` from `test`.`wings` semi join (`test`.`books`) where `test`.`books`.`library_id` = 8663 and `test`.`books`.`scheduled_for_removal` = 0 and `test`.`books`.`wings_id` = `test`.`wings`.`id` order by `test`.`wings`.`id`
 set optimizer_switch= @save_optimizer_switch;
@@ -3700,8 +3689,8 @@ WHERE
 t2.key1 = t1.a and t2.key1 IS NOT NULL
 ORDER BY
 t2.key2 ASC
-LIMIT 1)
-from t1;
+LIMIT 1) as "con"
+           from t1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	10	
 2	DEPENDENT SUBQUERY	t2	ref	key1	key1	5	test.t1.a	10	Using index condition; Using where; Using filesort
@@ -3712,15 +3701,9 @@ WHERE
 t2.key1 = t1.a and t2.key1 IS NOT NULL
 ORDER BY
 t2.key2 ASC
-LIMIT 1)
-from t1;
-(SELECT  concat(id, '-', key1, '-', col1)
-FROM t2
-WHERE
-t2.key1 = t1.a and t2.key1 IS NOT NULL
-ORDER BY
-t2.key2 ASC
-LIMIT 1)
+LIMIT 1) as "con"
+           from t1;
+con
 100-0-123456
 101-1-123456
 102-2-123456
@@ -4463,7 +4446,8 @@ CREATE TABLE t1 (a INT, b int, primary key(a));
 CREATE TABLE t2 (a INT, b INT);
 INSERT INTO t1 (a,b) VALUES (58,1),(96,2),(273,3),(23,4),(231,5),(525,6),
 (2354,7),(321421,3),(535,2),(4535,3);
-INSERT INTO t2 (a,b) VALUES (58,3),(96,3),(273,3),(1000,1000),(2000,2000);
+INSERT INTO t2 (a,b) VALUES (58,3),(96,3),(273,3),(1000,1000),(2000,2000),(3000,3000);
+INSERT INTO t2 select seq,seq from seq_10_to_100;
 # Join order should have the SJM scan table as the first table for both
 # the queries with GROUP BY and ORDER BY clause.
 EXPLAIN SELECT t1.a
@@ -4471,9 +4455,9 @@ FROM t1
 WHERE t1.a IN (SELECT a FROM t2 WHERE b=3)
 ORDER BY t1.a DESC;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	<subquery2>	ALL	distinct_key	NULL	NULL	NULL	5	Using filesort
-1	PRIMARY	t1	eq_ref	PRIMARY	PRIMARY	4	test.t2.a	1	Using index
-2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	5	Using where
+1	PRIMARY	t1	index	PRIMARY	PRIMARY	4	NULL	10	Using index
+1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	4	func	1	
+2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	97	Using where
 EXPLAIN FORMAT=JSON SELECT t1.a
 FROM t1
 WHERE t1.a IN (SELECT a FROM t2 WHERE b=3)
@@ -4484,48 +4468,46 @@ EXPLAIN
     "select_id": 1,
     "nested_loop": [
       {
-        "read_sorted_file": {
-          "filesort": {
-            "sort_key": "t1.a desc",
-            "table": {
-              "table_name": "<subquery2>",
-              "access_type": "ALL",
-              "possible_keys": ["distinct_key"],
-              "rows": 5,
-              "filtered": 100,
-              "materialized": {
-                "unique": 1,
-                "query_block": {
-                  "select_id": 2,
-                  "nested_loop": [
-                    {
-                      "table": {
-                        "table_name": "t2",
-                        "access_type": "ALL",
-                        "rows": 5,
-                        "filtered": 100,
-                        "attached_condition": "t2.b = 3 and t2.a is not null"
-                      }
-                    }
-                  ]
-                }
-              }
-            }
-          }
-        }
-      },
-      {
         "table": {
           "table_name": "t1",
-          "access_type": "eq_ref",
+          "access_type": "index",
           "possible_keys": ["PRIMARY"],
           "key": "PRIMARY",
           "key_length": "4",
           "used_key_parts": ["a"],
-          "ref": ["test.t2.a"],
-          "rows": 1,
+          "rows": 10,
           "filtered": 100,
           "using_index": true
+        }
+      },
+      {
+        "table": {
+          "table_name": "<subquery2>",
+          "access_type": "eq_ref",
+          "possible_keys": ["distinct_key"],
+          "key": "distinct_key",
+          "key_length": "4",
+          "used_key_parts": ["a"],
+          "ref": ["func"],
+          "rows": 1,
+          "filtered": 100,
+          "materialized": {
+            "unique": 1,
+            "query_block": {
+              "select_id": 2,
+              "nested_loop": [
+                {
+                  "table": {
+                    "table_name": "t2",
+                    "access_type": "ALL",
+                    "rows": 97,
+                    "filtered": 100,
+                    "attached_condition": "t2.b = 3"
+                  }
+                }
+              ]
+            }
+          }
         }
       }
     ]
@@ -4544,9 +4526,9 @@ FROM t1
 WHERE t1.a IN (SELECT a FROM t2 WHERE b=3)
 GROUP BY t1.a DESC;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	<subquery2>	ALL	distinct_key	NULL	NULL	NULL	5	Using filesort
-1	PRIMARY	t1	eq_ref	PRIMARY	PRIMARY	4	test.t2.a	1	
-2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	5	Using where
+1	PRIMARY	t1	ALL	PRIMARY	NULL	NULL	NULL	10	Using filesort
+1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	4	func	1	
+2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	97	Using where
 EXPLAIN FORMAT=JSON SELECT t1.a, group_concat(t1.b)
 FROM t1
 WHERE t1.a IN (SELECT a FROM t2 WHERE b=3)
@@ -4561,43 +4543,43 @@ EXPLAIN
           "filesort": {
             "sort_key": "t1.a desc",
             "table": {
-              "table_name": "<subquery2>",
+              "table_name": "t1",
               "access_type": "ALL",
-              "possible_keys": ["distinct_key"],
-              "rows": 5,
-              "filtered": 100,
-              "materialized": {
-                "unique": 1,
-                "query_block": {
-                  "select_id": 2,
-                  "nested_loop": [
-                    {
-                      "table": {
-                        "table_name": "t2",
-                        "access_type": "ALL",
-                        "rows": 5,
-                        "filtered": 100,
-                        "attached_condition": "t2.b = 3 and t2.a is not null"
-                      }
-                    }
-                  ]
-                }
-              }
+              "possible_keys": ["PRIMARY"],
+              "rows": 10,
+              "filtered": 100
             }
           }
         }
       },
       {
         "table": {
-          "table_name": "t1",
+          "table_name": "<subquery2>",
           "access_type": "eq_ref",
-          "possible_keys": ["PRIMARY"],
-          "key": "PRIMARY",
+          "possible_keys": ["distinct_key"],
+          "key": "distinct_key",
           "key_length": "4",
           "used_key_parts": ["a"],
-          "ref": ["test.t2.a"],
+          "ref": ["func"],
           "rows": 1,
-          "filtered": 100
+          "filtered": 100,
+          "materialized": {
+            "unique": 1,
+            "query_block": {
+              "select_id": 2,
+              "nested_loop": [
+                {
+                  "table": {
+                    "table_name": "t2",
+                    "access_type": "ALL",
+                    "rows": 97,
+                    "filtered": 100,
+                    "attached_condition": "t2.b = 3"
+                  }
+                }
+              ]
+            }
+          }
         }
       }
     ]

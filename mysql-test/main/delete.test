@@ -106,9 +106,9 @@ delete t1 from t1, t1 as t2 where t1.b = t2.b and t1.a > t2.a;
 select * from t1;
 drop table t1;
 
-#
-# IGNORE option
-#
+--echo #
+--echo # IGNORE option
+--echo #
 create table t11 (a int NOT NULL, b int, primary key (a));
 create table t12 (a int NOT NULL, b int, primary key (a));
 create table t2 (a int NOT NULL, b int, primary key (a));
@@ -122,6 +122,7 @@ select * from t2;
 delete t11.*, t12.* from t11,t12 where t11.a = t12.a and t11.b <> (select b from t2 where t11.a < t2.a);
 select * from t11;
 select * from t12;
+explain delete ignore t11.*, t12.* from t11,t12 where t11.a = t12.a and t11.b <> (select b from t2 where t11.a < t2.a);
 delete ignore t11.*, t12.* from t11,t12 where t11.a = t12.a and t11.b <> (select b from t2 where t11.a < t2.a);
 select * from t11;
 select * from t12;

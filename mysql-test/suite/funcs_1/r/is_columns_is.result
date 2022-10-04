@@ -210,6 +210,19 @@ def	information_schema	KEY_COLUMN_USAGE	REFERENCED_TABLE_SCHEMA	10	NULL	YES	varc
 def	information_schema	KEY_COLUMN_USAGE	TABLE_CATALOG	4	NULL	NO	varchar	512	1536	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	varchar(512)			select		NEVER	NULL
 def	information_schema	KEY_COLUMN_USAGE	TABLE_NAME	6	NULL	NO	varchar	64	192	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	varchar(64)			select		NEVER	NULL
 def	information_schema	KEY_COLUMN_USAGE	TABLE_SCHEMA	5	NULL	NO	varchar	64	192	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	varchar(64)			select		NEVER	NULL
+def	information_schema	OPTIMIZER_COSTS	ENGINE	1	NULL	NO	varchar	192	576	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	varchar(192)			select		NEVER	NULL
+def	information_schema	OPTIMIZER_COSTS	OPTIMIZER_DISK_READ_COST	2	NULL	NO	decimal	NULL	NULL	9	6	NULL	NULL	NULL	decimal(9,6)			select		NEVER	NULL
+def	information_schema	OPTIMIZER_COSTS	OPTIMIZER_DISK_READ_RATIO	8	NULL	NO	decimal	NULL	NULL	9	6	NULL	NULL	NULL	decimal(9,6)			select		NEVER	NULL
+def	information_schema	OPTIMIZER_COSTS	OPTIMIZER_INDEX_BLOCK_COPY_COST	3	NULL	NO	decimal	NULL	NULL	9	6	NULL	NULL	NULL	decimal(9,6)			select		NEVER	NULL
+def	information_schema	OPTIMIZER_COSTS	OPTIMIZER_KEY_COMPARE_COST	4	NULL	NO	decimal	NULL	NULL	9	6	NULL	NULL	NULL	decimal(9,6)			select		NEVER	NULL
+def	information_schema	OPTIMIZER_COSTS	OPTIMIZER_KEY_COPY_COST	5	NULL	NO	decimal	NULL	NULL	9	6	NULL	NULL	NULL	decimal(9,6)			select		NEVER	NULL
+def	information_schema	OPTIMIZER_COSTS	OPTIMIZER_KEY_LOOKUP_COST	6	NULL	NO	decimal	NULL	NULL	9	6	NULL	NULL	NULL	decimal(9,6)			select		NEVER	NULL
+def	information_schema	OPTIMIZER_COSTS	OPTIMIZER_KEY_NEXT_FIND_COST	7	NULL	NO	decimal	NULL	NULL	9	6	NULL	NULL	NULL	decimal(9,6)			select		NEVER	NULL
+def	information_schema	OPTIMIZER_COSTS	OPTIMIZER_ROWID_COMPARE_COST	12	NULL	NO	decimal	NULL	NULL	9	6	NULL	NULL	NULL	decimal(9,6)			select		NEVER	NULL
+def	information_schema	OPTIMIZER_COSTS	OPTIMIZER_ROWID_COPY_COST	13	NULL	NO	decimal	NULL	NULL	9	6	NULL	NULL	NULL	decimal(9,6)			select		NEVER	NULL
+def	information_schema	OPTIMIZER_COSTS	OPTIMIZER_ROW_COPY_COST	9	NULL	NO	decimal	NULL	NULL	9	6	NULL	NULL	NULL	decimal(9,6)			select		NEVER	NULL
+def	information_schema	OPTIMIZER_COSTS	OPTIMIZER_ROW_LOOKUP_COST	10	NULL	NO	decimal	NULL	NULL	9	6	NULL	NULL	NULL	decimal(9,6)			select		NEVER	NULL
+def	information_schema	OPTIMIZER_COSTS	OPTIMIZER_ROW_NEXT_FIND_COST	11	NULL	NO	decimal	NULL	NULL	9	6	NULL	NULL	NULL	decimal(9,6)			select		NEVER	NULL
 def	information_schema	OPTIMIZER_TRACE	INSUFFICIENT_PRIVILEGES	4	NULL	NO	tinyint	NULL	NULL	3	0	NULL	NULL	NULL	tinyint(1)			select		NEVER	NULL
 def	information_schema	OPTIMIZER_TRACE	MISSING_BYTES_BEYOND_MAX_MEM_SIZE	3	NULL	NO	int	NULL	NULL	10	0	NULL	NULL	NULL	int(20)			select		NEVER	NULL
 def	information_schema	OPTIMIZER_TRACE	QUERY	1	NULL	NO	longtext	4294967295	4294967295	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	longtext			select		NEVER	NULL
@@ -761,6 +774,19 @@ NULL	information_schema	KEY_COLUMN_USAGE	POSITION_IN_UNIQUE_CONSTRAINT	bigint	NU
 3.0000	information_schema	KEY_COLUMN_USAGE	REFERENCED_TABLE_SCHEMA	varchar	64	192	utf8mb3	utf8mb3_general_ci	varchar(64)
 3.0000	information_schema	KEY_COLUMN_USAGE	REFERENCED_TABLE_NAME	varchar	64	192	utf8mb3	utf8mb3_general_ci	varchar(64)
 3.0000	information_schema	KEY_COLUMN_USAGE	REFERENCED_COLUMN_NAME	varchar	64	192	utf8mb3	utf8mb3_general_ci	varchar(64)
+3.0000	information_schema	OPTIMIZER_COSTS	ENGINE	varchar	192	576	utf8mb3	utf8mb3_general_ci	varchar(192)
+NULL	information_schema	OPTIMIZER_COSTS	OPTIMIZER_DISK_READ_COST	decimal	NULL	NULL	NULL	NULL	decimal(9,6)
+NULL	information_schema	OPTIMIZER_COSTS	OPTIMIZER_INDEX_BLOCK_COPY_COST	decimal	NULL	NULL	NULL	NULL	decimal(9,6)
+NULL	information_schema	OPTIMIZER_COSTS	OPTIMIZER_KEY_COMPARE_COST	decimal	NULL	NULL	NULL	NULL	decimal(9,6)
+NULL	information_schema	OPTIMIZER_COSTS	OPTIMIZER_KEY_COPY_COST	decimal	NULL	NULL	NULL	NULL	decimal(9,6)
+NULL	information_schema	OPTIMIZER_COSTS	OPTIMIZER_KEY_LOOKUP_COST	decimal	NULL	NULL	NULL	NULL	decimal(9,6)
+NULL	information_schema	OPTIMIZER_COSTS	OPTIMIZER_KEY_NEXT_FIND_COST	decimal	NULL	NULL	NULL	NULL	decimal(9,6)
+NULL	information_schema	OPTIMIZER_COSTS	OPTIMIZER_DISK_READ_RATIO	decimal	NULL	NULL	NULL	NULL	decimal(9,6)
+NULL	information_schema	OPTIMIZER_COSTS	OPTIMIZER_ROW_COPY_COST	decimal	NULL	NULL	NULL	NULL	decimal(9,6)
+NULL	information_schema	OPTIMIZER_COSTS	OPTIMIZER_ROW_LOOKUP_COST	decimal	NULL	NULL	NULL	NULL	decimal(9,6)
+NULL	information_schema	OPTIMIZER_COSTS	OPTIMIZER_ROW_NEXT_FIND_COST	decimal	NULL	NULL	NULL	NULL	decimal(9,6)
+NULL	information_schema	OPTIMIZER_COSTS	OPTIMIZER_ROWID_COMPARE_COST	decimal	NULL	NULL	NULL	NULL	decimal(9,6)
+NULL	information_schema	OPTIMIZER_COSTS	OPTIMIZER_ROWID_COPY_COST	decimal	NULL	NULL	NULL	NULL	decimal(9,6)
 1.0000	information_schema	OPTIMIZER_TRACE	QUERY	longtext	4294967295	4294967295	utf8mb3	utf8mb3_general_ci	longtext
 1.0000	information_schema	OPTIMIZER_TRACE	TRACE	longtext	4294967295	4294967295	utf8mb3	utf8mb3_general_ci	longtext
 NULL	information_schema	OPTIMIZER_TRACE	MISSING_BYTES_BEYOND_MAX_MEM_SIZE	int	NULL	NULL	NULL	NULL	int(20)

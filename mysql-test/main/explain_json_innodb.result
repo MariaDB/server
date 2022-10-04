@@ -54,8 +54,7 @@ EXPLAIN
                 ],
                 "rows": 1,
                 "filtered": 100,
-                "attached_condition": "tbl_alias2.c = tbl_alias1.column_name_2",
-                "using_index": true
+                "attached_condition": "tbl_alias2.c = tbl_alias1.column_name_2"
               }
             }
           ]

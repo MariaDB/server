@@ -299,7 +299,7 @@ insert into t2 values (1, 1, 'qqqq'), (2, 1, 'pppp'),
 select * from t1;
 select * from t2;
 update t1 set p=3 where p=1;
-update t2 set i=2 where i=1;
+set statement optimizer_scan_setup_cost=0 for update t2 set i=2 where i=1;
 
 select * from information_schema.session_status where variable_name like 'key_%' and variable_name != 'Key_blocks_unused';
 select variable_value into @key_blocks_unused from information_schema.session_status where variable_name = 'Key_blocks_unused';
@@ -331,8 +331,7 @@ insert into t2 values (1, 1, 'qqqq'), (2, 1, 'pppp'),
 select * from t1;
 select * from t2;
 update t1 set p=3 where p=1;
-update t2 set i=2 where i=1;
-
+set statement optimizer_scan_setup_cost=0 for update t2 set i=2 where i=1;
 
 select * from information_schema.session_status where variable_name like 'key_%' and variable_name != 'Key_blocks_unused';
 select variable_value < @key_blocks_unused from information_schema.session_status where variable_name = 'Key_blocks_unused';
@@ -357,7 +356,7 @@ insert into t2 values (1, 1, 'qqqq'), (2, 1, 'pppp'),
 select * from t1;
 select * from t2;
 update t1 set p=3 where p=1;
-update t2 set i=2 where i=1;
+set statement optimizer_scan_setup_cost=0 for update t2 set i=2 where i=1;
 
 select * from information_schema.session_status where variable_name like 'key_%' and variable_name != 'Key_blocks_unused';
 select variable_value = @key_blocks_unused from information_schema.session_status where variable_name = 'Key_blocks_unused';
@@ -389,7 +388,7 @@ insert into t2 values (1, 1, 'qqqq'), (2, 1, 'pppp'),
 select * from t1;
 select * from t2;
 update t1 set p=3 where p=1;
-update t2 set i=2 where i=1;
+set statement optimizer_scan_setup_cost=0 for update t2 set i=2 where i=1;
 
 --replace_column 7 #
 select * from information_schema.key_caches where segment_number is null;
@@ -422,9 +421,10 @@ select * from t2 where p between 1010 and 1020 ;
 --replace_column 6 # 7 # 10 #
 select * from information_schema.key_caches where segment_number is null;
 
+analyze table t2;
 flush tables; flush status;
 update t1 set a='zzzz' where a='qqqq';
-update t2 set i=1 where i=2;
+set statement optimizer_scan_setup_cost=0 for update t2 set i=1 where i=2;
 --replace_column 6 # 7 #
 select * from information_schema.key_caches where segment_number is null;
 
