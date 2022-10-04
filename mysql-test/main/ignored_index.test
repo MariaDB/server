@@ -222,13 +222,11 @@ DROP TABLE t1;
 --echo # IGNORED fulltext indexes.
 --echo #
 CREATE TABLE t1 (a VARCHAR(200), b TEXT, FULLTEXT (a,b));
-INSERT INTO t1 VALUES('Some data', 'for full-text search');
-ANALYZE TABLE t1;
+INSERT INTO t1 VALUES('Some data', 'for full-text search'),("hello","hello world"),("mars","here I come");
 
-let $query=
-EXPLAIN SELECT * FROM t1 WHERE MATCH(a, b) AGAINST ("collections");
-
+let $query=SELECT * FROM t1 WHERE MATCH(a, b) AGAINST ("search");
 --eval $query
+--eval EXPLAIN $query
 ALTER TABLE t1 ALTER INDEX a IGNORED;
 
 --error ER_FT_MATCHING_KEY_NOT_FOUND

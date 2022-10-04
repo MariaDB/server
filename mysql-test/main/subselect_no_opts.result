@@ -1432,6 +1432,9 @@ drop table if exists t1;
 (SELECT 1 as a) UNION (SELECT 1) ORDER BY (SELECT a+0);
 a
 1
+#
+# IN subselect optimization test
+#
 create table t1 (a int not null, b int, primary key (a));
 create table t2 (a int not null, primary key (a));
 create table t3 (a int not null, b int, primary key (a));
@@ -1478,23 +1481,19 @@ insert into t1 values (1,10), (2,20), (3,30), (4,40);
 create table t0(a int);
 insert into t0 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
 insert into t1
-select rand()*100000+200,rand()*100000 from t0 A, t0 B, t0 C, t0 D;
+select rand()*100000+200,rand(1)*100000 from t0 A, t0 B, t0 C, t0 D;
 insert into t2 values (2), (3), (4), (5);
 insert into t3 values (10,3), (20,4), (30,5);
-select * from t2 where t2.a in (select a from t1);
-a
-2
-3
-4
 explain extended select * from t2 where t2.a in (select a from t1);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	t2	index	NULL	a	5	NULL	4	100.00	Using where; Using index
 2	DEPENDENT SUBQUERY	t1	index_subquery	a	a	5	func	1001	100.00	Using index
 Warnings:
 Note	1003	/* select#1 */ select `test`.`t2`.`a` AS `a` from `test`.`t2` where <in_optimizer>(`test`.`t2`.`a`,<exists>(<index_lookup>(<cache>(`test`.`t2`.`a`) in t1 on a)))
-select * from t2 where t2.a in (select a from t1 where t1.b <> 30);
+select * from t2 where t2.a in (select a from t1);
 a
 2
+3
 4
 explain extended select * from t2 where t2.a in (select a from t1 where t1.b <> 30);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
@@ -1502,18 +1501,28 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 2	DEPENDENT SUBQUERY	t1	index_subquery	a	a	5	func	1001	100.00	Using index; Using where
 Warnings:
 Note	1003	/* select#1 */ select `test`.`t2`.`a` AS `a` from `test`.`t2` where <in_optimizer>(`test`.`t2`.`a`,<exists>(<index_lookup>(<cache>(`test`.`t2`.`a`) in t1 on a where `test`.`t1`.`b` <> 30 and <cache>(`test`.`t2`.`a`) = `test`.`t1`.`a`)))
-select * from t2 where t2.a in (select t1.a from t1,t3 where t1.b=t3.a);
+select * from t2 where t2.a in (select a from t1 where t1.b <> 30);
 a
 2
-3
+4
 explain extended select * from t2 where t2.a in (select t1.a from t1,t3 where t1.b=t3.a);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	t2	index	NULL	a	5	NULL	4	100.00	Using where; Using index
 2	DEPENDENT SUBQUERY	t1	ref	a	a	5	func	1001	100.00	Using index
-2	DEPENDENT SUBQUERY	t3	index	a	a	5	NULL	3	75.00	Using where; Using index; Using join buffer (flat, BNL join)
+2	DEPENDENT SUBQUERY	t3	index	a	a	5	NULL	3	66.67	Using where; Using index; Using join buffer (flat, BNL join)
 Warnings:
 Note	1003	/* select#1 */ select `test`.`t2`.`a` AS `a` from `test`.`t2` where <in_optimizer>(`test`.`t2`.`a`,<exists>(/* select#2 */ select `test`.`t1`.`a` from `test`.`t1` join `test`.`t3` where `test`.`t3`.`a` = `test`.`t1`.`b` and <cache>(`test`.`t2`.`a`) = `test`.`t1`.`a`))
+select * from t2 where t2.a in (select t1.a from t1,t3 where t1.b=t3.a);
+a
+2
+3
 insert into t1 values (3,31);
+explain extended select * from t2 where t2.a in (select a from t1 where t1.b <> 30);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t2	index	NULL	a	5	NULL	4	100.00	Using where; Using index
+2	DEPENDENT SUBQUERY	t1	index_subquery	a	a	5	func	1001	100.00	Using index; Using where
+Warnings:
+Note	1003	/* select#1 */ select `test`.`t2`.`a` AS `a` from `test`.`t2` where <in_optimizer>(`test`.`t2`.`a`,<exists>(<index_lookup>(<cache>(`test`.`t2`.`a`) in t1 on a where `test`.`t1`.`b` <> 30 and <cache>(`test`.`t2`.`a`) = `test`.`t1`.`a`)))
 select * from t2 where t2.a in (select a from t1 where t1.b <> 30);
 a
 2
@@ -1523,12 +1532,6 @@ select * from t2 where t2.a in (select a from t1 where t1.b <> 30 and t1.b <> 31
 a
 2
 4
-explain extended select * from t2 where t2.a in (select a from t1 where t1.b <> 30);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	PRIMARY	t2	index	NULL	a	5	NULL	4	100.00	Using where; Using index
-2	DEPENDENT SUBQUERY	t1	index_subquery	a	a	5	func	1001	100.00	Using index; Using where
-Warnings:
-Note	1003	/* select#1 */ select `test`.`t2`.`a` AS `a` from `test`.`t2` where <in_optimizer>(`test`.`t2`.`a`,<exists>(<index_lookup>(<cache>(`test`.`t2`.`a`) in t1 on a where `test`.`t1`.`b` <> 30 and <cache>(`test`.`t2`.`a`) = `test`.`t1`.`a`)))
 drop table t0, t1, t2, t3;
 create table t1 (a int, b int);
 create table t2 (a int, b int);
@@ -1590,6 +1593,9 @@ Note	1003	(select 'tttt' AS `s1` from dual)
 s1
 tttt
 drop table t1;
+#
+# IN optimisation test results
+#
 create table t1 (s1 char(5), index s1(s1));
 create table t2 (s1 char(5), index s1(s1));
 insert into t1 values ('a1'),('a2'),('a3');
@@ -1617,21 +1623,21 @@ a3	1
 explain extended select s1, s1 NOT IN (SELECT s1 FROM t2) from t1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	t1	index	NULL	s1	6	NULL	3	100.00	Using index
-2	DEPENDENT SUBQUERY	t2	index	s1	s1	6	NULL	2	100.00	Using where; Using index
+2	SUBQUERY	t2	index_subquery	s1	s1	6	func	2	100.00	Using index; Full scan on NULL key
 Warnings:
-Note	1003	/* select#1 */ select `test`.`t1`.`s1` AS `s1`,!(<in_optimizer>(`test`.`t1`.`s1`,<exists>(/* select#2 */ select `test`.`t2`.`s1` from `test`.`t2` where trigcond(<cache>(`test`.`t1`.`s1`) = `test`.`t2`.`s1` or `test`.`t2`.`s1` is null) having trigcond(`test`.`t2`.`s1` is null)))) AS `s1 NOT IN (SELECT s1 FROM t2)` from `test`.`t1`
+Note	1003	/* select#1 */ select `test`.`t1`.`s1` AS `s1`,!(<in_optimizer>(`test`.`t1`.`s1`,<exists>(<index_lookup>(<cache>(`test`.`t1`.`s1`) in t2 on s1 checking NULL having trigcond(`test`.`t2`.`s1` is null))))) AS `s1 NOT IN (SELECT s1 FROM t2)` from `test`.`t1`
 explain extended select s1, s1 = ANY (SELECT s1 FROM t2) from t1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	t1	index	NULL	s1	6	NULL	3	100.00	Using index
-2	DEPENDENT SUBQUERY	t2	index	s1	s1	6	NULL	2	100.00	Using where; Using index
+2	SUBQUERY	t2	index_subquery	s1	s1	6	func	2	100.00	Using index; Full scan on NULL key
 Warnings:
-Note	1003	/* select#1 */ select `test`.`t1`.`s1` AS `s1`,<in_optimizer>(`test`.`t1`.`s1`,<exists>(/* select#2 */ select `test`.`t2`.`s1` from `test`.`t2` where trigcond(<cache>(`test`.`t1`.`s1`) = `test`.`t2`.`s1` or `test`.`t2`.`s1` is null) having trigcond(`test`.`t2`.`s1` is null))) AS `s1 = ANY (SELECT s1 FROM t2)` from `test`.`t1`
+Note	1003	/* select#1 */ select `test`.`t1`.`s1` AS `s1`,<in_optimizer>(`test`.`t1`.`s1`,<exists>(<index_lookup>(<cache>(`test`.`t1`.`s1`) in t2 on s1 checking NULL having trigcond(`test`.`t2`.`s1` is null)))) AS `s1 = ANY (SELECT s1 FROM t2)` from `test`.`t1`
 explain extended select s1, s1 <> ALL (SELECT s1 FROM t2) from t1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	t1	index	NULL	s1	6	NULL	3	100.00	Using index
-2	DEPENDENT SUBQUERY	t2	index	s1	s1	6	NULL	2	100.00	Using where; Using index
+2	SUBQUERY	t2	index_subquery	s1	s1	6	func	2	100.00	Using index; Full scan on NULL key
 Warnings:
-Note	1003	/* select#1 */ select `test`.`t1`.`s1` AS `s1`,!(<in_optimizer>(`test`.`t1`.`s1`,<exists>(/* select#2 */ select `test`.`t2`.`s1` from `test`.`t2` where trigcond(<cache>(`test`.`t1`.`s1`) = `test`.`t2`.`s1` or `test`.`t2`.`s1` is null) having trigcond(`test`.`t2`.`s1` is null)))) AS `s1 <> ALL (SELECT s1 FROM t2)` from `test`.`t1`
+Note	1003	/* select#1 */ select `test`.`t1`.`s1` AS `s1`,!(<in_optimizer>(`test`.`t1`.`s1`,<exists>(<index_lookup>(<cache>(`test`.`t1`.`s1`) in t2 on s1 checking NULL having trigcond(`test`.`t2`.`s1` is null))))) AS `s1 <> ALL (SELECT s1 FROM t2)` from `test`.`t1`
 explain extended select s1, s1 NOT IN (SELECT s1 FROM t2 WHERE s1 < 'a2') from t1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	t1	index	NULL	s1	6	NULL	3	100.00	Using index
@@ -2423,21 +2429,22 @@ a
 1
 3
 DROP TABLE t1;
+#
+# SELECT(EXISTS * ...)optimisation
+#
 create table t1 (a int, b int);
 insert into t1 values (1,2),(3,4),(5,6),(7,8);
-select * from t1 up where exists (select * from t1 where t1.a=up.a);
-a	b
-1	2
-3	4
-5	6
-7	8
-explain extended select * from t1 up where exists (select * from t1 where t1.a=up.a);
+insert into t1 select seq,seq from seq_20_to_40;
+select sum(a+b) from t1 up where exists (select * from t1 where t1.a=up.a);
+sum(a+b)
+1296
+explain extended select sum(a+b) from t1 up where exists (select * from t1 where t1.a=up.a);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	PRIMARY	up	ALL	NULL	NULL	NULL	NULL	4	100.00	Using where
-2	DEPENDENT SUBQUERY	t1	ALL	NULL	NULL	NULL	NULL	4	100.00	Using where
+1	PRIMARY	up	ALL	NULL	NULL	NULL	NULL	25	100.00	Using where
+2	DEPENDENT SUBQUERY	t1	ALL	NULL	NULL	NULL	NULL	25	100.00	Using where
 Warnings:
 Note	1276	Field or reference 'test.up.a' of SELECT #2 was resolved in SELECT #1
-Note	1003	/* select#1 */ select `test`.`up`.`a` AS `a`,`test`.`up`.`b` AS `b` from `test`.`t1` `up` where <in_optimizer>(`test`.`up`.`a`,<exists>(/* select#2 */ select `test`.`t1`.`a` from `test`.`t1` where <cache>(`test`.`up`.`a`) = `test`.`t1`.`a`))
+Note	1003	/* select#1 */ select sum(`test`.`up`.`a` + `test`.`up`.`b`) AS `sum(a+b)` from `test`.`t1` `up` where <in_optimizer>(`test`.`up`.`a`,<exists>(/* select#2 */ select `test`.`t1`.`a` from `test`.`t1` where <cache>(`test`.`up`.`a`) = `test`.`t1`.`a`))
 drop table t1;
 CREATE TABLE t1 (t1_a int);
 INSERT INTO t1 VALUES (1);
@@ -3104,6 +3111,10 @@ retailerID	statusID	changed
 0048	1	2006-01-06 12:37:50
 0059	1	2006-01-06 12:37:50
 drop table t1;
+#
+# Bug#21180 Subselect with index for both WHERE and ORDER BY
+#           produces empty result
+#
 create table t1(a int, primary key (a));
 insert into t1 values (10);
 create table t2 (a int primary key, b varchar(32), c int, unique key cb(c, b));
@@ -3119,7 +3130,7 @@ ON r.a = (SELECT t2.a FROM t2 WHERE t2.c = t1.a AND t2.b <= '359899'
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t1	system	PRIMARY	NULL	NULL	NULL	1	
 1	PRIMARY	r	const	PRIMARY	PRIMARY	4	const	1	
-2	SUBQUERY	t2	ref	cb	cb	5	const	1	Using where
+2	SUBQUERY	t2	range	cb	cb	40	NULL	3	Using where
 SELECT sql_no_cache t1.a, r.a, r.b FROM t1 LEFT JOIN t2 r
 ON r.a = (SELECT t2.a FROM t2 WHERE t2.c = t1.a AND t2.b <= '359899'
             ORDER BY t2.c DESC, t2.b DESC LIMIT 1) WHERE t1.a = 10;
@@ -3131,7 +3142,7 @@ ON r.a = (SELECT t2.a FROM t2 WHERE t2.c = t1.a AND t2.b <= '359899'
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t1	system	PRIMARY	NULL	NULL	NULL	1	
 1	PRIMARY	r	const	PRIMARY	PRIMARY	4	const	1	
-2	SUBQUERY	t2	ref	cb	cb	5	const	1	Using index condition; Using where
+2	SUBQUERY	t2	range	cb	cb	40	NULL	3	Using index condition
 SELECT sql_no_cache t1.a, r.a, r.b FROM t1 LEFT JOIN t2 r
 ON r.a = (SELECT t2.a FROM t2 WHERE t2.c = t1.a AND t2.b <= '359899'
             ORDER BY t2.c, t2.b LIMIT 1) WHERE t1.a = 10;
@@ -4229,8 +4240,8 @@ INSERT INTO t2 VALUES (7), (5), (1), (3);
 SELECT id, st FROM t1
 WHERE st IN ('GA','FL') AND EXISTS(SELECT 1 FROM t2 WHERE t2.id=t1.id);
 id	st
-3	FL
 1	GA
+3	FL
 7	FL
 SELECT id, st FROM t1
 WHERE st IN ('GA','FL') AND EXISTS(SELECT 1 FROM t2 WHERE t2.id=t1.id)
@@ -4331,6 +4342,9 @@ SELECT ((a1,a2) IN (SELECT * FROM t2 WHERE b2 > 0)) IS NULL FROM t1;
 0
 0
 DROP TABLE t1, t2;
+#
+# Bug#28076 inconsistent binary/varbinary comparison
+#
 CREATE TABLE t1 (s1 BINARY(5), s2 VARBINARY(5));
 INSERT INTO t1 VALUES (0x41,0x41), (0x42,0x42), (0x43,0x43);
 SELECT s1, s2 FROM t1 WHERE s2 IN (SELECT s1 FROM t1);
@@ -5702,6 +5716,7 @@ CREATE TABLE t1 (a int) ;
 INSERT INTO t1 VALUES (NULL), (1), (NULL), (2);
 CREATE TABLE t2 (a int, INDEX idx(a)) ;
 INSERT INTO t2 VALUES (NULL), (1), (NULL),(1000);
+insert into t2 select seq from seq_3_to_500;
 SELECT * FROM t1
 WHERE EXISTS (SELECT a FROM t2 USE INDEX () WHERE t2.a = t1.a);
 a
@@ -5711,7 +5726,7 @@ SELECT * FROM t1
 WHERE EXISTS (SELECT a FROM t2 USE INDEX() WHERE t2.a = t1.a);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	4	Using where
-2	DEPENDENT SUBQUERY	t2	ALL	NULL	NULL	NULL	NULL	4	Using where
+2	DEPENDENT SUBQUERY	t2	ALL	NULL	NULL	NULL	NULL	502	Using where
 SELECT * FROM t1
 WHERE EXISTS (SELECT a FROM t2 WHERE t2.a = t1.a);
 a
@@ -5721,7 +5736,7 @@ SELECT * FROM t1
 WHERE EXISTS (SELECT a FROM t2 WHERE t2.a = t1.a);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	4	Using where
-2	DEPENDENT SUBQUERY	t2	index_subquery	idx	idx	5	func	2	Using index
+2	DEPENDENT SUBQUERY	t2	index_subquery	idx	idx	5	func	58	Using index
 DROP TABLE t1,t2;
 #
 # BUG#752992: Wrong results for a subquery with 'semijoin=on'

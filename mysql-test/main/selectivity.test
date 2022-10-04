@@ -1113,8 +1113,10 @@ drop function f1;
 --echo #
 create table t1 (a int, b int, key (b), key (a));
 insert into t1
-select (rand(1)*1000)/10, (rand(1001)*1000)/20 from seq_1_to_1000;
-analyze table t1 persistent for all;
+select (rand(1)*1000)/30, (rand(1001)*1000)/40 from seq_1_to_1000;
+analyze table t1 ;
+select count(*) from t1 where b=2;
+select count(*) from t1 where a in (17,51,5);
 
 --echo # Check what info the optimizer has about selectivities
 explain extended select * from t1 use index () where a in (17,51,5);
@@ -1122,6 +1124,13 @@ explain extended select * from t1 use index () where b=2;
 
 --echo # Now, the equality is used for ref access, while the range condition
 --echo # gives selectivity data
+explain extended select * from t1 where a in (17,51,5) and b=2;
+truncate table t1;
+insert into t1
+select (rand(1)*1000)/10, (rand(1001)*1000)/50 from seq_1_to_1000;
+analyze table t1 ;
+select count(*) from t1 where b=2;
+select count(*) from t1 where a in (17,51,5);
 explain extended select * from t1 where a in (17,51,5) and b=2;
 drop table t1;
 
@@ -1240,12 +1249,9 @@ set optimizer_use_condition_selectivity= @@optimizer_use_condition_selectivity;
 
 drop table t1,t2,t3;
 
-
 --echo #
 --echo # MDEV-20519: Query plan regression with optimizer_use_condition_selectivity=4
 --echo #
-
-
 
 create table t1 (id int, a int, PRIMARY KEY(id), key(a));
 insert into t1 select seq,seq from seq_1_to_100;

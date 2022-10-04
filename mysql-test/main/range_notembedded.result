@@ -13,13 +13,18 @@ set @tmp_21958=@@optimizer_trace;
 set optimizer_trace=1;
 explain select * from t2 where key1 in (1,2,3) and pk not in (1,2,3);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	ALL	PRIMARY,key1	NULL	NULL	NULL	5	Using where
+1	SIMPLE	t2	range	PRIMARY,key1	key1	5	NULL	3	Using index condition
 # This should show only ranges in form "(1) <= (key1) <= (1)"
 #  ranges over "pk" should not be constructed.
 select json_detailed(JSON_EXTRACT(trace, '$**.ranges'))
 from information_schema.optimizer_trace;
 json_detailed(JSON_EXTRACT(trace, '$**.ranges'))
 [
+    [
+        "(1) <= (key1) <= (1)",
+        "(2) <= (key1) <= (2)",
+        "(3) <= (key1) <= (3)"
+    ],
     [
         "(1) <= (key1) <= (1)",
         "(2) <= (key1) <= (2)",

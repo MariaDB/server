@@ -692,10 +692,10 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	<derived3>	ref	key0	key0	5	c.h_id	2	100.00	
 1	PRIMARY	<derived3>	ref	key0	key0	5	c.w_id	2	100.00	
 3	DERIVED	folks	ALL	NULL	NULL	NULL	NULL	12	100.00	Using where
-4	RECURSIVE UNION	p	ALL	NULL	NULL	NULL	NULL	12	100.00	
-4	RECURSIVE UNION	<derived2>	ALL	NULL	NULL	NULL	NULL	2	75.00	Using where; Using join buffer (flat, BNL join)
-5	RECURSIVE UNION	p	ALL	NULL	NULL	NULL	NULL	12	100.00	
-5	RECURSIVE UNION	<derived2>	ALL	NULL	NULL	NULL	NULL	2	75.00	Using where; Using join buffer (flat, BNL join)
+4	RECURSIVE UNION	p	ALL	NULL	NULL	NULL	NULL	12	100.00	Using where
+4	RECURSIVE UNION	<derived2>	ref	key0	key0	5	test.p.id	2	100.00	
+5	RECURSIVE UNION	p	ALL	NULL	NULL	NULL	NULL	12	100.00	Using where
+5	RECURSIVE UNION	<derived2>	ref	key0	key0	5	test.p.id	2	100.00	
 NULL	UNION RESULT	<union3,4,5>	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
 2	DERIVED	<derived3>	ALL	NULL	NULL	NULL	NULL	12	100.00	Using where
 Warnings:
@@ -3854,8 +3854,8 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	3	Using where
 1	PRIMARY	<derived3>	ref	key0	key0	23	test.t1.a1	1	FirstMatch(t1)
 3	DERIVED	t2	const	PRIMARY	PRIMARY	22	const	1	Using index
-4	RECURSIVE UNION	<derived3>	ALL	NULL	NULL	NULL	NULL	2	Using where
-4	RECURSIVE UNION	tt2	ref	b1	b1	23	cte.a2	2	
+4	RECURSIVE UNION	tt2	ALL	b1	NULL	NULL	NULL	14	Using where
+4	RECURSIVE UNION	<derived3>	ref	key0	key0	23	test.tt2.b1	1	
 NULL	UNION RESULT	<union3,4>	ALL	NULL	NULL	NULL	NULL	NULL	
 analyze format=json select fv
 from (select t1.a1, f1(t1.a2) fv from t1) dt
@@ -3946,30 +3946,31 @@ ANALYZE
                       "nested_loop": [
                         {
                           "table": {
-                            "table_name": "<derived3>",
+                            "table_name": "tt2",
                             "access_type": "ALL",
+                            "possible_keys": ["b1"],
                             "r_loops": 1,
-                            "rows": 2,
-                            "r_rows": 1,
+                            "rows": 14,
+                            "r_rows": 14,
                             "r_table_time_ms": "REPLACED",
                             "r_other_time_ms": "REPLACED",
                             "filtered": 100,
                             "r_filtered": 100,
-                            "attached_condition": "cte.a2 is not null"
+                            "attached_condition": "tt2.b1 is not null"
                           }
                         },
                         {
                           "table": {
-                            "table_name": "tt2",
+                            "table_name": "<derived3>",
                             "access_type": "ref",
-                            "possible_keys": ["b1"],
-                            "key": "b1",
+                            "possible_keys": ["key0"],
+                            "key": "key0",
                             "key_length": "23",
-                            "used_key_parts": ["b1"],
-                            "ref": ["cte.a2"],
-                            "r_loops": 1,
-                            "rows": 2,
-                            "r_rows": 1,
+                            "used_key_parts": ["a2"],
+                            "ref": ["test.tt2.b1"],
+                            "r_loops": 14,
+                            "rows": 1,
+                            "r_rows": 0.071428571,
                             "r_table_time_ms": "REPLACED",
                             "r_other_time_ms": "REPLACED",
                             "filtered": 100,
@@ -4032,8 +4033,8 @@ FROM cte JOIN t3 ON t3.tm BETWEEN cte.st AND cte.fn)
 SELECT t1.* FROM t1 JOIN cte2 USING (YEAR) JOIN cte3 USING (YEAR);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	t1	system	NULL	NULL	NULL	NULL	1	100.00	
-1	PRIMARY	<derived5>	ref	key0	key0	5	const	0	0.00	
-1	PRIMARY	<derived4>	ref	key0	key0	5	const	0	0.00	
+1	PRIMARY	<derived5>	ref	key0	key0	5	const	0	100.00	
+1	PRIMARY	<derived4>	ref	key0	key0	5	const	0	100.00	
 2	DERIVED	t1	system	NULL	NULL	NULL	NULL	1	100.00	
 3	RECURSIVE UNION	t1	system	NULL	NULL	NULL	NULL	1	100.00	
 3	RECURSIVE UNION	<derived2>	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
@@ -4467,9 +4468,9 @@ NULL	UNION RESULT	<union4,5>	ALL	NULL	NULL	NULL	NULL	NULL
 3	DERIVED	v	ALL	NULL	NULL	NULL	NULL	12	Using where
 3	DERIVED	h	ALL	NULL	NULL	NULL	NULL	12	Using where; Using join buffer (flat, BNL join)
 3	DERIVED	w	ALL	NULL	NULL	NULL	NULL	12	Using where; Using join buffer (incremental, BNL join)
-2	RECURSIVE UNION	h	ALL	NULL	NULL	NULL	NULL	12	
-2	RECURSIVE UNION	<derived4>	ALL	NULL	NULL	NULL	NULL	2	Using where; Using join buffer (flat, BNL join)
-2	RECURSIVE UNION	w	ALL	NULL	NULL	NULL	NULL	12	Using where; Using join buffer (incremental, BNL join)
+2	RECURSIVE UNION	h	ALL	NULL	NULL	NULL	NULL	12	Using where
+2	RECURSIVE UNION	<derived4>	ref	key0	key0	5	test.h.id	2	
+2	RECURSIVE UNION	w	ALL	NULL	NULL	NULL	NULL	12	Using where; Using join buffer (flat, BNL join)
 NULL	UNION RESULT	<union3,2>	ALL	NULL	NULL	NULL	NULL	NULL	
 prepare stmt from "with recursive
 ancestor_couples(h_id, h_name, h_dob, h_father, h_mother,
