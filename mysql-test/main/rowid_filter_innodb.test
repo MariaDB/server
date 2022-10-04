@@ -68,7 +68,7 @@ let $q=
 select * from t1 join t2 on t1.id = t2.x where t2.y = 2 and t1.id = 1;
 
 eval $q;
---replace_column 10 #
+--replace_column 9 # 10 #
 eval explain extended $q;
 
 drop table t1, t2;
@@ -131,9 +131,9 @@ INSERT INTO t1 VALUES
 ANALYZE TABLE t1;
 
 EXPLAIN EXTENDED
-SELECT a FROM t1 WHERE c < 'k' AND b > 't' ORDER BY a;
+SELECT a FROM t1 WHERE c < 'e' AND b > 't' ORDER BY a;
 
-SELECT a FROM t1 WHERE c < 'k' AND b > 't' ORDER BY a;
+SELECT a FROM t1 WHERE c < 'e' AND b > 't' ORDER BY a;
 
 DROP TABLE t1;
 SET GLOBAL innodb_stats_persistent= @stats.save;
@@ -568,8 +568,8 @@ SELECT * FROM t1
 WHERE t1.c1 NOT IN (SELECT t2.c1 FROM t2, t1 AS a1
                       WHERE t2.i1 = t1.pk AND t2.i1 IS NOT NULL);
 
-eval $q;
 eval EXPLAIN EXTENDED $q;
+eval $q;
 
 DROP TABLE t1,t2;
 

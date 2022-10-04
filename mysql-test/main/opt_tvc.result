@@ -530,11 +530,11 @@ a	b
 4	yq
 explain extended select * from t3 where a in (1,4);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	PRIMARY	<derived3>	ALL	NULL	NULL	NULL	NULL	2	100.00	
-1	PRIMARY	t3	ref	idx	idx	5	tvc_0._col_1	3	100.00	
+1	PRIMARY	t3	ALL	idx	NULL	NULL	NULL	28	100.00	Using where
+1	PRIMARY	<derived3>	eq_ref	distinct_key	distinct_key	4	test.t3.a	1	100.00	
 3	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 Warnings:
-Note	1003	/* select#1 */ select `test`.`t3`.`a` AS `a`,`test`.`t3`.`b` AS `b` from (values (1),(4)) `tvc_0` join `test`.`t3` where `test`.`t3`.`a` = `tvc_0`.`_col_1`
+Note	1003	/* select#1 */ select `test`.`t3`.`a` AS `a`,`test`.`t3`.`b` AS `b` from (values (1),(4)) `tvc_0` join `test`.`t3` where `tvc_0`.`_col_1` = `test`.`t3`.`a`
 # use vectors in IN predeicate
 set @@in_predicate_conversion_threshold= 4;
 select * from t1 where (a,b) in ((1,2),(3,4));

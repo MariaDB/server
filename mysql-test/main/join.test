@@ -685,7 +685,7 @@ drop table t1, t2, t3;
 
 # BUG#14940 {Wrong query plan is chosen because of odd results of
 # prev_record_reads() function }
-create table t1 (a int); 
+create table t1 (a int) engine=myisam;
 insert into t1 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
 
 create table t2 (a int, b int, primary key(a));
@@ -697,11 +697,13 @@ select 'The cost of accessing t1 (dont care if it changes' '^';
 
 select 'vv: Following query must use ALL(t1), eq_ref(A), eq_ref(B): vv' Z;
 
-set @@optimizer_cache_hit_ratio=0;
+select @@myisam.optimizer_disk_read_ratio;
+set global myisam.optimizer_disk_read_ratio=0;
 explain select * from t1, t2 A, t2 B where A.a = t1.a and B.a=A.b;
 show status like 'Last_query_cost';
 select '^^: The above should be ~= 40 + cost(select * from t1). Value less than 40 is an error' Z;
-set @@optimizer_cache_hit_ratio=default;
+set global myisam.optimizer_disk_read_ratio=default;
+select @@myisam.optimizer_disk_read_ratio;
 drop table t1, t2;
 
 #

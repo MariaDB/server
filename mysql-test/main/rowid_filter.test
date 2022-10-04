@@ -405,7 +405,7 @@ drop table t10, t11, t1;
 set @save_optimizer_switch= @@optimizer_switch;
 SET @@optimizer_switch="index_merge_sort_union=OFF";
 CREATE TABLE t1 (a INT, b INT, INDEX(a), INDEX(b));
-INSERT INTO t1 VALUES (0,0),(1,0),(-1,1), (-2,1), (-2,3), (-3,4), (-2,4);
+INSERT INTO t1 VALUES (0,0),(0,0),(1,0),(-1,1), (-2,1), (-2,3), (-3,4), (-2,4),(3,3),(3,4),(3,5),(8,8),(8,9),(1,0),(2,0),(0,0),(0,0);
 explain
 SELECT * FROM t1 WHERE a > 0 AND b=0;
 SELECT * FROM t1 WHERE a > 0 AND b=0;

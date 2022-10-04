@@ -2,6 +2,7 @@
 # EXPLAIN FORMAT=JSON tests. These are tests developed for MariaDB.
 #
 --source include/default_optimizer_switch.inc
+--source include/have_sequence.inc
 
 --disable_warnings
 drop table if exists t0,t1,t2;
@@ -117,7 +118,7 @@ select * from t1 where a in (select max(a) from t1 group by b);
 create table t2 like t1;
 insert into t2 select * from t1;
 explain format=json
-select * from t1,t2 where t1.a in ( select a from t0);
+select * from t1,t2 where t1.a in ( select seq+0 from seq_1_to_100);
 
 --echo # 
 --echo # First-Match
@@ -271,13 +272,17 @@ create index idx_t1_0 on t1 (a1);
 create index idx_t1_1 on t1 (a1,a2,b,c);
 create index idx_t1_2 on t1 (a1,a2,b);
 analyze table t1;
+select count(*) from t1;
 
 explain select count(distinct a1,a2,b) from t1 where (a2 >= 'b') and (b = 'a');
 explain select count(distinct a1,a2,b,c) from t1 where (a2 >= 'b') and (b = 'a') and (c = 'i121');
+explain select count(distinct a1,a2,b) from t1 where a1 >= "" and (a2 >= 'b') and (b = 'a');
 
 explain format=json select count(distinct a1,a2,b) from t1 where (a2 >= 'b') and (b = 'a');
+
 explain format=json select count(distinct a1,a2,b,c) from t1 where (a2 >= 'b') and (b = 'a') and (c = 'i121');
 
+explain format=json select count(distinct a1,a2,b) from t1 where a1 >= "" and (a2 >= 'b') and (b = 'a');
 drop table t1;
 
 --echo #

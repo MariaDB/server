@@ -33,6 +33,7 @@ INSERT INTO users (age) VALUES (29);
 INSERT INTO users (age) VALUES (29);
 INSERT INTO users (age) VALUES (29);
 
+explain SELECT COUNT(*) FROM users WHERE age <> 29;
 SELECT COUNT(*) FROM users WHERE age <> 29;
 
 SHOW STATUS LIKE 'mroonga_count_skip';

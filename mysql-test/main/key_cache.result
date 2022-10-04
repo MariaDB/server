@@ -434,7 +434,7 @@ p	i	a
 3	1	yyyy
 4	3	zzzz
 update t1 set p=3 where p=1;
-update t2 set i=2 where i=1;
+set statement optimizer_scan_setup_cost=0 for update t2 set i=2 where i=1;
 select * from information_schema.session_status where variable_name like 'key_%' and variable_name != 'Key_blocks_unused';
 VARIABLE_NAME	VARIABLE_VALUE
 KEY_BLOCKS_NOT_FLUSHED	0
@@ -482,7 +482,7 @@ p	i	a
 3	1	yyyy
 4	3	zzzz
 update t1 set p=3 where p=1;
-update t2 set i=2 where i=1;
+set statement optimizer_scan_setup_cost=0 for update t2 set i=2 where i=1;
 select * from information_schema.session_status where variable_name like 'key_%' and variable_name != 'Key_blocks_unused';
 VARIABLE_NAME	VARIABLE_VALUE
 KEY_BLOCKS_NOT_FLUSHED	0
@@ -527,7 +527,7 @@ p	i	a
 3	1	yyyy
 4	3	zzzz
 update t1 set p=3 where p=1;
-update t2 set i=2 where i=1;
+set statement optimizer_scan_setup_cost=0 for update t2 set i=2 where i=1;
 select * from information_schema.session_status where variable_name like 'key_%' and variable_name != 'Key_blocks_unused';
 VARIABLE_NAME	VARIABLE_VALUE
 KEY_BLOCKS_NOT_FLUSHED	0
@@ -583,7 +583,7 @@ p	i	a
 3	1	yyyy
 4	3	zzzz
 update t1 set p=3 where p=1;
-update t2 set i=2 where i=1;
+set statement optimizer_scan_setup_cost=0 for update t2 set i=2 where i=1;
 select * from information_schema.key_caches where segment_number is null;
 KEY_CACHE_NAME	SEGMENTS	SEGMENT_NUMBER	FULL_SIZE	BLOCK_SIZE	USED_BLOCKS	UNUSED_BLOCKS	DIRTY_BLOCKS	READ_REQUESTS	READS	WRITE_REQUESTS	WRITES
 default	2	NULL	32768	1024	4	#	0	21	0	26	6
@@ -627,10 +627,14 @@ select * from information_schema.key_caches where segment_number is null;
 KEY_CACHE_NAME	SEGMENTS	SEGMENT_NUMBER	FULL_SIZE	BLOCK_SIZE	USED_BLOCKS	UNUSED_BLOCKS	DIRTY_BLOCKS	READ_REQUESTS	READS	WRITE_REQUESTS	WRITES
 default	2	NULL	32768	1024	#	#	0	6749	#	3684	103
 small	NULL	NULL	1048576	1024	#	#	0	0	#	0	0
+analyze table t2;
+Table	Op	Msg_type	Msg_text
+test.t2	analyze	status	Engine-independent statistics collected
+test.t2	analyze	status	OK
 flush tables;
 flush status;
 update t1 set a='zzzz' where a='qqqq';
-update t2 set i=1 where i=2;
+set statement optimizer_scan_setup_cost=0 for update t2 set i=1 where i=2;
 select * from information_schema.key_caches where segment_number is null;
 KEY_CACHE_NAME	SEGMENTS	SEGMENT_NUMBER	FULL_SIZE	BLOCK_SIZE	USED_BLOCKS	UNUSED_BLOCKS	DIRTY_BLOCKS	READ_REQUESTS	READS	WRITE_REQUESTS	WRITES
 default	2	NULL	32768	1024	#	#	0	3076	18	1552	18
@@ -699,7 +703,7 @@ update t2 set p=p+3000, i=2 where a='qqqq';
 select * from information_schema.key_caches where key_cache_name like "key%"
                                                   and segment_number is null;
 KEY_CACHE_NAME	SEGMENTS	SEGMENT_NUMBER	FULL_SIZE	BLOCK_SIZE	USED_BLOCKS	UNUSED_BLOCKS	DIRTY_BLOCKS	READ_REQUESTS	READS	WRITE_REQUESTS	WRITES
-keycache1	7	NULL	262143	2048	25	#	0	2114	25	1071	19
+keycache1	7	NULL	262143	2048	25	#	0	2082	25	1071	19
 set global keycache2.key_buffer_size=1024*1024;
 cache index t2 in keycache2;
 Table	Op	Msg_type	Msg_text
@@ -712,7 +716,7 @@ keycache2	NULL	NULL	1048576	1024	6	#	0	6	6	3	3
 select * from information_schema.key_caches where key_cache_name like "key%" 
 and segment_number is null;
 KEY_CACHE_NAME	SEGMENTS	SEGMENT_NUMBER	FULL_SIZE	BLOCK_SIZE	USED_BLOCKS	UNUSED_BLOCKS	DIRTY_BLOCKS	READ_REQUESTS	READS	WRITE_REQUESTS	WRITES
-keycache1	7	NULL	262143	2048	25	#	0	2114	25	1071	19
+keycache1	7	NULL	262143	2048	25	#	0	2082	25	1071	19
 keycache2	NULL	NULL	1048576	1024	6	#	0	6	6	3	3
 cache index t2 in keycache1;
 Table	Op	Msg_type	Msg_text
@@ -753,7 +757,7 @@ select * from information_schema.key_caches where segment_number is null;
 KEY_CACHE_NAME	SEGMENTS	SEGMENT_NUMBER	FULL_SIZE	BLOCK_SIZE	USED_BLOCKS	UNUSED_BLOCKS	DIRTY_BLOCKS	READ_REQUESTS	READS	WRITE_REQUESTS	WRITES
 default	2	NULL	32768	1024	#	#	0	3172	24	1552	18
 small	NULL	NULL	1048576	1024	#	#	0	0	0	0	0
-keycache1	7	NULL	262143	2048	#	#	0	3277	43	1594	30
+keycache1	7	NULL	262143	2048	#	#	0	3229	43	1594	30
 keycache2	NULL	NULL	1048576	1024	#	#	0	6	6	3	3
 set global keycache1.key_cache_block_size=2*1024;
 insert into t2 values (7000, 3, 'yyyy');

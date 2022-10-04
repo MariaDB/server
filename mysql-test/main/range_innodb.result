@@ -57,8 +57,8 @@ set optimizer_switch='extended_keys=on';
 explain
 select pk, a, b from t1,t2,t3 where b >= d and pk < c and b = '0';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	#	
-1	SIMPLE	t1	ALL	PRIMARY,idx1,idx2	NULL	NULL	NULL	#	Using where; Using join buffer (flat, BNL join)
+1	SIMPLE	t1	ref	PRIMARY,idx1,idx2	idx1	5	const	#	
+1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	#	Using where; Using join buffer (flat, BNL join)
 1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	#	Using where; Using join buffer (incremental, BNL join)
 select pk, a, b from t1,t2,t3 where b >= d and pk < c and b = '0';
 pk	a	b
@@ -103,7 +103,7 @@ SET @saved_dbug = @@GLOBAL.debug_dbug;
 set @@global.debug_dbug="+d,ha_index_init_fail";
 explain select * from t1 where a=10 and b=10;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	index_merge	a,b	a,b	5,5	NULL	1	Using intersect(a,b); Using where
+1	SIMPLE	t1	ref|filter	a,b	a|b	5|5	const	50 (1%)	Using where; Using rowid filter
 select * from t1 where a=10 and b=10;
 ERROR HY000: Table definition has changed, please retry transaction
 DROP TABLE t0,t1;
