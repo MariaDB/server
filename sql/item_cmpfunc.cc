@@ -35,6 +35,7 @@
 
 #define PCRE2_STATIC 1             /* Important on Windows */
 #include "pcre2.h"                 /* pcre2 header file */
+#include "my_json_writer.h"
 
 /*
   Compare row signature of two expressions
@@ -4354,6 +4355,56 @@ Item_func_in::fix_fields(THD *thd, Item **ref)
   return 0;
 }
 
+
+Item *Item_func_in::in_predicate_to_equality_transformer(THD *thd, uchar *arg)
+{
+  if (!array || have_null || !all_items_are_consts(args + 1, arg_count - 1))
+    return this; /* Transformation is not applicable */
+
+  /*
+    If all elements in the array of constant values are equal and there are
+    no NULLs in the list then clause
+    -  "a IN (e1,..,en)" can be converted to "a = e1"
+    -  "a NOT IN (e1,..,en)" can be converted to "a != e1".
+    This means an object of Item_func_in can be replaced with an object of
+    Item_func_eq for IN (e1,..,en) clause or Item_func_ne for
+    NOT IN (e1,...,en).
+  */
+
+  /*
+    Since the array is sorted it's enough to compare the first and the last
+    elements to tell whether all elements are equal
+  */
+  if (array->compare_elems(0, array->used_count - 1))
+  {
+    /* Not all elements are equal, transformation is not possible */
+    return this;
+  }
+
+  Json_writer_object trace_wrapper(thd);
+  trace_wrapper.add("transformation", "in_predicate_to_equality")
+               .add("before", this);
+
+  Item *new_item= nullptr;
+  if (negated)
+    new_item= new (thd->mem_root) Item_func_ne(thd, args[0], args[1]);
+  else
+    new_item= new (thd->mem_root) Item_func_eq(thd, args[0], args[1]);
+  if (new_item)
+  {
+    new_item->set_name(thd, name);
+    if (new_item->fix_fields(thd, &new_item))
+    {
+      /*
+        If there are any problems during fixing fields, there is no need to
+        return an error, just discard the transformation
+      */
+      new_item= this;
+    }
+  }
+  trace_wrapper.add("after", new_item);
+  return new_item;
+}
 
 bool
 Item_func_in::eval_not_null_tables(void *opt_arg)

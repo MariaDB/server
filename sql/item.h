@@ -2481,6 +2481,8 @@ public:
   { return this; }
   virtual Item *in_predicate_to_in_subs_transformer(THD *thd, uchar *arg)
   { return this; }
+  virtual Item *in_predicate_to_equality_transformer(THD *thd, uchar *arg)
+  { return this; }
   virtual Item *field_transformer_for_having_pushdown(THD *thd, uchar *arg)
   { return this; }
   virtual Item *multiple_equality_transformer(THD *thd, uchar *arg)
