@@ -2929,3 +2929,14 @@ t1	CREATE TABLE `t1` (
   KEY `f2` (`f2`)
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t1, t2;
+#
+# MDEV-28822 Table from older version requires table rebuild when adding column to table with multi-column index
+#
+CREATE TABLE mdev28822_100427_innodb (
+id int not null primary key,
+msg varchar(10),
+index(id, msg)
+) ENGINE=InnoDB ROW_FORMAT=DYNAMIC;
+FLUSH TABLES;
+ALTER TABLE mdev28822_100427_innodb ADD i1 INTEGER, ALGORITHM=INSTANT;
+DROP TABLE mdev28822_100427_innodb;
