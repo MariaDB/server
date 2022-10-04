@@ -36,6 +36,19 @@
 #include "sql_type.h"               /* vers_kind_t */
 #include "privilege.h"              /* privilege_t */
 
+/*
+  Buffer for unix timestamp in microseconds:
+  9,223,372,036,854,775,807 (signed int64 maximal value)
+  1 234 567 890 123 456 789
+
+  Note: we can use unsigned for calculation, but practically they
+  are the same by probability to overflow them (signed int64 in
+  microseconds is enough for almost 3e5 years) and signed allow to
+  avoid increasing the buffer (the old buffer for human readable
+  date was 19+1).
+*/
+#define MICROSECOND_TIMESTAMP_BUFFER_SIZE (19 + 1)
+
 /* Structs that defines the TABLE */
 
 class Item;				/* Needed by ORDER */
@@ -71,6 +84,8 @@ class Table_function_json_table;
   element)
 */
 typedef ulonglong nested_join_map;
+
+#define VIEW_MD5_LEN 32
 
 
 #define tmp_file_prefix "#sql"			/**< Prefix for tmp tables */
@@ -1091,7 +1106,7 @@ struct TABLE_SHARE
    with a base table, a base table is replaced with a temporary
    table and so on.
 
-   @sa TABLE_LIST::is_table_ref_id_equal()
+   @sa TABLE_LIST::is_the_same_definition()
   */
   ulong get_table_ref_version() const
   {
@@ -2461,6 +2476,12 @@ struct TABLE_LIST
     to view with SQL SECURITY DEFINER)
   */
   Security_context *security_ctx;
+  uchar tabledef_version_buf[MY_UUID_SIZE >
+                               MICROSECOND_TIMESTAMP_BUFFER_SIZE-1 ?
+                             MY_UUID_SIZE + 1 :
+                             MICROSECOND_TIMESTAMP_BUFFER_SIZE];
+  LEX_CUSTRING tabledef_version;
+
   /*
     This view security context (non-zero only for views with
     SQL SECURITY DEFINER)
@@ -2474,7 +2495,7 @@ struct TABLE_LIST
   LEX_CSTRING	source;			/* source of CREATE VIEW */
   LEX_CSTRING	view_db;		/* saved view database */
   LEX_CSTRING	view_name;		/* saved view name */
-  LEX_STRING	timestamp;		/* GMT time stamp of last operation */
+  LEX_STRING	hr_timestamp;           /* time stamp of last operation */
   LEX_USER      definer;                /* definer of view */
   ulonglong	file_version;		/* version of file's field set */
   ulonglong	mariadb_version;	/* version of server on creation */
@@ -2558,7 +2579,7 @@ struct TABLE_LIST
   /* TABLE_TYPE_UNKNOWN if any type is acceptable */
   Table_type    required_type;
   handlerton	*db_type;		/* table_type for handler */
-  char		timestamp_buffer[MAX_DATETIME_WIDTH + 1];
+  char		timestamp_buffer[MICROSECOND_TIMESTAMP_BUFFER_SIZE];
   /*
     This TABLE_LIST object is just placeholder for prelocking, it will be
     used for implicit LOCK TABLES only and won't be used in real statement.
@@ -2756,19 +2777,7 @@ struct TABLE_LIST
   */
   bool process_index_hints(TABLE *table);
 
-  /**
-    Compare the version of metadata from the previous execution
-    (if any) with values obtained from the current table
-    definition cache element.
-
-    @sa check_and_update_table_version()
-  */
-  inline bool is_table_ref_id_equal(TABLE_SHARE *s) const
-  {
-    return (m_table_ref_type == s->get_table_ref_type() &&
-            m_table_ref_version == s->get_table_ref_version());
-  }
-
+  bool is_the_same_definition(THD *thd, TABLE_SHARE *s);
   /**
     Record the value of metadata version of the corresponding
     table definition cache element in this parse tree node.
@@ -2783,6 +2792,26 @@ struct TABLE_LIST
   {
     m_table_ref_type= table_ref_type_arg;
     m_table_ref_version= table_ref_version_arg;
+  }
+
+  void set_table_id(TABLE_SHARE *s)
+  {
+    set_table_ref_id(s);
+    set_tabledef_version(s);
+  }
+
+  void set_tabledef_version(TABLE_SHARE *s)
+  {
+    if (!tabledef_version.length && s->tabledef_version.length)
+    {
+      DBUG_ASSERT(s->tabledef_version.length <
+                  sizeof(tabledef_version_buf));
+      tabledef_version.str= tabledef_version_buf;
+      memcpy(tabledef_version_buf, s->tabledef_version.str,
+             (tabledef_version.length= s->tabledef_version.length));
+      // safety
+      tabledef_version_buf[tabledef_version.length]= 0;
+    }
   }
 
   /* Set of functions returning/setting state of a derived table/view. */
@@ -2898,6 +2927,12 @@ struct TABLE_LIST
     }
   }
 
+  inline void set_view_def_version(LEX_STRING *version)
+  {
+    m_table_ref_type= TABLE_REF_VIEW;
+    tabledef_version.str= (const uchar *) version->str;
+    tabledef_version.length= version->length;
+  }
 private:
   bool prep_check_option(THD *thd, uint8 check_opt_type);
   bool prep_where(THD *thd, Item **conds, bool no_where_clause);

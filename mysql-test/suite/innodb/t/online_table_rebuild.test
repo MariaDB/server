@@ -1,5 +1,6 @@
 --source include/have_innodb.inc
 --source include/have_debug.inc
+--source include/have_debug_sync.inc
 --source include/have_sequence.inc
 
 CREATE TABLE t1(f1 INT NOT NULL, f2 CHAR(200), f3 CHAR(200))ENGINE=InnoDB;

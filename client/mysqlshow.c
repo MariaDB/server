@@ -506,7 +506,7 @@ list_dbs(MYSQL *mysql,const char *wild)
 	MYSQL_RES *tresult = mysql_list_tables(mysql,(char*)NULL);
 	if (mysql_affected_rows(mysql) > 0)
 	{
-	  sprintf(tables,"%6lu",(ulong) mysql_affected_rows(mysql));
+	  snprintf(tables, sizeof(tables), "%6lu",(ulong) mysql_affected_rows(mysql));
 	  rowcount = 0;
 	  if (opt_verbose > 1)
 	  {
@@ -527,13 +527,13 @@ list_dbs(MYSQL *mysql,const char *wild)
 		}
 	      }
 	    }
-	    sprintf(rows,"%12lu",rowcount);
+	    snprintf(rows, sizeof(rows), "%12lu", rowcount);
 	  }
 	}
 	else
 	{
-	  sprintf(tables,"%6d",0);
-	  sprintf(rows,"%12d",0);
+	  snprintf(tables, sizeof(tables), "%6d" ,0);
+	  snprintf(rows, sizeof(rows), "%12d", 0);
 	}
 	mysql_free_result(tresult);
       }
@@ -651,7 +651,7 @@ list_tables(MYSQL *mysql,const char *db,const char *table)
 	}
 	else
 	{
-	  sprintf(fields,"%8u",(uint) mysql_num_fields(rresult));
+	  snprintf(fields, sizeof(fields), "%8u", (uint) mysql_num_fields(rresult));
 	  mysql_free_result(rresult);
 
 	  if (opt_verbose > 1)
@@ -667,10 +667,10 @@ list_tables(MYSQL *mysql,const char *db,const char *table)
 		rowcount += (unsigned long) strtoull(rrow[0], (char**) 0, 10);
 		mysql_free_result(rresult);
 	      }
-	      sprintf(rows,"%10lu",rowcount);
+	      snprintf(rows, sizeof(rows), "%10lu", rowcount);
 	    }
 	    else
-	      sprintf(rows,"%10d",0);
+	      snprintf(rows, sizeof(rows), "%10d", 0);
 	  }
 	}
       }

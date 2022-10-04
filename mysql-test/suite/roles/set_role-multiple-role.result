@@ -22,7 +22,7 @@ grant r_drp to test_user@localhost;
 grant r_rld to test_user@localhost;
 flush privileges;
 select * from mysql.roles_mapping;
-ERROR 42000: SELECT command denied to user 'test_user'@'localhost' for table 'roles_mapping'
+ERROR 42000: SELECT command denied to user 'test_user'@'localhost' for table `mysql`.`roles_mapping`
 show grants;
 Grants for test_user@localhost
 GRANT USAGE ON *.* TO `test_user`@`localhost`
@@ -83,7 +83,7 @@ GRANT `r_rld` TO `test_user`@`localhost`
 GRANT `r_sel` TO `test_user`@`localhost`
 GRANT `r_upd` TO `test_user`@`localhost`
 select * from mysql.roles_mapping;
-ERROR 42000: SELECT command denied to user 'test_user'@'localhost' for table 'roles_mapping'
+ERROR 42000: SELECT command denied to user 'test_user'@'localhost' for table `mysql`.`roles_mapping`
 insert into mysql.roles_mapping values ('', 'r_sel', 'r_rld', 'N');
 flush privileges;
 ERROR 42000: Access denied; you need (at least one of) the RELOAD privilege(s) for this operation
@@ -139,7 +139,7 @@ select current_user(), current_role();
 current_user()	current_role()
 test_user@localhost	r_sel
 insert into mysql.random_test_table values (1);
-ERROR 42000: INSERT command denied to user 'test_user'@'localhost' for table 'random_test_table'
+ERROR 42000: INSERT command denied to user 'test_user'@'localhost' for table `mysql`.`random_test_table`
 drop table mysql.random_test_table;
 delete from mysql.user where user like 'r\_%';
 delete from mysql.roles_mapping where Role like 'r\_%';

@@ -381,7 +381,7 @@ static void dict_stats_func(void*)
   while (dict_stats_process_entry_from_recalc_pool(thd)) {}
   dict_defrag_process_entries_from_defrag_pool(thd);
   set_current_thd(nullptr);
-  innobase_destroy_background_thd(thd);
+  destroy_background_thd(thd);
 }
 
 

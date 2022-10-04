@@ -899,15 +899,14 @@ void ha_close_connection(THD* thd)
 {
   for (auto i= 0; i < MAX_HA; i++)
   {
-    if (thd->ha_data[i].lock)
+    if (plugin_ref plugin= thd->ha_data[i].lock)
     {
-      handlerton *hton= plugin_hton(thd->ha_data[i].lock);
+      thd->ha_data[i].lock= NULL;
+      handlerton *hton= plugin_hton(plugin);
       if (hton->close_connection)
         hton->close_connection(hton, thd);
-      /* make sure SE didn't reset ha_data in close_connection() */
-      DBUG_ASSERT(thd->ha_data[i].lock);
-      /* make sure ha_data is reset and ha_data_lock is released */
       thd_set_ha_data(thd, hton, 0);
+      plugin_unlock(NULL, plugin);
     }
     DBUG_ASSERT(!thd->ha_data[i].ha_ptr);
   }

@@ -7,23 +7,23 @@ SCHEMA_NAME	DIGEST	DIGEST_TEXT	COUNT_STAR	SUM_TIMER_WAIT	MIN_TIMER_WAIT	AVG_TIME
 insert into performance_schema.events_statements_summary_by_digest
 set digest='XXYYZZ', count_star=1, sum_timer_wait=2, min_timer_wait=3,
 avg_timer_wait=4, max_timer_wait=5;
-ERROR 42000: INSERT command denied to user 'root'@'localhost' for table 'events_statements_summary_by_digest'
+ERROR 42000: INSERT command denied to user 'root'@'localhost' for table `performance_schema`.`events_statements_summary_by_digest`
 update performance_schema.events_statements_summary_by_digest
 set count_star=12;
-ERROR 42000: UPDATE command denied to user 'root'@'localhost' for table 'events_statements_summary_by_digest'
+ERROR 42000: UPDATE command denied to user 'root'@'localhost' for table `performance_schema`.`events_statements_summary_by_digest`
 update performance_schema.events_statements_summary_by_digest
 set count_star=12 where digest like "XXYYZZ";
-ERROR 42000: UPDATE command denied to user 'root'@'localhost' for table 'events_statements_summary_by_digest'
+ERROR 42000: UPDATE command denied to user 'root'@'localhost' for table `performance_schema`.`events_statements_summary_by_digest`
 delete from performance_schema.events_statements_summary_by_digest
 where count_star=1;
-ERROR 42000: DELETE command denied to user 'root'@'localhost' for table 'events_statements_summary_by_digest'
+ERROR 42000: DELETE command denied to user 'root'@'localhost' for table `performance_schema`.`events_statements_summary_by_digest`
 delete from performance_schema.events_statements_summary_by_digest;
-ERROR 42000: DELETE command denied to user 'root'@'localhost' for table 'events_statements_summary_by_digest'
+ERROR 42000: DELETE command denied to user 'root'@'localhost' for table `performance_schema`.`events_statements_summary_by_digest`
 LOCK TABLES performance_schema.events_statements_summary_by_digest READ;
-ERROR 42000: SELECT, LOCK TABLES command denied to user 'root'@'localhost' for table 'events_statements_summary_by_digest'
+ERROR 42000: SELECT, LOCK TABLES command denied to user 'root'@'localhost' for table `performance_schema`.`events_statements_summary_by_digest`
 UNLOCK TABLES;
 LOCK TABLES performance_schema.events_statements_summary_by_digest WRITE;
-ERROR 42000: SELECT, LOCK TABLES command denied to user 'root'@'localhost' for table 'events_statements_summary_by_digest'
+ERROR 42000: SELECT, LOCK TABLES command denied to user 'root'@'localhost' for table `performance_schema`.`events_statements_summary_by_digest`
 UNLOCK TABLES;
 #
 # MDEV-25325 column_comment for performance_schema tables

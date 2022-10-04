@@ -1,5 +1,6 @@
 --source include/have_innodb.inc
 --source include/have_debug.inc
+--source include/have_debug_sync.inc
 
 --echo #
 --echo # MDEV-24971 InnoDB access freed virtual column

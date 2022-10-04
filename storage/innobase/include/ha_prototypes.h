@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2006, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2021, MariaDB Corporation.
+Copyright (c) 2017, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -460,10 +460,9 @@ normalize_table_name_c_low(
 @return new MYSQL_THD */
 MYSQL_THD innobase_create_background_thd(const char* name);
 
-/** Destroy a background purge thread THD.
+/** Destroy a THD object associated with a background task.
 @param[in]	thd	MYSQL_THD to destroy */
-void
-innobase_destroy_background_thd(MYSQL_THD);
+void destroy_background_thd(MYSQL_THD thd);
 
 /** Close opened tables, free memory, delete items for a MYSQL_THD.
 @param[in]	thd	MYSQL_THD to reset */

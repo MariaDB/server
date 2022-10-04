@@ -57,10 +57,12 @@ federatedx_txn::~federatedx_txn()
 
 void federatedx_txn::close(FEDERATEDX_SERVER *server)
 {
+#ifdef DBUG_TRACE
   uint count= 0;
+#endif
   federatedx_io *io, **iop;
   DBUG_ENTER("federatedx_txn::close");
-  
+
   DBUG_ASSERT(!server->use_count);
   DBUG_PRINT("info",("use count: %u  connections: %u", 
                      server->use_count, server->io_count));
@@ -84,9 +86,11 @@ void federatedx_txn::close(FEDERATEDX_SERVER *server)
   {
     server->idle_list= io->idle_next;
     delete io;
+#ifdef DBUG_TRACE
     count++;
+#endif
   }
-  
+
   DBUG_PRINT("info",("closed %u connections,  txn_list: %s", count,
                      txn_list ? "active":  "empty"));
   DBUG_VOID_RETURN;
@@ -172,12 +176,14 @@ void federatedx_txn::release(federatedx_io **ioptr)
 
 void federatedx_txn::release_scan()
 {
+#ifdef DBUG_TRACE
   uint count= 0, returned= 0;
+#endif
   federatedx_io *io, **pio;
   DBUG_ENTER("federatedx_txn::release_scan");
 
-  /* return any inactive and idle connections to the server */  
-  for (pio= &txn_list; (io= *pio); count++)
+  /* return any inactive and idle connections to the server */
+  for (pio= &txn_list; (io= *pio);)
   {
     if (io->active || io->busy)
       pio= &io->txn_next;
@@ -196,8 +202,13 @@ void federatedx_txn::release_scan()
       io->idle_next= server->idle_list;
       server->idle_list= io;
       mysql_mutex_unlock(&server->mutex);
+#ifdef DBUG_TRACE
       returned++;
+#endif
     }
+#ifdef DBUG_TRACE
+    count++;
+#endif
   }
   DBUG_PRINT("info",("returned %u of %u connections(s)", returned, count));
 
