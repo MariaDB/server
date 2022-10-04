@@ -984,7 +984,7 @@ int Json_table_column::print(THD *thd, Field **f, String *str)
         ((*f)->has_charset() && m_explicit_cs &&
          (str->append(STRING_WITH_LEN(" CHARSET ")) ||
           str->append(&m_explicit_cs->cs_name) ||
-          (!(m_explicit_cs->state & MY_CS_PRIMARY) &&
+          (Charset(m_explicit_cs).can_have_collate_clause() &&
            (str->append(STRING_WITH_LEN(" COLLATE ")) ||
             str->append(&m_explicit_cs->coll_name))))) ||
         str->append(m_column_type == PATH ? &path : &exists_path) ||

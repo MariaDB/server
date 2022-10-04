@@ -44,7 +44,7 @@ show tables from secret_db;
 Tables_in_secret_db
 t1
 select * from secret_db.t1;
-ERROR 42000: SELECT command denied to user 'test_user'@'localhost' for table 't1'
+ERROR 42000: SELECT command denied to user 'test_user'@'localhost' for table `secret_db`.`t1`
 insert into secret_db.t1 values ("|-|4><");
 set role test_role;
 select * from secret_db.t1 order by secret;
@@ -52,7 +52,7 @@ secret
 Some Secret P4ssw0rd
 |-|4><
 insert into secret_db.t1 values ("|_33T|-|4><");
-ERROR 42000: INSERT command denied to user 'test_user'@'localhost' for table 't1'
+ERROR 42000: INSERT command denied to user 'test_user'@'localhost' for table `secret_db`.`t1`
 connection default;
 drop role test_ROLE;
 drop role test_role;

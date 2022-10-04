@@ -51,7 +51,7 @@ c
 select d from mysqltest.v2;
 ERROR 42000: SELECT command denied to user 'mysqltest_1'@'localhost' for column 'd' in table 'v2'
 select * from mysqltest.v3;
-ERROR 42000: SELECT command denied to user 'mysqltest_1'@'localhost' for table 'v3'
+ERROR 42000: SELECT command denied to user 'mysqltest_1'@'localhost' for table `mysqltest`.`v3`
 connection root;
 grant select on mysqltest.v3 to mysqltest_1@localhost;
 connection user1;
@@ -116,7 +116,7 @@ revoke SELECT on db.t1 from foo@localhost;
 connection con1;
 with cte as (select * from t1 where i < 4)
 select * from cte;
-ERROR 42000: SELECT command denied to user 'foo'@'localhost' for table 't1'
+ERROR 42000: SELECT command denied to user 'foo'@'localhost' for table `db`.`t1`
 disconnect con1;
 connection default;
 drop database db;

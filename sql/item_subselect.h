@@ -240,7 +240,6 @@ public:
   bool unknown_splocal_processor(void *arg) override;
   bool mark_as_eliminated_processor(void *arg) override;
   bool eliminate_subselect_processor(void *arg) override;
-  bool set_fake_select_as_master_processor(void *arg) override;
   bool enumerate_field_refs_processor(void *arg) override;
   bool check_vcol_func_processor(void *arg) override
   {

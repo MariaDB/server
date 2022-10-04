@@ -38,6 +38,7 @@ ELSE()
    IF(HAVE_KRB5_XFREE)
      ADD_DEFINITIONS(-DHAVE_KRB5_XFREE=1)
    ENDIF()
+   MY_CHECK_AND_SET_COMPILER_FLAG(-Wl,--as-needed)
 
  ELSE()
    # Can't build plugin

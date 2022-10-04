@@ -296,7 +296,7 @@ Grants for alan@%
 GRANT USAGE ON *.* TO `alan`@`%`
 GRANT INSERT, CREATE, DROP ON `test`.* TO `alan`@`%`
 alter table t1 convert partition p1 to table tp1;
-ERROR 42000: ALTER command denied to user 'alan'@'localhost' for table 't1'
+ERROR 42000: ALTER command denied to user 'alan'@'localhost' for table `test`.`t1`
 connection default;
 revoke all on test.* from alan;
 grant create, insert, alter on test.* to alan;
@@ -307,7 +307,7 @@ Grants for alan@%
 GRANT USAGE ON *.* TO `alan`@`%`
 GRANT INSERT, CREATE, ALTER ON `test`.* TO `alan`@`%`
 alter table t1 convert partition p1 to table tp1;
-ERROR 42000: DROP command denied to user 'alan'@'localhost' for table 't1'
+ERROR 42000: DROP command denied to user 'alan'@'localhost' for table `test`.`t1`
 connection default;
 revoke all on test.* from alan;
 grant create, drop, alter on test.* to alan;
@@ -318,7 +318,7 @@ Grants for alan@%
 GRANT USAGE ON *.* TO `alan`@`%`
 GRANT CREATE, DROP, ALTER ON `test`.* TO `alan`@`%`
 alter table t1 convert partition p1 to table tp1;
-ERROR 42000: INSERT command denied to user 'alan'@'localhost' for table 'tp1'
+ERROR 42000: INSERT command denied to user 'alan'@'localhost' for table `test`.`tp1`
 connection default;
 revoke all on test.* from alan;
 grant insert, drop, alter on test.* to alan;
@@ -329,7 +329,7 @@ Grants for alan@%
 GRANT USAGE ON *.* TO `alan`@`%`
 GRANT INSERT, DROP, ALTER ON `test`.* TO `alan`@`%`
 alter table t1 convert partition p1 to table tp1;
-ERROR 42000: CREATE command denied to user 'alan'@'localhost' for table 'tp1'
+ERROR 42000: CREATE command denied to user 'alan'@'localhost' for table `test`.`tp1`
 connection default;
 grant create, insert, drop, alter on test.* to alan;
 connection alan;

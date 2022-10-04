@@ -1187,6 +1187,7 @@ MDL_wait::timed_wait(MDL_context_owner *owner, struct timespec *abs_timeout,
          wait_result != ETIMEDOUT && wait_result != ETIME)
   {
 #ifdef WITH_WSREP
+# ifdef ENABLED_DEBUG_SYNC
     // Allow tests to block the applier thread using the DBUG facilities
     DBUG_EXECUTE_IF("sync.wsrep_before_mdl_wait",
                  {
@@ -1196,6 +1197,7 @@ MDL_wait::timed_wait(MDL_context_owner *owner, struct timespec *abs_timeout,
                    DBUG_ASSERT(!debug_sync_set_action((owner->get_thd()),
                                                       STRING_WITH_LEN(act)));
                  };);
+# endif
     if (WSREP_ON && wsrep_thd_is_BF(owner->get_thd(), false))
     {
       wait_result= mysql_cond_wait(&m_COND_wait_status, &m_LOCK_wait_status);
@@ -2281,7 +2283,7 @@ MDL_context::acquire_lock(MDL_request *mdl_request, double lock_wait_timeout)
   MDL_ticket *ticket;
   MDL_wait::enum_wait_status wait_status;
   DBUG_ENTER("MDL_context::acquire_lock");
-#ifndef DBUG_OFF
+#ifdef DBUG_TRACE
   const char *mdl_lock_name= get_mdl_lock_name(
     mdl_request->key.mdl_namespace(), mdl_request->type)->str;
 #endif
@@ -2307,7 +2309,7 @@ MDL_context::acquire_lock(MDL_request *mdl_request, double lock_wait_timeout)
     DBUG_RETURN(FALSE);
   }
 
-#ifndef DBUG_OFF
+#ifdef DBUG_TRACE
     const char *ticket_msg= dbug_print_mdl(ticket);
 #endif
 

@@ -19,7 +19,7 @@ rollback to savepoint s1;
 insert t1 values (5);
 commit;
 EOF
-exec $MYSQLD_BOOTSTRAP_CMD --datadir=$datadir --innodb < $MYSQLTEST_VARDIR/tmp/bootstrap_test.sql >> $MYSQLTEST_VARDIR/tmp/bootstrap.log 2>&1;
+exec $MYSQLD_BOOTSTRAP_CMD --datadir=$datadir --tmpdir=$MYSQL_TMP_DIR --innodb < $MYSQLTEST_VARDIR/tmp/bootstrap_test.sql >> $MYSQLTEST_VARDIR/tmp/bootstrap.log 2>&1;
 remove_file $MYSQLTEST_VARDIR/tmp/bootstrap_test.sql;
 
 source include/start_mysqld.inc;

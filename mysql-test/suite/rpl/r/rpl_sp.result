@@ -305,7 +305,7 @@ a
 100
 connection con1;
 create trigger trg before insert on t1 for each row set new.a= 10;
-ERROR 42000: TRIGGER command denied to user 'zedjzlcsjhd'@'localhost' for table 't1'
+ERROR 42000: TRIGGER command denied to user 'zedjzlcsjhd'@'localhost' for table `mysqltest1`.`t1`
 connection master;
 delete from t1;
 create trigger trg before insert on t1 for each row set new.a= 10;

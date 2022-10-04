@@ -62,9 +62,9 @@ connection default;
 REVOKE INSERT ON testdb.* FROM test2@localhost;
 connect  test2,localhost,test2,,test,$MASTER_MYPORT,$MASTER_MYSOCK;
 ALTER TABLE tp EXCHANGE PARTITION p0 WITH TABLE testdb.t_10;
-ERROR 42000: INSERT command denied to user 'test2'@'localhost' for table 't_10'
+ERROR 42000: INSERT command denied to user 'test2'@'localhost' for table `testdb`.`t_10`
 ALTER TABLE testdb.tp EXCHANGE PARTITION p0 WITH TABLE t_10;
-ERROR 42000: INSERT command denied to user 'test2'@'localhost' for table 'tp'
+ERROR 42000: INSERT command denied to user 'test2'@'localhost' for table `testdb`.`tp`
 disconnect test2;
 connection default;
 DROP TABLE IF EXISTS t_10;

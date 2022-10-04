@@ -49,7 +49,7 @@ show status like 'debug%';
 Variable_name	Value
 connection foo;
 select count(*) from mysql.roles_mapping;
-ERROR 42000: SELECT command denied to user 'foo'@'localhost' for table 'roles_mapping'
+ERROR 42000: SELECT command denied to user 'foo'@'localhost' for table `mysql`.`roles_mapping`
 set role role10;
 select count(*) from mysql.roles_mapping;
 count(*)
@@ -99,7 +99,7 @@ count(*)
 set role none;
 set role role10;
 select count(*) from mysql.roles_mapping;
-ERROR 42000: SELECT command denied to user 'foo'@'localhost' for table 'roles_mapping'
+ERROR 42000: SELECT command denied to user 'foo'@'localhost' for table `mysql`.`roles_mapping`
 set role none;
 connection default;
 grant select on mysql.* to role1;
@@ -107,7 +107,7 @@ show status like 'debug%';
 Variable_name	Value
 connection foo;
 select count(*) from mysql.roles_mapping;
-ERROR 42000: SELECT command denied to user 'foo'@'localhost' for table 'roles_mapping'
+ERROR 42000: SELECT command denied to user 'foo'@'localhost' for table `mysql`.`roles_mapping`
 set role role10;
 select count(*) from mysql.roles_mapping;
 count(*)
@@ -142,7 +142,7 @@ show status like 'debug%';
 Variable_name	Value
 connection foo;
 select count(*) from mysql.roles_mapping;
-ERROR 42000: SELECT command denied to user 'foo'@'localhost' for table 'roles_mapping'
+ERROR 42000: SELECT command denied to user 'foo'@'localhost' for table `mysql`.`roles_mapping`
 set role none;
 connection default;
 grant select on mysql.roles_mapping to role1;
@@ -150,7 +150,7 @@ show status like 'debug%';
 Variable_name	Value
 connection foo;
 select count(*) from mysql.roles_mapping;
-ERROR 42000: SELECT command denied to user 'foo'@'localhost' for table 'roles_mapping'
+ERROR 42000: SELECT command denied to user 'foo'@'localhost' for table `mysql`.`roles_mapping`
 set role role10;
 select count(*) from mysql.roles_mapping;
 count(*)
@@ -185,7 +185,7 @@ show status like 'debug%';
 Variable_name	Value
 connection foo;
 select count(*) from mysql.roles_mapping;
-ERROR 42000: SELECT command denied to user 'foo'@'localhost' for table 'roles_mapping'
+ERROR 42000: SELECT command denied to user 'foo'@'localhost' for table `mysql`.`roles_mapping`
 set role none;
 connection default;
 grant select(User) on mysql.roles_mapping to role1;
@@ -193,7 +193,7 @@ show status like 'debug%';
 Variable_name	Value
 connection foo;
 select count(*) from mysql.roles_mapping;
-ERROR 42000: SELECT command denied to user 'foo'@'localhost' for table 'roles_mapping'
+ERROR 42000: SELECT command denied to user 'foo'@'localhost' for table `mysql`.`roles_mapping`
 set role role10;
 select count(concat(User,Host,Role)) from mysql.roles_mapping;
 ERROR 42000: SELECT command denied to user 'foo'@'localhost' for column 'Host' in table 'roles_mapping'
@@ -275,7 +275,7 @@ show status like 'debug%';
 Variable_name	Value
 connection foo;
 select count(concat(Host)) from mysql.roles_mapping;
-ERROR 42000: SELECT command denied to user 'foo'@'localhost' for table 'roles_mapping'
+ERROR 42000: SELECT command denied to user 'foo'@'localhost' for table `mysql`.`roles_mapping`
 set role none;
 connection default;
 create procedure pr1() select "pr1";

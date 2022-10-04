@@ -14,7 +14,7 @@ grant select on mysql.* to test_role1;
 grant insert, delete on mysql.roles_mapping to test_role1;
 grant reload on *.* to test_role1;
 select * from mysql.roles_mapping;
-ERROR 42000: SELECT command denied to user 'test_user'@'localhost' for table 'roles_mapping'
+ERROR 42000: SELECT command denied to user 'test_user'@'localhost' for table `mysql`.`roles_mapping`
 select current_user(), current_role();
 current_user()	current_role()
 test_user@localhost	NULL
@@ -27,7 +27,7 @@ Host	User	Role	Admin_option
 localhost	root	test_role1	Y
 localhost	test_user	test_role1	N
 insert into mysql.user (user, host) values ('Dummy', 'Dummy');
-ERROR 42000: INSERT command denied to user 'test_user'@'localhost' for table 'user'
+ERROR 42000: INSERT command denied to user 'test_user'@'localhost' for table `mysql`.`user`
 insert into mysql.roles_mapping values ('localhost', 'test_user', 'test_role2', 'N');
 delete from mysql.roles_mapping where Role='test_role2';
 use mysql;
@@ -38,13 +38,13 @@ test_user@localhost	NULL
 use mysql;
 ERROR 42000: Access denied for user 'test_user'@'localhost' to database 'mysql'
 select * from mysql.roles_mapping;
-ERROR 42000: SELECT command denied to user 'test_user'@'localhost' for table 'roles_mapping'
+ERROR 42000: SELECT command denied to user 'test_user'@'localhost' for table `mysql`.`roles_mapping`
 insert into mysql.user (user, host) values ('Dummy', 'Dummy');
-ERROR 42000: INSERT command denied to user 'test_user'@'localhost' for table 'user'
+ERROR 42000: INSERT command denied to user 'test_user'@'localhost' for table `mysql`.`user`
 insert into mysql.roles_mapping values ('localhost', 'test_user', 'test_role2', 'N');
-ERROR 42000: INSERT command denied to user 'test_user'@'localhost' for table 'roles_mapping'
+ERROR 42000: INSERT command denied to user 'test_user'@'localhost' for table `mysql`.`roles_mapping`
 delete from mysql.roles_mapping where Role='test_role2';
-ERROR 42000: DELETE command denied to user 'test_user'@'localhost' for table 'roles_mapping'
+ERROR 42000: DELETE command denied to user 'test_user'@'localhost' for table `mysql`.`roles_mapping`
 drop user 'test_user'@'localhost';
 revoke select on mysql.* from test_role1;
 revoke insert, delete on mysql.roles_mapping from test_role1;

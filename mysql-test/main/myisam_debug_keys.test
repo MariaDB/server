@@ -1,0 +1,64 @@
+--source include/have_debug.inc
+
+--echo #
+--echo # MDEV-29672 Add MTR tests covering key and key segment flags and types
+--echo #
+
+SET debug_dbug='+d,key';
+CREATE TABLE types (
+  id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  type TEXT NOT NULL,
+  prefix_length INT NOT NULL
+);
+INSERT INTO types (type, prefix_length) VALUES
+('INT',               0),
+('BIGINT',            0),
+('DOUBLE',            0),
+('DECIMAL(20,10)',    0),
+('CHAR(4)',           0),
+('CHAR(10)',          0),
+('VARCHAR(4)',        0),
+('VARCHAR(6)',        0),
+('VARCHAR(8)',        0),
+('VARCHAR(12)',        0),
+('VARCHAR(16)',        0),
+('VARCHAR(100)',      0),
+('TEXT',              4),
+('TEXT',              6),
+('TEXT',              8),
+('TEXT',              12),
+('TEXT',              16),
+('TEXT',              100);
+DELIMITER $$;
+BEGIN NOT ATOMIC
+  DECLARE create2_template TEXT
+    DEFAULT 'CREATE TABLE t1 (a TYPE1 NOT NULL, b TYPE2 NOT NULL, KEY(SEG1,SEG2))';
+  DECLARE cur2 CURSOR FOR
+    SELECT t1.type AS type1,
+           t2.type AS type2,
+           t1.prefix_length AS prefix_length1,
+           t2.prefix_length AS prefix_length2
+    FROM types AS t1, types AS t2
+    ORDER BY t1.id, t2.id;
+  FOR rec IN cur2 DO
+    BEGIN
+      DECLARE tabledef TEXT DEFAULT REPLACE(create2_template,'TYPE1', rec.type1);
+      SET tabledef=REPLACE(tabledef, 'TYPE2', rec.type2);
+      SET tabledef=REPLACE(tabledef, 'SEG1',
+                           IF(rec.prefix_length1,
+                              CONCAT('a(',rec.prefix_length1,')'), 'a'));
+      SET tabledef=REPLACE(tabledef, 'SEG2',
+                           IF(rec.prefix_length2,
+                              CONCAT('b(',rec.prefix_length2,')'), 'b'));
+      SELECT tabledef AS ``;
+      EXECUTE IMMEDIATE tabledef;
+      SHOW WARNINGS;
+      SHOW CREATE TABLE t1;
+      DROP TABLE t1;
+    END;
+  END FOR;
+END;
+$$
+DELIMITER ;$$
+DROP TABLE types;
+SET debug_dbug='';
