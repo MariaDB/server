@@ -371,13 +371,13 @@ char *PlugReadMessage(PGLOBAL g, int mid, char *m)
   PlugSetPath(msgfile, NULL, buff, msg_path);
 
   if (!(mfile = fopen(msgfile, "rt"))) {
-    sprintf(stmsg, "Fail to open message file %-.256s", msgfile);
+    snprintf(stmsg, sizeof(stmsg), "Fail to open message file %s", msgfile);
     goto err;
     } // endif mfile
 
   for (;;)
     if (!fgets(buff, 256, mfile)) {
-      sprintf(stmsg, "Cannot get message %d %-.256s", mid, SVP(m));
+      snprintf(stmsg, sizeof(stmsg), "Cannot get message %d %s", mid, SVP(m));
       goto fin;
     } else
       if (atoi(buff) == mid)
@@ -386,7 +386,7 @@ char *PlugReadMessage(PGLOBAL g, int mid, char *m)
   if (sscanf(buff, " %*d %.31s \"%.255[^\"]", msgid, stmsg) < 2) {
     // Old message file
     if (!sscanf(buff, " %*d \"%.255[^\"]", stmsg)) {
-      sprintf(stmsg, "Bad message file for %d %-.256s", mid, SVP(m));
+      snprintf(stmsg, sizeof(stmsg), "Bad message file for %d %s", mid, SVP(m));
       goto fin;
     } else
       m = NULL;
@@ -425,17 +425,18 @@ char *PlugGetMessage(PGLOBAL g, int mid)
 
   if (n == 0) {
     DWORD rc = GetLastError();
-    msg = (char*)PlugSubAlloc(g, NULL, 512);   // Extend buf allocation
-    n = sprintf(msg, "Message %d, rc=%d: ", mid, rc);
+    const int BUF_SIZE= 512;
+    msg = (char*)PlugSubAlloc(g, NULL, BUF_SIZE);   // Extend buf allocation
+    n = snprintf(msg, BUF_SIZE, "Message %d, rc=%d: ", mid, rc);
     FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM |
                   FORMAT_MESSAGE_IGNORE_INSERTS, NULL, rc, 0,
-                  (LPTSTR)(msg + n), 512 - n, NULL);
+                  (LPTSTR)(msg + n), BUF_SIZE - n, NULL);
     return msg;
     } // endif n
 
 #else  // ALL
   if (!GetRcString(mid, stmsg, 200))
-    sprintf(stmsg, "Message %d not found", mid);
+    snprintf(stmsg, sizeof(stmsg) "Message %d not found", mid);
 #endif // ALL
 
   if (g) {
@@ -564,7 +565,7 @@ void *PlugSubAlloc(PGLOBAL g, void *memp, size_t size)
     /*******************************************************************/
     memp = g->Sarea;
 
-  size = ((size + 7) / 8) * 8;       /* Round up size to multiple of 8 */
+  size = ROUNDUP_TO_8(size);      /* Round up size to multiple of 8 */
   pph = (PPOOLHEADER)memp;
 
   if (trace(16))

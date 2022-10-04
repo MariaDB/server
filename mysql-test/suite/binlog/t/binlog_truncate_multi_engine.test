@@ -47,7 +47,7 @@ CREATE TABLE t2 (a INT PRIMARY KEY, b MEDIUMTEXT) ENGINE=rocksdb;
 
 --let $case = "C"
 --let $description= "both engines have committed its transaction branch"
---let $debug_sync_action = "commit_after_run_commit_ordered SIGNAL con1_ready WAIT_FOR signal_no_signal"
+--let $debug_sync_action = "commit_after_run_commit_ordered SIGNAL con1_ready"
 # Hold off after both engines have committed. The server is shut down.
 --let $shutdown_timeout=
 --let $restart_parameters = --rpl-semi-sync-slave-enabled=1 --sync-binlog=1

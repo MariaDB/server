@@ -13,7 +13,7 @@ return a+1;
 END|
 set optimizer_trace="enabled=on";
 select * from db1.t1;
-ERROR 42000: SELECT command denied to user 'foo'@'localhost' for table 't1'
+ERROR 42000: SELECT command denied to user 'foo'@'localhost' for table `db1`.`t1`
 select * from information_schema.OPTIMIZER_TRACE;
 QUERY	TRACE	MISSING_BYTES_BEYOND_MAX_MEM_SIZE	INSUFFICIENT_PRIVILEGES
 		0	1

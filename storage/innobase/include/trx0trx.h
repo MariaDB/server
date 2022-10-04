@@ -433,6 +433,8 @@ class trx_mod_table_time_t
 
   /** Buffer to store insert opertion */
   row_merge_bulk_t *bulk_store= nullptr;
+
+  friend struct trx_t;
 public:
   /** Constructor
   @param rows   number of modified rows so far */
@@ -517,11 +519,9 @@ public:
   }
 
   /** @return whether the buffer storage exist */
-  bool bulk_buffer_exist()
+  bool bulk_buffer_exist() const
   {
-    if (is_bulk_insert() && bulk_store)
-      return true;
-    return false;
+    return bulk_store && is_bulk_insert();
   }
 };
 

@@ -544,7 +544,7 @@ Event_queue::empty_queue()
 void
 Event_queue::dbug_dump_queue(my_time_t when)
 {
-#ifndef DBUG_OFF
+#ifdef DBUG_TRACE
   my_time_t now= when;
   Event_queue_element *et;
   uint i;

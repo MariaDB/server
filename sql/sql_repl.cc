@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2018, Oracle and/or its affiliates.
-   Copyright (c) 2008, 2020, MariaDB Corporation
+   Copyright (c) 2008, 2022, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -2876,6 +2876,7 @@ void mysql_binlog_send(THD* thd, char* log_ident, my_off_t pos,
     info->error= ER_UNKNOWN_ERROR;
     goto err;
   }
+#ifdef ENABLED_DEBUG_SYNC
   DBUG_EXECUTE_IF("simulate_delay_at_shutdown",
                  {
                    const char act[]=
@@ -2884,6 +2885,7 @@ void mysql_binlog_send(THD* thd, char* log_ident, my_off_t pos,
                    DBUG_ASSERT(!debug_sync_set_action(thd,
                                                       STRING_WITH_LEN(act)));
                  };);
+#endif
 
   /*
     heartbeat_period from @master_heartbeat_period user variable
@@ -2973,12 +2975,14 @@ void mysql_binlog_send(THD* thd, char* log_ident, my_off_t pos,
     if (should_stop(info))
       break;
 
+#ifdef ENABLED_DEBUG_SYNC
     DBUG_EXECUTE_IF("wait_after_binlog_EOF",
                     {
                       const char act[]= "now wait_for signal.rotate_finished";
                       DBUG_ASSERT(!debug_sync_set_action(current_thd,
                                                          STRING_WITH_LEN(act)));
                     };);
+#endif
 
     THD_STAGE_INFO(thd,
                    stage_finished_reading_one_binlog_switching_to_next_binlog);
@@ -4119,7 +4123,7 @@ bool mysql_show_binlog_events(THD* thd)
     binlog_size= s.st_size;
     if (lex_mi->pos > binlog_size)
     {
-      sprintf(errmsg_buf, "Invalid pos specified. Requested from pos:%llu is "
+      snprintf(errmsg_buf, sizeof(errmsg_buf), "Invalid pos specified. Requested from pos:%llu is "
               "greater than actual file size:%lu\n", lex_mi->pos,
               (ulong)s.st_size);
       errmsg= errmsg_buf;

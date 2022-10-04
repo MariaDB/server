@@ -56,9 +56,9 @@ ERROR 42000: Access denied for user 'root'@'localhost' to database 'performance_
 grant TRIGGER on performance_schema.setup_instruments to 'pfs_user_3'@localhost;
 ERROR 42000: Access denied for user 'root'@'localhost' to database 'performance_schema'
 grant INSERT on performance_schema.setup_instruments to 'pfs_user_3'@localhost;
-ERROR 42000: INSERT, GRANT command denied to user 'root'@'localhost' for table 'setup_instruments'
+ERROR 42000: INSERT, GRANT command denied to user 'root'@'localhost' for table `performance_schema`.`setup_instruments`
 grant DELETE on performance_schema.setup_instruments to 'pfs_user_3'@localhost;
-ERROR 42000: DELETE, GRANT command denied to user 'root'@'localhost' for table 'setup_instruments'
+ERROR 42000: DELETE, GRANT command denied to user 'root'@'localhost' for table `performance_schema`.`setup_instruments`
 grant SELECT on performance_schema.setup_instruments to 'pfs_user_3'@localhost
 with GRANT OPTION;
 grant UPDATE on performance_schema.setup_instruments to 'pfs_user_3'@localhost
@@ -81,11 +81,11 @@ ERROR 42000: Access denied for user 'root'@'localhost' to database 'performance_
 grant TRIGGER on performance_schema.events_waits_current to 'pfs_user_3'@localhost;
 ERROR 42000: Access denied for user 'root'@'localhost' to database 'performance_schema'
 grant INSERT on performance_schema.events_waits_current to 'pfs_user_3'@localhost;
-ERROR 42000: INSERT, GRANT command denied to user 'root'@'localhost' for table 'events_waits_current'
+ERROR 42000: INSERT, GRANT command denied to user 'root'@'localhost' for table `performance_schema`.`events_waits_current`
 grant UPDATE on performance_schema.events_waits_current to 'pfs_user_3'@localhost;
-ERROR 42000: UPDATE, GRANT command denied to user 'root'@'localhost' for table 'events_waits_current'
+ERROR 42000: UPDATE, GRANT command denied to user 'root'@'localhost' for table `performance_schema`.`events_waits_current`
 grant DELETE on performance_schema.events_waits_current to 'pfs_user_3'@localhost;
-ERROR 42000: DELETE, GRANT command denied to user 'root'@'localhost' for table 'events_waits_current'
+ERROR 42000: DELETE, GRANT command denied to user 'root'@'localhost' for table `performance_schema`.`events_waits_current`
 grant SELECT on performance_schema.events_waits_current to 'pfs_user_3'@localhost
 with GRANT OPTION;
 grant ALL on performance_schema.file_instances to 'pfs_user_3'@localhost
@@ -106,11 +106,11 @@ ERROR 42000: Access denied for user 'root'@'localhost' to database 'performance_
 grant TRIGGER on performance_schema.file_instances to 'pfs_user_3'@localhost;
 ERROR 42000: Access denied for user 'root'@'localhost' to database 'performance_schema'
 grant INSERT on performance_schema.file_instances to 'pfs_user_3'@localhost;
-ERROR 42000: INSERT, GRANT command denied to user 'root'@'localhost' for table 'file_instances'
+ERROR 42000: INSERT, GRANT command denied to user 'root'@'localhost' for table `performance_schema`.`file_instances`
 grant UPDATE on performance_schema.file_instances to 'pfs_user_3'@localhost;
-ERROR 42000: UPDATE, GRANT command denied to user 'root'@'localhost' for table 'file_instances'
+ERROR 42000: UPDATE, GRANT command denied to user 'root'@'localhost' for table `performance_schema`.`file_instances`
 grant DELETE on performance_schema.file_instances to 'pfs_user_3'@localhost;
-ERROR 42000: DELETE, GRANT command denied to user 'root'@'localhost' for table 'file_instances'
+ERROR 42000: DELETE, GRANT command denied to user 'root'@'localhost' for table `performance_schema`.`file_instances`
 grant SELECT on performance_schema.file_instances to 'pfs_user_3'@localhost
 with GRANT OPTION;
 grant LOCK TABLES on performance_schema.* to 'pfs_user_3'@localhost
@@ -164,34 +164,34 @@ create table test.t1 like performance_schema.file_instances;
 ERROR HY000: Can't create table `test`.`t1` (errno: 131 "Command not supported by the engine")
 insert into performance_schema.setup_instruments
 set name="foo";
-ERROR 42000: INSERT command denied to user 'root'@'localhost' for table 'setup_instruments'
+ERROR 42000: INSERT command denied to user 'root'@'localhost' for table `performance_schema`.`setup_instruments`
 insert into performance_schema.events_waits_current
 set name="foo";
-ERROR 42000: INSERT command denied to user 'root'@'localhost' for table 'events_waits_current'
+ERROR 42000: INSERT command denied to user 'root'@'localhost' for table `performance_schema`.`events_waits_current`
 insert into performance_schema.file_instances
 set name="foo";
-ERROR 42000: INSERT command denied to user 'root'@'localhost' for table 'file_instances'
+ERROR 42000: INSERT command denied to user 'root'@'localhost' for table `performance_schema`.`file_instances`
 delete from performance_schema.setup_instruments;
-ERROR 42000: DELETE command denied to user 'root'@'localhost' for table 'setup_instruments'
+ERROR 42000: DELETE command denied to user 'root'@'localhost' for table `performance_schema`.`setup_instruments`
 delete from performance_schema.events_waits_current;
-ERROR 42000: DELETE command denied to user 'root'@'localhost' for table 'events_waits_current'
+ERROR 42000: DELETE command denied to user 'root'@'localhost' for table `performance_schema`.`events_waits_current`
 delete from performance_schema.file_instances;
-ERROR 42000: DELETE command denied to user 'root'@'localhost' for table 'file_instances'
+ERROR 42000: DELETE command denied to user 'root'@'localhost' for table `performance_schema`.`file_instances`
 lock table performance_schema.setup_instruments read;
 unlock tables;
 lock table performance_schema.setup_instruments write;
 unlock tables;
 lock table performance_schema.events_waits_current read;
-ERROR 42000: SELECT, LOCK TABLES command denied to user 'root'@'localhost' for table 'events_waits_current'
+ERROR 42000: SELECT, LOCK TABLES command denied to user 'root'@'localhost' for table `performance_schema`.`events_waits_current`
 unlock tables;
 lock table performance_schema.events_waits_current write;
-ERROR 42000: SELECT, LOCK TABLES command denied to user 'root'@'localhost' for table 'events_waits_current'
+ERROR 42000: SELECT, LOCK TABLES command denied to user 'root'@'localhost' for table `performance_schema`.`events_waits_current`
 unlock tables;
 lock table performance_schema.file_instances read;
-ERROR 42000: SELECT, LOCK TABLES command denied to user 'root'@'localhost' for table 'file_instances'
+ERROR 42000: SELECT, LOCK TABLES command denied to user 'root'@'localhost' for table `performance_schema`.`file_instances`
 unlock tables;
 lock table performance_schema.file_instances write;
-ERROR 42000: SELECT, LOCK TABLES command denied to user 'root'@'localhost' for table 'file_instances'
+ERROR 42000: SELECT, LOCK TABLES command denied to user 'root'@'localhost' for table `performance_schema`.`file_instances`
 unlock tables;
 #
 # WL#4818, NFS2: Can use grants to give normal user access
@@ -263,34 +263,34 @@ create table test.t1 like performance_schema.file_instances;
 ERROR HY000: Can't create table `test`.`t1` (errno: 131 "Command not supported by the engine")
 insert into performance_schema.setup_instruments
 set name="foo";
-ERROR 42000: INSERT command denied to user 'pfs_user_1'@'localhost' for table 'setup_instruments'
+ERROR 42000: INSERT command denied to user 'pfs_user_1'@'localhost' for table `performance_schema`.`setup_instruments`
 insert into performance_schema.events_waits_current
 set name="foo";
-ERROR 42000: INSERT command denied to user 'pfs_user_1'@'localhost' for table 'events_waits_current'
+ERROR 42000: INSERT command denied to user 'pfs_user_1'@'localhost' for table `performance_schema`.`events_waits_current`
 insert into performance_schema.file_instances
 set name="foo";
-ERROR 42000: INSERT command denied to user 'pfs_user_1'@'localhost' for table 'file_instances'
+ERROR 42000: INSERT command denied to user 'pfs_user_1'@'localhost' for table `performance_schema`.`file_instances`
 delete from performance_schema.setup_instruments;
-ERROR 42000: DELETE command denied to user 'pfs_user_1'@'localhost' for table 'setup_instruments'
+ERROR 42000: DELETE command denied to user 'pfs_user_1'@'localhost' for table `performance_schema`.`setup_instruments`
 delete from performance_schema.events_waits_current;
-ERROR 42000: DELETE command denied to user 'pfs_user_1'@'localhost' for table 'events_waits_current'
+ERROR 42000: DELETE command denied to user 'pfs_user_1'@'localhost' for table `performance_schema`.`events_waits_current`
 delete from performance_schema.file_instances;
-ERROR 42000: DELETE command denied to user 'pfs_user_1'@'localhost' for table 'file_instances'
+ERROR 42000: DELETE command denied to user 'pfs_user_1'@'localhost' for table `performance_schema`.`file_instances`
 lock table performance_schema.setup_instruments read;
 unlock tables;
 lock table performance_schema.setup_instruments write;
 unlock tables;
 lock table performance_schema.events_waits_current read;
-ERROR 42000: SELECT, LOCK TABLES command denied to user 'pfs_user_1'@'localhost' for table 'events_waits_current'
+ERROR 42000: SELECT, LOCK TABLES command denied to user 'pfs_user_1'@'localhost' for table `performance_schema`.`events_waits_current`
 unlock tables;
 lock table performance_schema.events_waits_current write;
-ERROR 42000: SELECT, LOCK TABLES command denied to user 'pfs_user_1'@'localhost' for table 'events_waits_current'
+ERROR 42000: SELECT, LOCK TABLES command denied to user 'pfs_user_1'@'localhost' for table `performance_schema`.`events_waits_current`
 unlock tables;
 lock table performance_schema.file_instances read;
-ERROR 42000: SELECT, LOCK TABLES command denied to user 'pfs_user_1'@'localhost' for table 'file_instances'
+ERROR 42000: SELECT, LOCK TABLES command denied to user 'pfs_user_1'@'localhost' for table `performance_schema`.`file_instances`
 unlock tables;
 lock table performance_schema.file_instances write;
-ERROR 42000: SELECT, LOCK TABLES command denied to user 'pfs_user_1'@'localhost' for table 'file_instances'
+ERROR 42000: SELECT, LOCK TABLES command denied to user 'pfs_user_1'@'localhost' for table `performance_schema`.`file_instances`
 unlock tables;
 #
 # WL#4818, NFS2: Can use grants to give normal user access
@@ -363,34 +363,34 @@ create table test.t1 like performance_schema.file_instances;
 ERROR HY000: Can't create table `test`.`t1` (errno: 131 "Command not supported by the engine")
 insert into performance_schema.setup_instruments
 set name="foo";
-ERROR 42000: INSERT command denied to user 'pfs_user_2'@'localhost' for table 'setup_instruments'
+ERROR 42000: INSERT command denied to user 'pfs_user_2'@'localhost' for table `performance_schema`.`setup_instruments`
 insert into performance_schema.events_waits_current
 set name="foo";
-ERROR 42000: INSERT command denied to user 'pfs_user_2'@'localhost' for table 'events_waits_current'
+ERROR 42000: INSERT command denied to user 'pfs_user_2'@'localhost' for table `performance_schema`.`events_waits_current`
 insert into performance_schema.file_instances
 set name="foo";
-ERROR 42000: INSERT command denied to user 'pfs_user_2'@'localhost' for table 'file_instances'
+ERROR 42000: INSERT command denied to user 'pfs_user_2'@'localhost' for table `performance_schema`.`file_instances`
 delete from performance_schema.setup_instruments;
-ERROR 42000: DELETE command denied to user 'pfs_user_2'@'localhost' for table 'setup_instruments'
+ERROR 42000: DELETE command denied to user 'pfs_user_2'@'localhost' for table `performance_schema`.`setup_instruments`
 delete from performance_schema.events_waits_current;
-ERROR 42000: DELETE command denied to user 'pfs_user_2'@'localhost' for table 'events_waits_current'
+ERROR 42000: DELETE command denied to user 'pfs_user_2'@'localhost' for table `performance_schema`.`events_waits_current`
 delete from performance_schema.file_instances;
-ERROR 42000: DELETE command denied to user 'pfs_user_2'@'localhost' for table 'file_instances'
+ERROR 42000: DELETE command denied to user 'pfs_user_2'@'localhost' for table `performance_schema`.`file_instances`
 lock table performance_schema.setup_instruments read;
 unlock tables;
 lock table performance_schema.setup_instruments write;
 unlock tables;
 lock table performance_schema.events_waits_current read;
-ERROR 42000: SELECT, LOCK TABLES command denied to user 'pfs_user_2'@'localhost' for table 'events_waits_current'
+ERROR 42000: SELECT, LOCK TABLES command denied to user 'pfs_user_2'@'localhost' for table `performance_schema`.`events_waits_current`
 unlock tables;
 lock table performance_schema.events_waits_current write;
-ERROR 42000: SELECT, LOCK TABLES command denied to user 'pfs_user_2'@'localhost' for table 'events_waits_current'
+ERROR 42000: SELECT, LOCK TABLES command denied to user 'pfs_user_2'@'localhost' for table `performance_schema`.`events_waits_current`
 unlock tables;
 lock table performance_schema.file_instances read;
-ERROR 42000: SELECT, LOCK TABLES command denied to user 'pfs_user_2'@'localhost' for table 'file_instances'
+ERROR 42000: SELECT, LOCK TABLES command denied to user 'pfs_user_2'@'localhost' for table `performance_schema`.`file_instances`
 unlock tables;
 lock table performance_schema.file_instances write;
-ERROR 42000: SELECT, LOCK TABLES command denied to user 'pfs_user_2'@'localhost' for table 'file_instances'
+ERROR 42000: SELECT, LOCK TABLES command denied to user 'pfs_user_2'@'localhost' for table `performance_schema`.`file_instances`
 unlock tables;
 #
 # WL#4818, NFS2: Can use grants to give normal user access
@@ -463,34 +463,34 @@ create table test.t1 like performance_schema.file_instances;
 ERROR HY000: Can't create table `test`.`t1` (errno: 131 "Command not supported by the engine")
 insert into performance_schema.setup_instruments
 set name="foo";
-ERROR 42000: INSERT command denied to user 'pfs_user_3'@'localhost' for table 'setup_instruments'
+ERROR 42000: INSERT command denied to user 'pfs_user_3'@'localhost' for table `performance_schema`.`setup_instruments`
 insert into performance_schema.events_waits_current
 set name="foo";
-ERROR 42000: INSERT command denied to user 'pfs_user_3'@'localhost' for table 'events_waits_current'
+ERROR 42000: INSERT command denied to user 'pfs_user_3'@'localhost' for table `performance_schema`.`events_waits_current`
 insert into performance_schema.file_instances
 set name="foo";
-ERROR 42000: INSERT command denied to user 'pfs_user_3'@'localhost' for table 'file_instances'
+ERROR 42000: INSERT command denied to user 'pfs_user_3'@'localhost' for table `performance_schema`.`file_instances`
 delete from performance_schema.setup_instruments;
-ERROR 42000: DELETE command denied to user 'pfs_user_3'@'localhost' for table 'setup_instruments'
+ERROR 42000: DELETE command denied to user 'pfs_user_3'@'localhost' for table `performance_schema`.`setup_instruments`
 delete from performance_schema.events_waits_current;
-ERROR 42000: DELETE command denied to user 'pfs_user_3'@'localhost' for table 'events_waits_current'
+ERROR 42000: DELETE command denied to user 'pfs_user_3'@'localhost' for table `performance_schema`.`events_waits_current`
 delete from performance_schema.file_instances;
-ERROR 42000: DELETE command denied to user 'pfs_user_3'@'localhost' for table 'file_instances'
+ERROR 42000: DELETE command denied to user 'pfs_user_3'@'localhost' for table `performance_schema`.`file_instances`
 lock table performance_schema.setup_instruments read;
 unlock tables;
 lock table performance_schema.setup_instruments write;
 unlock tables;
 lock table performance_schema.events_waits_current read;
-ERROR 42000: SELECT, LOCK TABLES command denied to user 'pfs_user_3'@'localhost' for table 'events_waits_current'
+ERROR 42000: SELECT, LOCK TABLES command denied to user 'pfs_user_3'@'localhost' for table `performance_schema`.`events_waits_current`
 unlock tables;
 lock table performance_schema.events_waits_current write;
-ERROR 42000: SELECT, LOCK TABLES command denied to user 'pfs_user_3'@'localhost' for table 'events_waits_current'
+ERROR 42000: SELECT, LOCK TABLES command denied to user 'pfs_user_3'@'localhost' for table `performance_schema`.`events_waits_current`
 unlock tables;
 lock table performance_schema.file_instances read;
-ERROR 42000: SELECT, LOCK TABLES command denied to user 'pfs_user_3'@'localhost' for table 'file_instances'
+ERROR 42000: SELECT, LOCK TABLES command denied to user 'pfs_user_3'@'localhost' for table `performance_schema`.`file_instances`
 unlock tables;
 lock table performance_schema.file_instances write;
-ERROR 42000: SELECT, LOCK TABLES command denied to user 'pfs_user_3'@'localhost' for table 'file_instances'
+ERROR 42000: SELECT, LOCK TABLES command denied to user 'pfs_user_3'@'localhost' for table `performance_schema`.`file_instances`
 unlock tables;
 #
 # WL#4818, NFS2: Can use grants to give normal user access
@@ -499,16 +499,16 @@ unlock tables;
 # Should work as pfs_user_1 and pfs_user_2, but not as pfs_user_3.
 # (Except for events_waits_current, which is granted.)
 SELECT "can select" FROM performance_schema.events_waits_history LIMIT 1;
-ERROR 42000: SELECT command denied to user 'pfs_user_3'@'localhost' for table 'events_waits_history'
+ERROR 42000: SELECT command denied to user 'pfs_user_3'@'localhost' for table `performance_schema`.`events_waits_history`
 SELECT "can select" FROM performance_schema.events_waits_history_long LIMIT 1;
-ERROR 42000: SELECT command denied to user 'pfs_user_3'@'localhost' for table 'events_waits_history_long'
+ERROR 42000: SELECT command denied to user 'pfs_user_3'@'localhost' for table `performance_schema`.`events_waits_history_long`
 SELECT "can select" FROM performance_schema.events_waits_current LIMIT 1;
 can select
 can select
 SELECT "can select" FROM performance_schema.events_waits_summary_by_instance LIMIT 1;
-ERROR 42000: SELECT command denied to user 'pfs_user_3'@'localhost' for table 'events_waits_summary_by_instance'
+ERROR 42000: SELECT command denied to user 'pfs_user_3'@'localhost' for table `performance_schema`.`events_waits_summary_by_instance`
 SELECT "can select" FROM performance_schema.file_summary_by_instance LIMIT 1;
-ERROR 42000: SELECT command denied to user 'pfs_user_3'@'localhost' for table 'file_summary_by_instance'
+ERROR 42000: SELECT command denied to user 'pfs_user_3'@'localhost' for table `performance_schema`.`file_summary_by_instance`
 disconnect con3;
 connection default;
 revoke all privileges, grant option from 'pfs_user_1'@localhost;
@@ -529,15 +529,15 @@ connect  pfs_user_4, localhost, pfs_user_4, , ;
 connection pfs_user_4;
 # Select as pfs_user_4 should fail without grant
 SELECT event_id FROM performance_schema.events_waits_history;
-ERROR 42000: SELECT command denied to user 'pfs_user_4'@'localhost' for table 'events_waits_history'
+ERROR 42000: SELECT command denied to user 'pfs_user_4'@'localhost' for table `performance_schema`.`events_waits_history`
 SELECT event_id FROM performance_schema.events_waits_history_long;
-ERROR 42000: SELECT command denied to user 'pfs_user_4'@'localhost' for table 'events_waits_history_long'
+ERROR 42000: SELECT command denied to user 'pfs_user_4'@'localhost' for table `performance_schema`.`events_waits_history_long`
 SELECT event_id FROM performance_schema.events_waits_current;
-ERROR 42000: SELECT command denied to user 'pfs_user_4'@'localhost' for table 'events_waits_current'
+ERROR 42000: SELECT command denied to user 'pfs_user_4'@'localhost' for table `performance_schema`.`events_waits_current`
 SELECT event_name FROM performance_schema.events_waits_summary_by_instance;
-ERROR 42000: SELECT command denied to user 'pfs_user_4'@'localhost' for table 'events_waits_summary_by_instance'
+ERROR 42000: SELECT command denied to user 'pfs_user_4'@'localhost' for table `performance_schema`.`events_waits_summary_by_instance`
 SELECT event_name FROM performance_schema.file_summary_by_instance;
-ERROR 42000: SELECT command denied to user 'pfs_user_4'@'localhost' for table 'file_summary_by_instance'
+ERROR 42000: SELECT command denied to user 'pfs_user_4'@'localhost' for table `performance_schema`.`file_summary_by_instance`
 #
 # WL#4818, NFS3: Normal user does not have access to change what is
 #                instrumented without grants
@@ -546,21 +546,21 @@ connection pfs_user_4;
 # User pfs_user_4 should not be allowed to tweak instrumentation without
 # explicit grant
 UPDATE performance_schema.setup_instruments SET enabled = 'NO', timed = 'YES';
-ERROR 42000: UPDATE command denied to user 'pfs_user_4'@'localhost' for table 'setup_instruments'
+ERROR 42000: UPDATE command denied to user 'pfs_user_4'@'localhost' for table `performance_schema`.`setup_instruments`
 UPDATE performance_schema.setup_instruments SET enabled = 'YES'
 WHERE name LIKE 'wait/synch/mutex/%'
    OR name LIKE 'wait/synch/rwlock/%';
-ERROR 42000: UPDATE command denied to user 'pfs_user_4'@'localhost' for table 'setup_instruments'
+ERROR 42000: UPDATE command denied to user 'pfs_user_4'@'localhost' for table `performance_schema`.`setup_instruments`
 UPDATE performance_schema.setup_consumers SET enabled = 'YES';
-ERROR 42000: UPDATE command denied to user 'pfs_user_4'@'localhost' for table 'setup_consumers'
+ERROR 42000: UPDATE command denied to user 'pfs_user_4'@'localhost' for table `performance_schema`.`setup_consumers`
 UPDATE performance_schema.setup_timers SET timer_name = 'TICK';
-ERROR 42000: UPDATE command denied to user 'pfs_user_4'@'localhost' for table 'setup_timers'
+ERROR 42000: UPDATE command denied to user 'pfs_user_4'@'localhost' for table `performance_schema`.`setup_timers`
 TRUNCATE TABLE performance_schema.events_waits_history_long;
-ERROR 42000: DROP command denied to user 'pfs_user_4'@'localhost' for table 'events_waits_history_long'
+ERROR 42000: DROP command denied to user 'pfs_user_4'@'localhost' for table `performance_schema`.`events_waits_history_long`
 TRUNCATE TABLE performance_schema.events_waits_history;
-ERROR 42000: DROP command denied to user 'pfs_user_4'@'localhost' for table 'events_waits_history'
+ERROR 42000: DROP command denied to user 'pfs_user_4'@'localhost' for table `performance_schema`.`events_waits_history`
 TRUNCATE TABLE performance_schema.events_waits_current;
-ERROR 42000: DROP command denied to user 'pfs_user_4'@'localhost' for table 'events_waits_current'
+ERROR 42000: DROP command denied to user 'pfs_user_4'@'localhost' for table `performance_schema`.`events_waits_current`
 #
 # WL#4814, NFS1: Can use grants to give normal user access
 #                to turn on and off instrumentation

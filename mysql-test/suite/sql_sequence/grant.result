@@ -22,9 +22,9 @@ next_not_cached_value	minimum_value	maximum_value	start_value	increment	cache_si
 11	1	9223372036854775806	1	1	1000	0	0
 connection read_only;
 select next value for s1;
-ERROR 42000: INSERT command denied to user 'read_only'@'localhost' for table 's1'
+ERROR 42000: INSERT command denied to user 'read_only'@'localhost' for table `mysqltest_1`.`s1`
 alter sequence s1 restart= 11;
-ERROR 42000: ALTER command denied to user 'read_only'@'localhost' for table 's1'
+ERROR 42000: ALTER command denied to user 'read_only'@'localhost' for table `mysqltest_1`.`s1`
 select * from s1;
 next_not_cached_value	minimum_value	maximum_value	start_value	increment	cache_size	cycle_option	cycle_count
 11	1	9223372036854775806	1	1	1000	0	0
@@ -33,7 +33,7 @@ select next value for s1;
 next value for s1
 11
 alter sequence s1 restart= 11;
-ERROR 42000: ALTER command denied to user 'read_write'@'localhost' for table 's1'
+ERROR 42000: ALTER command denied to user 'read_write'@'localhost' for table `mysqltest_1`.`s1`
 select * from s1;
 next_not_cached_value	minimum_value	maximum_value	start_value	increment	cache_size	cycle_option	cycle_count
 1011	1	9223372036854775806	1	1	1000	0	0
@@ -47,10 +47,10 @@ next_not_cached_value	minimum_value	maximum_value	start_value	increment	cache_si
 11	1	9223372036854775806	1	1	1000	0	0
 connection only_alter;
 select next value for s1;
-ERROR 42000: INSERT command denied to user 'only_alter'@'localhost' for table 's1'
+ERROR 42000: INSERT command denied to user 'only_alter'@'localhost' for table `mysqltest_1`.`s1`
 alter sequence s1 restart= 11;
 select * from s1;
-ERROR 42000: SELECT command denied to user 'only_alter'@'localhost' for table 's1'
+ERROR 42000: SELECT command denied to user 'only_alter'@'localhost' for table `mysqltest_1`.`s1`
 connection default;
 drop database mysqltest_1;
 drop user 'normal'@'%';

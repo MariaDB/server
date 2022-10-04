@@ -20,6 +20,7 @@
 #   MDEV-16091: Seconds_Behind_Master spikes to millions of seconds
 #
 --source include/have_debug.inc
+--source include/have_debug_sync.inc
 --source include/have_innodb.inc
 --source include/master-slave.inc
 

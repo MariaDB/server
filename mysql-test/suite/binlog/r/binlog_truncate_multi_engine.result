@@ -145,7 +145,7 @@ INSERT INTO t2 VALUES (1, REPEAT("x", 1));
 BEGIN;
 INSERT INTO t2 VALUES (2, REPEAT("x", 4100));
 INSERT INTO t1 VALUES (2, REPEAT("x", 4100));
-SET DEBUG_SYNC= "commit_after_run_commit_ordered SIGNAL con1_ready WAIT_FOR signal_no_signal";
+SET DEBUG_SYNC= "commit_after_run_commit_ordered SIGNAL con1_ready";
 COMMIT;
 connection default;
 SET DEBUG_SYNC= "now WAIT_FOR con1_ready";

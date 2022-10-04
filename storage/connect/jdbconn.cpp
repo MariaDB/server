@@ -451,8 +451,14 @@ PQRYRES JDBCSrcCols(PGLOBAL g, PCSZ src, PJPARM sjp)
 
 	if (strstr(src, "%s")) {
 		// Place holder for an eventual where clause
-		sqry = (char*)PlugSubAlloc(g, NULL, strlen(src) + 2);
-		sprintf(sqry, src, "1=1");			 // dummy where clause
+		size_t sqry_size = strlen(src) + 2;
+		sqry = (char*)PlugSubAlloc(g, NULL, sqry_size);
+		// Function PlugSubAlloc(...) recalculate string size
+		// while allocate memory - it rounds size up size to multiple of 8
+		// we need to know the real allocated size 
+		// to use it in sprintf(...)
+		const int sqry_real_allocated_size = ROUNDUP_TO_8(sqry_size);
+		snprintf(sqry, sqry_real_allocated_size, src, "1=1");			 // dummy where clause
 	} else
 		sqry = (char*)src;
 

@@ -400,10 +400,10 @@ f(id2)
 14
 EXPLAIN INSERT INTO t2 SELECT * FROM t1 WHERE id1=8 RETURNING id2;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	const	PRIMARY	PRIMARY	4	const	1	
+1	SIMPLE	t1	const	PRIMARY	PRIMARY	4	const	1	
 EXPLAIN EXTENDED INSERT INTO t1 SELECT * FROM t1 WHERE id1=9 RETURNING val1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
 EXPLAIN FORMAT="json" INSERT INTO t1 SELECT * FROM t1 WHERE id1=10 RETURNING val1;
 EXPLAIN
 {
@@ -433,7 +433,7 @@ Warning	1062	Duplicate entry '7' for key 'PRIMARY'
 Warning	1062	Duplicate entry '8' for key 'PRIMARY'
 ANALYZE INSERT INTO t2 SELECT * FROM t1 WHERE id1=11 RETURNING *;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
-1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	no matching row in const table
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	no matching row in const table
 SELECT * FROM t2;
 id2	val2
 1	a
@@ -615,3 +615,61 @@ DROP TABLE ins_duplicate;
 DROP VIEW v1;
 DROP VIEW v2;
 DROP FUNCTION f;
+#
+# MDEV-25028: ASAN use-after-poison in base_list_iterator::next or
+# Assertion `sl->join == 0' upon INSERT .. RETURNING via PS
+#
+CREATE TABLE t1 (a INT);
+CREATE TABLE t2 (b INT);
+PREPARE stmt1 FROM "INSERT INTO t1 SELECT * FROM t1 WHERE a IN (SELECT b FROM t2) RETURNING a";
+EXECUTE stmt1;
+a
+PREPARE stmt2 FROM "INSERT INTO t1 SELECT * FROM t1 WHERE a IN (SELECT b FROM t2) RETURNING (SELECT b FROM t2)";
+EXECUTE stmt2;
+(SELECT b FROM t2)
+DROP TABLE t1, t2;
+#
+# MDEV-25187: Assertion `inited == NONE || table->open_by_handler'
+# failed or Direct leak in init_dynamic_array2 upon INSERT .. RETURNING
+# and memory leak in init_dynamic_array2
+#
+CREATE TABLE t (a INT, KEY (a));
+CREATE TABLE t1 (f INT);
+INSERT INTO t VALUES (1),(2);
+INSERT INTO t1 SELECT a FROM t WHERE 1 NOT IN (SELECT a FROM t) RETURNING f;
+f
+DROP TABLE t, t1;
+#
+# MDEV-28740: crash in INSERT RETURNING subquery in prepared statements
+#
+CREATE TABLE t1 (
+id INTEGER NOT NULL,
+data VARCHAR(30),
+PRIMARY KEY (id)
+)ENGINE=MyISAM;
+EXECUTE IMMEDIATE 'INSERT INTO t1 (id, data) VALUES  ((SELECT CAST(1 AS SIGNED INTEGER) AS anon_1), ?) RETURNING t1.id' using 'hi';
+id
+1
+DROP TABLE t1;
+#
+# MDEV-27165: crash in base_list_iterator::next
+#
+CREATE TABLE t1 ( id int, a int);
+CREATE TABLE t2 ( id int);
+INSERT INTO t1 VALUES (( SELECT 1 from t2),999999999999) RETURNING id;
+ERROR 22003: Out of range value for column 'a' at row 1
+EXECUTE immediate "INSERT INTO t1 VALUES (( SELECT 1 from t2),999999999999) RETURNING id ";
+ERROR 22003: Out of range value for column 'a' at row 1
+EXECUTE immediate "INSERT INTO t1 VALUES (( SELECT 1 from t2),9) RETURNING id ";
+id
+NULL
+DROP TABLE t1, t2;
+#
+# MDEV-29686: Assertion `slave == 0' failed in
+# st_select_lex_node::attach_single
+#
+CREATE TABLE t (a INT);
+INSERT t WITH cte AS (SELECT 1) SELECT * FROM cte RETURNING *;
+a
+1
+DROP TABLE t;

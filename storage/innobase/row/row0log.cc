@@ -1922,6 +1922,7 @@ func_exit:
 		mtr.commit();
 func_exit_committed:
 		ut_ad(mtr.has_committed());
+		ut_free(pcur.old_rec_buf);
 
 		if (error != DB_SUCCESS) {
 			/* Report the erroneous row using the new
@@ -2082,7 +2083,8 @@ func_exit_committed:
 		entry = row_build_index_entry(old_row, old_ext, index, heap);
 		if (!entry) {
 			ut_ad(0);
-			return(DB_CORRUPTION);
+			error = DB_CORRUPTION;
+			goto func_exit_committed;
 		}
 
 		mtr.start();

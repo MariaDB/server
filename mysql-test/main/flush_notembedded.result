@@ -38,13 +38,13 @@ CREATE VIEW v2 AS SELECT * FROM performance_schema.accounts;
 FLUSH TABLE information_schema.collations WITH READ LOCK;
 ERROR 42000: Access denied for user 'root'@'localhost' to database 'information_schema'
 FLUSH TABLE performance_schema.accounts WITH READ LOCK;
-ERROR 42000: SELECT, LOCK TABLES command denied to user 'root'@'localhost' for table 'accounts'
+ERROR 42000: SELECT, LOCK TABLES command denied to user 'root'@'localhost' for table `performance_schema`.`accounts`
 FLUSH TABLE information_schema.colums WITH READ LOCK;
 ERROR 42000: Access denied for user 'root'@'localhost' to database 'information_schema'
 FLUSH TABLE information_schema.collations FOR EXPORT;
 ERROR 42000: Access denied for user 'root'@'localhost' to database 'information_schema'
 FLUSH TABLE performance_schema.accounts FOR EXPORT;
-ERROR 42000: SELECT, LOCK TABLES command denied to user 'root'@'localhost' for table 'accounts'
+ERROR 42000: SELECT, LOCK TABLES command denied to user 'root'@'localhost' for table `performance_schema`.`accounts`
 FLUSH TABLE information_schema.colums FOR EXPORT;
 ERROR 42000: Access denied for user 'root'@'localhost' to database 'information_schema'
 #

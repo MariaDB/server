@@ -451,6 +451,7 @@ void thd_storage_lock_wait(THD *thd, long long value)
 extern "C"
 void *thd_get_ha_data(const THD *thd, const struct handlerton *hton)
 {
+  DBUG_ASSERT(thd == current_thd ||  mysql_mutex_is_owner(&thd->LOCK_thd_data));
   return thd->ha_data[hton->slot].ha_ptr;
 }
 
@@ -1521,6 +1522,8 @@ void THD::cleanup(void)
     wsrep_cs().cleanup();
   wsrep_client_thread= false;
 #endif /* WITH_WSREP */
+
+  DEBUG_SYNC(this, "THD_cleanup_after_set_killed");
 
   mysql_ha_cleanup(this);
   locked_tables_list.unlock_locked_tables(this);
@@ -3936,6 +3939,7 @@ Statement::Statement(LEX *lex_arg, MEM_ROOT *mem_root_arg,
   lex(lex_arg),
   db(null_clex_str)
 {
+  hr_prepare_time.val= 0,
   name= null_clex_str;
 }
 
@@ -3952,6 +3956,7 @@ void Statement::set_statement(Statement *stmt)
   column_usage=   stmt->column_usage;
   lex=            stmt->lex;
   query_string=   stmt->query_string;
+  hr_prepare_time=    stmt->hr_prepare_time;
 }
 
 
@@ -7384,7 +7389,7 @@ int THD::binlog_flush_pending_rows_event(bool stmt_end, bool is_transactional)
 }
 
 
-#if !defined(DBUG_OFF) && !defined(_lint)
+#if defined(DBUG_TRACE) && !defined(_lint)
 static const char *
 show_query_type(THD::enum_binlog_query_type qtype)
 {

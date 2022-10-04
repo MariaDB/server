@@ -215,6 +215,23 @@ SELECT g.VARIABLE_NAME, g.VARIABLE_VALUE - b.VARIABLE_VALUE AS diff
 --echo #
 
 --echo #
+--echo # MDEV-29347 MariaDB 10.6.8 fails to start when ONLY_FULL_GROUP_BY gets provided
+--echo #
+
+--exec $MYSQL_TZINFO_TO_SQL $MYSQLTEST_VARDIR/zoneinfo > $MYSQL_TMP_DIR/tz.sql
+set sql_mode=only_full_group_by;
+--disable_query_log
+--source $MYSQL_TMP_DIR/tz.sql
+--enable_query_log
+SELECT COUNT(*) FROM time_zone;
+SELECT COUNT(*) FROM time_zone_name;
+SELECT COUNT(*) FROM time_zone_transition;
+SELECT COUNT(*) FROM time_zone_transition_type;
+SELECT COUNT(*) FROM time_zone_leap_second;
+select @@sql_mode;
+set sql_mode=default;
+
+--echo #
 --echo # MDEV-6236 - [PATCH] mysql_tzinfo_to_sql may produce invalid SQL
 --echo #
 --exec rm -rf $MYSQLTEST_VARDIR/zoneinfo

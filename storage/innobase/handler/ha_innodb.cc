@@ -130,7 +130,6 @@ void thd_clear_error(MYSQL_THD thd);
 TABLE *find_fk_open_table(THD *thd, const char *db, size_t db_len,
 			  const char *table, size_t table_len);
 MYSQL_THD create_background_thd();
-void destroy_background_thd(MYSQL_THD thd);
 void reset_thd(MYSQL_THD thd);
 TABLE *get_purge_table(THD *thd);
 TABLE *open_purge_table(THD *thd, const char *db, size_t dblen,
@@ -1781,20 +1780,6 @@ THD *innodb_thd_increment_pending_ops(THD *thd)
     return nullptr;
   thd_increment_pending_ops(thd);
   return thd;
-}
-
-/** Destroy a background purge thread THD.
-@param[in]	thd	MYSQL_THD to destroy */
-void
-innobase_destroy_background_thd(
-/*============================*/
-	MYSQL_THD thd)
-{
-	/* need to close the connection explicitly, the server won't do it
-	if innodb is in the PLUGIN_IS_DYING state */
-	innobase_close_connection(innodb_hton_ptr, thd);
-	thd_set_ha_data(thd, innodb_hton_ptr, NULL);
-	destroy_background_thd(thd);
 }
 
 /** Close opened tables, free memory, delete items for a MYSQL_THD.
@@ -4965,6 +4950,7 @@ static int innobase_close_connection(handlerton *hton, THD *thd)
   DBUG_ASSERT(hton == innodb_hton_ptr);
   if (auto trx= thd_to_trx(thd))
   {
+    thd_set_ha_data(thd, innodb_hton_ptr, NULL);
     if (trx->state == TRX_STATE_PREPARED && trx->has_logged_persistent())
     {
       trx_disconnect_prepared(trx);
@@ -4972,6 +4958,7 @@ static int innobase_close_connection(handlerton *hton, THD *thd)
     }
     innobase_rollback_trx(trx);
     trx->free();
+    DEBUG_SYNC(thd, "innobase_connection_closed");
   }
   return 0;
 }

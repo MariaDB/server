@@ -25,23 +25,23 @@ insert into performance_schema.objects_summary_global_by_type
 set object_type='TABLE', schema_name='FOO', object_name='BAR',
 count_star=1, sum_timer_wait=2, min_timer_wait=3,
 avg_timer_wait=4, max_timer_wait=5;
-ERROR 42000: INSERT command denied to user 'root'@'localhost' for table 'objects_summary_global_by_type'
+ERROR 42000: INSERT command denied to user 'root'@'localhost' for table `performance_schema`.`objects_summary_global_by_type`
 update performance_schema.objects_summary_global_by_type
 set count_star=12;
-ERROR 42000: UPDATE command denied to user 'root'@'localhost' for table 'objects_summary_global_by_type'
+ERROR 42000: UPDATE command denied to user 'root'@'localhost' for table `performance_schema`.`objects_summary_global_by_type`
 update performance_schema.objects_summary_global_by_type
 set count_star=12 where object_name like "FOO";
-ERROR 42000: UPDATE command denied to user 'root'@'localhost' for table 'objects_summary_global_by_type'
+ERROR 42000: UPDATE command denied to user 'root'@'localhost' for table `performance_schema`.`objects_summary_global_by_type`
 delete from performance_schema.objects_summary_global_by_type
 where count_star=1;
-ERROR 42000: DELETE command denied to user 'root'@'localhost' for table 'objects_summary_global_by_type'
+ERROR 42000: DELETE command denied to user 'root'@'localhost' for table `performance_schema`.`objects_summary_global_by_type`
 delete from performance_schema.objects_summary_global_by_type;
-ERROR 42000: DELETE command denied to user 'root'@'localhost' for table 'objects_summary_global_by_type'
+ERROR 42000: DELETE command denied to user 'root'@'localhost' for table `performance_schema`.`objects_summary_global_by_type`
 LOCK TABLES performance_schema.objects_summary_global_by_type READ;
-ERROR 42000: SELECT, LOCK TABLES command denied to user 'root'@'localhost' for table 'objects_summary_global_by_type'
+ERROR 42000: SELECT, LOCK TABLES command denied to user 'root'@'localhost' for table `performance_schema`.`objects_summary_global_by_type`
 UNLOCK TABLES;
 LOCK TABLES performance_schema.objects_summary_global_by_type WRITE;
-ERROR 42000: SELECT, LOCK TABLES command denied to user 'root'@'localhost' for table 'objects_summary_global_by_type'
+ERROR 42000: SELECT, LOCK TABLES command denied to user 'root'@'localhost' for table `performance_schema`.`objects_summary_global_by_type`
 UNLOCK TABLES;
 #
 # MDEV-25325 column_comment for performance_schema tables

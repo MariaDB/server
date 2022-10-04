@@ -23,9 +23,9 @@ user1@localhost
 # Making sure that user1 does not have privileges to db1.t1
 #
 SHOW CREATE TABLE db1.t1;
-ERROR 42000: SHOW command denied to user 'user1'@'localhost' for table 't1'
+ERROR 42000: SHOW command denied to user 'user1'@'localhost' for table `db1`.`t1`
 SHOW FIELDS IN db1.t1;
-ERROR 42000: SELECT command denied to user 'user1'@'localhost' for table 't1'
+ERROR 42000: SELECT command denied to user 'user1'@'localhost' for table `db1`.`t1`
 #
 # Trigger: using %TYPE with a table we don't have access to
 #
@@ -43,7 +43,7 @@ END;
 END
 $$
 INSERT INTO t1 (a) VALUES (10);
-ERROR 42000: SELECT command denied to user 'user1'@'localhost' for table 't1'
+ERROR 42000: SELECT command denied to user 'user1'@'localhost' for table `db1`.`t1`
 SELECT * FROM t1;
 a	b
 10	20
@@ -61,7 +61,7 @@ SELECT a;
 END;
 $$
 CALL p1;
-ERROR 42000: SELECT command denied to user 'user1'@'localhost' for table 't1'
+ERROR 42000: SELECT command denied to user 'user1'@'localhost' for table `db1`.`t1`
 DROP PROCEDURE p1;
 CREATE PROCEDURE p1()
 AS
@@ -71,7 +71,7 @@ SELECT a.a;
 END;
 $$
 CALL p1;
-ERROR 42000: SELECT command denied to user 'user1'@'localhost' for table 't1'
+ERROR 42000: SELECT command denied to user 'user1'@'localhost' for table `db1`.`t1`
 DROP PROCEDURE p1;
 #
 # Stored procedure: Using %TYPE for with a table that we don't have access to
@@ -88,7 +88,7 @@ END;
 $$
 connection conn1;
 CALL p1;
-ERROR 42000: SELECT command denied to user 'user1'@'localhost' for table 't1'
+ERROR 42000: SELECT command denied to user 'user1'@'localhost' for table `db1`.`t1`
 DROP PROCEDURE p1;
 connection default;
 CREATE PROCEDURE p1()
@@ -101,7 +101,7 @@ END;
 $$
 connection conn1;
 CALL p1;
-ERROR 42000: SELECT command denied to user 'user1'@'localhost' for table 't1'
+ERROR 42000: SELECT command denied to user 'user1'@'localhost' for table `db1`.`t1`
 DROP PROCEDURE p1;
 #
 # Stored procedure: Using %TYPE for with a table that we don't have access to
@@ -149,7 +149,7 @@ RETURN OCTET_LENGTH(a);
 END;
 $$
 SELECT f1();
-ERROR 42000: SELECT command denied to user 'user1'@'localhost' for table 't1'
+ERROR 42000: SELECT command denied to user 'user1'@'localhost' for table `db1`.`t1`
 DROP FUNCTION f1;
 DROP TABLE t1;
 #
@@ -168,7 +168,7 @@ END;
 $$
 connection conn1;
 SELECT f1();
-ERROR 42000: SELECT command denied to user 'user1'@'localhost' for table 't1'
+ERROR 42000: SELECT command denied to user 'user1'@'localhost' for table `db1`.`t1`
 DROP FUNCTION f1;
 DROP TABLE t1;
 #
@@ -198,7 +198,7 @@ connection conn1;
 # Making sure that user1 has access to db1.t1.a, but not to db1.t1.b
 #
 SHOW CREATE TABLE db1.t1;
-ERROR 42000: SHOW command denied to user 'user1'@'localhost' for table 't1'
+ERROR 42000: SHOW command denied to user 'user1'@'localhost' for table `db1`.`t1`
 SHOW FIELDS IN db1.t1;
 Field	Type	Null	Key	Default	Extra
 a	int(11)	YES		NULL	
