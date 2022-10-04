@@ -2540,8 +2540,12 @@ bool optimize_semijoin_nests(JOIN *join, table_map all_table_map)
           int tableno;
           double rows= 1.0;
           while ((tableno = tm_it.next_bit()) != Table_map_iterator::BITMAP_END)
-            rows= COST_MULT(rows,
-			    join->map2table[tableno]->table->opt_range_condition_rows);
+          {
+            ha_rows tbl_rows=join->map2table[tableno]->
+                             table->opt_range_condition_rows;
+
+            rows= COST_MULT(rows, rows2double(tbl_rows));
+          }
           sjm->rows= MY_MIN(sjm->rows, rows);
         }
         memcpy((uchar*) sjm->positions,

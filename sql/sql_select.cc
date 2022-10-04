@@ -29952,11 +29952,12 @@ void JOIN::cache_const_exprs()
 static bool get_range_limit_read_cost(const POSITION *pos,
                                       const TABLE *table,
                                       uint keynr,
-                                      ha_rows rows_limit,
+                                      ha_rows rows_limit_arg,
                                       ha_rows rows_to_scan,
                                       double *read_cost,
                                       double *read_rows)
 {
+  double rows_limit= rows2double(rows_limit_arg);
   if (table->opt_range_keys.is_set(keynr))
   {
     /*
@@ -30027,7 +30028,7 @@ static bool get_range_limit_read_cost(const POSITION *pos,
                                             HA_ROWS_MAX);
   *read_cost= (cost.read_cost +
                rows_to_scan * WHERE_COST_THD(table->in_use));
-  *read_rows= rows_to_scan;
+  *read_rows= rows2double(rows_to_scan);
   return 0;
 }
 

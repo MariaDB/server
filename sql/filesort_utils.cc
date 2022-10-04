@@ -440,9 +440,9 @@ double cost_of_filesort(TABLE *table, ORDER *order_by, ha_rows rows_to_read,
   Sort_costs costs;
   Sort_param param;
   size_t memory_available= (size_t) thd->variables.sortbuff_size;
-  size_t sort_len= 0;
-  uint addon_field_length, num_addon_fields, num_nullable_fields,
-       packable_length;
+  uint sort_len= 0;
+  uint addon_field_length, num_addon_fields, num_nullable_fields;
+  uint packable_length;
   bool with_addon_fields;
 
 
@@ -451,7 +451,7 @@ double cost_of_filesort(TABLE *table, ORDER *order_by, ha_rows rows_to_read,
     Item_field *field= (Item_field*) (*ptr->item)->real_item();
     size_t length= get_sort_length(thd, field);
     set_if_smaller(length, thd->variables.max_sort_length);
-    sort_len+= length;
+    sort_len+= (uint)length;
   }
 
   with_addon_fields=
