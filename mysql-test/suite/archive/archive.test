@@ -1445,8 +1445,9 @@ INSERT INTO t5 VALUES (NULL, "promote the general welfare");
 SELECT * FROM t5;
 SELECT b FROM t5;
 SELECT b FROM t5 WHERE a =3;
+explain
 SELECT b FROM t5 WHERE a IN (32, 23, 5);
-
+SELECT b FROM t5 WHERE a IN (32, 23, 5);
 
 #More blob tests
 

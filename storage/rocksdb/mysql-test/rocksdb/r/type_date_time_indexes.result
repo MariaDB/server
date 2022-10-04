@@ -62,7 +62,7 @@ INSERT INTO t1 (d,dt,ts,t,y,pk) VALUES
 (DATE(@tm),@tm,TIMESTAMP(@tm),TIME(@tm),YEAR(@tm),'12:05:00');
 EXPLAIN SELECT ts FROM t1 WHERE ts > NOW();
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	ts	ts	5	NULL	#	Using where; Using index
+1	SIMPLE	t1	index	ts	ts	5	NULL	#	Using where; Using index
 SELECT ts FROM t1 WHERE ts > NOW();
 ts
 EXPLAIN SELECT ts FROM t1 USE INDEX () WHERE ts > NOW();

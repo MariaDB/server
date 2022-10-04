@@ -37,9 +37,9 @@ CREATE TABLE t1(
   e int(11) DEFAULT 0,   
   KEY (a) 
 ) ENGINE=ROCKSDB DEFAULT CHARSET=utf8;
-insert into t1 values (1,1,1),(2,2,2);
+insert into t1 values (1,"a",1),(2,"b",2),(3,"c",2);
 --replace_column 9 #
-explain select a from t1 where a <'zzz';
+explain select a from t1 where a <'b';
 
 CREATE TABLE t2(
   pk int,

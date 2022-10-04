@@ -32,6 +32,6 @@ KEY (i, j, k)
 );
 SELECT * FROM sys.schema_redundant_indexes;
 table_schema	table_name	redundant_index_name	redundant_index_columns	redundant_index_non_unique	dominant_index_name	dominant_index_columns	dominant_index_non_unique	subpart_exists	sql_drop_index
-rkey	rkey	j	j	1	j_2	j,k	1	0	ALTER TABLE `rkey`.`rkey` DROP INDEX `j`
 rkey	rkey	i	i,j,k	1	PRIMARY	i	0	0	ALTER TABLE `rkey`.`rkey` DROP INDEX `i`
+rkey	rkey	j	j	1	j_2	j,k	1	0	ALTER TABLE `rkey`.`rkey` DROP INDEX `j`
 DROP DATABASE rkey;
