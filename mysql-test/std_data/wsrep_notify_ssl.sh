@@ -7,19 +7,19 @@
 # Edit parameters below to specify the address and login to server:
 #
 USER=root
-PSWD=rootpass
+PSWD=
 #
 # If these parameters are not set, then the values
 # passed by the server are taken:
 #
 HOST=127.0.0.1
-PORT=3306
+PORT=$NODE_MYPORT_1
 #
 # Edit parameters below to specify SSL parameters:
 #
-ssl_key=
-ssl_cert=
-ssl_ca=
+ssl_cert="$MYSQL_TEST_DIR/std_data/client-cert.pem"
+ssl_key="$MYSQL_TEST_DIR/std_data/client-key.pem"
+ssl_ca="$MYSQL_TEST_DIR/std_data/cacert.pem"
 ssl_capath=
 ssl_cipher=
 ssl_crl=
@@ -28,22 +28,22 @@ ssl_verify_server_cert=0
 #
 # Client executable path:
 #
-CLIENT="mysql"
+CLIENT="$EXE_MYSQL"
 
-SCHEMA="wsrep"
+SCHEMA="mtr_wsrep_notify"
 MEMB_TABLE="$SCHEMA.membership"
 STATUS_TABLE="$SCHEMA.status"
 
 BEGIN="
 SET wsrep_on=0;
-DROP SCHEMA IF EXISTS $SCHEMA; CREATE SCHEMA $SCHEMA;
-CREATE TABLE $MEMB_TABLE (
-    idx  INT UNIQUE PRIMARY KEY,
-    uuid CHAR(40) UNIQUE, /* node UUID */
+CREATE SCHEMA IF NOT EXISTS $SCHEMA;
+CREATE TABLE IF NOT EXISTS $MEMB_TABLE (
+    idx  INT,
+    uuid CHAR(40),        /* node UUID */
     name VARCHAR(32),     /* node name */
     addr VARCHAR(256)     /* node address */
 ) ENGINE=MEMORY;
-CREATE TABLE $STATUS_TABLE (
+CREATE TABLE IF NOT EXISTS $STATUS_TABLE (
     size   INT,      /* component size   */
     idx    INT,      /* this node index  */
     status CHAR(16), /* this node status */
