@@ -326,7 +326,7 @@ SORT_INFO *filesort(THD *thd, TABLE *table, Filesort *filesort,
     }
 
     /* Priority queues needs one extra element for doing INSERT */
-    param.max_keys_per_buffer= param.limit_rows + 1;
+    param.max_keys_per_buffer= (uint)param.limit_rows + 1;
     if (!sort->alloc_sort_buffer(param.max_keys_per_buffer, param.rec_length))
       goto err;
 
