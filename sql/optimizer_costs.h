@@ -87,6 +87,8 @@ extern OPTIMIZER_COSTS heap_optimizer_costs, tmp_table_optimizer_costs;
 #define TABLE_SCAN_SETUP_COST   optimizer_scan_setup_cost
 #define TABLE_SCAN_SETUP_COST_THD(THD) (THD)->variables.optimizer_scan_setup_cost
 #define INDEX_SCAN_SETUP_COST   optimizer_scan_setup_cost/2
+/* Cost for doing duplicate removal in test_quick_select */
+#define DUPLICATE_REMOVAL_COST  default_optimizer_costs.key_copy_cost
 
 /* Default fill factors of an (b-tree) index block is assumed to be 0.75 */
 #define INDEX_BLOCK_FILL_FACTOR_DIV 3
