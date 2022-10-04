@@ -926,3 +926,15 @@ set sql_mode= default;
 #
 create or replace table t1 (i serial) as select * from (values(1), (2)) dt;
 drop table t1;
+#
+# MDEV-29698 Server crash or assertion failure upon CREATE OR REPLACE with a MERGE table
+#
+create table t (a int) engine=myisam;
+create table tm (a int) engine=merge union(t);
+create or replace table t like tm;
+ERROR HY000: Table 'tm' is specified twice, both as a target for 'CREATE' and as a separate source for data
+drop tables tm, t;
+create table t (a int) engine=myisam;
+create temporary table tm (a int) engine=merge union=(t);
+create or replace table tt like tm;
+drop tables tt, tm, t;

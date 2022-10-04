@@ -4731,6 +4731,7 @@ TABLE *select_create::create_table_from_items(THD *thd, List<Item> *items,
           for a temporary table).
         */
         TABLE *table= table_list->table;
+        table->pos_in_table_list= table_list;
         int error;
 
         /* Disable logging of inserted rows */
