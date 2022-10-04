@@ -1,4 +1,4 @@
-/* Copyright 2008-2021 Codership Oy <http://www.codership.com>
+/* Copyright 2008-2022 Codership Oy <http://www.codership.com>
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -2153,7 +2153,7 @@ static int wsrep_TOI_begin(THD *thd, const char *db, const char *table,
                  ret,
                  (thd->db.str ? thd->db.str : "(null)"),
                  wsrep_thd_query(thd));
-      my_error(ER_ERROR_DURING_COMMIT, MYF(0), WSREP_SIZE_EXCEEDED);
+      my_error(ER_TOO_BIG_WRITESET, MYF(0));
       break;
     case wsrep::e_deadlock_error:
       WSREP_WARN("TO isolation failed for: %d, schema: %s, sql: %s. "

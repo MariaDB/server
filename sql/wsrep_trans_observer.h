@@ -1,4 +1,4 @@
-/* Copyright 2016-2019 Codership Oy <http://www.codership.com>
+/* Copyright 2016-2022 Codership Oy <http://www.codership.com>
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -531,18 +531,28 @@ wsrep_current_error_status(THD* thd)
 static inline void wsrep_commit_empty(THD* thd, bool all)
 {
   DBUG_ENTER("wsrep_commit_empty");
-  WSREP_DEBUG("wsrep_commit_empty(%llu)", thd->thread_id);
+  WSREP_DEBUG("wsrep_commit_empty for %llu client_state %s client_mode"
+              " %s trans_state %s sql %s",
+              thd_get_thread_id(thd),
+              wsrep::to_c_string(thd->wsrep_cs().state()),
+              wsrep::to_c_string(thd->wsrep_cs().mode()),
+              wsrep::to_c_string(thd->wsrep_cs().transaction().state()),
+              wsrep_thd_query(thd));
+
   if (wsrep_is_real(thd, all) &&
       wsrep_thd_is_local(thd) &&
       thd->wsrep_trx().active() &&
       thd->wsrep_trx().state() != wsrep::transaction::s_committed)
   {
-    /* @todo CTAS with STATEMENT binlog format and empty result set
-       seems to be committing empty. Figure out why and try to fix
-       elsewhere. */
+    /* Here transaction is either empty (i.e. no changes) or
+       it was CREATE TABLE with no row binlog format or
+       we have already aborted transaction e.g. because max writeset size
+       has been reached. */
     DBUG_ASSERT(!wsrep_has_changes(thd) ||
                 (thd->lex->sql_command == SQLCOM_CREATE_TABLE &&
-                 !thd->is_current_stmt_binlog_format_row()));
+                 !thd->is_current_stmt_binlog_format_row()) ||
+                thd->wsrep_cs().transaction().state() == wsrep::transaction::s_aborted);
+
     bool have_error= wsrep_current_error(thd);
     int ret= wsrep_before_rollback(thd, all) ||
       wsrep_after_rollback(thd, all) ||

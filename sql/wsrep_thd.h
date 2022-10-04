@@ -1,4 +1,4 @@
-/* Copyright (C) 2013-2021 Codership Oy <info@codership.com>
+/* Copyright (C) 2013-2022 Codership Oy <info@codership.com>
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -210,7 +210,6 @@ static inline void wsrep_override_error(THD *thd, uint error,
       !da->is_set() ||
       (da->is_error() &&
        da->sql_errno() != error &&
-       da->sql_errno() != ER_ERROR_DURING_COMMIT &&
        da->sql_errno() != ER_LOCK_DEADLOCK))
   {
     da->reset_diagnostics_area();
@@ -226,7 +225,10 @@ static inline void wsrep_override_error(THD* thd,
     switch (ce)
     {
     case wsrep::e_error_during_commit:
-      wsrep_override_error(thd, ER_ERROR_DURING_COMMIT, status);
+      if (status == wsrep::provider::error_size_exceeded)
+        wsrep_override_error(thd, ER_TOO_BIG_WRITESET);
+      else
+        wsrep_override_error(thd, ER_ERROR_DURING_COMMIT, status);
       break;
     case wsrep::e_deadlock_error:
       wsrep_override_error(thd, ER_LOCK_DEADLOCK);
@@ -235,7 +237,7 @@ static inline void wsrep_override_error(THD* thd,
       wsrep_override_error(thd, ER_QUERY_INTERRUPTED);
       break;
     case wsrep::e_size_exceeded_error:
-      wsrep_override_error(thd, ER_ERROR_DURING_COMMIT, status);
+      wsrep_override_error(thd, ER_TOO_BIG_WRITESET);
       break;
     case wsrep::e_append_fragment_error:
       /* TODO: Figure out better error number */
