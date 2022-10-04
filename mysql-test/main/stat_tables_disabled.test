@@ -4,7 +4,9 @@ set @innodb_stats_persistent_sample_pages_save=
 
 set global innodb_stats_persistent= 1;
 set global innodb_stats_persistent_sample_pages=100;
+
 --source include/have_innodb.inc
+--source include/no_valgrind_without_big.inc
 
 SET SESSION STORAGE_ENGINE='InnoDB';
 
