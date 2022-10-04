@@ -2474,9 +2474,9 @@ explain  select * from t1 where a=1 and b=2 order by c limit 1	{
                   "index": "a_c",
                   "can_resolve_order": true,
                   "direction": 1,
-                  "rows_to_examine": 4,
+                  "rows_to_examine": 4.390243902,
                   "range_scan": true,
-                  "scan_cost": 10.5218905,
+                  "scan_cost": 11.5484164,
                   "chosen": true
                 },
                 {
