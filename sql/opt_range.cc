@@ -2461,20 +2461,21 @@ void TRP_INDEX_MERGE::trace_basic_info(PARAM *param,
 class TRP_GROUP_MIN_MAX : public TABLE_READ_PLAN
 {
 private:
-  bool have_min, have_max, have_agg_distinct;
-  KEY_PART_INFO *min_max_arg_part;
   uint group_prefix_len;
   uint used_key_parts;
   uint group_key_parts;
-  KEY *index_info;
   uint index;
   uint key_infix_len;
+  uint param_idx; /* Index of used key in param->key. */
   uchar key_infix[MAX_KEY_LENGTH];
+  KEY *index_info;
+  KEY_PART_INFO *min_max_arg_part;
   SEL_TREE *range_tree; /* Represents all range predicates in the query. */
   SEL_ARG  *index_tree; /* The SEL_ARG sub-tree corresponding to index_info. */
-  uint param_idx; /* Index of used key in param->key. */
-  bool is_index_scan; /* Use index_next() instead of random read */ 
+  bool have_min, have_max;
 public:
+  bool have_agg_distinct;
+  bool is_index_scan; /* Use index_next() instead of random read */
   /* Number of records selected by the ranges in index_tree. */
   ha_rows quick_prefix_records;
 public:
@@ -2487,13 +2488,14 @@ public:
                     uchar *key_infix_arg,
                     SEL_TREE *tree_arg, SEL_ARG *index_tree_arg,
                     uint param_idx_arg, ha_rows quick_prefix_records_arg)
-  : have_min(have_min_arg), have_max(have_max_arg),
+  : group_prefix_len(group_prefix_len_arg), used_key_parts(used_key_parts_arg),
+    group_key_parts(group_key_parts_arg),
+    index(index_arg), key_infix_len(key_infix_len_arg), param_idx(param_idx_arg),
+    index_info(index_info_arg),min_max_arg_part(min_max_arg_part_arg),
+    range_tree(tree_arg), index_tree(index_tree_arg),
+    have_min(have_min_arg), have_max(have_max_arg),
     have_agg_distinct(have_agg_distinct_arg),
-    min_max_arg_part(min_max_arg_part_arg),
-    group_prefix_len(group_prefix_len_arg), used_key_parts(used_key_parts_arg),
-    group_key_parts(group_key_parts_arg), index_info(index_info_arg),
-    index(index_arg), key_infix_len(key_infix_len_arg), range_tree(tree_arg),
-    index_tree(index_tree_arg), param_idx(param_idx_arg), is_index_scan(FALSE),
+    is_index_scan(FALSE),
     quick_prefix_records(quick_prefix_records_arg)
     {
       if (key_infix_len)
@@ -3060,6 +3062,7 @@ int SQL_SELECT::test_quick_select(THD *thd, key_map keys_to_use,
     if (!only_single_index_range_scan)
     {
       TRP_GROUP_MIN_MAX *group_trp;
+      double duplicate_removal_cost= 0;
       if (tree)
         restore_nonrange_trees(&param, tree, backup_keys);
       if ((group_trp= get_best_group_min_max(&param, tree, read_time)))
@@ -3078,9 +3081,31 @@ int SQL_SELECT::test_quick_select(THD *thd, key_map keys_to_use,
         if (unlikely(thd->trace_started()))
           group_trp->trace_basic_info(&param, &grp_summary);
 
-        if (group_trp->read_cost < best_read_time || force_group_by)
+        if (group_trp->have_agg_distinct && group_trp->is_index_scan)
         {
-          grp_summary.add("chosen", true);
+          /*
+            We are optimization a distinct aggregate, like
+            SELECT count(DISTINCT a,b,c) FROM ...
+
+            The group cost includes removal of the distinct, so to be
+            able to compare costs, we add small cost to the original cost
+            that stands for the extra work we have to do on the outside of
+            the engine to do duplicate elimination for each output row if
+            we are not using the grouping code.
+          */
+          duplicate_removal_cost= (DUPLICATE_REMOVAL_COST *
+                                   (best_trp ? best_trp->records :
+                                    table_records));
+        }
+        if (group_trp->read_cost < best_read_time + duplicate_removal_cost ||
+            force_group_by)
+        {
+          if (thd->trace_started())
+          {
+            if (duplicate_removal_cost)
+              grp_summary.add("duplicate_removal_cost", duplicate_removal_cost);
+            grp_summary.add("chosen", true);
+          }
           best_trp= group_trp;
         }
         else
@@ -14484,11 +14509,31 @@ get_best_group_min_max(PARAM *param, SEL_TREE *tree, double read_time)
 
     read_plan->read_cost= best_read_cost;
     read_plan->records=   best_records;
-    if (read_time < best_read_cost && is_agg_distinct)
+    if (is_agg_distinct)
     {
-      trace_group.add("index_scan", true);
-      read_plan->read_cost= 0;
-      read_plan->use_index_scan();
+      double best_cost, duplicate_removal_cost;
+      ulonglong records;
+      handler *file= table->file;
+
+      /* Calculate cost of distinct scan on index */
+      if (best_index_tree && read_plan->quick_prefix_records)
+        records=       read_plan->quick_prefix_records;
+      else
+        records= table->stat_records();
+
+      best_cost= file->cost(file->ha_key_scan_time(index, records));
+      /* We only have 'best_records' left after duplication elimination */
+      best_cost+= best_records * WHERE_COST_THD(thd);
+      duplicate_removal_cost= (DUPLICATE_REMOVAL_COST * records);
+
+      if (best_cost < read_plan->read_cost + duplicate_removal_cost)
+      {
+        read_plan->read_cost= best_cost;
+        read_plan->use_index_scan();
+        trace_group.
+          add("scan_cost", best_cost).
+          add("index_scan", true);
+      }
     }
 
     DBUG_PRINT("info",
