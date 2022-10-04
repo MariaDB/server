@@ -517,7 +517,7 @@ table3.col_varchar_key = table2.col_varchar_nokey AND
 table3.pk<>0;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	table2	ALL	col_varchar_key	NULL	NULL	NULL	40	Using where
-1	SIMPLE	table3	ref	PRIMARY,col_varchar_key	col_varchar_key	3	test.table2.col_varchar_key	5	Using where; Using join buffer (flat, BKA join); Key-ordered Rowid-ordered scan
+1	SIMPLE	table3	ALL	PRIMARY,col_varchar_key	NULL	NULL	NULL	40	Using where; Using join buffer (flat, BNL join)
 set join_cache_level= @save_join_cache_level;
 set join_buffer_size= @save_join_buffer_size;
 drop table t1;
@@ -572,8 +572,7 @@ Handler_mrr_rowid_refills	0
 create table t0 (a int);
 insert into t0 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
 create table t1 (a int, b int, filler char(200), key(a));
-insert into t1 
-select A.a+10*B.a+100*C.a+1000*D.a, 123,'filler' from t0 A, t0 B, t0 C, t0 D;
+insert into t1 select seq, 123, 'filler' from seq_0_to_14999;
 explain select sum(b) from t1 where a < 10;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	range	a	a	5	NULL	9	Using index condition; Rowid-ordered scan

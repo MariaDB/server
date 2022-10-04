@@ -232,7 +232,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t2	index	i1_3,i2_3	i321	12	NULL	1024	Using where; Using index
 explain select key7 from t2 where key1 <100 or key2 < 100;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	index_merge	i1_3,i2_3	i1_3,i2_3	4,4	NULL	186	Using sort_union(i1_3,i2_3); Using where
+1	SIMPLE	t2	ALL	i1_3,i2_3	NULL	NULL	NULL	1024	Using where
 create table t4 (
 key1a int not null,
 key1b int not null,
@@ -405,8 +405,8 @@ from t0 as A straight_join t0 as B
 where (A.key1 = 1 and A.key2 = 1 and A.key3 = 1 and A.key4=1 and A.key5=1 and A.key6=1 and A.key7 = 1 or A.key8=1)
 and (B.key1 = 1 and B.key2 = 1 and B.key3 = 1 and B.key4=1 and B.key5=1 and B.key6=1 and B.key7 = 1 or B.key8=1);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	A	index_merge	i1,i2,i3,i4,i5,i6,i7?,i8	i2,i3,i4,i5,i6,i7?,i8	X	NULL	#	Using union(intersect(i2,i3,i4,i5,i6,i7?),i8); Using where
-1	SIMPLE	B	index_merge	i1,i2,i3,i4,i5,i6,i7?,i8	i2,i3,i4,i5,i6,i7?,i8	X	NULL	#	Using union(intersect(i2,i3,i4,i5,i6,i7?),i8); Using where; Using join buffer (flat, BNL join)
+1	SIMPLE	A	ALL	i1,i2,i3,i4,i5,i6,i7?,i8	NULL	NULL	NULL	#	Using where
+1	SIMPLE	B	ALL	i1,i2,i3,i4,i5,i6,i7?,i8	NULL	NULL	NULL	#	Using where; Using join buffer (flat, BNL join)
 select max(A.key1 + B.key1 + A.key2 + B.key2 + A.key3 + B.key3 + A.key4 + B.key4 + A.key5 + B.key5)
 from t0 as A straight_join t0 as B
 where (A.key1 = 1 and A.key2 = 1 and A.key3 = 1 and A.key4=1 and A.key5=1 and A.key6=1 and A.key7 = 1 or A.key8=1)
@@ -762,13 +762,13 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	index_merge	sta_swt12a,sta_swt1a,sta_swt2a,sta_swt21a,st_a,stb_swt1a_2b,stb_swt1b,st_b	st_a,st_b	4,4	NULL	3515	Using intersect(st_a,st_b); Using where; Using index
 explain select st_a from t1 ignore index (st_a) where st_a=1 and st_b=1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ref	sta_swt12a,sta_swt1a,sta_swt2a,sta_swt21a,stb_swt1a_2b,stb_swt1b,st_b	st_b	4	const	15094	Using where
+1	SIMPLE	t1	ALL	sta_swt12a,sta_swt1a,sta_swt2a,sta_swt21a,stb_swt1a_2b,stb_swt1b,st_b	NULL	NULL	NULL	64806	Using where
 explain select * from t1 where st_a=1 and swt1a=1 and swt2a=1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	ref	sta_swt12a,sta_swt1a,sta_swt2a,sta_swt21a,st_a	sta_swt21a	12	const,const,const	971	
 explain select * from t1 where st_b=1 and swt1b=1 and swt2b=1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ref	stb_swt1a_2b,stb_swt1b,st_b	stb_swt1b	8	const,const	3885	Using where
+1	SIMPLE	t1	ref	stb_swt1a_2b,stb_swt1b,st_b	stb_swt1a_2b	8	const,const	3879	Using where
 explain select * from t1 where st_a=1 and swt1a=1 and swt2a=1 and st_b=1 and swt1b=1 and swt2b=1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	index_merge	sta_swt12a,sta_swt1a,sta_swt2a,sta_swt21a,st_a,stb_swt1a_2b,stb_swt1b,st_b	sta_swt12a,stb_swt1a_2b	12,12	NULL	58	Using intersect(sta_swt12a,stb_swt1a_2b); Using where
@@ -783,7 +783,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 explain select * from t1 ignore index (sta_swt21a, sta_swt12a, stb_swt1a_2b, stb_swt1b)
 where st_a=1 and swt1a=1 and swt2a=1 and st_b=1 and swt1b=1 and swt2b=1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	index_merge	sta_swt1a,sta_swt2a,st_a,st_b	sta_swt1a,sta_swt2a,st_b	8,8,4	NULL	223	Using intersect(sta_swt1a,sta_swt2a,st_b); Using where
+1	SIMPLE	t1	index_merge	sta_swt1a,sta_swt2a,st_a,st_b	sta_swt1a,sta_swt2a	8,8	NULL	960	Using intersect(sta_swt1a,sta_swt2a); Using where
 explain select * from t1
 where st_a=1 and swt1a=1 and swt2a=1 and st_b=1 and swt1b=1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra

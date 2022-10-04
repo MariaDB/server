@@ -1367,8 +1367,8 @@ GROUP BY SQ1_t1.f4));
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t1	system	NULL	NULL	NULL	NULL	1	
 2	DEPENDENT SUBQUERY	t2	ALL	NULL	NULL	NULL	NULL	2	Using where
-3	SUBQUERY	SQ1_t1	index	NULL	f4	5	NULL	2	Using index; Using temporary
-3	SUBQUERY	SQ1_t3	index	f4	f4	5	NULL	2	Using where; Using index; Using join buffer (flat, BNL join)
+3	SUBQUERY	SQ1_t3	range	f4	f4	5	NULL	2	Using where; Using index; Using temporary
+3	SUBQUERY	SQ1_t1	index	NULL	f4	5	NULL	2	Using index; Using join buffer (flat, BNL join)
 SELECT * FROM t1 WHERE
 (SELECT f2 FROM t2
 WHERE f4 <= ALL
@@ -1388,8 +1388,8 @@ INSERT INTO t2 VALUES (1), (2);
 EXPLAIN  
 SELECT i FROM t1 WHERE (1) NOT IN (SELECT i FROM t2);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE
-2	SUBQUERY	t2	index	k	k	5	NULL	2	Using where; Using index
+1	PRIMARY	t1	system	NULL	NULL	NULL	NULL	1	
+2	SUBQUERY	t2	index_subquery	k	k	5	const	2	Using index
 DROP TABLE t2;
 DROP TABLE t1;
 #
@@ -1785,7 +1785,7 @@ SELECT * FROM t1 WHERE ( 6 ) NOT IN ( SELECT t2.f3 FROM t2 JOIN t3 ON t3.f10 = t
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE
 2	SUBQUERY	t3	system	NULL	NULL	NULL	NULL	1	
-2	SUBQUERY	t2	index	f10	f10	10	NULL	2	Using where; Using index
+2	SUBQUERY	t2	ref_or_null	f10	f10	10	const,const	2	Using where; Using index
 SELECT * FROM t1 WHERE ( 6 ) NOT IN ( SELECT t2.f3 FROM t2 JOIN t3 ON t3.f10 = t2.f10);
 f4
 drop table t1,t2,t3;
@@ -2758,15 +2758,15 @@ from t2 join t1 on
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	2	
 1	PRIMARY	t1	index	NULL	v1	9	NULL	5	Using index
-2	SUBQUERY	t1	ref_or_null	v1	v1	4	const	3	Using where; Using index
-2	SUBQUERY	t3	ALL	NULL	NULL	NULL	NULL	4	Using where
-2	SUBQUERY	t4	ALL	NULL	NULL	NULL	NULL	50	Using where
+2	MATERIALIZED	t3	ALL	NULL	NULL	NULL	NULL	4	Using where
+2	MATERIALIZED	t1	ref	v1	v1	4	test.t3.v2	1	Using index
+2	MATERIALIZED	t4	ALL	NULL	NULL	NULL	NULL	50	
 select 1
 from t2 join t1 on
 ('i','w') not in (select t1.v1,t4.v2 from t4,t1,t3 where t3.v2 = t1.v1) LIMIT ROWS EXAMINED 10;
 1
 Warnings:
-Warning	1931	Query execution was interrupted. The query examined at least 11 rows, which exceeds LIMIT ROWS EXAMINED (10). The query result may be incomplete
+Warning	1931	Query execution was interrupted. The query examined at least 14 rows, which exceeds LIMIT ROWS EXAMINED (10). The query result may be incomplete
 SET join_cache_level= @save_join_cache_level;
 DROP TABLE t1,t2,t3,t4;
 #

@@ -659,7 +659,7 @@ WHERE t100.K=t10.I
 ## Expect this QEP, cost & #handler_read
 # Expected QEP: 'join EQ_REF(X) on X.K=t10.I' before 'cross' ALL(Y)
 let $query=
-SELECT STRAIGHT_JOIN COUNT(*) FROM t10,t10000 x,t10000 y
+SELECT STRAIGHT_JOIN COUNT(*) FROM t10000 y, t10, t10000 x
 WHERE x.k=t10.i;
 --source include/expect_qep.inc
 

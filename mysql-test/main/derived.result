@@ -236,7 +236,7 @@ count(*)
 explain select count(*) from t1 INNER JOIN (SELECT A.E1, A.E2, A.E3 FROM t1 AS A WHERE A.E3 = (SELECT MAX(B.E3) FROM t1 AS B WHERE A.E2 = B.E2)) AS THEMAX ON t1.E1 = THEMAX.E2 AND t1.E1 = t1.E2;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	2	
-1	PRIMARY	t1	ALL	PRIMARY	NULL	NULL	NULL	2	Using where; Using join buffer (flat, BNL join)
+1	PRIMARY	t1	eq_ref	PRIMARY	PRIMARY	4	THEMAX.E2	1	Using where
 2	DERIVED	A	ALL	NULL	NULL	NULL	NULL	2	Using where
 3	DEPENDENT SUBQUERY	B	ALL	NULL	NULL	NULL	NULL	2	Using where
 drop table t1;
@@ -1329,7 +1329,7 @@ drop table t1,t2,t3;
 # Test of "Derived tables and union can now create distinct keys"
 #
 create table t1 (a int);
-insert into t1 values (100),(100);
+insert into t1 values (100),(100),(100),(100),(100),(100),(100),(100),(100),(100);
 create table duplicates_tbl (a int);
 insert into duplicates_tbl select seq/100 from seq_1_to_10000;
 explain
@@ -1343,7 +1343,7 @@ where T.a=5
 ) as 'A'
 from t1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	2	
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	10	
 2	MATERIALIZED	<derived3>	ALL	NULL	NULL	NULL	NULL	10000	Using where
 3	DERIVED	duplicates_tbl	ALL	NULL	NULL	NULL	NULL	10000	
 select
@@ -1358,6 +1358,14 @@ from t1;
 A
 1
 1
+1
+1
+1
+1
+1
+1
+1
+1
 explain
 select
 t1.a = all ( SELECT COUNT(*)
@@ -1369,7 +1377,7 @@ where T.a=5
 ) as 'A'
 from t1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	2	
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	10	
 2	DEPENDENT SUBQUERY	<derived3>	ALL	NULL	NULL	NULL	NULL	10000	Using where
 3	DERIVED	duplicates_tbl	ALL	NULL	NULL	NULL	NULL	10000	
 select
@@ -1382,6 +1390,14 @@ where T.a=5
 ) as 'A'
 from t1;
 A
+1
+1
+1
+1
+1
+1
+1
+1
 1
 1
 drop table t1, duplicates_tbl;

@@ -713,12 +713,11 @@ EXPLAIN
 create table t2 like t1;
 insert into t2 select * from t1;
 explain format=json
-select * from t1,t2 where t1.a in ( select a from t0);
+select * from t1,t2 where t1.a in ( select seq+0 from seq_1_to_100);
 EXPLAIN
 {
   "query_block": {
     "select_id": 1,
-    "const_condition": "1",
     "nested_loop": [
       {
         "table": {
@@ -734,11 +733,12 @@ EXPLAIN
           "access_type": "eq_ref",
           "possible_keys": ["distinct_key"],
           "key": "distinct_key",
-          "key_length": "4",
-          "used_key_parts": ["a"],
+          "key_length": "8",
+          "used_key_parts": ["seq+0"],
           "ref": ["func"],
           "rows": 1,
           "filtered": 100,
+          "attached_condition": "t1.a = seq_1_to_100.seq + 0",
           "materialized": {
             "unique": 1,
             "query_block": {
@@ -746,10 +746,14 @@ EXPLAIN
               "nested_loop": [
                 {
                   "table": {
-                    "table_name": "t0",
-                    "access_type": "ALL",
-                    "rows": 10,
-                    "filtered": 100
+                    "table_name": "seq_1_to_100",
+                    "access_type": "index",
+                    "key": "PRIMARY",
+                    "key_length": "8",
+                    "used_key_parts": ["seq"],
+                    "rows": 100,
+                    "filtered": 100,
+                    "using_index": true
                   }
                 }
               ]
@@ -766,7 +770,7 @@ EXPLAIN
             "filtered": 100
           },
           "buffer_type": "flat",
-          "buffer_size": "1Kb",
+          "buffer_size": "19Kb",
           "join_type": "BNL"
         }
       }
@@ -847,7 +851,7 @@ EXPLAIN
                 "table_name": "t1",
                 "access_type": "ALL",
                 "rows": 10,
-                "filtered": 100
+                "filtered": 10
               },
               "buffer_type": "flat",
               "buffer_size": "206",
@@ -1222,12 +1226,18 @@ analyze table t1;
 Table	Op	Msg_type	Msg_text
 test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	Table is already up to date
+select count(*) from t1;
+count(*)
+128
 explain select count(distinct a1,a2,b) from t1 where (a2 >= 'b') and (b = 'a');
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	NULL	idx_t1_1	147	NULL	17	Using where; Using index for group-by
+1	SIMPLE	t1	range	NULL	idx_t1_2	147	NULL	17	Using where; Using index for group-by
 explain select count(distinct a1,a2,b,c) from t1 where (a2 >= 'b') and (b = 'a') and (c = 'i121');
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	NULL	idx_t1_1	163	NULL	65	Using where; Using index for group-by
+1	SIMPLE	t1	index	NULL	idx_t1_1	163	NULL	128	Using where; Using index
+explain select count(distinct a1,a2,b) from t1 where a1 >= "" and (a2 >= 'b') and (b = 'a');
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	idx_t1_0,idx_t1_1,idx_t1_2	idx_t1_1	147	NULL	1	Using where; Using index for group-by
 explain format=json select count(distinct a1,a2,b) from t1 where (a2 >= 'b') and (b = 'a');
 EXPLAIN
 {
@@ -1238,7 +1248,7 @@ EXPLAIN
         "table": {
           "table_name": "t1",
           "access_type": "range",
-          "key": "idx_t1_1",
+          "key": "idx_t1_2",
           "key_length": "147",
           "used_key_parts": ["a1", "a2", "b"],
           "rows": 17,
@@ -1259,13 +1269,36 @@ EXPLAIN
       {
         "table": {
           "table_name": "t1",
-          "access_type": "range",
+          "access_type": "index",
           "key": "idx_t1_1",
           "key_length": "163",
           "used_key_parts": ["a1", "a2", "b", "c"],
-          "rows": 65,
-          "filtered": 100,
+          "rows": 128,
+          "filtered": 0.198364258,
           "attached_condition": "t1.b = 'a' and t1.c = 'i121' and t1.a2 >= 'b'",
+          "using_index": true
+        }
+      }
+    ]
+  }
+}
+explain format=json select count(distinct a1,a2,b) from t1 where a1 >= "" and (a2 >= 'b') and (b = 'a');
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t1",
+          "access_type": "range",
+          "possible_keys": ["idx_t1_0", "idx_t1_1", "idx_t1_2"],
+          "key": "idx_t1_1",
+          "key_length": "147",
+          "used_key_parts": ["a1", "a2", "b"],
+          "rows": 1,
+          "filtered": 100,
+          "attached_condition": "t1.b = 'a' and t1.a1 >= '' and t1.a2 >= 'b'",
           "using_index_for_group_by": true
         }
       }
@@ -1464,7 +1497,7 @@ insert into t2 values (1),(2);
 explain 
 select * from t1 left join t2 on t2.pk > 10 and t2.pk < 0;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	const	PRIMARY	NULL	NULL	NULL	1	Impossible ON condition
+1	SIMPLE	t2	const	PRIMARY	NULL	NULL	NULL	0	Impossible ON condition
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	
 explain format=json
 select * from t1 left join t2 on t2.pk > 10 and t2.pk < 0;
@@ -1479,8 +1512,8 @@ EXPLAIN
           "table_name": "t2",
           "access_type": "const",
           "possible_keys": ["PRIMARY"],
-          "rows": 1,
-          "filtered": 100,
+          "rows": 0,
+          "filtered": 0,
           "impossible_on_condition": true
         }
       },
@@ -1511,9 +1544,9 @@ ANALYZE
           "access_type": "const",
           "possible_keys": ["PRIMARY"],
           "r_loops": 0,
-          "rows": 1,
+          "rows": 0,
           "r_rows": null,
-          "filtered": 100,
+          "filtered": 0,
           "r_filtered": null,
           "impossible_on_condition": true
         }
@@ -1814,7 +1847,8 @@ ANALYZE
           "buffer_size": "400",
           "join_type": "BKA",
           "mrr_type": "Rowid-ordered scan",
-          "r_filtered": 100
+          "r_filtered": 100,
+          "r_unpack_time_ms": "REPLACED"
         }
       }
     ]
@@ -1986,7 +2020,7 @@ EXPLAIN
                 "table_name": "t3",
                 "access_type": "ALL",
                 "rows": 2,
-                "filtered": 100
+                "filtered": 25
               },
               "buffer_type": "incremental",
               "buffer_size": "109",

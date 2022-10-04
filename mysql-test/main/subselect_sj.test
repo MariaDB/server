@@ -69,13 +69,13 @@ explain extended select * from t1 where a in (select t10.pk from t10, t12 where 
 
 --echo subqueries within outer joins go into ON expr.
 # TODO: psergey: check if case conversions like those are ok (it broke on  windows)
---replace_result a A b B
+--replace_result a A b B explain explain table table possible possible
 explain extended
 select * from t1 left join (t2 A, t2 B) on ( A.a= t1.a and B.a in (select pk from t10));
 
 # TODO: psergey: check if case conversions like those are ok (it broke on  windows)
 --echo t2 should be wrapped into OJ-nest, so we have "t1 LJ (t2 J t10)"
---replace_result a A b B
+--replace_result a A b B explain explain table table possible possible
 explain extended
 select * from t1 left join t2 on (t2.a= t1.a and t2.a in (select pk from t10));
 

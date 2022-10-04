@@ -885,9 +885,9 @@ drop table if exists t1;
 
 (SELECT 1 as a) UNION (SELECT 1) ORDER BY (SELECT a+0);
 
-#
-# IN subselect optimization test
-#
+--echo #
+--echo # IN subselect optimization test
+--echo #
 create table t1 (a int not null, b int, primary key (a));
 create table t2 (a int not null, primary key (a));
 create table t3 (a int not null, b int, primary key (a));
@@ -909,20 +909,20 @@ insert into t1 values (1,10), (2,20), (3,30), (4,40);
 create table t0(a int);
 insert into t0 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
 insert into t1
-select rand()*100000+200,rand()*100000 from t0 A, t0 B, t0 C, t0 D;
+select rand()*100000+200,rand(1)*100000 from t0 A, t0 B, t0 C, t0 D;
 
 insert into t2 values (2), (3), (4), (5);
 insert into t3 values (10,3), (20,4), (30,5);
-select * from t2 where t2.a in (select a from t1);
 explain extended select * from t2 where t2.a in (select a from t1);
-select * from t2 where t2.a in (select a from t1 where t1.b <> 30);
+select * from t2 where t2.a in (select a from t1);
 explain extended select * from t2 where t2.a in (select a from t1 where t1.b <> 30);
-select * from t2 where t2.a in (select t1.a from t1,t3 where t1.b=t3.a);
+select * from t2 where t2.a in (select a from t1 where t1.b <> 30);
 explain extended select * from t2 where t2.a in (select t1.a from t1,t3 where t1.b=t3.a);
+select * from t2 where t2.a in (select t1.a from t1,t3 where t1.b=t3.a);
 insert into t1 values (3,31);
+explain extended select * from t2 where t2.a in (select a from t1 where t1.b <> 30);
 select * from t2 where t2.a in (select a from t1 where t1.b <> 30);
 select * from t2 where t2.a in (select a from t1 where t1.b <> 30 and t1.b <> 31);
-explain extended select * from t2 where t2.a in (select a from t1 where t1.b <> 30);
 drop table t0, t1, t2, t3;
 
 #
@@ -993,9 +993,9 @@ explain extended (select * from t1);
 (select * from t1);
 drop table t1;
 
-#
-# IN optimisation test results
-#
+--echo #
+--echo # IN optimisation test results
+--echo #
 create table t1 (s1 char(5), index s1(s1));
 create table t2 (s1 char(5), index s1(s1));
 insert into t1 values ('a1'),('a2'),('a3');
@@ -1421,13 +1421,14 @@ SELECT a FROM t1 WHERE a <> ALL (SELECT a FROM t1 WHERE b = '2');
 DROP TABLE t1;
 
 
-#
-# SELECT(EXISTS * ...)optimisation
-#
+--echo #
+--echo # SELECT(EXISTS * ...)optimisation
+--echo #
 create table t1 (a int, b int);
 insert into t1 values (1,2),(3,4),(5,6),(7,8);
-select * from t1 up where exists (select * from t1 where t1.a=up.a);
-explain extended select * from t1 up where exists (select * from t1 where t1.a=up.a);
+insert into t1 select seq,seq from seq_20_to_40;
+select sum(a+b) from t1 up where exists (select * from t1 where t1.a=up.a);
+explain extended select sum(a+b) from t1 up where exists (select * from t1 where t1.a=up.a);
 drop table t1;
 
 
@@ -2028,10 +2029,10 @@ select * from t1 r1
 drop table t1;
 
 
-#
-# Bug#21180 Subselect with index for both WHERE and ORDER BY
-#           produces empty result
-#
+--echo #
+--echo # Bug#21180 Subselect with index for both WHERE and ORDER BY
+--echo #           produces empty result
+--echo #
 create table t1(a int, primary key (a));
 insert into t1 values (10);
 
@@ -3051,6 +3052,7 @@ INSERT INTO t1 VALUES
 CREATE TABLE t2 (id int NOT NULL, INDEX idx(id));
 INSERT INTO t2 VALUES (7), (5), (1), (3);
 
+--sorted_result
 SELECT id, st FROM t1
   WHERE st IN ('GA','FL') AND EXISTS(SELECT 1 FROM t2 WHERE t2.id=t1.id);
 SELECT id, st FROM t1
@@ -3217,9 +3219,9 @@ DROP TABLE t1, t2;
 #--enable_query_log
 #drop table t1;
 
-#
-# Bug#28076 inconsistent binary/varbinary comparison
-#
+--echo #
+--echo # Bug#28076 inconsistent binary/varbinary comparison
+--echo #
 
 CREATE TABLE t1 (s1 BINARY(5), s2 VARBINARY(5));
 INSERT INTO t1 VALUES (0x41,0x41), (0x42,0x42), (0x43,0x43);
@@ -4795,6 +4797,7 @@ INSERT INTO t1 VALUES (NULL), (1), (NULL), (2);
 
 CREATE TABLE t2 (a int, INDEX idx(a)) ;
 INSERT INTO t2 VALUES (NULL), (1), (NULL),(1000);
+insert into t2 select seq from seq_3_to_500;
 
 SELECT * FROM t1
   WHERE EXISTS (SELECT a FROM t2 USE INDEX () WHERE t2.a = t1.a);

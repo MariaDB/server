@@ -1,4 +1,5 @@
 --source include/default_optimizer_switch.inc
+--source include/have_sequence.inc
 
 --disable_warnings
 drop table if exists t1,t2,t3;
@@ -245,6 +246,7 @@ CREATE TABLE t1 ( a INT );
 INSERT INTO t1 VALUES (7),(0),(100);
 CREATE TABLE t2 ( b INT );
 INSERT INTO t2 VALUES (0),(8),(1000),(2000),(3000),(4000),(5000);
+insert into t2 select seq from seq_6000_to_6100;
 
 SELECT * FROM t1 WHERE
   EXISTS ( SELECT * FROM t2 WHERE b = a )
@@ -564,6 +566,8 @@ set optimizer_switch='exists_to_in=on';
 create table t1 (col1 int, col2 int, col3 int); 
 insert into t1 values (1,2,3),(2,3,4),(4,5,6),(7,8,9);
 create table t2 as select * from t1;
+insert into t2 select seq,seq,seq from seq_1000_to_1200;
+
 explain extended
 select * from t1 where exists (select col2 from t2 where t2.col1=t1.col1 and t2.col2=t1.col2);
 select * from t1 where exists (select col2 from t2 where t2.col1=t1.col1 and t2.col2=t1.col2);

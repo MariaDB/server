@@ -594,6 +594,7 @@ explain select count(*) from t1 where a is null;
 select count(*) from t1 where a is null;
 insert into t1 values (1,''), (2,'');
 explain select count(*) from t1 where a is null;
+set statement optimizer_scan_setup_cost= 0 for explain select count(*) from t1 where a is null;
 drop table t1;
 
 #

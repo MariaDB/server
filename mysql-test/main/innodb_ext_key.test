@@ -1,4 +1,5 @@
 --source include/innodb_prefix_index_cluster_optimization.inc
+--source include/have_sequence.inc
 
 SET SESSION DEFAULT_STORAGE_ENGINE='InnoDB';
 
@@ -151,14 +152,14 @@ show status like 'handler_read%';
 --echo #
 
 create table t0 (a int);
-insert into t0 values (1), (2), (3), (4), (5);
+insert into t0 select seq from seq_1_to_5;
 create index i_p_size on part(p_size);
 
 explain
-select * from t0, part ignore index (primary)
+select straight_join * from t0, part ignore index (primary)
   where p_partkey=t0.a and p_size=1;
 
-select * from t0,  part ignore index (primary)
+select straight_join * from t0,  part ignore index (primary)
   where p_partkey=t0.a and p_size=1;
 
 drop table t0;
@@ -235,10 +236,11 @@ INSERT INTO t2 VALUES
   (15), (16), (17), (18), (19), (24);
 
 EXPLAIN
-SELECT a FROM t1 AS t, t2 
-  WHERE c = a AND b IN (SELECT b FROM t1, t2 WHERE b = t.b);
-SELECT a FROM t1 AS t, t2 
-  WHERE c = a AND b IN (SELECT b FROM t1, t2 WHERE b = t.b);
+SELECT a FROM t1 AS t, t2 as t2_out 
+  WHERE t2_out.c = t.a AND t.b IN (SELECT b FROM t1, t2 WHERE b = t.b);
+SELECT a FROM t1 AS t, t2 as t2_out 
+  WHERE t2_out.c = t.a AND t.b IN (SELECT b FROM t1, t2 WHERE b = t.b);
+--source include/last_query_cost.inc
 
 DROP TABLE t1,t2;
 

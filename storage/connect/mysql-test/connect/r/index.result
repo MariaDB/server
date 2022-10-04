@@ -96,18 +96,18 @@ sexe	genre
 0	Inconnu
 1	Masculin
 2	Feminin
-SELECT nom, prenom, genre FROM t1 NATURAL JOIN t2 LIMIT 10;
+SELECT nom, prenom, genre FROM t1 NATURAL JOIN t2 order by nom LIMIT 10;
 nom	prenom	genre
-NICOLAS	ROGER	Masculin
-MOGADOR	ALAIN	Masculin
-CHAUSSEE	ERIC DENIS	Masculin
-MAILLOT	GEORGES	Masculin
-BRUYERES	JEAN MARC	Masculin
-LONES	GERARD	Masculin
-CROISILLES	DOMINIQUE	Masculin
-SEYSSAUD	GERARD	Masculin
-QUINET	OLIVIER	Masculin
-KOMITAS	YVES	Masculin
+ABBADIE	MONIQUE	Feminin
+ABBAYE	GERALD	Masculin
+ABBAYE	ANNICK	Feminin
+ABBE	KATIA	Feminin
+ABBE	SOPHIE	Feminin
+ABBE	MICHELE	Feminin
+ABBEVILLE	PASCAL	Masculin
+ABEBERRY	PATRICK	Masculin
+ABEILLES	RENE	Masculin
+ABEL	JEAN PIERRE	Masculin
 #
 # Another table
 #

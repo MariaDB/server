@@ -2361,11 +2361,11 @@ b	c
 EXPLAIN
 SELECT b, c FROM t1 WHERE b = 1 GROUP BY b, c;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	bc	bc	10	NULL	8	Using where; Using index for group-by
+1	SIMPLE	t1	ref	bc	bc	5	const	23	Using where; Using index
 EXPLAIN
 SELECT b, c FROM t1 WHERE b = 1 or b=2 GROUP BY b, c;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	bc	bc	10	NULL	8	Using where; Using index for group-by
+1	SIMPLE	t1	range	bc	bc	5	NULL	23	Using where; Using index
 DROP TABLE t1;
 #
 # Bug #45807: crash accessing partitioned table and sql_mode 

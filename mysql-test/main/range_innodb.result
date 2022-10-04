@@ -57,8 +57,8 @@ set optimizer_switch='extended_keys=on';
 explain
 select pk, a, b from t1,t2,t3 where b >= d and pk < c and b = '0';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	#	
-1	SIMPLE	t1	ALL	PRIMARY,idx1,idx2	NULL	NULL	NULL	#	Using where; Using join buffer (flat, BNL join)
+1	SIMPLE	t1	ref	PRIMARY,idx1,idx2	idx1	5	const	#	
+1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	#	Using where; Using join buffer (flat, BNL join)
 1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	#	Using where; Using join buffer (incremental, BNL join)
 select pk, a, b from t1,t2,t3 where b >= d and pk < c and b = '0';
 pk	a	b

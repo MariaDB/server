@@ -1,20 +1,18 @@
 --source include/have_debug.inc
 --source include/have_debug_sync.inc
 --source include/count_sessions.inc
+--source include/have_sequence.inc
+--source include/no_valgrind_without_big.inc
 
 --echo #
 --echo # MDEV-22761 KILL QUERY during rowid_filter, crashes
 --echo #
 
-create table t0(a int);
-insert into t0 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
-
 create table t1(a int);
-insert into t1 select A.a + B.a* 10 + C.a * 100 from t0 A, t0 B, t0 C;
+insert into t1 select seq from seq_1_to_1000;
 
-# 100 rows 
 create table t2(a int);
-insert into t2 select A.a + B.a* 10 from t0 A, t0 B;
+insert into t2 select seq from seq_1_to_100;
 
 # 10K rows 
 CREATE TABLE t3 (
@@ -24,23 +22,16 @@ CREATE TABLE t3 (
   KEY (key1),
   KEY (key2)
 );
+insert into t3 select seq,seq, 'filler-data-filler-data' from seq_1_to_2000;
+
 select engine from information_schema.tables
 where table_schema=database() and table_name='t3';
-
-insert into t3
-select
-  A.a,
-  A.a,
-  'filler-data-filler-data'
-from
-  t0 A, t1 B;
-
 analyze table t2,t3;
 
 explain
 select * from t2, t3
 where 
-  t3.key1=t2.a and t3.key2 in (2,3);
+  t3.key1=t2.a and t3.key2 in (2,3,4,5,6,7,8,9,10);
 
 let $target_id= `select connection_id()`;
 
@@ -48,7 +39,7 @@ set debug_sync='handler_rowid_filter_check SIGNAL at_rowid_filter_check WAIT_FOR
 send
 select * from t2, t3
 where 
-  t3.key1=t2.a and t3.key2 in (2,3);
+  t3.key1=t2.a and t3.key2 in (2,3,4,5,6,7,8,9,10);
 
 connect (con1, localhost, root,,);
 connection con1;
@@ -63,6 +54,5 @@ disconnect con1;
 reap;
 set debug_sync='RESET';
 
-drop table t0,t1,t2,t3;
+drop table t1,t2,t3;
 --source include/wait_until_count_sessions.inc
-

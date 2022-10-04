@@ -12488,6 +12488,10 @@ SELECT b FROM t5 WHERE a =3;
 b
 in order to form a more pefect union
 foo this is mine to think about
+explain
+SELECT b FROM t5 WHERE a IN (32, 23, 5);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t5	ALL	a	NULL	NULL	NULL	11	Using where
 SELECT b FROM t5 WHERE a IN (32, 23, 5);
 b
 foo grok 
