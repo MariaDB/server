@@ -1,6 +1,7 @@
 # This file is a collection of regression and coverage tests
 # for WL#4897: Add EXPLAIN INSERT/UPDATE/DELETE.
 
+-- source include/have_sequence.inc
 -- disable_query_log
 -- disable_result_log
 # SET GLOBAL innodb_stats_persistent=0;
@@ -78,10 +79,13 @@ CREATE TABLE t1 (a INT);
 INSERT INTO t1 VALUES (1), (2), (3);
 CREATE TABLE t2 (b INT);
 INSERT INTO t2 VALUES (1), (2), (3), (1000);
---let $query =  UPDATE        t1, t2 SET a = 10 WHERE a IN (SELECT b FROM t2 WHERE t2.b < 3)
---let $select = SELECT * FROM t1, t2            WHERE a IN (SELECT b FROM t2 WHERE t2.b < 3)
+CREATE TABLE t3 like t2;
+insert into t3 select * from t2;
+insert into t3 select seq from seq_1001_to_2000;
+--let $query =  UPDATE        t1, t2 SET a = 10 WHERE a IN (SELECT b FROM t3 WHERE t3.b < 3)
+--let $select = SELECT * FROM t1, t2            WHERE a IN (SELECT b FROM t3 WHERE t3.b < 3)
 --source include/explain_utils.inc
-DROP TABLE t1, t2;
+DROP TABLE t1, t2, t3;
 
 --echo #8
 CREATE TABLE t1 (a INT);

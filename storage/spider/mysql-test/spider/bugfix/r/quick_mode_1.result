@@ -57,6 +57,10 @@ TRUNCATE TABLE mysql.general_log;
 connection child2_2;
 TRUNCATE TABLE mysql.general_log;
 connection master_1;
+explain SELECT a.pkey FROM tbl_a a, tbl_b b WHERE a.pkey = b.pkey;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	a	index	PRIMARY	PRIMARY	4	NULL	2	Using index
+1	SIMPLE	b	eq_ref	PRIMARY	PRIMARY	4	auto_test_local.a.pkey	1	Using index
 SELECT a.pkey FROM tbl_a a, tbl_b b WHERE a.pkey = b.pkey;
 pkey
 0

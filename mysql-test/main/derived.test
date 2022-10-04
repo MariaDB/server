@@ -1137,7 +1137,7 @@ drop table t1,t2,t3;
 --echo #
 
 create table t1 (a int);
-insert into t1 values (100),(100);
+insert into t1 values (100),(100),(100),(100),(100),(100),(100),(100),(100),(100);
 
 create table duplicates_tbl (a int);
 insert into duplicates_tbl select seq/100 from seq_1_to_10000;

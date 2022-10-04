@@ -77,12 +77,12 @@ and r_name = 'AMERICA' and o_orderdate >= date '1995-01-01'
 group by n_name
 order by revenue desc;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	region	ALL	PRIMARY	NULL	NULL	NULL	5	Using where; Using temporary; Using filesort
-1	SIMPLE	nation	ref	PRIMARY,i_n_regionkey	i_n_regionkey	5	dbt3_s001.region.r_regionkey	5	
-1	SIMPLE	supplier	ref	PRIMARY,i_s_nationkey	i_s_nationkey	5	dbt3_s001.nation.n_nationkey	1	Using index
-1	SIMPLE	customer	ref	PRIMARY,i_c_nationkey	i_c_nationkey	5	dbt3_s001.nation.n_nationkey	6	Using index
+1	SIMPLE	supplier	index	PRIMARY,i_s_nationkey	i_s_nationkey	5	NULL	10	Using where; Using index; Using temporary; Using filesort
+1	SIMPLE	nation	eq_ref	PRIMARY,i_n_regionkey	PRIMARY	4	dbt3_s001.supplier.s_nationkey	1	Using where
+1	SIMPLE	region	eq_ref	PRIMARY	PRIMARY	4	dbt3_s001.nation.n_regionkey	1	Using where
+1	SIMPLE	customer	ref	PRIMARY,i_c_nationkey	i_c_nationkey	5	dbt3_s001.supplier.s_nationkey	6	Using index
 1	SIMPLE	orders	ref|filter	PRIMARY,i_o_orderdate,i_o_custkey	i_o_custkey|i_o_orderdate	5|4	dbt3_s001.customer.c_custkey	15 (14%)	Using where; Using rowid filter
-1	SIMPLE	lineitem	ref	PRIMARY,i_l_suppkey,i_l_orderkey,i_l_orderkey_quantity	i_l_suppkey	9	dbt3_s001.supplier.s_suppkey,dbt3_s001.orders.o_orderkey	1	
+1	SIMPLE	lineitem	ref	PRIMARY,i_l_suppkey,i_l_orderkey,i_l_orderkey_quantity	PRIMARY	4	dbt3_s001.orders.o_orderkey	4	Using where
 select n_name, sum(l_extendedprice * (1 - l_discount)) as revenue
 from customer, orders, lineitem, supplier, nation, region
 where c_custkey = o_custkey and l_orderkey = o_orderkey
@@ -208,12 +208,12 @@ and r_name = 'AMERICA' and o_orderdate >= date '1995-01-01'
 group by n_name
 order by revenue desc;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	region	ALL	PRIMARY	NULL	NULL	NULL	5	Using where; Using temporary; Using filesort
-1	SIMPLE	nation	ref	PRIMARY,i_n_regionkey	i_n_regionkey	5	dbt3_s001.region.r_regionkey	5	
-1	SIMPLE	supplier	ref	PRIMARY,i_s_nationkey	i_s_nationkey	5	dbt3_s001.nation.n_nationkey	1	Using index
-1	SIMPLE	customer	ref	PRIMARY,i_c_nationkey	i_c_nationkey	5	dbt3_s001.nation.n_nationkey	6	Using index
+1	SIMPLE	supplier	index	PRIMARY,i_s_nationkey	i_s_nationkey	5	NULL	10	Using where; Using index; Using temporary; Using filesort
+1	SIMPLE	nation	eq_ref	PRIMARY,i_n_regionkey	PRIMARY	4	dbt3_s001.supplier.s_nationkey	1	Using where
+1	SIMPLE	region	eq_ref	PRIMARY	PRIMARY	4	dbt3_s001.nation.n_regionkey	1	Using where
+1	SIMPLE	customer	ref	PRIMARY,i_c_nationkey	i_c_nationkey	5	dbt3_s001.supplier.s_nationkey	6	Using index
 1	SIMPLE	orders	ref|filter	PRIMARY,i_o_orderdate,i_o_custkey	i_o_custkey|i_o_orderdate	5|4	dbt3_s001.customer.c_custkey	15 (14%)	Using where; Using rowid filter
-1	SIMPLE	lineitem	ref	PRIMARY,i_l_suppkey,i_l_orderkey,i_l_orderkey_quantity	i_l_suppkey	9	dbt3_s001.supplier.s_suppkey,dbt3_s001.orders.o_orderkey	1	
+1	SIMPLE	lineitem	ref	PRIMARY,i_l_suppkey,i_l_orderkey,i_l_orderkey_quantity	PRIMARY	4	dbt3_s001.orders.o_orderkey	4	Using where
 select n_name, sum(l_extendedprice * (1 - l_discount)) as revenue
 from customer, orders, lineitem, supplier, nation, region
 where c_custkey = o_custkey and l_orderkey = o_orderkey
@@ -246,7 +246,7 @@ order by o_year;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	region	ALL	PRIMARY	NULL	NULL	NULL	5	Using where; Using temporary; Using filesort
 1	SIMPLE	part	ALL	PRIMARY	NULL	NULL	NULL	200	Using where; Using join buffer (flat, BNL join)
-1	SIMPLE	lineitem	ref	PRIMARY,i_l_suppkey_partkey,i_l_partkey,i_l_suppkey,i_l_orderkey,i_l_orderkey_quantity	i_l_partkey	5	dbt3_s001.part.p_partkey	30	Using where
+1	SIMPLE	lineitem	ref	PRIMARY,i_l_suppkey_partkey,i_l_partkey,i_l_suppkey,i_l_orderkey,i_l_orderkey_quantity	i_l_suppkey_partkey	5	dbt3_s001.part.p_partkey	30	Using index condition
 1	SIMPLE	supplier	eq_ref	PRIMARY,i_s_nationkey	PRIMARY	4	dbt3_s001.lineitem.l_suppkey	1	Using where
 1	SIMPLE	n2	eq_ref	PRIMARY	PRIMARY	4	dbt3_s001.supplier.s_nationkey	1	
 1	SIMPLE	orders	eq_ref	PRIMARY,i_o_orderdate,i_o_custkey	PRIMARY	4	dbt3_s001.lineitem.l_orderkey	1	Using where
@@ -289,6 +289,26 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	part	eq_ref	PRIMARY	PRIMARY	4	dbt3_s001.partsupp.ps_partkey	1	Using where
 1	SIMPLE	lineitem	ref	PRIMARY,i_l_suppkey_partkey,i_l_partkey,i_l_suppkey,i_l_orderkey,i_l_orderkey_quantity	i_l_suppkey_partkey	10	dbt3_s001.partsupp.ps_partkey,dbt3_s001.supplier.s_suppkey	8	
 1	SIMPLE	orders	eq_ref	PRIMARY	PRIMARY	4	dbt3_s001.lineitem.l_orderkey	1	
+EXPLAIN EXTENDED select nation, o_year, sum(amount) as sum_profit
+from (select n_name as nation, 
+extract(year from o_orderdate) as o_year,
+l_extendedprice * (1 - l_discount) - ps_supplycost * l_quantity as amount
+from part, supplier, lineitem, partsupp, orders, nation
+where s_suppkey = l_suppkey and ps_suppkey = l_suppkey
+and ps_partkey = l_partkey and p_partkey = l_partkey
+and o_orderkey = l_orderkey and s_nationkey = n_nationkey
+and p_name like '%green%') as profit
+group by nation, o_year
+order by nation, o_year desc;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	supplier	index	PRIMARY,i_s_nationkey	i_s_nationkey	5	NULL	10	100.00	Using where; Using index; Using temporary; Using filesort
+1	SIMPLE	nation	eq_ref	PRIMARY	PRIMARY	4	dbt3_s001.supplier.s_nationkey	1	100.00	
+1	SIMPLE	partsupp	ref	PRIMARY,i_ps_partkey,i_ps_suppkey	i_ps_suppkey	4	dbt3_s001.supplier.s_suppkey	70	100.00	
+1	SIMPLE	part	eq_ref	PRIMARY	PRIMARY	4	dbt3_s001.partsupp.ps_partkey	1	100.00	Using where
+1	SIMPLE	lineitem	ref	PRIMARY,i_l_suppkey_partkey,i_l_partkey,i_l_suppkey,i_l_orderkey,i_l_orderkey_quantity	i_l_suppkey_partkey	10	dbt3_s001.partsupp.ps_partkey,dbt3_s001.supplier.s_suppkey	8	100.00	
+1	SIMPLE	orders	eq_ref	PRIMARY	PRIMARY	4	dbt3_s001.lineitem.l_orderkey	1	100.00	
+Warnings:
+Note	1003	select `dbt3_s001`.`nation`.`n_name` AS `nation`,extract(year from `dbt3_s001`.`orders`.`o_orderDATE`) AS `o_year`,sum(`dbt3_s001`.`lineitem`.`l_extendedprice` * (1 - `dbt3_s001`.`lineitem`.`l_discount`) - `dbt3_s001`.`partsupp`.`ps_supplycost` * `dbt3_s001`.`lineitem`.`l_quantity`) AS `sum_profit` from `dbt3_s001`.`part` join `dbt3_s001`.`supplier` join `dbt3_s001`.`lineitem` join `dbt3_s001`.`partsupp` join `dbt3_s001`.`orders` join `dbt3_s001`.`nation` where `dbt3_s001`.`partsupp`.`ps_suppkey` = `dbt3_s001`.`supplier`.`s_suppkey` and `dbt3_s001`.`lineitem`.`l_suppkey` = `dbt3_s001`.`supplier`.`s_suppkey` and `dbt3_s001`.`part`.`p_partkey` = `dbt3_s001`.`partsupp`.`ps_partkey` and `dbt3_s001`.`lineitem`.`l_partkey` = `dbt3_s001`.`partsupp`.`ps_partkey` and `dbt3_s001`.`orders`.`o_orderkey` = `dbt3_s001`.`lineitem`.`l_orderkey` and `dbt3_s001`.`nation`.`n_nationkey` = `dbt3_s001`.`supplier`.`s_nationkey` and `dbt3_s001`.`part`.`p_name` like '%green%' group by `dbt3_s001`.`nation`.`n_name`,extract(year from `dbt3_s001`.`orders`.`o_orderDATE`) desc order by `dbt3_s001`.`nation`.`n_name`,extract(year from `dbt3_s001`.`orders`.`o_orderDATE`) desc
 select nation, o_year, sum(amount) as sum_profit
 from (select n_name as nation, 
 extract(year from o_orderdate) as o_year,
@@ -623,8 +643,8 @@ set @@use_stat_tables= PREFERABLY;
 explain
 SELECT * FROM INFORMATION_SCHEMA.PROFILING, mysql.user;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	PROFILING	ALL	NULL	NULL	NULL	NULL	NULL	
-1	SIMPLE	global_priv	ALL	NULL	NULL	NULL	NULL	5	Using join buffer (flat, BNL join)
+1	SIMPLE	global_priv	ALL	NULL	NULL	NULL	NULL	5	
+1	SIMPLE	PROFILING	ALL	NULL	NULL	NULL	NULL	NULL	Using join buffer (flat, BNL join)
 set @@optimizer_use_condition_selectivity=@save_optimizer_use_condition_selectivity;
 set use_stat_tables=@save_use_stat_tables;
 #
@@ -884,7 +904,6 @@ set histogram_size=0;
 #
 create table t1 (a int, b int);
 insert into t1(a,b) values (1,2),(1,3),(1,4),(1,5),(2,6),(2,7),(3,8),(3,9),(3,9),(4,10);
-insert into t1 select seq,seq from seq_10_to_100;
 set use_stat_tables= preferably_for_queries;
 #
 # with use_stat_tables= PREFERABLY_FOR_QUERIES
@@ -898,7 +917,7 @@ db_name	table_name	column_name	min_value	max_value	nulls_ratio	avg_length	avg_fr
 analyze
 select * from t1 where a = 1 and b=3;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	101	101.00	100.00	0.99	Using where
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	10	10.00	100.00	10.00	Using where
 #
 # with use_stat_tables= PREFERABLY_FOR_QUERIES
 # analyze table t1 will  collect statistics if we use PERSISTENT
@@ -910,12 +929,12 @@ test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	OK
 select * from mysql.column_stats;
 db_name	table_name	column_name	min_value	max_value	nulls_ratio	avg_length	avg_frequency	hist_size	hist_type	histogram
-test	t1	a	1	100	0.0000	4.0000	1.0632	0	NULL	NULL
+test	t1	a	1	4	0.0000	4.0000	2.5000	0	NULL	NULL
 # filtered shows that we used the data from stat tables
 analyze
 select * from t1 where a = 1 and b=3;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	101	101.00	1.05	0.99	Using where
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	10	10.00	25.00	10.00	Using where
 #
 # with use_stat_tables= PREFERABLY
 # analyze table t1 will collect statistics
@@ -927,13 +946,13 @@ test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	OK
 select * from mysql.column_stats;
 db_name	table_name	column_name	min_value	max_value	nulls_ratio	avg_length	avg_frequency	hist_size	hist_type	histogram
-test	t1	a	1	100	0.0000	4.0000	1.0632	0	NULL	NULL
-test	t1	b	2	100	0.0000	4.0000	1.0202	0	NULL	NULL
+test	t1	a	1	4	0.0000	4.0000	2.5000	0	NULL	NULL
+test	t1	b	2	10	0.0000	4.0000	1.1111	0	NULL	NULL
 # filtered shows that we used the data from stat tables
 analyze
 select * from t1 where a=1 and b=3;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	101	101.00	0.99	0.99	Using where
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	10	10.00	2.78	10.00	Using where
 drop table t1;
 set @@global.histogram_size=@save_histogram_size;
 # End of 10.4 tests

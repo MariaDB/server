@@ -1461,17 +1461,26 @@ select distinct fld3 from t2,t3 where t2.companynr = 34 and t2.fld1=t3.t2nr orde
 
 explain select t3.t2nr,fld3 from t2,t3 where t2.companynr = 34 and t2.fld1=t3.t2nr order by t3.t2nr,fld3;
 
-#
-# Some test with ORDER BY and limit
-#
+--echo #
+--echo # Some test with ORDER BY and limit
+--echo #
+
+explain select count(*) from t3 as t1,t3 where t1.period=t3.period order by t3.period;
+explain select sum(t1.price+t3.price) from t3 as t1,t3 where t1.period=t3.period order by t3.period;
 
 explain select * from t3 as t1,t3 where t1.period=t3.period order by t3.period;
 explain select * from t3 as t1,t3 where t1.period=t3.period order by t3.period limit 10;
 explain select * from t3 as t1,t3 where t1.period=t3.period order by t1.period limit 10;
+set @save_join_cache_level=@@join_cache_level;
+set @@join_cache_level=0;
+explain select * from t3 as t1,t3 where t1.period=t3.period order by t3.period;
+explain select * from t3 as t1,t3 where t1.period=t3.period order by t3.period limit 10;
+explain select * from t3 as t1,t3 where t1.period=t3.period order by t1.period limit 10;
+set @@join_cache_level=@save_join_cache_level;
 
-#
-# Search with a constant table.
-#
+--echo #
+--echo # Search with a constant table.
+--echo #
 
 select period from t1;
 select period from t1 where period=1900;
@@ -1563,12 +1572,17 @@ explain select companynr,companyname from t2 left join t4 using (companynr) wher
 explain select companynr,companyname from t4 left join t2 using (companynr) where companynr is null;
 delete from t2 where fld1=999999;
 
-#
-# Test left join optimization
+--echo #
+--echo # Test left join optimization
+--echo #
 
+set @save_join_cache_level=@@join_cache_level;
+set @@join_cache_level=0;
 explain select t2.companynr,companyname from t4 left join t2 using (companynr) where t2.companynr > 0;
 explain select t2.companynr,companyname from t4 left join t2 using (companynr) where t2.companynr > 0 or t2.companynr < 0;
 explain select t2.companynr,companyname from t4 left join t2 using (companynr) where t2.companynr > 0 and t4.companynr > 0;
+set @@join_cache_level=@save_join_cache_level;
+explain select t2.companynr,companyname from t4 left join t2 using (companynr) where t2.companynr > 0 or t2.companynr < 0;
 
 explain select companynr,companyname from t4 left join t2 using (companynr) where companynr > 0;
 explain select companynr,companyname from t4 left join t2 using (companynr) where companynr > 0 or companynr < 0;
@@ -1582,9 +1596,9 @@ explain select companynr,companyname from t4 left join t2 using (companynr) wher
 explain select companynr,companyname from t4 left join t2 using (companynr) where companynr > 0 or companynr < 0 or companynr > 0;
 explain select companynr,companyname from t4 left join t2 using (companynr) where ifnull(companynr,1)>0;
 
-#
-# Joins with forms.
-#
+--echo #
+--echo # Joins with forms.
+--echo #
 
 select distinct t2.companynr,t4.companynr from t2,t4 where t2.companynr=t4.companynr+1;
 explain select distinct t2.companynr,t4.companynr from t2,t4 where t2.companynr=t4.companynr+1;
