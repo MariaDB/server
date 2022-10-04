@@ -77,6 +77,9 @@ extern int (*dbug_sanity)(void);
     _db_stack_frame_.line= 0; \
   } while(0)
 
+#define DBUG_PRINT(keyword,arglist) \
+        do if (_db_pargs_(__LINE__,keyword)) _db_doprnt_ arglist; while(0)
+
 #ifdef HAVE_ATTRIBUTE_CLEANUP
 #define DBUG_ENTER(a) struct _db_stack_frame_ _db_stack_frame_  __attribute__((cleanup(_db_return_))); \
         _db_enter_ (a,__FILE__,__LINE__,&_db_stack_frame_)
@@ -94,15 +97,15 @@ extern int (*dbug_sanity)(void);
 #define DBUG_ENTER(a)
 #define DBUG_RETURN(a1) return(a1)
 #define DBUG_VOID_RETURN return
+#define DBUG_PRINT(keyword,arglist) do{} while(0)
 #endif
 
 #define DBUG_EXECUTE(keyword,a1) \
         do {if (_db_keyword_(0, (keyword), 0)) { a1 }} while(0)
 #define DBUG_EXECUTE_IF(keyword,a1) \
         do {if (_db_keyword_(0, (keyword), 1)) { a1 }} while(0)
+
 #define DBUG_IF(keyword) _db_keyword_(0, (keyword), 1)
-#define DBUG_PRINT(keyword,arglist) \
-        do if (_db_pargs_(__LINE__,keyword)) _db_doprnt_ arglist; while(0)
 
 #define DBUG_PUSH_EMPTY if (_dbug_on_) { DBUG_PUSH(""); }
 #define DBUG_POP_EMPTY  if (_dbug_on_) { DBUG_POP(); }
@@ -167,6 +170,7 @@ extern void _db_suicide_(void);
 #define DBUG_LEAVE
 #define DBUG_RETURN(a1)                 do { return(a1); } while(0)
 #define DBUG_VOID_RETURN                do { return; } while(0)
+#define DBUG_PRINT(keyword, arglist)    do { } while(0)
 #define DBUG_EXECUTE(keyword,a1)        do { } while(0)
 #define DBUG_EXECUTE_IF(keyword,a1)     do { } while(0)
 #define DBUG_IF(keyword) 0

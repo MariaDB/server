@@ -8,7 +8,7 @@ select user(), current_user();
 user()	current_user()
 c@localhost	@localhost
 select user from mysql.user group by user;
-ERROR 42000: SELECT command denied to user ''@'localhost' for table 'user'
+ERROR 42000: SELECT command denied to user ''@'localhost' for table `mysql`.`user`
 set role r1;
 ERROR OP000: Invalid role specification `r1`
 disconnect c;

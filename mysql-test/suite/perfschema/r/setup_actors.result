@@ -115,7 +115,7 @@ from performance_schema.threads
 where PROCESSLIST_ID = connection_id();
 connect  con5, localhost, user5, , ;
 select * from performance_schema.threads;
-ERROR 42000: SELECT command denied to user 'user5'@'localhost' for table 'threads'
+ERROR 42000: SELECT command denied to user 'user5'@'localhost' for table `performance_schema`.`threads`
 select * from test.v1;
 NAME	TYPE	INSTRUMENTED	PROCESSLIST_USER	PROCESSLIST_HOST
 thread/sql/one_connection	FOREGROUND	YES	user5	localhost

@@ -2974,7 +2974,7 @@ fts_optimize_shutdown()
 			     &fts_optimize_wq->mutex.m_mutex);
 	}
 
-	innobase_destroy_background_thd(fts_opt_thd);
+	destroy_background_thd(fts_opt_thd);
 	fts_opt_thd = NULL;
 	pthread_cond_destroy(&fts_opt_shutdown_cond);
 	mysql_mutex_unlock(&fts_optimize_wq->mutex);

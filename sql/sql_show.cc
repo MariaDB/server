@@ -1072,7 +1072,8 @@ public:
       my_snprintf(m_view_access_denied_message, MYSQL_ERRMSG_SIZE,
                   ER_THD(thd, ER_TABLEACCESS_DENIED_ERROR), "SHOW VIEW",
                   m_sctx->priv_user,
-                  m_sctx->host_or_ip, m_top_view->get_table_name());
+                  m_sctx->host_or_ip,
+                  m_top_view->get_db_name(), m_top_view->get_table_name());
     }
     return m_view_access_denied_message_ptr;
   }
@@ -1164,7 +1165,8 @@ mysqld_show_create_get_fields(THD *thd, TABLE_LIST *table_list,
       DBUG_PRINT("debug", ("check_table_access failed"));
       my_error(ER_TABLEACCESS_DENIED_ERROR, MYF(0),
               "SHOW", thd->security_ctx->priv_user,
-              thd->security_ctx->host_or_ip, table_list->alias.str);
+              thd->security_ctx->host_or_ip,
+              table_list->db.str, table_list->alias.str);
       goto exit;
     }
     DBUG_PRINT("debug", ("check_table_access succeeded"));
@@ -1193,7 +1195,8 @@ mysqld_show_create_get_fields(THD *thd, TABLE_LIST *table_list,
     {
       my_error(ER_TABLEACCESS_DENIED_ERROR, MYF(0),
               "SHOW", thd->security_ctx->priv_user,
-              thd->security_ctx->host_or_ip, table_list->alias.str);
+              thd->security_ctx->host_or_ip,
+              table_list->db.str, table_list->alias.str);
       goto exit;
     }
   }
@@ -7225,13 +7228,14 @@ static bool store_trigger(THD *thd, Trigger *trigger,
   table->field[14]->store(STRING_WITH_LEN("OLD"), cs);
   table->field[15]->store(STRING_WITH_LEN("NEW"), cs);
 
-  if (trigger->create_time)
+  if (trigger->hr_create_time.val)
   {
+    /* timestamp is in microseconds */
     table->field[16]->set_notnull();
-    thd->variables.time_zone->gmt_sec_to_TIME(&timestamp,
-                                              (my_time_t)(trigger->create_time/100));
-    /* timestamp is with 6 digits */
-    timestamp.second_part= (trigger->create_time % 100) * 10000;
+    thd->variables.time_zone->
+      gmt_sec_to_TIME(&timestamp,
+                      (my_time_t) hrtime_to_time(trigger->hr_create_time));
+    timestamp.second_part= hrtime_sec_part(trigger->hr_create_time);
     table->field[16]->store_time_dec(&timestamp, 2);
   }
 
@@ -10086,12 +10090,14 @@ static bool show_create_trigger_impl(THD *thd, Trigger *trigger)
 
   p->store(&trigger->db_cl_name, system_charset_info);
 
-  if (trigger->create_time)
+  if (trigger->hr_create_time.val)
   {
     MYSQL_TIME timestamp;
-    thd->variables.time_zone->gmt_sec_to_TIME(&timestamp,
-                                              (my_time_t)(trigger->create_time/100));
-    timestamp.second_part= (trigger->create_time % 100) * 10000;
+    thd->variables.time_zone->
+      gmt_sec_to_TIME(&timestamp,
+                      (my_time_t)
+                      hrtime_to_time(trigger->hr_create_time));
+    timestamp.second_part= hrtime_sec_part(trigger->hr_create_time);
     p->store_datetime(&timestamp, 2);
   }
   else

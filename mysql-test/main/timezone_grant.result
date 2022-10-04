@@ -25,9 +25,9 @@ convert_tz(b, 'Europe/Moscow', 'UTC')
 update t1, t2 set t1.b = convert_tz('2004-10-21 19:00:00', 'Europe/Moscow', 'UTC')
 where t1.a = t2.c and t2.d = (select max(d) from t2);
 select * from mysql.time_zone_name;
-ERROR 42000: SELECT command denied to user 'mysqltest_1'@'localhost' for table 'time_zone_name'
+ERROR 42000: SELECT command denied to user 'mysqltest_1'@'localhost' for table `mysql`.`time_zone_name`
 select Name, convert_tz('2004-10-21 19:00:00', Name, 'UTC') from mysql.time_zone_name;
-ERROR 42000: SELECT command denied to user 'mysqltest_1'@'localhost' for table 'time_zone_name'
+ERROR 42000: SELECT command denied to user 'mysqltest_1'@'localhost' for table `mysql`.`time_zone_name`
 connection default;
 disconnect tzuser;
 connection default;
@@ -54,9 +54,9 @@ convert_tz(b, 'Europe/Moscow', 'UTC')
 update t1, t2 set t1.b = convert_tz('2004-11-30 12:00:00', 'Europe/Moscow', 'UTC')
 where t1.a = t2.c and t2.d = (select max(d) from t2);
 select * from mysql.time_zone_name;
-ERROR 42000: SELECT command denied to user 'mysqltest_1'@'localhost' for table 'time_zone_name'
+ERROR 42000: SELECT command denied to user 'mysqltest_1'@'localhost' for table `mysql`.`time_zone_name`
 select Name, convert_tz('2004-11-30 12:00:00', Name, 'UTC') from mysql.time_zone_name;
-ERROR 42000: SELECT command denied to user 'mysqltest_1'@'localhost' for table 'time_zone_name'
+ERROR 42000: SELECT command denied to user 'mysqltest_1'@'localhost' for table `mysql`.`time_zone_name`
 drop table t1, t2;
 create table t1 (a int, b datetime);
 create table t2 (a int, b varchar(40));
@@ -82,10 +82,10 @@ a	lb
 1	2001-01-01 03:00:00
 2	2002-01-01 03:00:00
 select * from v1, mysql.time_zone;
-ERROR 42000: SELECT command denied to user 'mysqltest_1'@'localhost' for table 'time_zone'
+ERROR 42000: SELECT command denied to user 'mysqltest_1'@'localhost' for table `mysql`.`time_zone`
 drop view v1;
 create view v1 as select a, convert_tz(b, 'UTC', 'Europe/Moscow') as lb from t1, mysql.time_zone;
-ERROR 42000: ANY command denied to user 'mysqltest_1'@'localhost' for table 'time_zone'
+ERROR 42000: ANY command denied to user 'mysqltest_1'@'localhost' for table `mysql`.`time_zone`
 connection default;
 disconnect tzuser3;
 drop table t1;

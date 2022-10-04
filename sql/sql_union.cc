@@ -1075,15 +1075,6 @@ st_select_lex_unit::init_prepare_fake_select_lex(THD *thd_arg,
          order= order->next)
       order->item= &order->item_ptr;
   }
-  for (ORDER *order= global_parameters()->order_list.first;
-       order;
-       order=order->next)
-  {
-    (*order->item)->walk(&Item::change_context_processor, 0,
-                         &fake_select_lex->context);
-    (*order->item)->walk(&Item::set_fake_select_as_master_processor, 0,
-                         fake_select_lex);
-  }
 }
 
 

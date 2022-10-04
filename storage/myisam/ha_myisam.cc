@@ -33,6 +33,7 @@
 #include "sql_table.h"                          // tablename_to_filename
 #include "sql_class.h"                          // THD
 #include "debug_sync.h"
+#include "sql_debug.h"
 
 ulonglong myisam_recover_options;
 static ulong opt_myisam_block_size;
@@ -121,6 +122,28 @@ static void debug_wait_for_kill(const char *info)
   thd_proc_info(thd, prev_info);
   DBUG_VOID_RETURN;
 }
+
+
+class Debug_key_myisam: public Debug_key
+{
+public:
+  Debug_key_myisam() { }
+
+  static void print_keys_myisam(THD *thd, const char *where,
+                                const TABLE *table,
+                                const MI_KEYDEF *keydef, uint count)
+  {
+    for (uint i= 0; i < count; i++)
+    {
+      Debug_key_myisam tmp;
+      if (!tmp.append(where, strlen(where)) &&
+          !tmp.append_key(table->s->key_info[i].name, keydef[i].flag))
+        tmp.print(thd);
+      print_keysegs(thd, keydef[i].seg, keydef[i].keysegs);
+    }
+  }
+};
+
 #endif
 
 /*****************************************************************************
@@ -2235,6 +2258,15 @@ int ha_myisam::create(const char *name, TABLE *table_arg,
 
   if ((error= table2myisam(table_arg, &keydef, &recinfo, &record_count)))
     DBUG_RETURN(error); /* purecov: inspected */
+
+#ifndef DBUG_OFF
+  DBUG_EXECUTE_IF("key",
+    Debug_key_myisam::print_keys_myisam(table_arg->in_use,
+                                        "ha_myisam::create: ",
+                                        table_arg, keydef, share->keys);
+  );
+#endif
+
   bzero((char*) &create_info, sizeof(create_info));
   create_info.max_rows= share->max_rows;
   create_info.reloc_rows= share->min_rows;

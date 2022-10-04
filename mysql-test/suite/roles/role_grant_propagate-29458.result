@@ -81,7 +81,7 @@ grant alter routine on procedure some_db.p1 to r_active_proc;
 grant alter routine on function some_db.f1 to r_active_func;
 connect  con1, localhost, foo,,;
 select * from some_db.t1;
-ERROR 42000: SELECT command denied to user 'foo'@'localhost' for table 't1'
+ERROR 42000: SELECT command denied to user 'foo'@'localhost' for table `some_db`.`t1`
 #
 # Before MDEV-29458 fix, all these commands would return
 # ER_TABLEACCESS_DENIED_ERROR

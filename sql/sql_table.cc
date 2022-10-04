@@ -63,7 +63,7 @@
 #include "rpl_mi.h"
 #include "rpl_rli.h"
 #include "log.h"
-
+#include "sql_debug.h"
 
 #ifdef _WIN32
 #include <io.h>
@@ -3814,6 +3814,13 @@ without_overlaps_err:
                           file->partition_ht()->table_options, FALSE,
                           thd->mem_root))
       DBUG_RETURN(TRUE);
+
+#ifndef DBUG_OFF
+  DBUG_EXECUTE_IF("key",
+    Debug_key::print_keys(thd, "prep_create_table: ",
+                          *key_info_buffer, *key_count);
+  );
+#endif
 
   DBUG_RETURN(FALSE);
 }
@@ -9961,7 +9968,7 @@ bool mysql_alter_table(THD *thd, const LEX_CSTRING *new_db,
 
   DEBUG_SYNC(thd, "alter_opened_table");
 
-#ifdef WITH_WSREP
+#if defined WITH_WSREP && defined ENABLED_DEBUG_SYNC
   DBUG_EXECUTE_IF("sync.alter_opened_table",
                   {
                     const char act[]=

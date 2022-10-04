@@ -14,7 +14,7 @@ GRANT USAGE ON *.* TO `mysqltest_1`@`localhost`
 GRANT SELECT, ALTER ON `mysqltest_1`.* TO `mysqltest_1`@`localhost`
 alter table t1 add b int;
 alter table t1 drop partition p2;
-ERROR 42000: DROP command denied to user 'mysqltest_1'@'localhost' for table 't1'
+ERROR 42000: DROP command denied to user 'mysqltest_1'@'localhost' for table `mysqltest_1`.`t1`
 disconnect conn1;
 connection default;
 grant drop on mysqltest_1.* to mysqltest_1@localhost;
@@ -25,7 +25,7 @@ connection default;
 revoke alter on mysqltest_1.* from mysqltest_1@localhost;
 connect  conn3,localhost,mysqltest_1,,mysqltest_1;
 alter table t1 drop partition p3;
-ERROR 42000: ALTER command denied to user 'mysqltest_1'@'localhost' for table 't1'
+ERROR 42000: ALTER command denied to user 'mysqltest_1'@'localhost' for table `mysqltest_1`.`t1`
 disconnect conn3;
 connection default;
 revoke select,alter,drop on mysqltest_1.* from mysqltest_1@localhost;

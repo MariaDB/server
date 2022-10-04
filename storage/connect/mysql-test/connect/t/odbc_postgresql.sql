@@ -25,3 +25,6 @@ INSERT INTO schema1.t1 VALUES ('aaa'),('bbb'),('ccc'),('яяя');
 CREATE VIEW schema1.v1 AS SELECT * FROM schema1.t1;
 CREATE TABLE schema1.t2 (a CHAR(10) NOT NULL);
 INSERT INTO schema1.t2 VALUES ('xxx'),('yyy'),('zzz'),('ÄÖÜ');
+CREATE TABLE schema1.t3 (a CHAR(10) NOT NULL, b CHAR(10) NOT NULL);
+INSERT INTO schema1.t3 VALUES ('xxx', 'aaa'),('yyy', 'bbb'),('zzz', 'ccc'),('ÄÖÜ', 'яяя');
+

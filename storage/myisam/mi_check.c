@@ -858,7 +858,7 @@ static int chk_index(HA_CHECK *param, MI_INFO *info, MI_KEYDEF *keyinfo,
     }
     if (record >= info->state->data_file_length)
     {
-#ifndef DBUG_OFF
+#ifdef DBUG_TRACE
       char llbuff2[22], llbuff3[22];
 #endif
       mi_check_print_error(param,"Found key at page %s that points to record outside datafile",llstr(page,llbuff));

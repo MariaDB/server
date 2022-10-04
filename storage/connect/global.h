@@ -14,6 +14,8 @@
 #include <time.h>                   /* time_t type declaration         */
 #include <setjmp.h>                 /* Long jump   declarations        */
 
+#define ROUNDUP_TO_8(num) (((num + 7) / 8) * 8)
+
 #if defined(_WIN32) && !defined(NOEX)
 #define DllExport  __declspec( dllexport )
 #else   // !_WIN32

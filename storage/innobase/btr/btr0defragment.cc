@@ -656,7 +656,7 @@ release_and_exit:
 				mysql_mutex_unlock(&btr_defragment_mutex);
 func_exit:
 				set_current_thd(nullptr);
-				innobase_destroy_background_thd(thd);
+				destroy_background_thd(thd);
 				return;
 			}
 			item = *btr_defragment_wq.begin();

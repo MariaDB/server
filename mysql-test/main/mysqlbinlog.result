@@ -666,7 +666,7 @@ connect  unsecure,localhost,untrusted,,mysqltest1;
 mysql mysqltest1 -uuntrusted < var/tmp/bug31611.sql
 connection unsecure;
 INSERT INTO t1 VALUES (1,USER());
-ERROR 42000: INSERT command denied to user 'untrusted'@'localhost' for table 't1'
+ERROR 42000: INSERT command denied to user 'untrusted'@'localhost' for table `mysqltest1`.`t1`
 SELECT * FROM t1;
 a	b
 1	root@localhost

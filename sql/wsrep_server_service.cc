@@ -391,6 +391,7 @@ int Wsrep_server_service::wait_committing_transactions(int timeout)
 
 void Wsrep_server_service::debug_sync(const char* sync_point)
 {
+#ifdef ENABLED_DEBUG_SYNC
   DBUG_EXECUTE_IF(sync_point, {
       std::stringstream dbug_action;
       dbug_action << "now "
@@ -401,4 +402,5 @@ void Wsrep_server_service::debug_sync(const char* sync_point)
                                          action.c_str(),
                                          action.length()));
     };);
+#endif
 }
