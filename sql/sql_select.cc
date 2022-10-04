@@ -100,7 +100,7 @@
 
 #define crash_if_first_double_is_bigger(A,B) DBUG_ASSERT(((A) == 0.0 && (B) == 0.0) || (A)/(B) <  1.0000001)
 
-#define double_to_rows(A) ((A) >= HA_POS_ERROR ? HA_POS_ERROR : (ha_rows) (A))
+#define double_to_rows(A) ((A) >= ((double)HA_POS_ERROR) ? HA_POS_ERROR : (ha_rows) (A))
 
 /* Cost for reading a row through an index */
 struct INDEX_READ_COST
