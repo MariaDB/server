@@ -25,11 +25,11 @@ PSI_memory_key key_memory_Filesort_buffer_sort_keys;
 
 const LEX_CSTRING filesort_names[]=
 {
-  STRING_WITH_LEN("priority_queue with addon fields"),
-  STRING_WITH_LEN("priority_queue with row lookup"),
-  STRING_WITH_LEN("merge_sort with addon fields"),
-  STRING_WITH_LEN("merge_sort with row lookup)"),
-  STRING_WITH_LEN("Error while computing filesort cost")
+  {STRING_WITH_LEN("priority_queue with addon fields")},
+  {STRING_WITH_LEN("priority_queue with row lookup")},
+  {STRING_WITH_LEN("merge_sort with addon fields")},
+  {STRING_WITH_LEN("merge_sort with row lookup)")},
+  {STRING_WITH_LEN("Error while computing filesort cost")}
 };
 
 /*
