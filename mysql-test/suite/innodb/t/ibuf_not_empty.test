@@ -5,6 +5,7 @@
 --source include/not_embedded.inc
 # The test is not big enough to use change buffering with larger page size.
 --source include/have_innodb_max_16k.inc
+--source include/no_valgrind_without_big.inc
 
 SET GLOBAL innodb_purge_rseg_truncate_frequency=1;
 --disable_query_log
