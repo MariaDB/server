@@ -415,13 +415,9 @@ void field_real::add()
   }
   else
   {
-#ifdef HAVE_SNPRINTF
     buff[sizeof(buff)-1]=0;			// Safety
     snprintf(buff, sizeof(buff)-1, "%-.*f", (int) decs, num);
     length = (uint) strlen(buff);
-#else
-    length= snprintf(buff, sizeof(buff), "%-.*f", (int) decs, num);
-#endif
 
     // We never need to check further than this
     end = buff + length - 1 - decs + max_notzero_dec_len;
