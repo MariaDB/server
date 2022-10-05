@@ -33,26 +33,26 @@ public:
   {
     static LEX_CSTRING names[20]=
     {
-      STRING_WITH_LEN("END"),
-      STRING_WITH_LEN("TEXT"),
-      STRING_WITH_LEN("BINARY"),
-      STRING_WITH_LEN("SHORT_INT"),
-      STRING_WITH_LEN("LONG_INT"),
-      STRING_WITH_LEN("FLOAT"),
-      STRING_WITH_LEN("DOUBLE"),
-      STRING_WITH_LEN("NUM"),
-      STRING_WITH_LEN("USHORT_INT"),
-      STRING_WITH_LEN("ULONG_INT"),
-      STRING_WITH_LEN("LONGLONG"),
-      STRING_WITH_LEN("ULONGLONG"),
-      STRING_WITH_LEN("INT24"),
-      STRING_WITH_LEN("UINT24"),
-      STRING_WITH_LEN("INT8"),
-      STRING_WITH_LEN("VARTEXT1"),
-      STRING_WITH_LEN("VARBINARY1"),
-      STRING_WITH_LEN("VARTEXT2"),
-      STRING_WITH_LEN("VARBINARY2"),
-      STRING_WITH_LEN("BIT")
+      {STRING_WITH_LEN("END")},
+      {STRING_WITH_LEN("TEXT")},
+      {STRING_WITH_LEN("BINARY")},
+      {STRING_WITH_LEN("SHORT_INT")},
+      {STRING_WITH_LEN("LONG_INT")},
+      {STRING_WITH_LEN("FLOAT")},
+      {STRING_WITH_LEN("DOUBLE")},
+      {STRING_WITH_LEN("NUM")},
+      {STRING_WITH_LEN("USHORT_INT")},
+      {STRING_WITH_LEN("ULONG_INT")},
+      {STRING_WITH_LEN("LONGLONG")},
+      {STRING_WITH_LEN("ULONGLONG")},
+      {STRING_WITH_LEN("INT24")},
+      {STRING_WITH_LEN("UINT24")},
+      {STRING_WITH_LEN("INT8")},
+      {STRING_WITH_LEN("VARTEXT1")},
+      {STRING_WITH_LEN("VARBINARY1")},
+      {STRING_WITH_LEN("VARTEXT2")},
+      {STRING_WITH_LEN("VARBINARY2")},
+      {STRING_WITH_LEN("BIT")}
     };
     if ((uint) type >= array_elements(names))
       return append(STRING_WITH_LEN("???"));
@@ -63,23 +63,23 @@ public:
   {
     static LEX_CSTRING names[17]=
     {
-      STRING_WITH_LEN("HA_NOSAME"),
-      STRING_WITH_LEN("HA_PACK_KEY"),
-      STRING_WITH_LEN("HA_SPACE_PACK_USED"),
-      STRING_WITH_LEN("HA_VAR_LENGTH_KEY"),
-      STRING_WITH_LEN("HA_AUTO_KEY"),
-      STRING_WITH_LEN("HA_BINARY_PACK_KEY"),
-      STRING_WITH_LEN("HA_NULL_PART_KEY"),
-      STRING_WITH_LEN("HA_FULLTEXT"),
-      STRING_WITH_LEN("HA_UNIQUE_CHECK"),
-      STRING_WITH_LEN("HA_SORT_ALLOWS_SAME"),
-      STRING_WITH_LEN("HA_SPATIAL"),
-      STRING_WITH_LEN("HA_NULL_ARE_EQUAL"),
-      STRING_WITH_LEN("HA_GENERATED_KEY"),
-      STRING_WITH_LEN("HA_USES_COMMENT"),
-      STRING_WITH_LEN("HA_USES_PARSER"),
-      STRING_WITH_LEN("HA_USES_BLOCK_SIZE"),
-      STRING_WITH_LEN("HA_KEY_HAS_PART_KEY_SEG")
+      {STRING_WITH_LEN("HA_NOSAME")},
+      {STRING_WITH_LEN("HA_PACK_KEY")},
+      {STRING_WITH_LEN("HA_SPACE_PACK_USED")},
+      {STRING_WITH_LEN("HA_VAR_LENGTH_KEY")},
+      {STRING_WITH_LEN("HA_AUTO_KEY")},
+      {STRING_WITH_LEN("HA_BINARY_PACK_KEY")},
+      {STRING_WITH_LEN("HA_NULL_PART_KEY")},
+      {STRING_WITH_LEN("HA_FULLTEXT")},
+      {STRING_WITH_LEN("HA_UNIQUE_CHECK")},
+      {STRING_WITH_LEN("HA_SORT_ALLOWS_SAME")},
+      {STRING_WITH_LEN("HA_SPATIAL")},
+      {STRING_WITH_LEN("HA_NULL_ARE_EQUAL")},
+      {STRING_WITH_LEN("HA_GENERATED_KEY")},
+      {STRING_WITH_LEN("HA_USES_COMMENT")},
+      {STRING_WITH_LEN("HA_USES_PARSER")},
+      {STRING_WITH_LEN("HA_USES_BLOCK_SIZE")},
+      {STRING_WITH_LEN("HA_KEY_HAS_PART_KEY_SEG")}
     };
     return append_flag32_names((uint) flags, names, array_elements(names));
   }
@@ -88,18 +88,18 @@ public:
   {
     static LEX_CSTRING names[]=
     {
-      STRING_WITH_LEN("HA_SPACE_PACK"),      // 1
-      STRING_WITH_LEN("??? 2 ???"),          // 2
-      STRING_WITH_LEN("HA_PART_KEY_SEG"),    // 4
-      STRING_WITH_LEN("HA_VAR_LENGTH_PART"), // 8
-      STRING_WITH_LEN("HA_NULL_PART"),       // 16
-      STRING_WITH_LEN("HA_BLOB_PART"),       // 32
-      STRING_WITH_LEN("HA_SWAP_KEY"),        // 64
-      STRING_WITH_LEN("HA_REVERSE_SORT"),    // 128
-      STRING_WITH_LEN("HA_NO_SORT"),         // 256
-      STRING_WITH_LEN("??? 512 ???"),        // 512
-      STRING_WITH_LEN("HA_BIT_PART"),        // 1024
-      STRING_WITH_LEN("HA_CAN_MEMCMP")       // 2048
+      {STRING_WITH_LEN("HA_SPACE_PACK")},      // 1
+      {STRING_WITH_LEN("??? 2 ???")},          // 2
+      {STRING_WITH_LEN("HA_PART_KEY_SEG")},    // 4
+      {STRING_WITH_LEN("HA_VAR_LENGTH_PART")}, // 8
+      {STRING_WITH_LEN("HA_NULL_PART")},       // 16
+      {STRING_WITH_LEN("HA_BLOB_PART")},       // 32
+      {STRING_WITH_LEN("HA_SWAP_KEY")},        // 64
+      {STRING_WITH_LEN("HA_REVERSE_SORT")},    // 128
+      {STRING_WITH_LEN("HA_NO_SORT")},         // 256
+      {STRING_WITH_LEN("??? 512 ???")},        // 512
+      {STRING_WITH_LEN("HA_BIT_PART")},        // 1024
+      {STRING_WITH_LEN("HA_CAN_MEMCMP")}       // 2048
     };
     return append_flag32_names(flags, names, array_elements(names));
   }
