@@ -4483,15 +4483,19 @@ bool HA_CREATE_INFO::finalize_atomic_replace(THD *thd, TABLE_LIST *orig_table)
   param.old_version= tabledef_version;
   param.old_alias= tmp_name.table_name;
   param.new_alias= table_name;
+  ulonglong option_bits_save= thd->variables.option_bits;
+  thd->variables.option_bits&= ~OPTION_NO_FOREIGN_KEY_CHECKS;
   if (ddl_log_create_table(ddl_log_state_create, param.from_table_hton,
                            &cpath, &db, &table_name, false) ||
       rename_table_and_triggers(thd, &param, NULL, &tmp_name, &db, false,
                                 &dummy))
   {
+    thd->variables.option_bits= option_bits_save;
     if (locked_tables_decremented)
       thd->locked_tables_list.add_back_last_deleted_lock(pos_in_locked_tables);
     return true;
   }
+  thd->variables.option_bits= option_bits_save;
   debug_crash_here("ddl_log_create_after_install_new");
   return false;
 }
@@ -5582,7 +5586,13 @@ mysql_rename_table(handlerton *base, const LEX_CSTRING *old_db,
   else if (error ==  ENOTDIR)
     my_error(ER_BAD_DB_ERROR, MYF(0), new_db->str);
   else if (error)
-    my_error(ER_ERROR_ON_RENAME, MYF(0), from, to, error);
+  {
+    if (thd->lex->sql_command == SQLCOM_CREATE_TABLE &&
+        flags & FN_FROM_IS_TMP)
+      my_error(ER_CANT_CREATE_TABLE, MYF(0), new_db->str, to, error);
+    else
+      my_error(ER_ERROR_ON_RENAME, MYF(0), from, to, error);
+  }
   else if (!(flags & FN_IS_TMP))
     mysql_audit_rename_table(thd, old_db, old_name, new_db, new_name);
 
