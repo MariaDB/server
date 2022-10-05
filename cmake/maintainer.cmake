@@ -27,6 +27,7 @@ SET(MY_WARNING_FLAGS
   -Wenum-conversion
   -Wextra
   -Wformat-security
+  -Wmissing-braces
   -Wno-format-truncation
   -Wno-init-self
   -Wno-nonnull-compare
