@@ -3,6 +3,7 @@
 --source include/have_undo_tablespaces.inc
 --source include/not_embedded.inc
 --source include/have_sequence.inc
+--source include/no_valgrind_without_big.inc
 
 SET GLOBAL innodb_undo_log_truncate = 0;
 SET GLOBAL innodb_purge_rseg_truncate_frequency = 1;
