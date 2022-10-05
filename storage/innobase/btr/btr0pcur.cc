@@ -421,11 +421,7 @@ btr_pcur_t::restore_position(ulint restore_latch_mode, const char *file,
 	}
 
 	btr_pcur_open_with_no_init_func(index, tuple, mode, restore_latch_mode,
-					this,
-#ifdef BTR_CUR_HASH_ADAPT
-					NULL,
-#endif /* BTR_CUR_HASH_ADAPT */
-					file, line, mtr);
+					this, file, line, mtr);
 
 	/* Restore the old search mode */
 	search_mode = old_mode;

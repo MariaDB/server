@@ -149,4 +149,36 @@ WHERE NAME="buffer_LRU_batch_evict_total_pages" AND COUNT > 0;
 
 DROP TABLE t1;
 
+--echo #
+--echo # MDEV-29666 InnoDB fails to purge secondary index records
+--echo #            when indexed virtual columns exist
+--echo #
+
+CREATE TABLE t1 (a INT, b INT, a1 INT AS(a) VIRTUAL,
+INDEX(a1),INDEX(b)) ENGINE=InnoDB;
+INSERT INTO t1 SET a=1, b=1;
+
+UPDATE t1 SET a=2, b=3;
+let DATADIR=`select @@datadir`;
+let PAGE_SIZE=`select @@innodb_page_size`;
+
+source include/wait_all_purged.inc;
+FLUSH TABLE t1 FOR EXPORT;
+
+perl;
+my $ps = $ENV{PAGE_SIZE};
+my $file = "$ENV{DATADIR}/test/t1.ibd";
+open(FILE, "<", $file) or die "Unable to open $file\n";
+die "Unable to read $file\n" unless
+    sysread(FILE, $_, 6*$ps) == 6*$ps;
+close(FILE);
+print "page 4: N_RECS=0x", unpack("H*", substr($_, 4 * $ps + 54, 2)), "\n";
+print "page 5: N_RECS=0x", unpack("H*", substr($_, 5 * $ps + 54, 2)), "\n";
+EOF
+
+UNLOCK TABLES;
+DROP TABLE t1;
+
+--echo # End of 10.3 tests
+
 SET GLOBAL innodb_purge_rseg_truncate_frequency = @saved_frequency;

@@ -888,8 +888,6 @@ both have sensible values.
 				we assume the caller uses his search latch
 				to protect the record!
 @param[out]	cursor		tree cursor
-@param[in]	ahi_latch	the adaptive hash index latch being held,
-				or NULL
 @param[in]	mtr		mini transaction
 @return whether the search succeeded */
 bool
@@ -900,7 +898,6 @@ btr_search_guess_on_hash(
 	ulint		mode,
 	ulint		latch_mode,
 	btr_cur_t*	cursor,
-	rw_lock_t*	ahi_latch,
 	mtr_t*		mtr)
 {
 	ulint		fold;
@@ -909,8 +906,6 @@ btr_search_guess_on_hash(
 	btr_cur_t	cursor2;
 	btr_pcur_t	pcur;
 #endif
-	ut_ad(!ahi_latch || rw_lock_own_flagged(
-		      ahi_latch, RW_LOCK_FLAG_X | RW_LOCK_FLAG_S));
 
 	if (!btr_search_enabled) {
 		return false;
@@ -918,7 +913,6 @@ btr_search_guess_on_hash(
 
 	ut_ad(index && info && tuple && cursor && mtr);
 	ut_ad(!dict_index_is_ibuf(index));
-	ut_ad(!ahi_latch || ahi_latch == btr_get_search_latch(index));
 	ut_ad((latch_mode == BTR_SEARCH_LEAF)
 	      || (latch_mode == BTR_MODIFY_LEAF));
 
@@ -949,28 +943,21 @@ btr_search_guess_on_hash(
 	cursor->fold = fold;
 	cursor->flag = BTR_CUR_HASH;
 
-	rw_lock_t* use_latch = ahi_latch ? NULL : btr_get_search_latch(index);
+	rw_lock_t* ahi_latch = btr_get_search_latch(index);
 	const rec_t* rec;
 
-	if (use_latch) {
-		rw_lock_s_lock(use_latch);
+		rw_lock_s_lock(ahi_latch);
 
-		if (!btr_search_enabled) {
-			goto fail;
-		}
-	} else {
-		ut_ad(btr_search_enabled);
-		ut_ad(rw_lock_own(ahi_latch, RW_LOCK_S));
+	if (!btr_search_enabled) {
+		goto fail;
 	}
 
 	rec = static_cast<const rec_t*>(
 		ha_search_and_get_data(btr_get_search_table(index), fold));
 
 	if (!rec) {
-		if (use_latch) {
 fail:
-			rw_lock_s_unlock(use_latch);
-		}
+		rw_lock_s_unlock(ahi_latch);
 
 		btr_search_failure(info, cursor);
 		return false;
@@ -978,25 +965,19 @@ fail:
 
 	buf_block_t*	block = buf_block_from_ahi(rec);
 
-	if (use_latch) {
-		if (!buf_page_get_known_nowait(
-			latch_mode, block, BUF_MAKE_YOUNG,
-			__FILE__, __LINE__, mtr)) {
-			goto fail;
-		}
+	if (!buf_page_get_known_nowait(latch_mode, block, BUF_MAKE_YOUNG,
+	      __FILE__, __LINE__, mtr)) {
+		goto fail;
+	}
 
-		const bool fail = index != block->index
-			&& index_id == block->index->id;
-		ut_a(!fail || block->index->freed());
-		rw_lock_s_unlock(use_latch);
+	const bool fail = index != block->index
+		&& index_id == block->index->id;
+	ut_a(!fail || block->index->freed());
+	ut_ad(fail || !block->page.file_page_was_freed);
+	rw_lock_s_unlock(ahi_latch);
 
-		buf_block_dbg_add_level(block, SYNC_TREE_NODE_FROM_HASH);
-		if (UNIV_UNLIKELY(fail)) {
-			goto fail_and_release_page;
-		}
-	} else if (UNIV_UNLIKELY(index != block->index
-				 && index_id == block->index->id)) {
-		ut_a(block->index->freed());
+	buf_block_dbg_add_level(block, SYNC_TREE_NODE_FROM_HASH);
+	if (UNIV_UNLIKELY(fail)) {
 		goto fail_and_release_page;
 	}
 
@@ -1005,9 +986,7 @@ fail:
 		ut_ad(buf_block_get_state(block) == BUF_BLOCK_REMOVE_HASH);
 
 fail_and_release_page:
-		if (!ahi_latch) {
-			btr_leaf_page_release(block, latch_mode, mtr);
-		}
+		btr_leaf_page_release(block, latch_mode, mtr);
 
 		btr_search_failure(info, cursor);
 		return false;
@@ -1025,7 +1004,7 @@ fail_and_release_page:
 	record to determine if our guess for the cursor position is
 	right. */
 	if (index_id != btr_page_get_index_id(block->frame)
-	    || !btr_search_check_guess(cursor, !!ahi_latch, tuple, mode)) {
+	    || !btr_search_check_guess(cursor, 0, tuple, mode)) {
 		goto fail_and_release_page;
 	}
 
@@ -1074,7 +1053,7 @@ fail_and_release_page:
 #ifdef UNIV_SEARCH_PERF_STAT
 	btr_search_n_succ++;
 #endif
-	if (!ahi_latch && buf_page_peek_if_too_old(&block->page)) {
+	if (buf_page_peek_if_too_old(&block->page)) {
 
 		buf_page_make_young(&block->page);
 	}

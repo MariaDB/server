@@ -5253,7 +5253,7 @@ dict_set_corrupted(
 
 	btr_cur_search_to_nth_level(sys_index, 0, tuple, PAGE_CUR_LE,
 				    BTR_MODIFY_LEAF,
-				    &cursor, 0, __FILE__, __LINE__, &mtr);
+				    &cursor, __FILE__, __LINE__, &mtr);
 
 	if (cursor.low_match == dtuple_get_n_fields(tuple)) {
 		/* UPDATE SYS_INDEXES SET TYPE=index->type
@@ -5355,7 +5355,7 @@ dict_index_set_merge_threshold(
 
 	btr_cur_search_to_nth_level(sys_index, 0, tuple, PAGE_CUR_GE,
 				    BTR_MODIFY_LEAF,
-				    &cursor, 0, __FILE__, __LINE__, &mtr);
+				    &cursor, __FILE__, __LINE__, &mtr);
 
 	if (cursor.up_match == dtuple_get_n_fields(tuple)
 	    && rec_get_n_fields_old(btr_cur_get_rec(&cursor))
