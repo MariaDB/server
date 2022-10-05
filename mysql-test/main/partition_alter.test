@@ -185,4 +185,15 @@ select * from t1 partition(p1);
 delete from t1;
 drop table t1;
 
+--echo #
+--echo # MDEV-28576 RENAME COLUMN with NOCOPY algorithm leads to corrupt partitioned table
+--echo #
+create table t (a int, b int) partition by list (b) (partition p1 values in (1, 2));
+insert into t values (0, 1), (2, 2);
+alter table t change b f int, change a b int, algorithm=nocopy;
+check table t;
+delete from t order by b limit 1;
+# cleanup
+drop table t;
+
 --echo # End of 10.3 tests

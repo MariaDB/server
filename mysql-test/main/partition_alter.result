@@ -200,4 +200,15 @@ pk
 2
 delete from t1;
 drop table t1;
+#
+# MDEV-28576 RENAME COLUMN with NOCOPY algorithm leads to corrupt partitioned table
+#
+create table t (a int, b int) partition by list (b) (partition p1 values in (1, 2));
+insert into t values (0, 1), (2, 2);
+alter table t change b f int, change a b int, algorithm=nocopy;
+check table t;
+Table	Op	Msg_type	Msg_text
+test.t	check	status	OK
+delete from t order by b limit 1;
+drop table t;
 # End of 10.3 tests
