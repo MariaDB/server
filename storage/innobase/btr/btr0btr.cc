@@ -834,7 +834,7 @@ btr_page_get_father_node_ptr_func(
 
 	err = btr_cur_search_to_nth_level(
 		index, level + 1, tuple,
-		PAGE_CUR_LE, latch_mode, cursor, 0,
+		PAGE_CUR_LE, latch_mode, cursor,
 		file, line, mtr);
 
 	if (err != DB_SUCCESS) {
@@ -2380,7 +2380,7 @@ btr_insert_on_non_leaf_level_func(
 		dberr_t err = btr_cur_search_to_nth_level(
 			index, level, tuple, PAGE_CUR_LE,
 			BTR_CONT_MODIFY_TREE,
-			&cursor, 0, file, line, mtr);
+			&cursor, file, line, mtr);
 
 		if (err != DB_SUCCESS) {
 			ib::warn() << " Error code: " << err
@@ -2401,7 +2401,7 @@ btr_insert_on_non_leaf_level_func(
 		btr_cur_search_to_nth_level(index, level, tuple,
 					    PAGE_CUR_RTREE_INSERT,
 					    BTR_CONT_MODIFY_TREE,
-					    &cursor, 0, file, line, mtr);
+					    &cursor, file, line, mtr);
 	}
 
 	ut_ad(cursor.flag == BTR_CUR_BINARY);

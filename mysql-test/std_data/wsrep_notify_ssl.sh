@@ -17,9 +17,9 @@ PORT=$NODE_MYPORT_1
 #
 # Edit parameters below to specify SSL parameters:
 #
-ssl_key=
-ssl_cert=
-ssl_ca=
+ssl_cert="$MYSQL_TEST_DIR/std_data/client-cert.pem"
+ssl_key="$MYSQL_TEST_DIR/std_data/client-key.pem"
+ssl_ca="$MYSQL_TEST_DIR/std_data/cacert.pem"
 ssl_capath=
 ssl_cipher=
 ssl_crl=
@@ -76,7 +76,7 @@ configuration_change()
 
 status_update()
 {
-    echo "$BEGIN; UPDATE $STATUS_TABLE SET status='$STATUS'; $END;"
+    echo "SET wsrep_on=0; BEGIN; UPDATE $STATUS_TABLE SET status='$STATUS'; COMMIT;"
 }
 
 trim_string()
@@ -186,14 +186,10 @@ then
     fi
 fi
 
-case $STATUS in
-    "joined" | "donor" | "synced")
-        "$COM" | eval "$CLIENT" -B "-u'$USER'"${PSWD:+" -p'$PSWD'"}\
-                      "-h'$HOST'" "-P$PORT"$SSL_PARAM
-        ;;
-    *)
-        # The node might be shutting down
-        ;;
-esac
+# Undefined means node is shutting down
+if [ "$STATUS" != 'Undefined' ]; then
+    "$COM" | eval "$CLIENT" -B "-u'$USER'"${PSWD:+" -p'$PSWD'"}\
+                               "-h'$HOST'" "-P$PORT"$SSL_PARAM
+fi
 
 exit 0

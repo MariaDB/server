@@ -221,7 +221,6 @@
 #cmakedefine HAVE_SIGWAIT 1
 #cmakedefine HAVE_SIGWAITINFO 1
 #cmakedefine HAVE_SLEEP 1
-#cmakedefine HAVE_SNPRINTF 1
 #cmakedefine HAVE_STPCPY 1
 #cmakedefine HAVE_STRERROR 1
 #cmakedefine HAVE_STRCOLL 1

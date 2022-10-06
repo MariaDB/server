@@ -561,8 +561,10 @@ void trx_disconnect_prepared(trx_t *trx)
   ut_ad(trx->mysql_thd);
   ut_ad(!trx->mysql_log_file_name);
   trx->read_view.close();
+  trx_sys.trx_list.freeze();
   trx->is_recovered= true;
   trx->mysql_thd= NULL;
+  trx_sys.trx_list.unfreeze();
   /* todo/fixme: suggest to do it at innodb prepare */
   trx->will_lock= false;
   trx_sys.rw_trx_hash.put_pins(trx);

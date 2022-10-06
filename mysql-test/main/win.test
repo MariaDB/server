@@ -1,6 +1,7 @@
 #
 #  Window Functions Tests
 #
+--source include/no_valgrind_without_big.inc
 --source include/have_sequence.inc
 
 --disable_warnings

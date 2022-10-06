@@ -11,6 +11,7 @@
 #
 
 # Slow test, don't run during staging part
+--source include/long_test.inc
 --source include/not_staging.inc
 --source include/have_innodb.inc
 
