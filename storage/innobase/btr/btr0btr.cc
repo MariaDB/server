@@ -1410,7 +1410,10 @@ static dberr_t btr_page_reorganize_low(page_cur_t *cursor, dict_index_t *index,
                 block->page.frame + PAGE_MAX_TRX_ID + PAGE_HEADER,
                 PAGE_DATA - (PAGE_MAX_TRX_ID + PAGE_HEADER)));
 
-  if (index->has_locking())
+  if (!index->has_locking());
+  else if (index->page == FIL_NULL)
+    ut_ad(index->is_dummy);
+  else
     lock_move_reorganize_page(block, old);
 
   /* Write log for the changes, if needed. */
