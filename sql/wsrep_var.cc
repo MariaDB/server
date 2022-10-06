@@ -70,6 +70,12 @@ bool wsrep_on_check(sys_var *self, THD* thd, set_var* var)
 	    " innodb_lock_schedule_algorithm=FCFS and restart.", MYF(0));
     return true;
   }
+  if (new_wsrep_on && !WSREP_PROVIDER_EXISTS)
+  {
+    my_message(ER_WRONG_ARGUMENTS, "WSREP (galera) can't be enabled "
+               "if the wsrep_provider is unset or set to 'none'", MYF(0));
+    return true;
+  }
   return false;
 }
 
