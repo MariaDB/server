@@ -18661,7 +18661,13 @@ void lock_wait_wsrep_kill(trx_t *bf_trx, ulong thd_id, trx_id_t trx_id)
       lock_sys.cancel_lock_wait_for_trx(vtrx);
 
       DEBUG_SYNC(bf_thd, "before_wsrep_thd_abort");
-      wsrep_thd_bf_abort(bf_thd, vthd, true);
+      if (!wsrep_thd_bf_abort(bf_thd, vthd, true))
+      {
+        wsrep_thd_LOCK(vthd);
+        wsrep_thd_set_wsrep_aborter(NULL, bf_thd);
+        wsrep_thd_UNLOCK(vthd);
+        WSREP_DEBUG("wsrep_thd_bf_abort has failed, victim will survive");
+      }
     }
     wsrep_thd_kill_UNLOCK(vthd);
   }
