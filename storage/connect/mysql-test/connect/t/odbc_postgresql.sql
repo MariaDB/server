@@ -27,4 +27,6 @@ CREATE TABLE schema1.t2 (a CHAR(10) NOT NULL);
 INSERT INTO schema1.t2 VALUES ('xxx'),('yyy'),('zzz'),('ÄÖÜ');
 CREATE TABLE schema1.t3 (a CHAR(10) NOT NULL, b CHAR(10) NOT NULL);
 INSERT INTO schema1.t3 VALUES ('xxx', 'aaa'),('yyy', 'bbb'),('zzz', 'ccc'),('ÄÖÜ', 'яяя');
+CREATE TABLE schema1.space_in_column_name ("my space column" CHAR(20) NOT NULL);
+INSERT INTO schema1.space_in_column_name VALUES ('My value');
 \dt schema1.*

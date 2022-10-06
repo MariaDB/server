@@ -15,6 +15,7 @@ Table_Cat	Table_Schema	Table_Name	Table_Type	Remark
 mtr	public	t1	TABLE	
 mtr	public	t2	TABLE	
 mtr	public	v1	VIEW	
+mtr	schema1	space_in_column_name	TABLE	
 mtr	schema1	t1	TABLE	
 mtr	schema1	t2	TABLE	
 mtr	schema1	t3	TABLE	
@@ -27,6 +28,7 @@ Table_Cat	Table_Schema	Table_Name	Table_Type	Remark
 mtr	public	t1	TABLE	
 mtr	public	t2	TABLE	
 mtr	public	v1	VIEW	
+mtr	schema1	space_in_column_name	TABLE	
 mtr	schema1	t1	TABLE	
 mtr	schema1	t2	TABLE	
 mtr	schema1	t3	TABLE	
@@ -39,6 +41,7 @@ Table_Cat	Table_Schema	Table_Name	Table_Type	Remark
 mtr	public	t1	TABLE	
 mtr	public	t2	TABLE	
 mtr	public	v1	VIEW	
+mtr	schema1	space_in_column_name	TABLE	
 mtr	schema1	t1	TABLE	
 mtr	schema1	t2	TABLE	
 mtr	schema1	t3	TABLE	
@@ -102,6 +105,7 @@ Table_Cat	Table_Schema	Table_Name	Column_Name	Data_Type	Type_Name	Column_Size	Bu
 mtr	public	t1	a	4	int4	10	4	0	10	0	
 mtr	public	t2	a	4	int4	10	4	0	10	0	
 mtr	public	v1	a	4	int4	10	4	0	10	1	
+mtr	schema1	space_in_column_name	my space column	1	bpchar	20	80	NULL	NULL	0	
 mtr	schema1	t1	a	1	bpchar	10	40	NULL	NULL	0	
 mtr	schema1	t2	a	1	bpchar	10	40	NULL	NULL	0	
 mtr	schema1	t3	a	1	bpchar	10	40	NULL	NULL	0	
@@ -115,6 +119,7 @@ Table_Cat	Table_Schema	Table_Name	Column_Name	Data_Type	Type_Name	Column_Size	Bu
 mtr	public	t1	a	4	int4	10	4	0	10	0	
 mtr	public	t2	a	4	int4	10	4	0	10	0	
 mtr	public	v1	a	4	int4	10	4	0	10	1	
+mtr	schema1	space_in_column_name	my space column	1	bpchar	20	80	NULL	NULL	0	
 mtr	schema1	t1	a	1	bpchar	10	40	NULL	NULL	0	
 mtr	schema1	t2	a	1	bpchar	10	40	NULL	NULL	0	
 mtr	schema1	t3	a	1	bpchar	10	40	NULL	NULL	0	
@@ -306,3 +311,11 @@ DELETE FROM t1 WHERE a='20';
 Warnings:
 Note	1105	schema1.t3: 0 affected rows
 DROP TABLE t1;
+#
+# MDEV-29687 ODBC tables do not quote identifier names correctly
+#
+CREATE TABLE pg_in_maria ENGINE=CONNECT TABNAME='schema1.space_in_column_name' CHARSET=utf8 DATA_CHARSET=utf8 TABLE_TYPE=ODBC CONNECTION='DSN=ConnectEnginePostgresql;UID=mtr;PWD=mtr' quoted=1;
+SELECT * from pg_in_maria;
+my space column
+My value
+DROP TABLE pg_in_maria;
