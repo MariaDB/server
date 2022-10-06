@@ -207,7 +207,25 @@ DROP USER 'user2'@'%';
 DROP DATABASE temp;
 
 set global sql_mode=default;
---echo End of 5.0 tests
+--echo #
+--echo # End of 5.0 tests
+--echo #
+
+create database db1;
+create user foo@localhost;
+grant create on db1.* to foo@localhost;
+connect foo,localhost,foo;
+create temporary table t as values (1),(2),(3);
+use db1;
+--error ER_TABLEACCESS_DENIED_ERROR
+create table t1 as select * from test.t;
+--error ER_TABLEACCESS_DENIED_ERROR
+create table t1 as values (1),(2),(3);
+create table t1 (a int);
+disconnect foo;
+connection default;
+drop user foo@localhost;
+drop database db1;
 
 # Wait till we reached the initial number of concurrent sessions
 --source include/wait_until_count_sessions.inc
