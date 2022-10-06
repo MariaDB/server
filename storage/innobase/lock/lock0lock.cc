@@ -1822,6 +1822,7 @@ dberr_t lock_wait(que_thr_t *thr)
   while (trx->lock.wait_lock)
   {
     int err;
+    DEBUG_SYNC_C("lock_wait_before_suspend");
 
     if (no_timeout)
     {
@@ -5869,6 +5870,7 @@ lock_unlock_table_autoinc(
 
 /** Handle a pending lock wait (DB_LOCK_WAIT) in a semi-consistent read
 while holding a clustered index leaf page latch.
+
 @param trx           transaction that is or was waiting for a lock
 @retval DB_SUCCESS   if the lock was granted
 @retval DB_DEADLOCK  if the transaction must be aborted due to a deadlock
@@ -5879,8 +5881,13 @@ dberr_t lock_trx_handle_wait(trx_t *trx)
   DEBUG_SYNC_C("lock_trx_handle_wait_enter");
   if (trx->lock.was_chosen_as_deadlock_victim)
     return DB_DEADLOCK;
+  DEBUG_SYNC_C("lock_trx_handle_wait_before_unlocked_wait_lock_check");
+  /* trx->lock.was_chosen_as_deadlock_victim must always be set before
+  trx->lock.wait_lock if the transaction was chosen as deadlock victim,
+  the function must not return DB_SUCCESS if
+  trx->lock.was_chosen_as_deadlock_victim is set. */
   if (!trx->lock.wait_lock)
-    return DB_SUCCESS;
+    return trx->lock.was_chosen_as_deadlock_victim ? DB_DEADLOCK : DB_SUCCESS;
   dberr_t err= DB_SUCCESS;
   mysql_mutex_lock(&lock_sys.wait_mutex);
   if (trx->lock.was_chosen_as_deadlock_victim)
@@ -6283,6 +6290,8 @@ namespace Deadlock
 
       ut_ad(victim->state == TRX_STATE_ACTIVE);
 
+      /* victim->lock.was_chosen_as_deadlock_victim must always be set before
+      releasing waiting locks and reseting trx->lock.wait_lock */
       victim->lock.was_chosen_as_deadlock_victim= true;
       lock_cancel_waiting_and_release(victim->lock.wait_lock);
 #ifdef WITH_WSREP

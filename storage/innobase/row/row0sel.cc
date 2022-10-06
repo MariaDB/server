@@ -5270,6 +5270,8 @@ no_gap_lock:
 
 			switch (err) {
 			case DB_SUCCESS:
+				ut_ad(
+				    !trx->lock.was_chosen_as_deadlock_victim);
 				/* The lock was granted while we were
 				searching for the last committed version.
 				Do a normal locking read. */

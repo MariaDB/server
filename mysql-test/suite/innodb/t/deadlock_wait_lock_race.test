@@ -1,0 +1,62 @@
+--source include/have_innodb.inc
+--source include/have_debug_sync.inc
+--source include/count_sessions.inc
+
+--connect(suspend_purge,localhost,root,,)
+# Purge can cause deadlock in the test, requesting page's RW_X_LATCH for trx
+# ids reseting, after trx 2 acqured RW_S_LATCH and suspended in debug sync point
+# lock_trx_handle_wait_enter, waiting for upd_cont signal, which must be
+# emitted after the last SELECT in this test. The last SELECT will hang waiting
+# for purge RW_X_LATCH releasing, and trx 2 will be rolled back by timeout.
+START TRANSACTION WITH CONSISTENT SNAPSHOT;
+
+--connection default
+CREATE TABLE t (a int PRIMARY KEY, b int) engine = InnoDB;
+CREATE TABLE t2 (a int PRIMARY KEY) engine = InnoDB;
+
+INSERT INTO t VALUES (10, 10), (20, 20), (30, 30);
+INSERT INTO t2 VALUES (10), (20), (30);
+
+BEGIN; # trx 1
+# The following update is necessary to increase the transaction weight, which is
+# calculated as the number of locks + the number of undo records during deadlock
+# report. Victim's transaction should have minimum weight. We need trx 2 to be
+# choosen as victim, that's why we need to increase the current transaction
+# weight.
+UPDATE t2 SET a = a + 100;
+SELECT * FROM t WHERE a = 20 FOR UPDATE;
+
+--connect(con_2,localhost,root,,)
+# RC is necessary to do semi-consistent read
+SET TRANSACTION ISOLATION LEVEL READ COMMITTED;
+BEGIN; # trx 2
+# The first time it will be hit on trying to lock (20,20), the second hit
+# will be on (30,30).
+SET DEBUG_SYNC = 'lock_trx_handle_wait_before_unlocked_wait_lock_check SIGNAL upd_locked WAIT_FOR upd_cont';
+# We must not modify primary key fields to cause rr_sequential() read record
+# function choosing in mysql_update(), i.e. both query_plan.using_filesort and
+# query_plan.using_io_buffer must be false during init_read_record() call.
+--send UPDATE t SET b = 100
+
+--connection default
+SET DEBUG_SYNC="now WAIT_FOR upd_locked";
+SET DEBUG_SYNC="lock_wait_before_suspend SIGNAL upd_cont";
+--send SELECT * FROM t WHERE a = 10 FOR UPDATE
+
+--connection con_2
+# If the bug is not fixed, lock_trx_handle_wait() wrongly returns DB_SUCCESS
+# instead of DB_DEADLOCK, row_search_mvcc() of trx 2 behaves so as if (20,20)
+# was locked. Some debug assertion must crash the server. If the bug is fixed,
+# trx 2 must just be rolled back by deadlock detector.
+--error ER_LOCK_DEADLOCK
+--reap
+
+--disconnect con_2
+
+--connection default
+--reap
+SET DEBUG_SYNC = 'RESET';
+DROP TABLE t;
+DROP TABLE t2;
+--disconnect suspend_purge
+--source include/wait_until_count_sessions.inc
