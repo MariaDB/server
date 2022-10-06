@@ -753,7 +753,7 @@ btr_page_get_father_node_ptr_func(
 								  user_rec, 0,
 								  heap, level),
 					PAGE_CUR_LE, latch_mode,
-					cursor, 0, mtr) != DB_SUCCESS) {
+					cursor, mtr) != DB_SUCCESS) {
 		return nullptr;
 	}
 
@@ -2379,7 +2379,7 @@ btr_insert_on_non_leaf_level(
 
 	dberr_t err = btr_cur_search_to_nth_level(index, level, tuple, mode,
 						  BTR_CONT_MODIFY_TREE,
-						  &cursor, 0, mtr);
+						  &cursor, mtr);
 	ut_ad(cursor.flag == BTR_CUR_BINARY);
 
 	if (UNIV_LIKELY(err == DB_SUCCESS)) {

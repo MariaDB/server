@@ -1036,15 +1036,9 @@ both have sensible values.
 @param[in,out]	info		index search info
 @param[in]	tuple		logical record
 @param[in]	mode		PAGE_CUR_L, ....
-@param[in]	latch_mode	BTR_SEARCH_LEAF, ...;
-				NOTE that only if has_search_latch is 0, we will
-				have a latch set on the cursor page, otherwise
-				we assume the caller uses his search latch
-				to protect the record!
+@param[in]	latch_mode	BTR_SEARCH_LEAF, ...
 @param[out]	cursor		tree cursor
-@param[in]	ahi_latch	the adaptive hash index latch being held,
-				or NULL
-@param[in]	mtr		mini transaction
+@param[in]	mtr		mini-transaction
 @return whether the search succeeded */
 TRANSACTIONAL_TARGET
 bool
@@ -1055,7 +1049,6 @@ btr_search_guess_on_hash(
 	ulint		mode,
 	ulint		latch_mode,
 	btr_cur_t*	cursor,
-	srw_spin_lock*	ahi_latch,
 	mtr_t*		mtr)
 {
 	ulint		fold;
@@ -1068,8 +1061,6 @@ btr_search_guess_on_hash(
 	}
 
 	ut_ad(!index->is_ibuf());
-	ut_ad(!ahi_latch
-	      || ahi_latch == &btr_search_sys.get_part(*index)->latch);
 	ut_ad(latch_mode == BTR_SEARCH_LEAF || latch_mode == BTR_MODIFY_LEAF);
 	compile_time_assert(ulint{BTR_SEARCH_LEAF} == ulint{RW_S_LATCH});
 	compile_time_assert(ulint{BTR_MODIFY_LEAF} == ulint{RW_X_LATCH});
@@ -1104,24 +1095,18 @@ btr_search_guess_on_hash(
 	auto part = btr_search_sys.get_part(*index);
 	const rec_t* rec;
 
-	if (!ahi_latch) {
-		part->latch.rd_lock(SRW_LOCK_CALL);
+	part->latch.rd_lock(SRW_LOCK_CALL);
 
-		if (!btr_search_enabled) {
-			goto fail;
-		}
-	} else {
-		ut_ad(btr_search_enabled);
+	if (!btr_search_enabled) {
+		goto fail;
 	}
 
 	rec = static_cast<const rec_t*>(
 		ha_search_and_get_data(&part->table, fold));
 
 	if (!rec) {
-		if (!ahi_latch) {
 fail:
-			part->latch.rd_unlock();
-		}
+		part->latch.rd_unlock();
 
 		btr_search_failure(info, cursor);
 		return false;
@@ -1129,74 +1114,64 @@ fail:
 
 	buf_block_t* block = buf_pool.block_from_ahi(rec);
 
-	if (!ahi_latch) {
-		buf_pool_t::hash_chain& chain = buf_pool.page_hash.cell_get(
-			block->page.id().fold());
-		bool fail, got_latch;
-		{
-			transactional_shared_lock_guard<page_hash_latch> g{
-				buf_pool.page_hash.lock_get(chain)};
+	buf_pool_t::hash_chain& chain = buf_pool.page_hash.cell_get(
+		block->page.id().fold());
+	bool fail, got_latch;
+	{
+		transactional_shared_lock_guard<page_hash_latch> g{
+			buf_pool.page_hash.lock_get(chain)};
 
-			const auto state = block->page.state();
-			if (state == buf_page_t::REMOVE_HASH) {
-				/* Another thread is just freeing the block
-				from the LRU list of the buffer pool: do not
-				try to access this page. */
-				goto fail;
-			}
-			if (UNIV_UNLIKELY(state < buf_page_t::UNFIXED)) {
-#ifndef NO_ELISION
-				xend();
-#endif
-				ut_error;
-			}
-
-			fail = index != block->index
-				&& index_id == block->index->id;
-			got_latch = (latch_mode == BTR_SEARCH_LEAF)
-				? block->page.lock.s_lock_try()
-				: block->page.lock.x_lock_try();
-		}
-
-		ut_a(!fail || block->index->freed());
-		if (!got_latch) {
+		const auto state = block->page.state();
+		if (state == buf_page_t::REMOVE_HASH) {
+			/* Another thread is just freeing the block
+			from the LRU list of the buffer pool: do not
+			try to access this page. */
 			goto fail;
 		}
-
-		block->page.fix();
-		block->page.set_accessed();
-		buf_page_make_young_if_needed(&block->page);
-		ut_ad(!block->page.is_read_fixed());
-		ut_ad(latch_mode == BTR_SEARCH_LEAF
-		      || !block->page.is_io_fixed());
-		static_assert(ulint{MTR_MEMO_PAGE_S_FIX} ==
-			      ulint{BTR_SEARCH_LEAF}, "");
-		static_assert(ulint{MTR_MEMO_PAGE_X_FIX} ==
-			      ulint{BTR_MODIFY_LEAF}, "");
-		mtr->memo_push(block, mtr_memo_type_t(latch_mode));
-
-		++buf_pool.stat.n_page_gets;
-
-		part->latch.rd_unlock();
-
-		if (UNIV_UNLIKELY(fail)) {
-			goto fail_and_release_page;
+		if (UNIV_UNLIKELY(state < buf_page_t::UNFIXED)) {
+#ifndef NO_ELISION
+			xend();
+#endif
+			ut_error;
 		}
 
-		DBUG_ASSERT(!block->page.is_freed());
-	} else if (UNIV_UNLIKELY(index != block->index
-				 && index_id == block->index->id)) {
-		ut_a(block->index->freed());
+		fail = index != block->index && index_id == block->index->id;
+		got_latch = (latch_mode == BTR_SEARCH_LEAF)
+			? block->page.lock.s_lock_try()
+			: block->page.lock.x_lock_try();
+	}
+
+	ut_a(!fail || block->index->freed());
+	if (!got_latch) {
+		goto fail;
+	}
+
+	block->page.fix();
+	block->page.set_accessed();
+	buf_page_make_young_if_needed(&block->page);
+	ut_ad(!block->page.is_read_fixed());
+	ut_ad(latch_mode == BTR_SEARCH_LEAF || !block->page.is_io_fixed());
+	static_assert(ulint{MTR_MEMO_PAGE_S_FIX} == ulint{BTR_SEARCH_LEAF},
+		      "");
+	static_assert(ulint{MTR_MEMO_PAGE_X_FIX} == ulint{BTR_MODIFY_LEAF},
+		      "");
+	mtr->memo_push(block, mtr_memo_type_t(latch_mode));
+
+	++buf_pool.stat.n_page_gets;
+
+	part->latch.rd_unlock();
+
+	if (UNIV_UNLIKELY(fail)) {
 		goto fail_and_release_page;
 	}
+
+	DBUG_ASSERT(!block->page.is_freed());
 
 	if (!block->page.in_file()) {
 		ut_ad(block->page.state() == buf_page_t::REMOVE_HASH);
 
 fail_and_release_page:
-		if (!ahi_latch) {
-			btr_leaf_page_release(block, latch_mode, mtr);
-		}
+		btr_leaf_page_release(block, latch_mode, mtr);
 
 		btr_search_failure(info, cursor);
 		return false;
@@ -1214,7 +1189,7 @@ fail_and_release_page:
 	record to determine if our guess for the cursor position is
 	right. */
 	if (index_id != btr_page_get_index_id(block->page.frame)
-	    || !btr_search_check_guess(cursor, !!ahi_latch, tuple, mode)) {
+	    || !btr_search_check_guess(cursor, false, tuple, mode)) {
 		goto fail_and_release_page;
 	}
 
@@ -1263,14 +1238,6 @@ fail_and_release_page:
 #ifdef UNIV_SEARCH_PERF_STAT
 	btr_search_n_succ++;
 #endif
-	/* Increment the page get statistics though we did not really
-	fix the page: for user info only */
-	++buf_pool.stat.n_page_gets;
-
-	if (!ahi_latch) {
-		buf_page_make_young_if_needed(&block->page);
-	}
-
 	return true;
 }
 

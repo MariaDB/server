@@ -420,13 +420,8 @@ btr_pcur_t::restore_position(ulint restore_latch_mode, mtr_t *mtr)
 		mode = PAGE_CUR_UNSUPP;
 	}
 
-	if (btr_pcur_open_with_no_init_func(
-		index, tuple, mode, restore_latch_mode,
-		this,
-#ifdef BTR_CUR_HASH_ADAPT
-		nullptr,
-#endif /* BTR_CUR_HASH_ADAPT */
-		mtr) != DB_SUCCESS) {
+	if (btr_pcur_open_with_no_init(index, tuple, mode, restore_latch_mode,
+				       this, mtr) != DB_SUCCESS) {
 		mem_heap_free(heap);
 		return restore_status::CORRUPTED;
         }

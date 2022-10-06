@@ -3081,7 +3081,7 @@ row_log_apply_op_low(
 					     has_index_lock
 					     ? BTR_MODIFY_TREE
 					     : BTR_MODIFY_LEAF,
-					     &cursor, 0, &mtr);
+					     &cursor, &mtr);
 	if (UNIV_UNLIKELY(*error != DB_SUCCESS)) {
 		goto func_exit;
 	}
@@ -3133,7 +3133,7 @@ row_log_apply_op_low(
 				index->set_modified(mtr);
 				*error = btr_cur_search_to_nth_level(
 					index, 0, entry, PAGE_CUR_LE,
-					BTR_MODIFY_TREE, &cursor, 0, &mtr);
+					BTR_MODIFY_TREE, &cursor, &mtr);
 				if (UNIV_UNLIKELY(*error != DB_SUCCESS)) {
 					goto func_exit;
 				}
@@ -3237,7 +3237,7 @@ insert_the_rec:
 				index->set_modified(mtr);
 				*error = btr_cur_search_to_nth_level(
 					index, 0, entry, PAGE_CUR_LE,
-					BTR_MODIFY_TREE, &cursor, 0, &mtr);
+					BTR_MODIFY_TREE, &cursor, &mtr);
 				if (*error != DB_SUCCESS) {
 					break;
 				}

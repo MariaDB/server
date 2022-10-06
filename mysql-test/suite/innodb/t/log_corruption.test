@@ -1,5 +1,6 @@
 --source include/have_innodb.inc
 --source include/have_innodb_16k.inc
+--source include/no_valgrind_without_big.inc
 
 --disable_query_log
 call mtr.add_suppression("InnoDB: Upgrade after a crash is not supported");
