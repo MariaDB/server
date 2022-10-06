@@ -110,7 +110,7 @@ TRANSACTIONAL_INLINE inline bool TrxUndoRsegsIterator::set_next()
 	ut_ad(purge_sys.rseg->space->id == TRX_SYS_SPACE
 	      || srv_is_undo_tablespace(purge_sys.rseg->space->id));
 
-	trx_id_t last_trx_no, tail_trx_no;
+	trx_id_t last_trx_no;
 	{
 #ifdef SUX_LOCK_GENERIC
 		purge_sys.rseg->latch.rd_lock(SRW_LOCK_CALL);
@@ -119,9 +119,7 @@ TRANSACTIONAL_INLINE inline bool TrxUndoRsegsIterator::set_next()
 			{purge_sys.rseg->latch};
 #endif
 		last_trx_no = purge_sys.rseg->last_trx_no();
-		tail_trx_no = purge_sys.tail.trx_no;
 
-		purge_sys.tail.trx_no = last_trx_no;
 		purge_sys.hdr_offset = purge_sys.rseg->last_offset();
 		purge_sys.hdr_page_no = purge_sys.rseg->last_page_no;
 
@@ -130,11 +128,13 @@ TRANSACTIONAL_INLINE inline bool TrxUndoRsegsIterator::set_next()
 #endif
 	}
 
-	/* Only the purge coordinator task will access
-	purge_sys.rseg_iter or purge_sys.hdr_page_no. */
+	/* Only the purge coordinator task will access this object
+	purge_sys.rseg_iter, or any of purge_sys.hdr_page_no,
+	purge_sys.tail, purge_sys.head, or modify purge_sys.view. */
 	ut_ad(last_trx_no == m_rsegs.trx_no);
 	ut_a(purge_sys.hdr_page_no != FIL_NULL);
-	ut_a(tail_trx_no <= last_trx_no);
+	ut_a(purge_sys.tail.trx_no <= last_trx_no);
+	purge_sys.tail.trx_no = last_trx_no;
 
 	return(true);
 }
