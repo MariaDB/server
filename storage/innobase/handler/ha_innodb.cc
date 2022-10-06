@@ -20169,7 +20169,7 @@ innobase_rename_vc_templ(
 		for purge thread.
 */
 
-bool innobase_allocate_row_for_vcol(THD *thd, dict_index_t *index,
+bool innobase_allocate_row_for_vcol(THD *thd, const dict_index_t *index,
                                     mem_heap_t **heap, TABLE **table,
                                     VCOL_STORAGE *storage)
 {
