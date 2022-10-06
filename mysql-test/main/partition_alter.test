@@ -204,3 +204,44 @@ delete from t order by b limit 1;
 drop table t;
 
 --echo # End of 10.3 tests
+
+--echo #
+--echo # MDEV-28576 RENAME COLUMN with NOCOPY algorithm leads to corrupt partitioned table
+--echo #
+create table t (a int)
+partition by list (a)
+subpartition by hash(a) subpartitions 2
+(partition p0 values in (1));
+alter table t rename column a to b, algorithm=nocopy;
+show create table t;
+alter table t rename column b to c, algorithm=copy;
+show create table t;
+drop table t;
+
+create table t (d int, e int)
+partition by list columns (d, e)
+subpartition by key (d, e)
+(partition p0 values in ((2, 3)));
+alter table t rename column d to f, rename column e to g, algorithm=nocopy;
+show create table t;
+alter table t rename column f to h, rename column g to i, algorithm=copy;
+show create table t;
+drop table t;
+
+create table t (k int, l int)
+partition by range (k)
+subpartition by hash(l) subpartitions 4
+(partition p0 values less than (5));
+alter table t rename column k to l, rename column l to k;
+show create table t;
+drop table t;
+
+create table t (a int, b int) partition by list (b) (partition p1 values in (1, 2));
+insert into t values (0, 1), (2, 2);
+alter table t rename column b to f, rename column a to b, algorithm=nocopy;
+check table t;
+delete from t order by b limit 1;
+# cleanup
+drop table t;
+
+--echo # End of 10.5 tests
