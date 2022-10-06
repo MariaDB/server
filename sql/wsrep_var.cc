@@ -120,8 +120,7 @@ bool wsrep_on_update (sys_var *self, THD* thd, enum_var_type var_type)
 
       if (wsrep_init())
       {
-        my_error(ER_CANT_OPEN_LIBRARY, MYF(0), tmp, my_error, "wsrep_init failed");
-        //rcode= true;
+        my_error(ER_CANT_OPEN_LIBRARY, MYF(0), tmp, errno, "wsrep_init failed");
         saved_wsrep_on= false;
       }
 
