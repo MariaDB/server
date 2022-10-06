@@ -208,7 +208,7 @@ static long ZCALLBACK fseek64_file_func (voidpf opaque __attribute__((unused)), 
     }
     ret = 0;
 
-    if(FSEEKO_FUNC((FILE *)stream, (long)offset, fseek_origin) != 0)
+    if(FSEEKO_FUNC((FILE *)stream, (z_off_t)offset, fseek_origin) != 0)
                         ret = -1;
 
     return ret;
