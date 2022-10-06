@@ -1,6 +1,5 @@
 --source include/have_innodb.inc
 --source include/have_partition.inc
---source include/big_test.inc
 
 call mtr.add_suppression("\\[Warning\\] InnoDB: Compute virtual");
 
