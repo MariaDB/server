@@ -624,7 +624,7 @@ mariadb.org-10.2 to mariadb-10.5 upgrade:
     - *test-prepare-container
     - apt install -y curl apt-transport-https
     - curl -sS https://mariadb.org/mariadb_release_signing_key.asc -o /etc/apt/trusted.gpg.d/mariadb.asc
-    - echo "deb https://deb.mariadb.org/10.2/debian ${RELEASE} main" > /etc/apt/sources.list.d/mariadb.list
+    - echo "deb https://archive.mariadb.org/mariadb-10.2/repo/debian ${RELEASE} main" > /etc/apt/sources.list.d/mariadb.list
     - apt-get update
     - apt-get install -y mariadb-server-10.2
     # Verify initial state before upgrade
