@@ -1264,25 +1264,39 @@ row_purge(
 	}
 }
 
-/***********************************************************//**
-Reset the purge query thread. */
-UNIV_INLINE
-void
-row_purge_end(
-/*==========*/
-	que_thr_t*	thr)	/*!< in: query thread */
+inline void purge_node_t::start()
 {
-	ut_ad(thr);
+  ut_ad(in_progress);
+  DBUG_ASSERT(common.type == QUE_NODE_PURGE);
 
-	thr->run_node = static_cast<purge_node_t*>(thr->run_node)->end();
-
-	ut_a(thr->run_node != NULL);
+  row= nullptr;
+  ref= nullptr;
+  index= nullptr;
+  update= nullptr;
+  found_clust= FALSE;
+  rec_type= ULINT_UNDEFINED;
+  cmpl_info= ULINT_UNDEFINED;
+  if (!purge_thd)
+    purge_thd= current_thd;
 }
 
+/** Reset the state at end
+@return the query graph parent */
+inline que_node_t *purge_node_t::end()
+{
+  DBUG_ASSERT(common.type == QUE_NODE_PURGE);
+  close_table();
+  ut_ad(undo_recs.empty());
+  ut_d(in_progress= false);
+  purge_thd= nullptr;
+  mem_heap_empty(heap);
+  return common.parent;
+}
+
+
 /***********************************************************//**
-Does the purge operation for a single undo log record. This is a high-level
-function used in an SQL execution graph.
-@return query thread to run next or NULL */
+Does the purge operation.
+@return query thread to run next */
 que_thr_t*
 row_purge_step(
 /*===========*/
@@ -1294,22 +1308,15 @@ row_purge_step(
 
 	node->start();
 
-	if (!node->undo_recs.empty()) {
+	while (!node->undo_recs.empty()) {
 		trx_purge_rec_t purge_rec = node->undo_recs.front();
 		node->undo_recs.pop();
 		node->roll_ptr = purge_rec.roll_ptr;
 
 		row_purge(node, purge_rec.undo_rec, thr);
-
-		if (node->undo_recs.empty()) {
-			row_purge_end(thr);
-		} else {
-			thr->run_node = node;
-		}
-	} else {
-		row_purge_end(thr);
 	}
 
+	thr->run_node = node->end();
 	return(thr);
 }
 
