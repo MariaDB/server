@@ -18727,7 +18727,10 @@ wsrep_abort_transaction(
 	ut_ad(bf_thd);
 	ut_ad(victim_thd);
 
+	wsrep_thd_kill_LOCK(victim_thd);
+	wsrep_thd_LOCK(victim_thd);
 	trx_t* victim_trx= thd_to_trx(victim_thd);
+	wsrep_thd_UNLOCK(victim_thd);
 
 	WSREP_DEBUG("abort transaction: BF: %s victim: %s victim conf: %s",
 			wsrep_thd_query(bf_thd),
@@ -18737,7 +18740,6 @@ wsrep_abort_transaction(
 	if (victim_trx) {
 		victim_trx->lock.set_wsrep_victim();
 
-		wsrep_thd_kill_LOCK(victim_thd);
 		wsrep_thd_LOCK(victim_thd);
 		bool aborting= !wsrep_thd_set_wsrep_aborter(bf_thd, victim_thd);
 		wsrep_thd_UNLOCK(victim_thd);
@@ -18754,8 +18756,6 @@ wsrep_abort_transaction(
 					 };);
 			wsrep_thd_bf_abort(bf_thd, victim_thd, signal);
 		}
-		wsrep_thd_kill_UNLOCK(victim_thd);
-		DBUG_VOID_RETURN;
 	} else {
 		DBUG_EXECUTE_IF("sync.before_wsrep_thd_abort",
 				 {
@@ -18766,11 +18766,10 @@ wsrep_abort_transaction(
 				   DBUG_ASSERT(!debug_sync_set_action(bf_thd,
 								      STRING_WITH_LEN(act)));
 				 };);
-		wsrep_thd_kill_LOCK(victim_thd);
 		wsrep_thd_bf_abort(bf_thd, victim_thd, signal);
-		wsrep_thd_kill_UNLOCK(victim_thd);
 	}
 
+	wsrep_thd_kill_UNLOCK(victim_thd);
 	DBUG_VOID_RETURN;
 }
 
