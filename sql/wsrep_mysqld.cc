@@ -126,6 +126,7 @@ ulong wsrep_trx_fragment_unit= WSREP_FRAG_BYTES;
 ulong wsrep_SR_store_type= WSREP_SR_STORE_TABLE;
 uint  wsrep_ignore_apply_errors= 0;
 
+std::atomic <bool> wsrep_thread_create_failed;
 
 /*
  * End configuration options
@@ -2940,7 +2941,9 @@ void* start_wsrep_THD(void *arg)
   {
     close_connection(thd, ER_OUT_OF_RESOURCES);
     statistic_increment(aborted_connects,&LOCK_status);
-    MYSQL_CALLBACK(thread_scheduler, end_thread, (thd, 0));
+    // This will signal error to wsrep_slave_threads_update
+    wsrep_thread_create_failed.store(true, std::memory_order_relaxed);
+    WSREP_DEBUG("start_wsrep_THD: init_new_connection_thread failed");
     goto error;
   }
 

@@ -1,4 +1,4 @@
-/* Copyright 2008-2021 Codership Oy <http://www.codership.com>
+/* Copyright 2008-2022 Codership Oy <http://www.codership.com>
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -753,12 +753,30 @@ bool wsrep_slave_threads_update (sys_var *self, THD* thd, enum_var_type type)
   if (wsrep_slave_count_change > 0)
   {
     WSREP_DEBUG("Creating %d applier threads, total %ld", wsrep_slave_count_change, wsrep_slave_threads);
+    wsrep_thread_create_failed.store(false, std::memory_order_relaxed);
     res= wsrep_create_appliers(wsrep_slave_count_change, true);
+    mysql_mutex_unlock(&LOCK_global_system_variables);
+    mysql_mutex_unlock(&LOCK_wsrep_slave_threads);
+    // Thread creation and execution is asyncronous, therefore we need
+    // wait them to be started or error produced
+    while (wsrep_running_applier_threads != (ulong)wsrep_slave_threads &&
+	   !wsrep_thread_create_failed.load(std::memory_order_relaxed))
+    {
+	    my_sleep(1000);
+    }
+
+    mysql_mutex_lock(&LOCK_global_system_variables);
+
+    if (wsrep_thread_create_failed.load(std::memory_order_relaxed)) {
+      wsrep_slave_threads= wsrep_running_applier_threads;
+      return true;
+    }
+
     WSREP_DEBUG("Running %lu applier threads", wsrep_running_applier_threads);
     wsrep_slave_count_change = 0;
   }
-
-  mysql_mutex_unlock(&LOCK_wsrep_slave_threads);
+  else
+     mysql_mutex_unlock(&LOCK_wsrep_slave_threads);
 
   return res;
 }
