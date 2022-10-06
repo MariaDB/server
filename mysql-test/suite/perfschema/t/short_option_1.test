@@ -1,3 +1,6 @@
+# Work around MDEV-29508
+--source include/not_valgrind.inc
+
 # Tests for PERFORMANCE_SCHEMA
 # Check server start for short server start options
 
