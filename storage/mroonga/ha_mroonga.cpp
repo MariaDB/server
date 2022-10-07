@@ -3396,16 +3396,16 @@ int ha_mroonga::wrapper_create_index(const char *name, TABLE *table,
                                          index_tables, NULL, tmp_share);
       }
     }
-  }
 
-  if (error) {
-    for (uint j = 0; j < i; j++) {
-      if (index_tables[j]) {
-        grn_obj_remove(ctx, index_tables[j]);
+    if (error) {
+      for (uint j = 0; j < i; j++) {
+        if (index_tables[j]) {
+          grn_obj_remove(ctx, index_tables[j]);
+        }
       }
+      grn_obj_remove(ctx, grn_table);
+      grn_table = NULL;
     }
-    grn_obj_remove(ctx, grn_table);
-    grn_table = NULL;
   }
   MRN_FREE_VARIABLE_LENGTH_ARRAYS(index_tables);
   DBUG_RETURN(error);

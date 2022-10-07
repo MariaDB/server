@@ -3591,53 +3591,51 @@ grn_obj_search_column_index_by_key(grn_ctx *ctx, grn_obj *obj,
   if (need_cast) {
     GRN_OBJ_INIT(&casted_query, GRN_BULK, 0, key_type);
     rc = grn_obj_cast(ctx, query, &casted_query, GRN_FALSE);
-    if (rc == GRN_SUCCESS) {
-      key = GRN_BULK_HEAD(&casted_query);
-      key_len = GRN_BULK_VSIZE(&casted_query);
-    }
-  } else {
-    rc = GRN_SUCCESS;
-    key = GRN_BULK_HEAD(query);
-    key_len = GRN_BULK_VSIZE(query);
+    if (rc != GRN_SUCCESS)
+      goto fail;
+    query = &casted_query;
   }
-  if (rc == GRN_SUCCESS) {
-    if (grn_logger_pass(ctx, GRN_REPORT_INDEX_LOG_LEVEL)) {
-      const char *tag;
-      if (optarg) {
-        switch (optarg->mode) {
-        case GRN_OP_MATCH :
-          tag = "[key][match]";
-          break;
-        case GRN_OP_EXACT :
-          tag = "[key][exact]";
-          break;
-        case GRN_OP_NEAR :
-          tag = "[key][near]";
-          break;
-        case GRN_OP_NEAR2 :
-          tag = "[key][near2]";
-          break;
-        case GRN_OP_SIMILAR :
-          tag = "[key][similar]";
-          break;
-        case GRN_OP_REGEXP :
-          tag = "[key][regexp]";
-          break;
-        case GRN_OP_FUZZY :
-          tag = "[key][fuzzy]";
-          break;
-        default :
-          tag = "[key][unknown]";
-          break;
-        }
-      } else {
+
+  key = GRN_BULK_HEAD(query);
+  key_len = GRN_BULK_VSIZE(query);
+
+  if (grn_logger_pass(ctx, GRN_REPORT_INDEX_LOG_LEVEL)) {
+    const char *tag;
+    if (optarg) {
+      switch (optarg->mode) {
+      case GRN_OP_MATCH :
+        tag = "[key][match]";
+        break;
+      case GRN_OP_EXACT :
         tag = "[key][exact]";
+        break;
+      case GRN_OP_NEAR :
+        tag = "[key][near]";
+        break;
+      case GRN_OP_NEAR2 :
+        tag = "[key][near2]";
+        break;
+      case GRN_OP_SIMILAR :
+        tag = "[key][similar]";
+        break;
+      case GRN_OP_REGEXP :
+        tag = "[key][regexp]";
+        break;
+      case GRN_OP_FUZZY :
+        tag = "[key][fuzzy]";
+        break;
+      default :
+        tag = "[key][unknown]";
+        break;
       }
-      grn_obj_search_index_report(ctx, tag, obj);
+    } else {
+      tag = "[key][exact]";
     }
-    rc = grn_ii_sel(ctx, (grn_ii *)obj, key, key_len,
-                    (grn_hash *)res, op, optarg);
+    grn_obj_search_index_report(ctx, tag, obj);
   }
+  rc = grn_ii_sel(ctx, (grn_ii *)obj, key, key_len,
+                  (grn_hash *)res, op, optarg);
+ fail:
   if (need_cast) {
     GRN_OBJ_FIN(ctx, &casted_query);
   }
