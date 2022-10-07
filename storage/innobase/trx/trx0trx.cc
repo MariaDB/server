@@ -485,6 +485,7 @@ TRANSACTIONAL_INLINE inline void trx_t::commit_state()
 /** Release any explicit locks of a committing transaction. */
 inline void trx_t::release_locks()
 {
+  DEBUG_SYNC_C("trx_t_release_locks_enter");
   DBUG_ASSERT(state == TRX_STATE_COMMITTED_IN_MEMORY);
   DBUG_ASSERT(!is_referenced());
 
