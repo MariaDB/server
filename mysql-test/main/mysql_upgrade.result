@@ -947,42 +947,4 @@ disconnect con1;
 connection default;
 drop table mysql.global_priv;
 rename table mysql.global_priv_bak to mysql.global_priv;
-#
-# MDEV-28727 ALTER TABLE ALGORITHM=NOCOPY does not work after upgrade
-#
-create or replace table pet4 (
-build_time double(18, 7) default null,
-key idx1 (build_time)
-) engine innodb;
-check table pet4;
-Table	Op	Msg_type	Msg_text
-test.pet4	check	error	Table rebuild required. Please do "ALTER TABLE `pet4` FORCE" or dump/reload to fix it!
-check table pet4 for upgrade;
-Table	Op	Msg_type	Msg_text
-test.pet4	check	error	Table rebuild required. Please do "ALTER TABLE `pet4` FORCE" or dump/reload to fix it!
-alter table pet4 add i1 int, algorithm=nocopy;
-ERROR 0A000: ALGORITHM=NOCOPY is not supported for this operation. Try ALGORITHM=INPLACE
-# Running mysqlcheck
-test.pet4
-error    : Table rebuild required. Please do "ALTER TABLE `pet4` FORCE" or dump/reload to fix it!
-
-Repairing tables
-check table pet4;
-Table	Op	Msg_type	Msg_text
-test.pet4	check	status	OK
-alter table pet4 add i1 int, algorithm=nocopy;
-create or replace table pet4 (
-build_time double(18, 7) default null,
-key idx1 (build_time)
-) engine innodb;
-alter table pet4 add i1 int, algorithm=nocopy;
-ERROR 0A000: ALGORITHM=NOCOPY is not supported for this operation. Try ALGORITHM=INPLACE
-# Running mysql_upgrade
-test.pet4
-error    : Table rebuild required. Please do "ALTER TABLE `pet4` FORCE" or dump/reload to fix it!
-check table pet4;
-Table	Op	Msg_type	Msg_text
-test.pet4	check	status	OK
-alter table pet4 add i1 int, algorithm=nocopy;
-drop table pet4;
 # End of 10.4 tests
