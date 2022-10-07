@@ -211,5 +211,13 @@ ERROR 42000: INSERT command denied to user 'foo'@'localhost' for table `db1`.`t1
 create table t1 (a int);
 disconnect foo;
 connection default;
+revoke create on db1.* from foo@localhost;
+grant insert on db1.* to foo@localhost;
+connect foo,localhost,foo;
+use db1;
+create table t2 as values (1),(2),(3);
+ERROR 42000: CREATE command denied to user 'foo'@'localhost' for table `db1`.`t2`
+disconnect foo;
+connection default;
 drop user foo@localhost;
 drop database db1;

@@ -9869,7 +9869,7 @@ bool create_table_precheck(THD *thd, TABLE_LIST *tables,
   if (lex->tmp_table())
     want_priv= CREATE_TMP_ACL;
   else if (select_lex->item_list.elements || select_lex->tvc)
-    want_priv= INSERT_ACL;
+    want_priv|= INSERT_ACL;
 
   /* CREATE OR REPLACE on not temporary tables require DROP_ACL */
   if (lex->create_info.or_replace() && !lex->tmp_table())

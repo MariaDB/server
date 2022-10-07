@@ -224,6 +224,16 @@ create table t1 as values (1),(2),(3);
 create table t1 (a int);
 disconnect foo;
 connection default;
+
+revoke create on db1.* from foo@localhost;
+grant insert on db1.* to foo@localhost;
+connect foo,localhost,foo;
+use db1;
+--error ER_TABLEACCESS_DENIED_ERROR
+create table t2 as values (1),(2),(3);
+disconnect foo;
+
+connection default;
 drop user foo@localhost;
 drop database db1;
 
