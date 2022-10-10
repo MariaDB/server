@@ -8158,9 +8158,10 @@ int TABLE::update_virtual_fields(handler *h, enum_vcol_update_mode update_mode)
 /*
   Calculate the virtual field value for a specified field.
   @param vf                     A field to calculate
-  @param ignore_warnings        Ignore calculation warnings. This usually
-                                means that a calculation is internal and is
-                                not expected to fail.
+  @param ignore_warnings        Ignore the warnings and also make the
+                                calculations permissive. This usually means
+                                that a calculation is internal and is not
+                                expected to fail.
 */
 int TABLE::update_virtual_field(Field *vf, bool ignore_warnings)
 {
@@ -8169,8 +8170,13 @@ int TABLE::update_virtual_field(Field *vf, bool ignore_warnings)
   Counting_error_handler count_errors;
   Suppress_warnings_error_handler warning_handler;
   in_use->push_internal_handler(&count_errors);
+  bool abort_on_warning;
   if (ignore_warnings)
+  {
+    abort_on_warning= in_use->abort_on_warning;
+    in_use->abort_on_warning= false;
     in_use->push_internal_handler(&warning_handler);
+  }
   /*
     TODO: this may impose memory leak until table flush.
           See comment in
@@ -8183,7 +8189,12 @@ int TABLE::update_virtual_field(Field *vf, bool ignore_warnings)
   in_use->restore_active_arena(expr_arena, &backup_arena);
   in_use->pop_internal_handler();
   if (ignore_warnings)
+  {
+    in_use->abort_on_warning= abort_on_warning;
     in_use->pop_internal_handler();
+    // This is an internal calculation, we expect it to always succeed
+    DBUG_ASSERT(count_errors.errors == 0);
+  }
   DBUG_RETURN(count_errors.errors);
 }
 
