@@ -1,0 +1,13 @@
+--source include/have_log_bin.inc
+
+--echo #
+--echo # MDEV-29741 SHOW BINLOG EVENTS shows garbage with system_versioning_insert_history=on
+--echo #
+
+reset master;
+create table t (a int) with system versioning;
+set system_versioning_insert_history= on;
+insert into t (a) values (1);
+set system_versioning_insert_history= off;
+drop table t;
+source include/show_binlog_events.inc;

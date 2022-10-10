@@ -1056,6 +1056,8 @@ void Query_log_event::pack_info(Protocol *protocol)
       buf.append(STRING_WITH_LEN("check_constraint_checks=1, "));
     if (flags2 & OPTION_IF_EXISTS)
       buf.append(STRING_WITH_LEN("@@sql_if_exists=1, "));
+    if (flags2 & OPTION_INSERT_HISTORY)
+      buf.append(STRING_WITH_LEN("@@system_versioning_insert_history=1, "));
     buf[buf.length()-2]=';';
   }
   if (query && q_len)
