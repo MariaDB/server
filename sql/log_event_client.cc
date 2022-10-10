@@ -1904,6 +1904,9 @@ bool Query_log_event::print_query_header(IO_CACHE* file,
           print_set_option(file, tmp, mask & OPTION_EXPLICIT_DEF_TIMESTAMP, flags2,
                            "@@session.explicit_defaults_for_timestamp",
                            &need_comma) ||
+          print_set_option(file, tmp, mask & OPTION_INSERT_HISTORY, flags2,
+                           "@@session.system_versioning_insert_history",
+                           &need_comma) ||
           my_b_printf(file,"%s\n", print_event_info->delimiter))
         goto err;
       print_event_info->flags2= flags2;
