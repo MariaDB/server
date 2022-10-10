@@ -9164,13 +9164,11 @@ bool TABLE::vers_update_fields()
     {
       DBUG_ASSERT(0);
     }
-    vers_start_field()->set_has_explicit_value();
   }
 
   if (!versioned(VERS_TIMESTAMP) || !vers_end_field()->has_explicit_value())
   {
     vers_end_field()->set_max();
-    vers_end_field()->set_has_explicit_value();
     res= true;
   }
 
@@ -9185,7 +9183,6 @@ void TABLE::vers_update_end()
   if (vers_end_field()->store_timestamp(in_use->query_start(),
                                         in_use->query_start_sec_part()))
     DBUG_ASSERT(0);
-  vers_end_field()->set_has_explicit_value();
 }
 
 /**

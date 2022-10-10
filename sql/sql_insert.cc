@@ -4193,7 +4193,6 @@ int select_insert::send_data(List<Item> &values)
   bool error=0;
 
   thd->count_cuted_fields= CHECK_FIELD_WARN;	// Calculate cuted fields
-  table->reset_default_fields();
   store_values(values);
   if (table->default_field &&
       unlikely(table->update_default_fields(info.ignore)))
