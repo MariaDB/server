@@ -6313,10 +6313,7 @@ find_field_in_table(THD *thd, TABLE *table, const char *name, size_t length,
         thd->column_usage != COLUMNS_READ)
     {
       if (thd->vers_insert_history(field))
-      {
         DBUG_ASSERT(table->versioned());
-        table->vers_write= false;
-      }
       else if (field->invisible == INVISIBLE_SYSTEM)
         DBUG_RETURN((Field*)0);
     }
@@ -8842,12 +8839,10 @@ static bool vers_update_or_validate_fields(TABLE *table)
 {
   if (!table->versioned())
     return 0;
+  DBUG_ASSERT(table->vers_write);
 
-  if (table->vers_write)
-  {
-    table->vers_update_fields();
+  if (table->vers_update_fields())
     return 0;
-  }
 
   Field *row_start= table->vers_start_field();
   Field *row_end= table->vers_end_field();
@@ -8933,8 +8928,11 @@ fill_record(THD *thd, TABLE *table_arg, List<Item> &fields, List<Item> &values,
     if (table->next_number_field &&
         rfield->field_index ==  table->next_number_field->field_index)
       table->auto_increment_field_not_null= TRUE;
+
     const bool skip_sys_field= rfield->vers_sys_field() &&
-      (update || table->vers_write);
+      (update || table->versioned(VERS_TRX_ID) ||
+       !(thd->variables.option_bits & OPTION_INSERT_HISTORY));
+
     if ((rfield->vcol_info || skip_sys_field) &&
         !value->vcol_assignment_allowed_value() &&
         table->s->table_category != TABLE_CATEGORY_TEMPORARY)
@@ -8949,11 +8947,14 @@ fill_record(THD *thd, TABLE *table_arg, List<Item> &fields, List<Item> &values,
 
     if (rfield->stored_in_db())
     {
-      if (!skip_sys_field &&
-          unlikely(value->save_in_field(rfield, 0) < 0) && !ignore_errors)
+      if (!skip_sys_field)
       {
-        my_message(ER_UNKNOWN_ERROR, ER_THD(thd, ER_UNKNOWN_ERROR), MYF(0));
-        goto err;
+        if (value->save_in_field(rfield, 0) < 0 && !ignore_errors)
+        {
+          my_message(ER_UNKNOWN_ERROR, ER_THD(thd, ER_UNKNOWN_ERROR), MYF(0));
+          goto err;
+        }
+        rfield->set_has_explicit_value();
       }
       /*
         In sql MODE_SIMULTANEOUS_ASSIGNMENT,
@@ -8964,7 +8965,6 @@ fill_record(THD *thd, TABLE *table_arg, List<Item> &fields, List<Item> &values,
         rfield->move_field_offset((my_ptrdiff_t) (table->record[1] -
                                                   table->record[0]));
     }
-    rfield->set_has_explicit_value();
   }
 
   if (update && thd->variables.sql_mode & MODE_SIMULTANEOUS_ASSIGNMENT)
@@ -9217,7 +9217,8 @@ fill_record(THD *thd, TABLE *table, Field **ptr, List<Item> &values,
     DBUG_ASSERT(value);
 
     const bool skip_sys_field= field->vers_sys_field() &&
-                               table->vers_write;
+                      (table->versioned(VERS_TRX_ID) ||
+                       !(thd->variables.option_bits & OPTION_INSERT_HISTORY));
 
     if (field->field_index == autoinc_index)
       table->auto_increment_field_not_null= TRUE;
@@ -9229,9 +9230,10 @@ fill_record(THD *thd, TABLE *table, Field **ptr, List<Item> &values,
                           ER_WARNING_NON_DEFAULT_VALUE_FOR_GENERATED_COLUMN,
                           ER_THD(thd, ER_WARNING_NON_DEFAULT_VALUE_FOR_GENERATED_COLUMN),
                           field->field_name.str, table->s->table_name.str);
-      if (skip_sys_field)
-        continue;
     }
+
+    if (skip_sys_field)
+      continue;
 
     if (use_value)
       value->save_val(field);

@@ -1749,11 +1749,10 @@ int mysql_prepare_insert(THD *thd, TABLE_LIST *table_list,
     if (duplic == DUP_REPLACE && table_list->set_insert_values(thd->mem_root))
       DBUG_RETURN(1);
 
-  Field *row_start= table->vers_start_field();
-  Field *row_end= table->vers_end_field();
-    if (!fields.elements && !(row_start->invisible && row_end->invisible) &&
-        thd->vers_insert_history(row_start))
-      table->vers_write= false;
+    Field *row_start= table->vers_start_field();
+    Field *row_end= table->vers_end_field();
+    if (!fields.elements && !(row_start->invisible && row_end->invisible))
+      thd->vers_insert_history(row_start); // check privileges
   }
 
   if (!select_insert)
@@ -4194,6 +4193,7 @@ int select_insert::send_data(List<Item> &values)
   bool error=0;
 
   thd->count_cuted_fields= CHECK_FIELD_WARN;	// Calculate cuted fields
+  table->reset_default_fields();
   store_values(values);
   if (table->default_field &&
       unlikely(table->update_default_fields(info.ignore)))

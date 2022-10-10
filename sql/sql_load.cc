@@ -1106,6 +1106,7 @@ read_sep_field(THD *thd, COPY_INFO &info, TABLE_LIST *table_list,
       }
     }
     restore_record(table, s->default_values);
+    table->reset_default_fields();
 
     while ((item= it++))
     {

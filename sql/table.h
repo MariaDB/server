@@ -1842,7 +1842,7 @@ public:
   static bool check_period_overlaps(const KEY &key, const uchar *lhs, const uchar *rhs);
   int delete_row();
   /* Used in majority of DML (called from fill_record()) */
-  void vers_update_fields();
+  bool vers_update_fields();
   /* Used in DELETE, DUP REPLACE and insert history row */
   void vers_update_end();
   void find_constraint_correlated_indexes();

@@ -134,13 +134,10 @@ insert into t1 set x= 5, row_start= '1980-01-01 00:00:00', row_end= '1980-01-01 
 insert into t1(x, row_start, row_end) values (6, '1980-01-01 00:00:01', '1980-01-01 00:00:00');
 --error ER_WRONG_VALUE
 insert into t1(x, row_start, row_end) values (7, '1980-01-01 00:00:11', '1980-01-01 00:00:11');
---error ER_WRONG_VALUE
 insert into t1(x, row_start) values (8, '1980-01-01 00:00:22');
-# NOTE: having row_start=0 might be useful and can mean
-# "there is no information on when history was started" (an opposite to row_end=MAX_TIMESTAMP)
+--replace_regex /'202\d-\d\d-\d\d .*'/'now'/
 --error ER_WRONG_VALUE
 insert into t1(x, row_end) values (9, '1980-01-01 00:00:33');
---error ER_WRONG_VALUE
 eval insert into t1(x, row_end) values (10, $MAX_TIMESTAMP);
 select x, check_row_ts(row_start, row_end) from t1 for system_time all order by x;
 eval select x, row_start, row_end from t1 for system_time all
@@ -180,18 +177,18 @@ replace into t2 (a, row_start, row_end) values (1, '1980-01-01 00:00:00', '1980-
 --error ER_BAD_FIELD_ERROR
 replace into t2 (a, row_start, row_end) select x, row_start, row_end from t1;
 set @@system_versioning_insert_history= 1;
---error ER_WRONG_VALUE
-replace into t2 (a, row_start) values (1, '1980-01-01 00:00:00');
+--replace_regex /'202\d-\d\d-\d\d .*'/'now'/
 --error ER_WRONG_VALUE
 replace into t2 (a, row_end) values (0, '1980-01-01 00:00:00');
 replace into t2 (a, row_start, row_end) values (1, '1980-01-01 00:00:00', '1980-01-01 00:00:01');
 select a, row_start, row_end from t2 for system_time all order by a, row_start, row_end;
 --echo # Changing row_end via REPLACE is NOT possible, we just insert new row:
-# NOTE: because multiple versions of history row with a=1 may exist, so what REPLACE should change?
 replace into t2 (a, row_start, row_end) values (1, '1980-01-01 00:00:00', '1990-01-01 00:00:01');
 select a, row_start, row_end from t2 for system_time all order by a, row_start, row_end;
---echo # But changing row_start via REPLACE is possible:
+--echo # REPLACE is DELETE + INSERT
+set timestamp=unix_timestamp('2020-10-10 10:10:10');
 replace into t2 (a, row_start, row_end) values (1, '1971-01-01 00:00:00', '1980-01-01 00:00:01');
+set timestamp=default;
 select a, row_start, row_end from t2 for system_time all order by a, row_start, row_end;
 eval replace into t2 (a, row_start, row_end) select x, row_start, row_end from t1 for system_time all
 where x > 1 and row_end < $MAX_TIMESTAMP;
@@ -201,16 +198,16 @@ select a, row_start, row_end from t2 for system_time all order by a, row_start, 
 --let DATAFILE= $MYSQLTEST_VARDIR/tmp/test_versioning_t3.data
 --replace_result $DATAFILE DATAFILE
 eval select x, row_start, row_end into outfile '$DATAFILE' from t1 for system_time all;
-create or replace table t3 like t1;
+create or replace table t2 like t1;
 --replace_result $default_engine DEFAULT_ENGINE
-show create table t3;
+show create table t2;
 set @@system_versioning_insert_history= 1;
 --replace_result $default_engine DEFAULT_ENGINE
-show create table t3;
+show create table t2;
 --replace_result $DATAFILE DATAFILE
-eval load data infile '$DATAFILE' into table t3 (x, row_start, row_end);
-select x, check_row_ts(row_start, row_end) from t3 for system_time all order by x;
-select row_start = '1980-01-01 00:00:00', row_end = '1980-01-01 00:00:01' from t3 for system_time all where x = 3;
+eval load data infile '$DATAFILE' into table t2 (x, row_start, row_end);
+select x, check_row_ts(row_start, row_end) from t2 for system_time all order by x;
+select row_start = '1980-01-01 00:00:00', row_end = '1980-01-01 00:00:01' from t2 for system_time all where x = 3;
 --remove_file $DATAFILE
 
 --echo # Honor secure_timestamp option
@@ -218,7 +215,9 @@ select row_start = '1980-01-01 00:00:00', row_end = '1980-01-01 00:00:01' from t
 --source include/restart_mysqld.inc
 set @@system_versioning_insert_history= 1;
 --error ER_OPTION_PREVENTS_STATEMENT
-insert into t1(x, row_start, row_end) values (8, '1980-01-01 00:00:00', '1980-01-01 00:00:01');
+insert into t3(z, row_start, row_end) values (8, '1980-01-01 00:00:00', '1980-01-01 00:00:01');
+--error ER_OPTION_PREVENTS_STATEMENT
+insert into t3 values (8, '1980-01-01 00:00:00', '1980-01-01 00:00:01');
 --let $restart_parameters= --secure-timestamp=REPLICATION
 --source include/restart_mysqld.inc
 create user nobody;
@@ -226,16 +225,20 @@ grant all privileges on test.* to nobody;
 change_user nobody;
 set @@system_versioning_insert_history= 1;
 --error ER_SPECIFIC_ACCESS_DENIED_ERROR
-insert into test.t1(x, row_start, row_end) values (9, '1980-01-01 00:00:00', '1980-01-01 00:00:01');
+insert into test.t3(z, row_start, row_end) values (9, '1980-01-01 00:00:00', '1980-01-01 00:00:01');
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+insert into test.t3 values (9, '1980-01-01 00:00:00', '1980-01-01 00:00:01');
 change_user root;
 --let $restart_parameters= --secure-timestamp=SUPER
 --source include/restart_mysqld.inc
 set @@system_versioning_insert_history= 1;
-insert into test.t1(x, row_start, row_end) values (10, '1980-01-01 00:00:00', '1980-01-01 00:00:01');
+insert into test.t3(z, row_start, row_end) values (10, '1980-01-01 00:00:00', '1980-01-01 00:00:01');
 change_user nobody;
 set @@system_versioning_insert_history= 1;
 --error ER_SPECIFIC_ACCESS_DENIED_ERROR
-insert into test.t1(x, row_start, row_end) values (7, '1980-01-01 00:00:00', '1980-01-01 00:00:01');
+insert into test.t3(z, row_start, row_end) values (7, '1980-01-01 00:00:00', '1980-01-01 00:00:01');
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+insert into test.t3 values (7, '1980-01-01 00:00:00', '1980-01-01 00:00:01');
 change_user root;
 use test;
 --let $restart_parameters= --secure-timestamp=NO

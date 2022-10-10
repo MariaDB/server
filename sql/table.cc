@@ -9153,9 +9153,11 @@ bool TABLE::check_period_overlaps(const KEY &key,
   return true;
 }
 
-void TABLE::vers_update_fields()
+/* returns true if vers_end_field was updated */
+bool TABLE::vers_update_fields()
 {
-  if (versioned(VERS_TIMESTAMP))
+  bool res= false;
+  if (versioned(VERS_TIMESTAMP) && !vers_start_field()->has_explicit_value())
   {
     if (vers_start_field()->store_timestamp(in_use->query_start(),
                                           in_use->query_start_sec_part()))
@@ -9165,11 +9167,16 @@ void TABLE::vers_update_fields()
     vers_start_field()->set_has_explicit_value();
   }
 
-  vers_end_field()->set_max();
-  vers_end_field()->set_has_explicit_value();
+  if (!versioned(VERS_TIMESTAMP) || !vers_end_field()->has_explicit_value())
+  {
+    vers_end_field()->set_max();
+    vers_end_field()->set_has_explicit_value();
+    res= true;
+  }
 
   if (vfield)
     update_virtual_fields(file, VCOL_UPDATE_FOR_READ);
+  return res;
 }
 
 
