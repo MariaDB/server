@@ -63,23 +63,23 @@ public:
   {
     static const char *names[17]=
     {
-      "HA_NOSAME",
-      "HA_PACK_KEY",
-      "HA_SPACE_PACK_USED",
-      "HA_VAR_LENGTH_KEY",
-      "HA_AUTO_KEY",
-      "HA_BINARY_PACK_KEY",
-      "HA_NULL_PART_KEY",
-      "HA_FULLTEXT",
-      "HA_UNIQUE_CHECK",
-      "HA_SORT_ALLOWS_SAME",
-      "HA_SPATIAL",
-      "HA_NULL_ARE_EQUAL",
-      "HA_GENERATED_KEY",
-      "HA_USES_COMMENT",
-      "HA_USES_PARSER",
-      "HA_USES_BLOCK_SIZE",
-      "HA_KEY_HAS_PART_KEY_SEG"
+      "HA_NOSAME",               // 1
+      "HA_PACK_KEY",             // 2 - used in both HA_KEYSEG and KEY/MI_KEYDEF
+      "HA_SPACE_PACK_USED",      // 4
+      "HA_VAR_LENGTH_KEY",       // 8
+      "HA_AUTO_KEY",             // 16
+      "HA_BINARY_PACK_KEY",      // 32
+      "HA_NULL_PART_KEY",        // 64
+      "HA_FULLTEXT",             // 128
+      "HA_UNIQUE_CHECK",         // 256
+      "HA_SORT_ALLOWS_SAME",     // 512
+      "HA_SPATIAL",              // 1024
+      "HA_NULL_ARE_EQUAL",       // 2048
+      "HA_USES_COMMENT",         // 4096
+      "HA_GENERATED_KEY",        // 8192
+      "HA_USES_PARSER",          // 16384
+      "HA_USES_BLOCK_SIZE",      // 32768
+      "HA_KEY_HAS_PART_KEY_SEG"  // 65536
     };
     return append_flag32_names((uint) flags, names, array_elements(names));
   }
@@ -89,7 +89,7 @@ public:
     static const char *names[]=
     {
       "HA_SPACE_PACK",      // 1
-      "??? 2 ???",          // 2
+      "HA_PACK_KEY",        // 2 - used in both HA_KEYSEG and KEY/MI_KEYDEF
       "HA_PART_KEY_SEG",    // 4
       "HA_VAR_LENGTH_PART", // 8
       "HA_NULL_PART",       // 16
