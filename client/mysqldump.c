@@ -3399,7 +3399,7 @@ static uint get_table_structure(const char *table, const char *db, char *table_t
       mysql_free_result(result);
     }
     my_snprintf(query_buff, sizeof(query_buff),
-                "select column_name, extra, generation_expression "
+                "select column_name, extra, generation_expression, data_type "
                 "from information_schema.columns where table_schema=database() "
                 "and table_name=%s", quote_for_equal(table, temp_buff));
     if (mysql_query_with_error_report(mysql, &result, query_buff))
@@ -3413,8 +3413,16 @@ static uint get_table_structure(const char *table, const char *db, char *table_t
     {
       if (strstr(row[1],"INVISIBLE"))
         complete_insert= 1;
-      if (vers_hidden && row[2])
-        vers_hidden= strcmp(row[2], "ROW START");
+      if (vers_hidden && row[2] && strcmp(row[2], "ROW START") == 0)
+      {
+        vers_hidden= 0;
+        if (row[3] && strcmp(row[3], "bigint") == 0)
+        {
+          maybe_die(EX_ILLEGAL_TABLE, "Cannot use --dump-history for table %s with transaction-precise history",
+                    result_table);
+          *versioned= 0;
+        }
+      }
       if (init)
       {
         dynstr_append_checked(&select_field_names, ", ");

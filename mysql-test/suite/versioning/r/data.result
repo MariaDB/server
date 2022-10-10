@@ -183,3 +183,26 @@ x	check_row_ts(row_start, row_end)
 2	CURRENT ROW
 drop tables t1, t2;
 drop function check_fields;
+#
+# MDEV-29730 mysqldump --dump-history creates broken dump if there are precision-versioned tables
+#
+create table t1 (x int,
+rs BIGINT unsigned as row start, re BiGiNt unsigned as row end,
+period for system_time (rs,re)) with system versioning engine=innodb;
+insert t1 (x) values (1);
+insert t1 (x) values (2);
+delete from t1 where x=1;
+mysqldump: Cannot use --dump-history for table `t1` with transaction-precise history
+mysqldump: Cannot use --dump-history for table `t1` with transaction-precise history
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE `t1` (
+  `x` int(11) DEFAULT NULL,
+  `rs` bigint(20) unsigned GENERATED ALWAYS AS ROW START,
+  `re` bigint(20) unsigned GENERATED ALWAYS AS ROW END,
+  PERIOD FOR SYSTEM_TIME (`rs`, `re`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci WITH SYSTEM VERSIONING;
+/*!40101 SET character_set_client = @saved_cs_client */;
+INSERT INTO `t1` VALUES
+(2,XXX,18446744073709551615);
+drop table t1;

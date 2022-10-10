@@ -147,4 +147,23 @@ select *, check_row_ts(row_start, row_end) from t2 for system_time all;
 drop tables t1, t2;
 drop function check_fields;
 
+--echo #
+--echo # MDEV-29730 mysqldump --dump-history creates broken dump if there are precision-versioned tables
+--echo #
+create table t1 (x int,
+  rs BIGINT unsigned as row start, re BiGiNt unsigned as row end,
+  period for system_time (rs,re)) with system versioning engine=innodb;
+insert t1 (x) values (1);
+insert t1 (x) values (2);
+delete from t1 where x=1;
+
+--replace_result mysqldump.exe mysqldump
+--error 6
+--exec $MYSQL_DUMP --dump-history test 2>&1 >/dev/null
+--replace_regex /2,\d+,/2,XXX,/ /mysqldump\.exe/mysqldump/
+--error 6
+--exec $MYSQL_DUMP --force --dump-history --compact test 2>&1
+
+drop table t1;
+
 --source suite/versioning/common_finish.inc
