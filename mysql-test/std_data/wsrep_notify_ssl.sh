@@ -34,8 +34,10 @@ SCHEMA="mtr_wsrep_notify"
 MEMB_TABLE="$SCHEMA.membership"
 STATUS_TABLE="$SCHEMA.status"
 
-BEGIN="
-SET wsrep_on=0;
+WSREP_ON='SET wsrep_on=ON'
+WSREP_OFF='SET wsrep_on=OFF'
+
+BEGIN="$WSREP_OFF;
 CREATE SCHEMA IF NOT EXISTS $SCHEMA;
 CREATE TABLE IF NOT EXISTS $MEMB_TABLE (
     idx  INT,
@@ -50,9 +52,8 @@ CREATE TABLE IF NOT EXISTS $STATUS_TABLE (
     uuid   CHAR(40), /* cluster UUID */
     prim   BOOLEAN   /* if component is primary */
 ) ENGINE=MEMORY;
-BEGIN;
-"
-END="COMMIT;"
+BEGIN"
+END="COMMIT; $WSREP_ON"
 
 configuration_change()
 {
@@ -71,12 +72,12 @@ configuration_change()
 
     echo "INSERT INTO $STATUS_TABLE VALUES($idx, $INDEX, '$STATUS', '$CLUSTER_UUID', $PRIMARY);"
 
-    echo "$END"
+    echo "$END;"
 }
 
 status_update()
 {
-    echo "SET wsrep_on=0; BEGIN; UPDATE $STATUS_TABLE SET status='$STATUS'; COMMIT;"
+    echo "$BEGIN; UPDATE $STATUS_TABLE SET status='$STATUS'; $END;"
 }
 
 trim_string()
