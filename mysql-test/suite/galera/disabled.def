@@ -23,11 +23,8 @@ galera_pc_recovery : MDEV-25199 cluster fails to start up
 galera_shutdown_nonprim : MDEV-21493 galera.galera_shutdown_nonprim
 galera_var_ignore_apply_errors : MDEV-26770 galera_var_ignore_apply_errors fails Server did not transition to READY state
 galera_var_node_address : MDEV-20485 Galera test failure
-galera_var_notify_cmd : MDEV-21905 Galera test galera_var_notify_cmd causes hang
-galera_var_notify_ssl_ipv6 : hangs after the merge of MDEV-27682
 galera_var_retry_autocommit: MDEV-18181 Galera test failure on galera.galera_var_retry_autocommit
 partition : MDEV-19958 Galera test failure on galera.partition
 query_cache: MDEV-15805 Test failure on galera.query_cache
 versioning_trx_id: MDEV-18590: galera.versioning_trx_id: Test failure: mysqltest: Result content mismatch
 galera_bf_abort_at_after_statement : Unstable
-
