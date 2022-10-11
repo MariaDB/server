@@ -2,7 +2,7 @@
 
 Copyright (c) 1997, 2017, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2012, Facebook Inc.
-Copyright (c) 2013, 2020, MariaDB Corporation.
+Copyright (c) 2013, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -2882,7 +2882,9 @@ loop:
 		are included within the buffer */
 
 		ulint	total_len	= 0;
+#ifdef DBUG_TRACE
 		ulint	n_recs		= 0;
+#endif
 		bool	only_mlog_file	= true;
 		ulint	mlog_rec_len	= 0;
 
@@ -2935,7 +2937,9 @@ corrupted_log:
 			}
 
 			total_len += len;
+#ifdef DBUG_TRACE
 			n_recs++;
+#endif
 
 			ptr += len;
 
