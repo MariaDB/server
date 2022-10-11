@@ -4329,7 +4329,7 @@ static void dump_table(const char *table, const char *db, const uchar *hash_key,
 
     if (versioned && !opt_xml && opt_dump_history)
     {
-      fprintf(md_result_file,"/*!101100 SET system_versioning_insert_history=1 */;\n");
+      fprintf(md_result_file,"/*!101100 SET @old_system_versioning_insert_history=@@session.system_versioning_insert_history, @@session.system_versioning_insert_history=1 */;\n");
       check_io(md_result_file);
     }
     if (opt_lock)
@@ -4631,7 +4631,7 @@ static void dump_table(const char *table, const char *db, const uchar *hash_key,
     }
     if (versioned && !opt_xml && opt_dump_history)
     {
-      fprintf(md_result_file,"/*!101100 SET system_versioning_insert_history=1 */;\n");
+      fprintf(md_result_file,"/*!101100 SET system_versioning_insert_history=@old_system_versioning_insert_history */;\n");
       check_io(md_result_file);
     }
     mysql_free_result(res);
