@@ -12,7 +12,7 @@ CREATE TABLE t1 (f1 INTEGER AUTO_INCREMENT PRIMARY KEY, f2 VARCHAR(1024)) Engine
 --let $wsrep_max_ws_size_orig = `SELECT @@wsrep_max_ws_size`
 SET GLOBAL wsrep_max_ws_size = 1024;
 
---error ER_TOO_BIG_WRITESET
+--error ER_UNKNOWN_ERROR
 INSERT INTO t1 VALUES (DEFAULT, REPEAT('X', 1024));
 SELECT COUNT(*) = 0 FROM t1;
 

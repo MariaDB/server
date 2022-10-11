@@ -11,7 +11,7 @@ CREATE TABLE t1 ( pk int primary key) ENGINE=INNODB;
 ERROR HY000: Maximum writeset size exceeded
 SHOW WARNINGS;
 Level	Code	Message
-Error	4160	Maximum writeset size exceeded
+Error	1105	Maximum writeset size exceeded
 connection node_2;
 SET SESSION wsrep_sync_wait = 0;
 Killing server ...

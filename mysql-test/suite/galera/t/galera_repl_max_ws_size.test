@@ -12,7 +12,7 @@ CREATE TABLE t1 (f1 VARCHAR(512)) ENGINE=InnoDB;
 
 SET GLOBAL wsrep_provider_options = 'repl.max_ws_size=512';
 
---error ER_TOO_BIG_WRITESET
+--error ER_UNKNOWN_ERROR
 INSERT INTO t1 VALUES (REPEAT('a', 512));
 
 SELECT COUNT(*) = 0 FROM t1;

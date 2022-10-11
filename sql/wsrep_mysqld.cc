@@ -2154,7 +2154,7 @@ static int wsrep_TOI_begin(THD *thd, const char *db, const char *table,
                  ret,
                  (thd->db.str ? thd->db.str : "(null)"),
                  wsrep_thd_query(thd));
-      my_error(ER_TOO_BIG_WRITESET, MYF(0));
+      my_error(ER_UNKNOWN_ERROR, MYF(0), "Maximum writeset size exceeded");
       break;
     case wsrep::e_deadlock_error:
       WSREP_WARN("TO isolation failed for: %d, schema: %s, sql: %s. "
