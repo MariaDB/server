@@ -1,0 +1,11 @@
+CREATE TABLE t (a TEXT);
+connect con1,localhost,root,,test;
+SELECT * FROM t;
+a
+connect con2,127.0.0.1,root,,test;
+SELECT * FROM t;
+a
+connection default;
+DROP TABLE t;
+disconnect con1;
+disconnect con2;
