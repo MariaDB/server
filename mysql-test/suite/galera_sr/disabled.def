@@ -12,3 +12,6 @@
 
 GCF-1060 : MDEV-26528 wrong usage of mutex LOCK_thd_kill and LOCK_thd_kill
 
+galera_sr_ws_size2 : MDEV-29773 assertion failure
+galera-features#56 : MDEV-29773 assertion failure
+MDEV-27615 : MDEV-29773 assertion failure

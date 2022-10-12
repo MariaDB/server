@@ -1722,7 +1722,7 @@ that may lead to an endless loop.",
    &opt_binlog_rows_event_max_encoded_size, 0,
    GET_ULONG, REQUIRED_ARG, UINT_MAX/4,  256, ULONG_MAX,  0, 256,  0},
 #endif
-  {"verify-binlog-checksum", 'c', "Verify checksum binlog events.",
+  {"verify-binlog-checksum", 'c', "Verify binlog event checksums.",
    (uchar**) &opt_verify_binlog_checksum, (uchar**) &opt_verify_binlog_checksum,
    0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
   {"rewrite-db", OPT_REWRITE_DB,

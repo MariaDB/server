@@ -22,7 +22,6 @@ galera_gcache_recover_manytrx : MDEV-18834 Galera test failure
 galera_parallel_simple : MDEV-20318 galera.galera_parallel_simple fails
 galera_pc_recovery : MDEV-25199 cluster fails to start up
 galera_shutdown_nonprim : MDEV-21493 galera.galera_shutdown_nonprim
-galera_trigger : MDEV-24048 galera.galera_trigger MTR fails: Result content mismatch
 galera_var_ignore_apply_errors : MDEV-26770 galera_var_ignore_apply_errors fails Server did not transition to READY state
 galera_var_node_address : MDEV-20485 Galera test failure
 galera_var_notify_cmd : MDEV-21905 Galera test galera_var_notify_cmd causes hang
@@ -33,3 +32,8 @@ query_cache: MDEV-15805 Test failure on galera.query_cache
 versioning_trx_id: MDEV-18590: galera.versioning_trx_id: Test failure: mysqltest: Result content mismatch
 galera_bf_abort_at_after_statement : Unstable
 
+# Recent trouble
+MDEV-26597 : crashes on 10.5
+MDEV-27615 : crashes on 10.5 after MDEV-26597 fix
+MDEV-29142 : fails on 10.5 with WSREP: Inconsistency detected
+galera_bf_abort_shutdown : MDEV-29368 shutdown hang

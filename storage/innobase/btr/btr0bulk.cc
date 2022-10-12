@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2014, 2019, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2021, MariaDB Corporation.
+Copyright (c) 2017, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -752,6 +752,11 @@ bool
 PageBulk::isSpaceAvailable(
 	ulint		rec_size)
 {
+	if (m_rec_no >= 8190) {
+		ut_ad(srv_page_size == 65536);
+		return false;
+	}
+
 	ulint	slot_size;
 	ulint	required_space;
 

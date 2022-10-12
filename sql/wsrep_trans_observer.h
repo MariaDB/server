@@ -1,4 +1,4 @@
-/* Copyright 2016-2019 Codership Oy <http://www.codership.com>
+/* Copyright 2016-2022 Codership Oy <http://www.codership.com>
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by

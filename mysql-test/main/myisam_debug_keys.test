@@ -53,6 +53,8 @@ BEGIN NOT ATOMIC
       SELECT tabledef AS ``;
       EXECUTE IMMEDIATE tabledef;
       SHOW WARNINGS;
+      SELECT * FROM t1;
+      SHOW WARNINGS;
       SHOW CREATE TABLE t1;
       DROP TABLE t1;
     END;

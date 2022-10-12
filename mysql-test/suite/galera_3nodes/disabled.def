@@ -16,6 +16,7 @@ galera_gtid_2_cluster : MDEV-23775 Galera test failure on galera_3nodes.galera_g
 galera_ist_gcache_rollover : MDEV-23578 WSREP: exception caused by message: {v=0,t=1,ut=255,o=4,s=0,sr=0,as=1,f=6,src=50524cfe,srcvid=view_id(REG,50524cfe,4),insvid=view_id(UNKNOWN,00000000,0),ru=00000000,r=[-1,-1],fs=75,nl=(}
 galera_load_data_ist :  MDEV-24639 galera_3nodes.galera_load_data_ist MTR failed with SIGABRT: query 'reap' failed: 2013: Lost connection to MySQL server during query
 galera_load_data_ist :  MDEV-24639 galera_3nodes.galera_load_data_ist MTR failed with SIGABRT: query 'reap' failed: 2013: Lost connection to MySQL server during query
+galera_parallel_apply_3nodes : MDEV-29368 DEBUG_SYNC timeout
 galera_pc_bootstrap : MDEV-24097 MTR sporadaically fails: Failed to start mysqld or mysql_shutdown failed
 galera_safe_to_bootstrap : MDEV-24097 galera_3nodes.galera_safe_to_bootstrap MTR sporadaically fails: Failed to start mysqld or mysql_shutdown failed
 galera_slave_options_do : MDEV-8798

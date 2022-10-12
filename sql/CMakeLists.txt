@@ -1,5 +1,5 @@
 # Copyright (c) 2006, 2014, Oracle and/or its affiliates.
-# Copyright (c) 2010, 2020, MariaDB Corporation.
+# Copyright (c) 2010, 2022, MariaDB Corporation.
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -176,7 +176,14 @@ SET (SQL_SOURCE
                ${GEN_SOURCES}
                ${MYSYS_LIBWRAP_SOURCE}
 )
-  
+
+IF(CMAKE_C_COMPILER_ID MATCHES "Clang" AND
+   NOT CMAKE_C_COMPILER_VERSION VERSION_LESS "13.0.0")
+  ADD_COMPILE_FLAGS(${CMAKE_CURRENT_BINARY_DIR}/yy_mariadb.cc
+    ${CMAKE_CURRENT_BINARY_DIR}/yy_oracle.cc
+    COMPILE_FLAGS "-Wno-unused-but-set-variable")
+ENDIF()
+
 IF ((CMAKE_SYSTEM_NAME MATCHES "Linux" OR
      CMAKE_SYSTEM_NAME MATCHES "SunOS" OR
      WIN32 OR
