@@ -1175,19 +1175,26 @@ err:
 bool mariadb_view_version_get(TABLE_SHARE *share)
 {
   DBUG_ASSERT(share->is_view);
+  DBUG_ASSERT(share->tabledef_version.length == 0);
 
   if (!(share->tabledef_version.str=
         (uchar*) alloc_root(&share->mem_root,
                             MICROSECOND_TIMESTAMP_BUFFER_SIZE)))
     return TRUE;
-  share->tabledef_version.length= 0; // safety if the drfinition file is brocken
 
   DBUG_ASSERT(share->view_def != NULL);
   if (share->view_def->parse((uchar *) &share->tabledef_version, NULL,
                              view_timestamp_parameters, 1,
                              &file_parser_dummy_hook))
+  {
+    // safety if the definition file is brocken
+    share->tabledef_version.length= 0;
+    my_error(ER_TABLE_CORRUPT, MYF(0),
+             share->db.str, share->table_name.str);
     return TRUE;
+  }
   DBUG_ASSERT(share->tabledef_version.length == MICROSECOND_TIMESTAMP_BUFFER_SIZE-1);
+
   return FALSE;
 }
 
@@ -1251,10 +1258,7 @@ bool mysql_make_view(THD *thd, TABLE_SHARE *share, TABLE_LIST *table,
     mysql_derived_reinit(thd, NULL, table);
 
     DEBUG_SYNC(thd, "after_cached_view_opened");
-    if (!share->tabledef_version.length)
-    {
-      mariadb_view_version_get(share);
-    }
+    DBUG_ASSERT(share->tabledef_version.length);
     DBUG_RETURN(0);
   }
 
@@ -1308,15 +1312,7 @@ bool mysql_make_view(THD *thd, TABLE_SHARE *share, TABLE_LIST *table,
                                       required_view_parameters,
                                       &file_parser_dummy_hook)))
     goto end;
-  if (!share->tabledef_version.length)
-  {
-    share->tabledef_version.str= (const uchar *)
-                                 memdup_root(&share->mem_root,
-                                             (const void *)
-                                             table->hr_timestamp.str,
-                                             (share->tabledef_version.length=
-                                              table->hr_timestamp.length));
-  }
+  DBUG_ASSERT(share->tabledef_version.length);
   if (!table->tabledef_version.length)
   {
     table->set_view_def_version(&table->hr_timestamp);

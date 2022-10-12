@@ -633,7 +633,11 @@ enum open_frm_error open_table_def(THD *thd, TABLE_SHARE *share, uint flags)
       if (!share->view_def)
         share->error= OPEN_FRM_ERROR_ALREADY_ISSUED;
       else
+      {
         share->error= OPEN_FRM_OK;
+        if (mariadb_view_version_get(share))
+          share->error= OPEN_FRM_ERROR_ALREADY_ISSUED;
+      }
     }
     else
       share->error= OPEN_FRM_NOT_A_TABLE;
