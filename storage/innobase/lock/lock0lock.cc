@@ -721,8 +721,6 @@ UNIV_INLINE
 bool
 lock_rec_has_to_wait(
 /*=================*/
-	bool		for_locking,
-				/*!< in is called locking or releasing */
 	const trx_t*	trx,	/*!< in: trx of new lock */
 	ulint		type_mode,/*!< in: precise mode of the new lock
 				to set: LOCK_S or LOCK_X, possibly
@@ -821,25 +819,41 @@ lock_rec_has_to_wait(
 	}
 
 #ifdef WITH_WSREP
-		/* New lock request from a transaction is using unique key
-		scan and this transaction is a wsrep high priority transaction
-		(brute force). If conflicting transaction is also wsrep high
-		priority transaction we should avoid lock conflict because
-		ordering of these transactions is already decided and
-		conflicting transaction will be later replayed. Note
-		that thread holding conflicting lock can't be
-		committed or rolled back while we hold
-		lock_sys->mutex. */
-		if (trx->is_wsrep_UK_scan()
-		    && wsrep_thd_is_BF(lock2->trx->mysql_thd, false)) {
+	/* New lock request from a transaction is using unique key
+	scan and this transaction is a wsrep high priority transaction
+	(brute force). If conflicting transaction is also wsrep high
+	priority transaction we should avoid lock conflict because
+	ordering of these transactions is already decided and
+	conflicting transaction will be later replayed. Note
+	that thread holding conflicting lock can't be
+	committed or rolled back while we hold
+	lock_sys->mutex. */
+	if (trx->is_wsrep_UK_scan()
+	    && wsrep_thd_is_BF(lock2->trx->mysql_thd, false)) {
+		return false;
+	}
+
+	/* We very well can let bf to wait normally as other
+	BF will be replayed in case of conflict. For debug
+	builds we will do additional sanity checks to catch
+	unsupported bf wait if any. */
+	ut_d(wsrep_assert_no_bf_bf_wait(lock2, trx));
+
+	/* if BF-BF conflict, we have to look at write set order */
+	if (wsrep_thd_is_BF(trx->mysql_thd, FALSE)         &&
+	    wsrep_thd_is_BF(lock2->trx->mysql_thd, TRUE)) {
+		mtr_t mtr;
+		if (wsrep_debug) {
+			ib::info() <<  "BF-BF lock conflict";
+			lock_rec_print(stderr, lock2, mtr);
+		}
+		if (wsrep_thd_order_before(trx->mysql_thd,
+					   lock2->trx->mysql_thd) &&
+			(type_mode & LOCK_MODE_MASK) == LOCK_X &&
+			(lock2->type_mode & LOCK_MODE_MASK) == LOCK_X) {
 			return false;
 		}
-
-		/* We very well can let bf to wait normally as other
-		BF will be replayed in case of conflict. For debug
-		builds we will do additional sanity checks to catch
-		unsupported bf wait if any. */
-		ut_d(wsrep_assert_no_bf_bf_wait(lock2, trx));
+        }
 #endif /* WITH_WSREP */
 
 	return true;
@@ -878,7 +892,7 @@ lock_has_to_wait(
 	}
 
 	return lock_rec_has_to_wait(
-		false, lock1->trx, lock1->type_mode, lock2,
+		lock1->trx, lock1->type_mode, lock2,
 		lock_rec_get_nth_bit(lock1, PAGE_HEAP_NO_SUPREMUM));
 }
 
@@ -1165,7 +1179,7 @@ lock_rec_other_has_conflicting(
 	     lock != NULL;
 	     lock = lock_rec_get_next(heap_no, lock)) {
 
-		if (lock_rec_has_to_wait(true, trx, mode, lock, is_supremum)) {
+		if (lock_rec_has_to_wait(trx, mode, lock, is_supremum)) {
 #ifdef WITH_WSREP
 			if (trx->is_wsrep()) {
 				trx_mutex_enter(lock->trx);
@@ -2045,6 +2059,14 @@ lock_rec_has_to_wait_in_queue(
 		if (heap_no < lock_rec_get_n_bits(lock)
 		    && (p[bit_offset] & bit_mask)
 		    && lock_has_to_wait(wait_lock, lock)) {
+#ifdef WITH_WSREP
+			if (wsrep_thd_is_BF(wait_lock->trx->mysql_thd, FALSE) &&
+			    wsrep_thd_is_BF(lock->trx->mysql_thd, TRUE) &&
+			    wsrep_thd_order_before(wait_lock->trx->mysql_thd, lock->trx->mysql_thd)) {
+				/* don't wait for another BF lock */
+				continue;
+			}
+#endif
 			return(lock);
 		}
 	}
