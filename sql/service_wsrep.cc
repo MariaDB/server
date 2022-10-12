@@ -1,4 +1,4 @@
-/* Copyright 2018-2021 Codership Oy <info@codership.com>
+/* Copyright 2018-2023 Codership Oy <info@codership.com>
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -274,7 +274,9 @@ extern "C" my_bool wsrep_thd_skip_locking(const THD *thd)
 
 extern "C" my_bool wsrep_thd_order_before(const THD *left, const THD *right)
 {
-  if (wsrep_thd_trx_seqno(left) < wsrep_thd_trx_seqno(right)) {
+  if (wsrep_thd_is_BF(left, false) &&
+      wsrep_thd_is_BF(right, false) &&
+      wsrep_thd_trx_seqno(left) < wsrep_thd_trx_seqno(right)) {
     WSREP_DEBUG("BF conflict, order: %lld %lld\n",
                 (long long)wsrep_thd_trx_seqno(left),
                 (long long)wsrep_thd_trx_seqno(right));
