@@ -1,0 +1,8 @@
+--source include/galera_cluster.inc
+
+show variables like 'auto_increment%';
+create table t4 (c1 int primary key auto_increment) engine=innodb;
+show variables like 'auto_increment%';
+alter table t4 add (c2 varchar(50));
+show variables like 'auto_increment%';
+DROP TABLE t4;

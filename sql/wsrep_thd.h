@@ -1,4 +1,4 @@
-/* Copyright (C) 2013-2021 Codership Oy <info@codership.com>
+/* Copyright (C) 2013-2022 Codership Oy <info@codership.com>
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -182,7 +182,7 @@ void wsrep_reset_threadvars(THD *);
      so don't override those by default
  */
 
-static inline void wsrep_override_error(THD *thd, uint error)
+static inline void wsrep_override_error(THD *thd, uint error, const char *format= 0, ...)
 {
   DBUG_ASSERT(error != ER_ERROR_DURING_COMMIT);
   Diagnostics_area *da= thd->get_stmt_da();
@@ -195,26 +195,11 @@ static inline void wsrep_override_error(THD *thd, uint error)
        da->sql_errno() != ER_LOCK_DEADLOCK))
   {
     da->reset_diagnostics_area();
-    my_error(error, MYF(0));
-  }
-}
-
-/**
-   Override error with additional wsrep status.
- */
-static inline void wsrep_override_error(THD *thd, uint error,
-                                        enum wsrep::provider::status status)
-{
-  Diagnostics_area *da= thd->get_stmt_da();
-  if (da->is_ok() ||
-      !da->is_set() ||
-      (da->is_error() &&
-       da->sql_errno() != error &&
-       da->sql_errno() != ER_ERROR_DURING_COMMIT &&
-       da->sql_errno() != ER_LOCK_DEADLOCK))
-  {
-    da->reset_diagnostics_area();
-    my_error(error, MYF(0), status);
+    va_list args;
+    va_start(args, format);
+    if (!format) format= ER_THD(thd, error);
+    my_printv_error(error, format, MYF(0), args);
+    va_end(args);
   }
 }
 
@@ -226,7 +211,10 @@ static inline void wsrep_override_error(THD* thd,
     switch (ce)
     {
     case wsrep::e_error_during_commit:
-      wsrep_override_error(thd, ER_ERROR_DURING_COMMIT, status);
+      if (status == wsrep::provider::error_size_exceeded)
+        wsrep_override_error(thd, ER_UNKNOWN_ERROR, "Maximum writeset size exceeded");
+      else
+        wsrep_override_error(thd, ER_ERROR_DURING_COMMIT, 0, status);
       break;
     case wsrep::e_deadlock_error:
       wsrep_override_error(thd, ER_LOCK_DEADLOCK);
@@ -235,11 +223,11 @@ static inline void wsrep_override_error(THD* thd,
       wsrep_override_error(thd, ER_QUERY_INTERRUPTED);
       break;
     case wsrep::e_size_exceeded_error:
-      wsrep_override_error(thd, ER_ERROR_DURING_COMMIT, status);
+      wsrep_override_error(thd, ER_UNKNOWN_ERROR, "Maximum writeset size exceeded");
       break;
     case wsrep::e_append_fragment_error:
       /* TODO: Figure out better error number */
-      wsrep_override_error(thd, ER_ERROR_DURING_COMMIT, status);
+      wsrep_override_error(thd, ER_ERROR_DURING_COMMIT, 0, status);
       break;
     case wsrep::e_not_supported_error:
       wsrep_override_error(thd, ER_NOT_SUPPORTED_YET);

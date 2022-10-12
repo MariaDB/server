@@ -63,23 +63,23 @@ public:
   {
     static LEX_CSTRING names[17]=
     {
-      {STRING_WITH_LEN("HA_NOSAME")},
-      {STRING_WITH_LEN("HA_PACK_KEY")},
-      {STRING_WITH_LEN("HA_SPACE_PACK_USED")},
-      {STRING_WITH_LEN("HA_VAR_LENGTH_KEY")},
-      {STRING_WITH_LEN("HA_AUTO_KEY")},
-      {STRING_WITH_LEN("HA_BINARY_PACK_KEY")},
-      {STRING_WITH_LEN("HA_NULL_PART_KEY")},
-      {STRING_WITH_LEN("HA_FULLTEXT")},
-      {STRING_WITH_LEN("HA_UNIQUE_CHECK")},
-      {STRING_WITH_LEN("HA_SORT_ALLOWS_SAME")},
-      {STRING_WITH_LEN("HA_SPATIAL")},
-      {STRING_WITH_LEN("HA_NULL_ARE_EQUAL")},
-      {STRING_WITH_LEN("HA_GENERATED_KEY")},
-      {STRING_WITH_LEN("HA_USES_COMMENT")},
-      {STRING_WITH_LEN("HA_USES_PARSER")},
-      {STRING_WITH_LEN("HA_USES_BLOCK_SIZE")},
-      {STRING_WITH_LEN("HA_KEY_HAS_PART_KEY_SEG")}
+      {STRING_WITH_LEN("HA_NOSAME")},             // 1
+      {STRING_WITH_LEN("HA_PACK_KEY")},           // 2; also in HA_KEYSEG
+      {STRING_WITH_LEN("HA_SPACE_PACK_USED")},    // 4
+      {STRING_WITH_LEN("HA_VAR_LENGTH_KEY")},     // 8
+      {STRING_WITH_LEN("HA_AUTO_KEY")},           // 16
+      {STRING_WITH_LEN("HA_BINARY_PACK_KEY")},    // 32
+      {STRING_WITH_LEN("HA_NULL_PART_KEY")},      // 64
+      {STRING_WITH_LEN("HA_FULLTEXT")},           // 128
+      {STRING_WITH_LEN("HA_UNIQUE_CHECK")},       // 256
+      {STRING_WITH_LEN("HA_SORT_ALLOWS_SAME")},   // 512
+      {STRING_WITH_LEN("HA_SPATIAL")},            // 1024
+      {STRING_WITH_LEN("HA_NULL_ARE_EQUAL")},     // 2048
+      {STRING_WITH_LEN("HA_USES_COMMENT")},       // 4096
+      {STRING_WITH_LEN("HA_GENERATED_KEY")},      // 8192
+      {STRING_WITH_LEN("HA_USES_PARSER")},        // 16384
+      {STRING_WITH_LEN("HA_USES_BLOCK_SIZE")},    // 32768
+      {STRING_WITH_LEN("HA_KEY_HAS_PART_KEY_SEG")}// 65536
     };
     return append_flag32_names((uint) flags, names, array_elements(names));
   }
@@ -89,7 +89,7 @@ public:
     static LEX_CSTRING names[]=
     {
       {STRING_WITH_LEN("HA_SPACE_PACK")},      // 1
-      {STRING_WITH_LEN("??? 2 ???")},          // 2
+      {STRING_WITH_LEN("HA_PACK_KEY")},        // 2; also in KEY/MI/KEY_DEF
       {STRING_WITH_LEN("HA_PART_KEY_SEG")},    // 4
       {STRING_WITH_LEN("HA_VAR_LENGTH_PART")}, // 8
       {STRING_WITH_LEN("HA_NULL_PART")},       // 16

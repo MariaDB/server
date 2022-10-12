@@ -765,6 +765,11 @@ bool
 PageBulk::isSpaceAvailable(
 	ulint		rec_size)
 {
+	if (m_rec_no >= 8190) {
+		ut_ad(srv_page_size == 65536);
+		return false;
+	}
+
 	ulint	slot_size;
 	ulint	required_space;
 

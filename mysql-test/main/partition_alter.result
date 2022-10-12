@@ -200,4 +200,93 @@ pk
 2
 delete from t1;
 drop table t1;
+#
+# MDEV-28576 RENAME COLUMN with NOCOPY algorithm leads to corrupt partitioned table
+#
+create table t (a int, b int) partition by list (b) (partition p1 values in (1, 2));
+insert into t values (0, 1), (2, 2);
+alter table t change b f int, change a b int, algorithm=nocopy;
+check table t;
+Table	Op	Msg_type	Msg_text
+test.t	check	status	OK
+delete from t order by b limit 1;
+drop table t;
 # End of 10.3 tests
+#
+# MDEV-28576 RENAME COLUMN with NOCOPY algorithm leads to corrupt partitioned table
+#
+create table t (a int)
+partition by list (a)
+subpartition by hash(a) subpartitions 2
+(partition p0 values in (1));
+alter table t rename column a to b, algorithm=nocopy;
+show create table t;
+Table	Create Table
+t	CREATE TABLE `t` (
+  `b` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+ PARTITION BY LIST (`b`)
+SUBPARTITION BY HASH (`b`)
+SUBPARTITIONS 2
+(PARTITION `p0` VALUES IN (1) ENGINE = MyISAM)
+alter table t rename column b to c, algorithm=copy;
+show create table t;
+Table	Create Table
+t	CREATE TABLE `t` (
+  `c` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+ PARTITION BY LIST (`c`)
+SUBPARTITION BY HASH (`c`)
+SUBPARTITIONS 2
+(PARTITION `p0` VALUES IN (1) ENGINE = MyISAM)
+drop table t;
+create table t (d int, e int)
+partition by list columns (d, e)
+subpartition by key (d, e)
+(partition p0 values in ((2, 3)));
+alter table t rename column d to f, rename column e to g, algorithm=nocopy;
+show create table t;
+Table	Create Table
+t	CREATE TABLE `t` (
+  `f` int(11) DEFAULT NULL,
+  `g` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+ PARTITION BY LIST  COLUMNS(`f`,`g`)
+SUBPARTITION BY KEY (`f`,`g`)
+(PARTITION `p0` VALUES IN ((2,3)) ENGINE = MyISAM)
+alter table t rename column f to h, rename column g to i, algorithm=copy;
+show create table t;
+Table	Create Table
+t	CREATE TABLE `t` (
+  `h` int(11) DEFAULT NULL,
+  `i` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+ PARTITION BY LIST  COLUMNS(`h`,`i`)
+SUBPARTITION BY KEY (`h`,`i`)
+(PARTITION `p0` VALUES IN ((2,3)) ENGINE = MyISAM)
+drop table t;
+create table t (k int, l int)
+partition by range (k)
+subpartition by hash(l) subpartitions 4
+(partition p0 values less than (5));
+alter table t rename column k to l, rename column l to k;
+show create table t;
+Table	Create Table
+t	CREATE TABLE `t` (
+  `l` int(11) DEFAULT NULL,
+  `k` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+ PARTITION BY RANGE (`l`)
+SUBPARTITION BY HASH (`k`)
+SUBPARTITIONS 4
+(PARTITION `p0` VALUES LESS THAN (5) ENGINE = MyISAM)
+drop table t;
+create table t (a int, b int) partition by list (b) (partition p1 values in (1, 2));
+insert into t values (0, 1), (2, 2);
+alter table t rename column b to f, rename column a to b, algorithm=nocopy;
+check table t;
+Table	Op	Msg_type	Msg_text
+test.t	check	status	OK
+delete from t order by b limit 1;
+drop table t;
+# End of 10.5 tests

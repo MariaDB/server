@@ -23,7 +23,6 @@ galera_parallel_simple : MDEV-20318 galera.galera_parallel_simple fails
 galera_pc_recovery : MDEV-25199 cluster fails to start up
 galera_shutdown_nonprim : MDEV-21493 galera.galera_shutdown_nonprim
 galera_sst_mysqldump : MDEV-26501 : galera.galera_sst_mysqldump MTR failed: galera SST with mysqldump failed
-galera_trigger : MDEV-24048 galera.galera_trigger MTR fails: Result content mismatch
 galera_unicode_identifiers : MDEV-26500 : galera.galera_unicode_identifiers MTR failed: InnoDB: innodb_fatal_semaphore_wait_threshold was exceeded for dict_sys.mutex
 galera_var_dirty_reads : MDEV-25615 Galera test failure on galera_var_dirty_reads
 galera_var_ignore_apply_errors : MDEV-26770 galera_var_ignore_apply_errors fails Server did not transition to READY state
@@ -38,3 +37,8 @@ query_cache: MDEV-15805 Test failure on galera.query_cache
 versioning_trx_id: MDEV-18590: galera.versioning_trx_id: Test failure: mysqltest: Result content mismatch
 galera_bf_abort_at_after_statement : Unstable
 
+# Recent trouble
+MDEV-26597 : crashes on 10.5
+MDEV-27615 : crashes on 10.5 after MDEV-26597 fix
+MDEV-29142 : fails on 10.5 with WSREP: Inconsistency detected
+galera_bf_abort_shutdown : MDEV-29368 shutdown hang

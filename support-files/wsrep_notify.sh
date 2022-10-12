@@ -34,8 +34,10 @@ SCHEMA="wsrep"
 MEMB_TABLE="$SCHEMA.membership"
 STATUS_TABLE="$SCHEMA.status"
 
-BEGIN="
-SET wsrep_on=0;
+WSREP_ON='SET wsrep_on=ON'
+WSREP_OFF='SET wsrep_on=OFF'
+
+BEGIN="$WSREP_OFF;
 DROP SCHEMA IF EXISTS $SCHEMA; CREATE SCHEMA $SCHEMA;
 CREATE TABLE $MEMB_TABLE (
     idx  INT UNIQUE PRIMARY KEY,
@@ -50,9 +52,8 @@ CREATE TABLE $STATUS_TABLE (
     uuid   CHAR(40), /* cluster UUID */
     prim   BOOLEAN   /* if component is primary */
 ) ENGINE=MEMORY;
-BEGIN;
-"
-END="COMMIT;"
+BEGIN"
+END="COMMIT; $WSREP_ON"
 
 configuration_change()
 {
@@ -71,12 +72,12 @@ configuration_change()
 
     echo "INSERT INTO $STATUS_TABLE VALUES($idx, $INDEX, '$STATUS', '$CLUSTER_UUID', $PRIMARY);"
 
-    echo "$END"
+    echo "$END;"
 }
 
 status_update()
 {
-    echo "SET wsrep_on=0; BEGIN; UPDATE $STATUS_TABLE SET status='$STATUS'; COMMIT;"
+    echo "$WSREP_OFF; BEGIN; UPDATE $STATUS_TABLE SET status='$STATUS'; $END;"
 }
 
 trim_string()
@@ -186,10 +187,14 @@ then
     fi
 fi
 
-# Undefined means node is shutting down
-if [ "$STATUS" != 'Undefined' ]; then
-    "$COM" | eval "$CLIENT" -B "-u'$USER'"${PSWD:+" -p'$PSWD'"}\
-                               "-h'$HOST'" "-P$PORT"$SSL_PARAM
-fi
+case "$STATUS" in
+    'joined' | 'donor' | 'synced')
+        "$COM" | eval "$CLIENT" -B "-u'$USER'"${PSWD:+" -p'$PSWD'"}\
+                      "-h'$HOST'" "-P$PORT"$SSL_PARAM
+        ;;
+    *)
+        # The node might be shutting down or not initialized
+        ;;
+esac
 
 exit 0
