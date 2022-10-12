@@ -593,8 +593,6 @@ UNIV_INLINE
 bool
 lock_rec_has_to_wait(
 /*=================*/
-	bool		for_locking,
-				/*!< in is called locking or releasing */
 	const trx_t*	trx,	/*!< in: trx of new lock */
 	unsigned	type_mode,/*!< in: precise mode of the new lock
 				to set: LOCK_S or LOCK_X, possibly
@@ -706,6 +704,21 @@ lock_rec_has_to_wait(
 			return false;
 		}
 
+		/* if BF-BF conflict, we have to look at write set order */
+		if (wsrep_thd_is_BF(trx->mysql_thd, FALSE)         &&
+		    wsrep_thd_is_BF(lock2->trx->mysql_thd, TRUE)) {
+			mtr_t mtr;
+			if (wsrep_debug) {
+				WSREP_INFO("BF-BF lock conflict");
+				lock_rec_print(stderr, lock2, mtr);
+			}
+			if (wsrep_thd_order_before(trx->mysql_thd,
+						   lock2->trx->mysql_thd) &&
+			    (type_mode & LOCK_MODE_MASK) == LOCK_X &&
+			    (lock2->type_mode & LOCK_MODE_MASK) == LOCK_X) {
+				return false;
+			}
+		}
 		/* We very well can let bf to wait normally as other
 		BF will be replayed in case of conflict. For debug
 		builds we will do additional sanity checks to catch
@@ -748,7 +761,7 @@ lock_has_to_wait(
 	}
 
 	return lock_rec_has_to_wait(
-		false, lock1->trx, lock1->type_mode, lock2,
+		lock1->trx, lock1->type_mode, lock2,
 		lock_rec_get_nth_bit(lock1, PAGE_HEAP_NO_SUPREMUM));
 }
 
@@ -1025,7 +1038,7 @@ static lock_t *lock_rec_other_has_conflicting(unsigned mode,
 
 	for (lock_t* lock = lock_sys_t::get_first(cell, id, heap_no);
 	     lock; lock = lock_rec_get_next(heap_no, lock)) {
-		if (lock_rec_has_to_wait(true, trx, mode, lock, is_supremum)) {
+		if (lock_rec_has_to_wait(trx, mode, lock, is_supremum)) {
 			return(lock);
 		}
 	}
@@ -1602,6 +1615,14 @@ lock_rec_has_to_wait_in_queue(const hash_cell_t &cell, const lock_t *wait_lock)
 		if (heap_no < lock_rec_get_n_bits(lock)
 		    && (p[bit_offset] & bit_mask)
 		    && lock_has_to_wait(wait_lock, lock)) {
+#ifdef WITH_WSREP
+			if (wsrep_thd_is_BF(wait_lock->trx->mysql_thd, FALSE) &&
+			    wsrep_thd_is_BF(lock->trx->mysql_thd, TRUE) &&
+			    wsrep_thd_order_before(wait_lock->trx->mysql_thd, lock->trx->mysql_thd)) {
+				/* don't wait for another BF lock */
+				continue;
+			}
+#endif
 			return(lock);
 		}
 	}
