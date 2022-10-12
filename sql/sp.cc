@@ -217,12 +217,12 @@ TABLE_FIELD_TYPE proc_table_fields[MYSQL_PROC_FIELD_COUNT] =
   },
   {
     { STRING_WITH_LEN("collation_connection") },
-    { STRING_WITH_LEN("char(32)") },
+    { STRING_WITH_LEN("char(") },
     { STRING_WITH_LEN("utf8mb3") }
   },
   {
     { STRING_WITH_LEN("db_collation") },
-    { STRING_WITH_LEN("char(32)") },
+    { STRING_WITH_LEN("char(") },
     { STRING_WITH_LEN("utf8mb3") }
   },
   {

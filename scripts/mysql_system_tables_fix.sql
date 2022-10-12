@@ -515,10 +515,10 @@ UPDATE proc SET character_set_client = @@character_set_client
                      WHERE character_set_client IS NULL;
 
 ALTER TABLE proc ADD collation_connection
-                     char(32) collate utf8_bin DEFAULT NULL
+                     char(64) collate utf8_bin DEFAULT NULL
                      AFTER character_set_client;
 ALTER TABLE proc MODIFY collation_connection
-                        char(32) collate utf8_bin DEFAULT NULL;
+                        char(64) collate utf8_bin DEFAULT NULL;
 
 SELECT CASE WHEN COUNT(*) > 0 THEN 
 CONCAT ("WARNING: NULL values of the 'collation_connection' column ('mysql.proc' table) have been updated with a default value (", @@collation_connection, "). Please verify if necessary.")
@@ -530,10 +530,10 @@ UPDATE proc SET collation_connection = @@collation_connection
                      WHERE collation_connection IS NULL;
 
 ALTER TABLE proc ADD db_collation
-                     char(32) collate utf8_bin DEFAULT NULL
+                     char(64) collate utf8_bin DEFAULT NULL
                      AFTER collation_connection;
 ALTER TABLE proc MODIFY db_collation
-                        char(32) collate utf8_bin DEFAULT NULL;
+                        char(64) collate utf8_bin DEFAULT NULL;
 
 SELECT CASE WHEN COUNT(*) > 0 THEN 
 CONCAT ("WARNING: NULL values of the 'db_collation' column ('mysql.proc' table) have been updated with default values. Please verify if necessary.")
@@ -639,16 +639,16 @@ ALTER TABLE event MODIFY character_set_client
                          char(32) collate utf8_bin DEFAULT NULL;
 
 ALTER TABLE event ADD collation_connection
-                      char(32) collate utf8_bin DEFAULT NULL
+                      char(64) collate utf8_bin DEFAULT NULL
                       AFTER character_set_client;
 ALTER TABLE event MODIFY collation_connection
-                         char(32) collate utf8_bin DEFAULT NULL;
+                         char(64) collate utf8_bin DEFAULT NULL;
 
 ALTER TABLE event ADD db_collation
-                      char(32) collate utf8_bin DEFAULT NULL
+                      char(64) collate utf8_bin DEFAULT NULL
                       AFTER collation_connection;
 ALTER TABLE event MODIFY db_collation
-                         char(32) collate utf8_bin DEFAULT NULL;
+                         char(64) collate utf8_bin DEFAULT NULL;
 
 ALTER TABLE event ADD body_utf8 longblob DEFAULT NULL
                       AFTER db_collation;
