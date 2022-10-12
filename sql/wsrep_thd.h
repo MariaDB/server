@@ -184,7 +184,6 @@ void wsrep_reset_threadvars(THD *);
 
 static inline void wsrep_override_error(THD *thd, uint error, const char *format= 0, ...)
 {
-  DBUG_ASSERT(error != ER_ERROR_DURING_COMMIT);
   Diagnostics_area *da= thd->get_stmt_da();
   if (da->is_ok() ||
       da->is_eof() ||
