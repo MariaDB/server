@@ -3354,7 +3354,7 @@ fts_add_doc_by_id(
 
 	/* If we have a match, add the data to doc structure */
 	if (btr_pcur_open_with_no_init(fts_id_index, tuple, PAGE_CUR_LE,
-				       BTR_SEARCH_LEAF, &pcur, 0, &mtr)
+				       BTR_SEARCH_LEAF, &pcur, &mtr)
 	    == DB_SUCCESS
 	    && btr_pcur_get_low_match(&pcur) == 1) {
 		const rec_t*	rec;
@@ -3392,7 +3392,7 @@ fts_add_doc_by_id(
 			if (btr_pcur_open_with_no_init(clust_index, clust_ref,
 						       PAGE_CUR_LE,
 						       BTR_SEARCH_LEAF,
-						       &clust_pcur, 0, &mtr)
+						       &clust_pcur, &mtr)
 			    != DB_SUCCESS) {
 				goto func_exit;
 			}

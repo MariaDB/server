@@ -1,0 +1,73 @@
+--source include/galera_cluster.inc
+--source include/have_sequence.inc
+--source include/force_restart.inc
+
+# Save original auto_increment_offset values.
+--let $node_1=node_1
+--let $node_2=node_2
+--source include/auto_increment_offset_save.inc
+
+--connection node_1
+call mtr.add_suppression("WSREP: Event .* Write_rows_v1 apply failed:.*");
+call mtr.add_suppression("WSREP: Failed to apply write set:.*");
+call mtr.add_suppression("WSREP: Inconsistency detected: Inconsistent by consensus on.*");
+
+--connection node_2
+call mtr.add_suppression("WSREP: Failed to open table mysql.wsrep_streaming_log for writing");
+call mtr.add_suppression("WSREP: Failed to open SR table for write");
+call mtr.add_suppression("WSREP: Failed to recover SR transactions from schema: wsrep_on : 0");
+call mtr.add_suppression("WSREP: Inconsistency detected: Inconsistent by consensus on.*");
+
+SET @@global.tx_read_only = ON;
+--error 0,1286
+SET default_storage_engine = SEQUENCE;
+--error 1005
+create table t1 (c1 int);
+CREATE TABLE t1(c1 VARCHAR(20)) engine=innodb;
+INSERT INTO t1  VALUES(0xA9B8);
+--error 1050
+create TABLE t1 (c1 int) engine=innodb;
+--error 1050
+create TABLE t1 (c1 int) engine=innodb;
+--let $wsrep_cluster_address_saved = `SELECT @@global.wsrep_cluster_address`
+SET GLOBAL wsrep_on=OFF;
+SET GLOBAL wsrep_cluster_address='gcomm://';
+INSERT INTO t1  VALUES (1);
+SELECT 1;
+SELECT 1;
+COMMIT;
+
+#
+# Kill the entire cluster and restart
+#
+--echo # Killing cluster because we have messed with wsrep_cluster_address
+--connection node_2
+SET SESSION wsrep_sync_wait = 0;
+--source include/kill_galera.inc
+
+--connection node_1
+SET SESSION wsrep_sync_wait = 0;
+--source include/kill_galera.inc
+
+--remove_file $MYSQLTEST_VARDIR/mysqld.1/data/grastate.dat
+--let $start_mysqld_params = "--wsrep-new-cluster"
+--let $_expect_file_name= $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
+--source include/start_mysqld.inc
+
+--connection node_2
+--let $start_mysqld_params = ""
+--let $_expect_file_name= $MYSQLTEST_VARDIR/tmp/mysqld.2.expect
+--source include/start_mysqld.inc
+
+call mtr.add_suppression("WSREP: Failed to open table mysql.wsrep_streaming_log for writing");
+call mtr.add_suppression("WSREP: Failed to open SR table for write");
+call mtr.add_suppression("WSREP: Failed to recover SR transactions from schema: wsrep_on : 0");
+
+#
+# Cleanup
+#
+--source ../../galera/include/auto_increment_offset_restore.inc
+# We killed cluster, it might mean that table does not exists
+--disable_warnings
+DROP TABLE IF EXISTS t1;
+--enable_warnings

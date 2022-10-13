@@ -1,5 +1,6 @@
 source include/have_profiling.inc;
 source include/not_embedded.inc;
+source include/no_valgrind_without_big.inc;
 
 set global max_allowed_packet=1073741824;
 connect u,localhost,root;

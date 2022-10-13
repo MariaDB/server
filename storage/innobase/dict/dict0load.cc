@@ -2493,7 +2493,7 @@ corrupted:
 	if (!table->is_readable()) {
 		/* Don't attempt to load the indexes from disk. */
 	} else if (err == DB_SUCCESS) {
-		err = dict_load_foreigns(table->name.m_name, nullptr, false,
+		err = dict_load_foreigns(table->name.m_name, nullptr,
 					 0, true, ignore_err, fk_tables);
 
 		if (err != DB_SUCCESS) {
@@ -3043,8 +3043,6 @@ dict_load_foreigns(
 	const char*		table_name,	/*!< in: table name */
 	const char**		col_names,	/*!< in: column names, or NULL
 						to use table->col_names */
-	bool			uncommitted,	/*!< in: use READ UNCOMMITTED
-						transaction isolation level */
 	trx_id_t		trx_id,		/*!< in: DDL transaction id,
 						or 0 to check
 						recursive load of tables
@@ -3159,7 +3157,7 @@ loop:
 	/* Load the foreign constraint definition to the dictionary cache */
 
 	err = len < sizeof fk_id
-		? dict_load_foreign(table_name, uncommitted, col_names, trx_id,
+		? dict_load_foreign(table_name, false, col_names, trx_id,
 				    check_recursive, check_charsets,
 				    {fk_id, len}, ignore_err, fk_tables)
 		: DB_CORRUPTION;

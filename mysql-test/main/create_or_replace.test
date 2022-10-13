@@ -526,6 +526,18 @@ SELECT * FROM t3;
 UNLOCK TABLES;
 DROP TABLE t3;
 
+--echo #
+--echo # MDEV-29697 Assertion failure in Diagnostics_area::set_ok_status
+--echo #            upon CREATE OR REPLACE causing ER_UPDATE_TABLE_USED
+--echo #
+CREATE TABLE t (a INT) ENGINE=MyISAM;
+CREATE TABLE tm (a INT) ENGINE=MERGE UNION(t);
+--error ER_UPDATE_TABLE_USED
+CREATE OR REPLACE TABLE t LIKE tm;
+
+# Cleanup
+DROP TABLE IF EXISTS tm, t;
+
 --echo # End of 10.4 tests
 
 --echo #

@@ -766,9 +766,8 @@ struct VCOL_STORAGE
 @return		TRUE  malloc failure
 */
 
-bool innobase_allocate_row_for_vcol(
-				    THD *	  thd,
-				    dict_index_t* index,
+bool innobase_allocate_row_for_vcol(THD *thd,
+				    const dict_index_t* index,
 				    mem_heap_t**  heap,
 				    TABLE**	  table,
 				    VCOL_STORAGE* storage);
@@ -784,17 +783,13 @@ public:
 
   ib_vcol_row(mem_heap_t *heap) : heap(heap) {}
 
-  byte *record(THD *thd, dict_index_t *index, TABLE **table)
+  byte *record(THD *thd, const dict_index_t *index, TABLE **table)
   {
-    if (!storage.innobase_record)
-    {
-      bool ok = innobase_allocate_row_for_vcol(thd, index, &heap, table,
-                                               &storage);
-      if (!ok)
-        return NULL;
-    }
+    if (!storage.innobase_record &&
+        !innobase_allocate_row_for_vcol(thd, index, &heap, table, &storage))
+      return nullptr;
     return storage.innobase_record;
-  };
+  }
 
   ~ib_vcol_row()
   {

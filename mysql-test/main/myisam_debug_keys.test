@@ -10,6 +10,7 @@ CREATE TABLE types (
   type TEXT NOT NULL,
   prefix_length INT NOT NULL
 );
+--disable_ps_protocol
 INSERT INTO types (type, prefix_length) VALUES
 ('INT',               0),
 ('BIGINT',            0),
@@ -29,6 +30,7 @@ INSERT INTO types (type, prefix_length) VALUES
 ('TEXT',              12),
 ('TEXT',              16),
 ('TEXT',              100);
+--enable_ps_protocol
 DELIMITER $$;
 BEGIN NOT ATOMIC
   DECLARE create2_template TEXT
@@ -52,6 +54,8 @@ BEGIN NOT ATOMIC
                               CONCAT('b(',rec.prefix_length2,')'), 'b'));
       SELECT tabledef AS ``;
       EXECUTE IMMEDIATE tabledef;
+      SHOW WARNINGS;
+      SELECT * FROM t1;
       SHOW WARNINGS;
       SHOW CREATE TABLE t1;
       DROP TABLE t1;

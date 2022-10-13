@@ -92,13 +92,13 @@ struct Worker_thread_context
   PSI_thread *psi_thread;
   st_my_thread_var* mysys_var;
 
-  void save()
+  Worker_thread_context()
   {
     psi_thread= PSI_CALL_get_thread();
     mysys_var= my_thread_var;
   }
 
-  void restore()
+  ~Worker_thread_context()
   {
     PSI_CALL_set_thread(psi_thread);
     set_mysys_var(mysys_var);
@@ -143,6 +143,44 @@ static inline void set_thd_idle(THD *thd)
 }
 
 /*
+  Per OS thread info (ID and pthread_self)
+  stored as TLS, because of syscall overhead
+  (on Linux)
+*/
+struct OS_thread_info
+{
+  pthread_t self;
+  ssize_t stack_size;
+  uint32_t thread_id;
+
+  inline bool initialized() { return stack_size != 0; }
+
+  void init(ssize_t ssize)
+  {
+#if _WIN32
+   self= thread_id= GetCurrentThreadId();
+#else
+#ifdef __NR_gettid
+    thread_id= (uint32) syscall(__NR_gettid);
+#else
+    thread_id= 0;
+#endif
+    self= pthread_self();
+#endif
+    stack_size= ssize;
+  }
+};
+static thread_local OS_thread_info os_thread_info;
+
+static const OS_thread_info *get_os_thread_info()
+{
+  auto *res= &os_thread_info;
+  if (!res->initialized())
+    res->init((ssize_t) (my_thread_stack_size * STACK_DIRECTION));
+  return res;
+}
+
+/*
   Attach/associate the connection with the OS thread,
 */
 static void thread_attach(THD* thd)
@@ -154,7 +192,12 @@ static void thread_attach(THD* thd)
 #endif /* WITH_WSREP */
   set_mysys_var(thd->mysys_var);
   thd->thread_stack=(char*)&thd;
-  thd->store_globals();
+  set_current_thd(thd);
+  auto tinfo= get_os_thread_info();
+  thd->real_id= tinfo->self;
+  thd->os_thread_id= tinfo->thread_id;
+  DBUG_ASSERT(thd->mysys_var == my_thread_var);
+  thd->mysys_var->stack_ends_here= thd->thread_stack + tinfo->stack_size;
   PSI_CALL_set_thread(thd->get_psi());
   mysql_socket_set_thread_owner(thd->net.vio->mysql_socket);
 }
@@ -179,7 +222,6 @@ void tp_callback(TP_connection *c)
   DBUG_ASSERT(c);
 
   Worker_thread_context worker_context;
-  worker_context.save();
 
   THD *thd= c->thd;
 
@@ -212,7 +254,6 @@ retry:
           thd->async_state.m_state = thd_async_state::enum_async_state::RESUMED;
           goto retry;
         }
-        worker_context.restore();
         return;
       case DISPATCH_COMMAND_CLOSE_CONNECTION:
         /* QUIT or an error occurred. */
@@ -231,8 +272,6 @@ retry:
   c->state= TP_STATE_IDLE;
   if (c->start_io())
     goto error;
-
-  worker_context.restore();
   return;
 
 error:
@@ -242,7 +281,6 @@ error:
     threadpool_remove_connection(thd);
   }
   delete c;
-  worker_context.restore();
 }
 
 

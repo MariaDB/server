@@ -5,6 +5,8 @@
 --source include/have_debug.inc
 --source include/have_debug_sync.inc
 --source include/have_sequence.inc
+# This test often times out with MemorySanitizer.
+--source include/not_msan.inc
 
 CREATE TABLE t1(f1 char(200), f2 char(200), f3 char(200),
 		f4 char(200), f5 char(200), f6 char(200),

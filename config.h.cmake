@@ -222,7 +222,6 @@
 #cmakedefine HAVE_SIGWAIT 1
 #cmakedefine HAVE_SIGWAITINFO 1
 #cmakedefine HAVE_SLEEP 1
-#cmakedefine HAVE_SNPRINTF 1
 #cmakedefine HAVE_STPCPY 1
 #cmakedefine HAVE_STRERROR 1
 #cmakedefine HAVE_STRCOLL 1
@@ -256,9 +255,6 @@
 #cmakedefine HAVE_SOCKADDR_IN6_SIN6_LEN 1
 #cmakedefine STRUCT_TIMESPEC_HAS_TV_SEC 1
 #cmakedefine STRUCT_TIMESPEC_HAS_TV_NSEC 1
-
-#define USE_MB 1
-#define USE_MB_IDENT 1
 
 /* this means that valgrind headers and macros are available */
 #cmakedefine HAVE_VALGRIND_MEMCHECK_H 1
@@ -455,8 +451,8 @@
 #cmakedefine MYSQL_DEFAULT_CHARSET_NAME "@MYSQL_DEFAULT_CHARSET_NAME@"
 #cmakedefine MYSQL_DEFAULT_COLLATION_NAME "@MYSQL_DEFAULT_COLLATION_NAME@"
 
-#cmakedefine USE_MB 1
-#cmakedefine USE_MB_IDENT 1
+#cmakedefine USE_MB
+#cmakedefine USE_MB_IDENT
 
 /* This should mean case insensitive file system */
 #cmakedefine FN_NO_CASE_SENSE 1
