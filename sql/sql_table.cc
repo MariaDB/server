@@ -9904,7 +9904,6 @@ bool mysql_alter_table(THD *thd, const LEX_CSTRING *new_db,
 
   if (alter_info->requested_lock > Alter_info::ALTER_TABLE_LOCK_NONE
       || alter_info->flags & ALTER_DROP_SYSTEM_VERSIONING
-      || thd->locked_tables_mode == LTM_LOCK_TABLES
       || thd->lex->sql_command == SQLCOM_OPTIMIZE
       || ignore
       || alter_info->algorithm(thd) > Alter_info::ALTER_TABLE_ALGORITHM_COPY)
@@ -10035,16 +10034,13 @@ bool mysql_alter_table(THD *thd, const LEX_CSTRING *new_db,
     set of tables from the old table or to open a new TABLE object for
     an extended list and verify that they belong to locked tables.
   */
-  if (thd->locked_tables_mode == LTM_LOCK_TABLES ||
-       thd->locked_tables_mode == LTM_PRELOCKED_UNDER_LOCK_TABLES)
+  if ((thd->locked_tables_mode == LTM_LOCK_TABLES ||
+       thd->locked_tables_mode == LTM_PRELOCKED_UNDER_LOCK_TABLES) &&
+      (create_info->used_fields & HA_CREATE_USED_UNION) &&
+      (table->s->tmp_table == NO_TMP_TABLE))
   {
-    if ((create_info->used_fields & HA_CREATE_USED_UNION) &&
-        (table->s->tmp_table == NO_TMP_TABLE))
-    {
-      my_error(ER_LOCK_OR_ACTIVE_TRANSACTION, MYF(0));
-      DBUG_RETURN(true);
-    }
-    alter_info->requested_lock= Alter_info::ALTER_TABLE_LOCK_DEFAULT;
+    my_error(ER_LOCK_OR_ACTIVE_TRANSACTION, MYF(0));
+    DBUG_RETURN(true);
   }
 
   /* Check that we are not trying to rename to an existing table */
@@ -10766,6 +10762,9 @@ do_continue:;
                "LOCK=SHARED");
       goto err_new_table_cleanup;
     }
+
+    if (thd->locked_tables_mode == LTM_LOCK_TABLES)
+      online= false;
 
     // If EXCLUSIVE lock is requested, upgrade already.
     if (alter_info->requested_lock == Alter_info::ALTER_TABLE_LOCK_EXCLUSIVE &&
