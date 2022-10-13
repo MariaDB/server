@@ -4,10 +4,11 @@
 -- source include/have_pool_of_threads.inc
 -- source include/default_optimizer_switch.inc
 
-SET optimizer_switch='outer_join_with_cache=off';
 # Slow test, don't run during staging part
 -- source include/not_staging.inc
 -- source include/long_test.inc
+
+SET optimizer_switch='outer_join_with_cache=off';
 -- source include/common-tests.inc
 SET optimizer_switch=default;
 

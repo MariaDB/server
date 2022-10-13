@@ -150,10 +150,7 @@ lock table t write;
 connection prevent_purge;
 commit;
 connection default;
-InnoDB		0 transactions not purged
 disconnect lock_table;
-start transaction with consistent snapshot;
-commit;
 InnoDB		0 transactions not purged
 set global debug_dbug=@old_dbug;
 drop table t;

@@ -5680,7 +5680,7 @@ inline bool Row_definition_list::eq_name(const Spvar_definition *def,
 class Create_field :public Column_definition
 {
 public:
-  LEX_CSTRING change;			// If done with alter table
+  LEX_CSTRING change;			// Old column name if column is renamed by ALTER
   LEX_CSTRING after;			// Put column after this one
   Field *field;				// For alter table
   const TYPELIB *save_interval;         // Temporary copy for the above

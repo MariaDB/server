@@ -4810,6 +4810,7 @@ static void check_datadir_altered_for_innodb(THD *thd,
   @param[out] partition_changed  Boolean indicating whether partition changed
   @param[out] fast_alter_table   Boolean indicating if fast partition alter is
                                  possible.
+  @param[out] thd->work_part_info Prepared part_info for the new table
 
   @return Operation status
     @retval TRUE                 Error

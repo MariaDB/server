@@ -2,6 +2,7 @@
 --source include/innodb_encrypt_log.inc
 --source include/have_debug.inc
 --source include/have_debug_sync.inc
+--source include/no_valgrind_without_big.inc
 
 let $innodb_metrics_select=
 SELECT name, count FROM INFORMATION_SCHEMA.INNODB_METRICS WHERE subsystem = 'ddl';
