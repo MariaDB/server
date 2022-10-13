@@ -60,6 +60,38 @@ unlock tables;
 --connection con1
 --reap
 --connection default
+
+insert t1 values (1);
+lock table t1 read local;
+--error ER_TABLE_NOT_LOCKED_FOR_WRITE
+alter table t1 force, algorithm=copy, lock=none;
+--error ER_TABLE_NOT_LOCKED_FOR_WRITE
+alter table t1 force, algorithm=inplace, lock=none;
+--error ER_TABLE_NOT_LOCKED_FOR_WRITE
+alter table t1 force, algorithm=copy, lock=shared;
+--error ER_TABLE_NOT_LOCKED_FOR_WRITE
+alter table t1 force, algorithm=inplace, lock=shared;
+--error ER_TABLE_NOT_LOCKED_FOR_WRITE
+alter table t1 force, algorithm=copy, lock=exclusive;
+--error ER_TABLE_NOT_LOCKED_FOR_WRITE
+alter table t1 force, algorithm=inplace, lock=exclusive;
+unlock tables;
+
+lock table t1 write concurrent;
+--error ER_TABLE_NOT_LOCKED_FOR_WRITE
+alter table t1 force, algorithm=copy, lock=none;
+--error ER_TABLE_NOT_LOCKED_FOR_WRITE
+alter table t1 force, algorithm=inplace, lock=none;
+--error ER_TABLE_NOT_LOCKED_FOR_WRITE
+alter table t1 force, algorithm=copy, lock=shared;
+--error ER_TABLE_NOT_LOCKED_FOR_WRITE
+alter table t1 force, algorithm=inplace, lock=shared;
+--error ER_TABLE_NOT_LOCKED_FOR_WRITE
+alter table t1 force, algorithm=copy, lock=exclusive;
+--error ER_TABLE_NOT_LOCKED_FOR_WRITE
+alter table t1 force, algorithm=inplace, lock=exclusive;
+unlock tables;
+
 drop table t1;
 
 --echo #
