@@ -6057,7 +6057,7 @@ int Rows_log_event::do_apply_event(rpl_group_info *rgi)
     table->rpl_write_set= table->write_set;
 
     // Do event specific preparations
-    error= do_before_row_operations(rgi);
+    error= do_before_row_operations(rgi, &rpl_data);
 
     /*
       Bug#56662 Assertion failed: next_insert_id == 0, file handler.cc
@@ -6149,6 +6149,9 @@ int Rows_log_event::do_apply_event(rpl_group_info *rgi)
       Restore the sql_mode after the rows event is processed.
     */
     thd->variables.sql_mode= saved_sql_mode;
+
+    if (*rpl_data.usable_keys_data)
+      (*rpl_data.usable_keys_data)->inited= false;
 
     {/**
          The following failure injecion works in cooperation with tests 
@@ -7408,7 +7411,8 @@ bool Write_rows_compressed_log_event::write()
 
 #if defined(HAVE_REPLICATION)
 int 
-Write_rows_log_event::do_before_row_operations(const rpl_group_info *)
+Write_rows_log_event::do_before_row_operations(const rpl_group_info *,
+                                               Rpl_table_data *)
 {
   int error= 0;
 
@@ -8036,12 +8040,11 @@ record_compare_exit:
   Basically we exclude all the default-filled fields based on
   has_explicit_value bitmap.
  */
-uint Rows_log_event::key_parts_suit_event(const KEY *key) const
+static uint get_usable_key_parts(const KEY *key)
 {
-  uint master_columns= m_online_alter ? 0 : m_cols.n_bits;
-
-  int next_number_field= key->table->found_next_number_field ?
-                         key->table->found_next_number_field->field_index : -1;
+  TABLE *table= key->table;
+  int next_number_field= table->found_next_number_field ?
+                         table->found_next_number_field->field_index : -1;
   uint p= 0;
   for (;p < key->ext_key_parts; p++)
   {
@@ -8049,12 +8052,21 @@ uint Rows_log_event::key_parts_suit_event(const KEY *key) const
     uint non_deterministic_default= f->default_value &&
                      f->default_value->flags | VCOL_NOT_STRICTLY_DETERMINISTIC;
 
-    if (f->field_index >= master_columns
-        && !bitmap_is_set(&m_table->has_value_set, f->field_index)
+    if (!f->has_explicit_value()
         && (non_deterministic_default || next_number_field == f->field_index))
       break;
   }
   return p;
+}
+
+using usable_keys_data= RPL_TABLE_LIST::usable_keys_data;
+
+static void initialize_usable_keys(const TABLE *table,
+                                   usable_keys_data *usable_keys_data)
+{
+  for (uint i= 0; i < table->s->keys; i++)
+    usable_keys_data->usable_keys[i]= get_usable_key_parts(&table->key_info[i]);
+  bitmap_copy(&usable_keys_data->last_has_values_set, &table->has_value_set);
 }
 
 /**
@@ -8068,13 +8080,33 @@ uint Rows_log_event::key_parts_suit_event(const KEY *key) const
 
   @returns Error code on failure, 0 on success.
 */
-int Rows_log_event::find_key()
+int Rows_log_event::find_key(Rpl_table_data *table_data)
 {
   uint i, best_key_nr;
   KEY *key, *UNINIT_VAR(best_key);
   ulong UNINIT_VAR(best_rec_per_key), tmp;
   DBUG_ENTER("Rows_log_event::find_key");
   DBUG_ASSERT(m_table);
+
+  /*
+    Lazy initialization for usable_keys_data which is naturally stored in
+    RPL_TABLE_LIST.
+   */
+  if (unlikely(*table_data->usable_keys_data == NULL))
+  {
+    *table_data->usable_keys_data= usable_keys_data::get_new(thd->mem_root,
+                                                             m_table);
+    initialize_usable_keys(m_table, *table_data->usable_keys_data);
+  }
+  usable_keys_data *usable_keys_data= *table_data->usable_keys_data;
+
+  if (!usable_keys_data->inited)
+  {
+    if (!bitmap_cmp(&usable_keys_data->last_has_values_set,
+                   &m_table->has_value_set))
+      initialize_usable_keys(m_table, usable_keys_data);
+    usable_keys_data->inited= true;
+  }
 
   #ifdef DBUG_TRACE
   auto _ = make_scope_exit([this]() {
@@ -8086,6 +8118,19 @@ int Rows_log_event::find_key()
                                         -1 : m_key_nr););
   });
   #endif
+
+  i= m_table->s->primary_key;
+  key= m_table->key_info + i;
+  if ((m_table->file->ha_table_flags() & HA_PRIMARY_KEY_REQUIRED_FOR_POSITION) &&
+      i < MAX_KEY && key->ext_key_parts == usable_keys_data->usable_keys[i])
+  {
+    /*
+      We don't need to allocate any memory for m_key since it is not used.
+    */
+    m_key_nr= i;
+    m_key_parts_suit= key->ext_key_parts;
+    DBUG_RETURN(0);
+  }
 
   m_key_nr= MAX_KEY;
   best_key_nr= MAX_KEY;
@@ -8100,7 +8145,7 @@ int Rows_log_event::find_key()
   {
     if (!m_table->s->keys_in_use.is_set(i))
       continue;
-    parts_suit= key_parts_suit_event(key);
+    parts_suit= usable_keys_data->usable_keys[i];
     if (!parts_suit)
       continue;
     /*
@@ -8109,7 +8154,7 @@ int Rows_log_event::find_key()
       is available).
     */
     if ((key->flags & (HA_NOSAME | HA_NULL_PART_KEY)) == HA_NOSAME &&
-        parts_suit == key->user_defined_key_parts)
+        parts_suit == key->ext_key_parts)
     {
       best_key_nr= i;
       best_key= key;
@@ -8553,7 +8598,8 @@ bool Delete_rows_compressed_log_event::write()
 #if defined(HAVE_REPLICATION)
 
 int 
-Delete_rows_log_event::do_before_row_operations(const rpl_group_info *rgi)
+Delete_rows_log_event::do_before_row_operations(const rpl_group_info *rgi,
+                                                Rpl_table_data *table_data)
 {
   /*
     Increment the global status delete count variable
@@ -8565,22 +8611,11 @@ Delete_rows_log_event::do_before_row_operations(const rpl_group_info *rgi)
   unpack_row(rgi, m_table, m_width, m_curr_row, &m_cols,
              &curr_row_end, &m_master_reclength, m_rows_end);
 
-  KEY *pk_info= m_table->key_info + m_table->s->primary_key;
-  if ((m_table->file->ha_table_flags() & HA_PRIMARY_KEY_REQUIRED_FOR_POSITION) &&
-      m_table->s->primary_key < MAX_KEY &&
-      key_parts_suit_event(pk_info) == pk_info->ext_key_parts)
-  {
-    /*
-      We don't need to allocate any memory for m_key since it is not used.
-    */
-    m_key_nr= m_table->s->primary_key;
-    m_key_parts_suit= pk_info->ext_key_parts;
-    return 0;
-  }
+
   if (do_invoke_trigger())
     m_table->prepare_triggers_for_delete_stmt_or_event();
 
-  return find_key();
+  return find_key(table_data);
 }
 
 int 
@@ -8725,7 +8760,8 @@ void Update_rows_log_event::init(MY_BITMAP const *cols)
 #if defined(HAVE_REPLICATION)
 
 int 
-Update_rows_log_event::do_before_row_operations(const rpl_group_info *rgi)
+Update_rows_log_event::do_before_row_operations(const rpl_group_info *rgi,
+                                                Rpl_table_data *table_data)
 {
   /*
     Increment the global status update count variable
@@ -8733,8 +8769,12 @@ Update_rows_log_event::do_before_row_operations(const rpl_group_info *rgi)
   if (get_flags(STMT_END_F))
     status_var_increment(thd->status_var.com_stat[SQLCOM_UPDATE]);
 
+  const uchar *curr_row_end= m_curr_row_end;
+  unpack_row(rgi, m_table, m_width, m_curr_row, &m_cols,
+             &curr_row_end, &m_master_reclength, m_rows_end);
+
   int err;
-  if ((err= find_key()))
+  if ((err= find_key(table_data)))
     return err;
 
   if (do_invoke_trigger())

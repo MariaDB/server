@@ -675,12 +675,15 @@ struct Rpl_table_data
   TABLE *conv_table;
   const Copy_field *copy_fields;
   const Copy_field *copy_fields_end;
+  RPL_TABLE_LIST::usable_keys_data **usable_keys_data;
+
   Rpl_table_data& operator =(const RPL_TABLE_LIST &rpl_table_list)
   {
     tabledef= &rpl_table_list.m_tabledef;
     conv_table= rpl_table_list.m_conv_table;
     copy_fields= rpl_table_list.m_online_alter_copy_fields;
     copy_fields_end= rpl_table_list.m_online_alter_copy_fields_end;
+    usable_keys_data= &rpl_table_list.m_usable_keys_data;
     return *this;
   }
   bool is_online_alter() const { return copy_fields != NULL; }

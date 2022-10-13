@@ -11869,6 +11869,8 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
       thd_progress_next_stage(thd);
       error= online_alter_read_from_binlog(thd, &rgi, binlog);
     }
+    my_free(rpl_table.m_usable_keys_data);
+
     if (error)
       from->s->tdc->flush_unused(1); // to free the binlog
   }

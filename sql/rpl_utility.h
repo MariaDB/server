@@ -259,6 +259,44 @@ struct RPL_TABLE_LIST
   const Copy_field *m_online_alter_copy_fields;
   const Copy_field *m_online_alter_copy_fields_end;
 
+  /**
+    Stores cached usable key_parts for table for reuse between the events.
+    If row_format is changed between two events, different columns can be sent
+    by event. This can be indicated by changed has_values_set.
+    If has_values_set remains same, usable_keys doesn't need to be updated.
+
+    inited is is set on the first find_key call, and is unset after all rows
+    were processed in the event.
+  */
+  struct usable_keys_data
+  {
+    bool inited;
+    MY_BITMAP last_has_values_set;
+    uint usable_keys[1];
+
+    usable_keys_data(uchar *bitmap_buff, uint fields) : inited(true)
+    {
+      my_bitmap_init(&last_has_values_set, (my_bitmap_map*)bitmap_buff, fields);
+    }
+
+    static usable_keys_data *get_new(MEM_ROOT *mem_root, TABLE *table)
+    {
+      uint keys_size_incl= array_elements(usable_keys_data::usable_keys);
+      TABLE_SHARE *s= table->s;
+      uchar *usable_keys_buff, *bitmap_buff;
+      uint *keys_parts_buff;
+      my_multi_malloc(PSI_INSTRUMENT_ME, MYF(MY_WME),
+                      &usable_keys_buff,
+                      sizeof(RPL_TABLE_LIST::usable_keys_data) - keys_size_incl,
+                      &keys_parts_buff, s->keys,
+                      &bitmap_buff, s->fields,
+                      NULL);
+      return new (usable_keys_buff) usable_keys_data(bitmap_buff, s->fields);
+    }
+  };
+
+  mutable usable_keys_data *m_usable_keys_data;
+
   RPL_TABLE_LIST(const LEX_CSTRING *db_arg, const LEX_CSTRING *table_name_arg,
                  thr_lock_type thr_lock_type,
                  table_def &&tabledef, bool master_had_trigers)
@@ -266,7 +304,8 @@ struct RPL_TABLE_LIST
       m_tabledef_valid(true), master_had_triggers(master_had_trigers),
       m_tabledef(std::move(tabledef)), m_conv_table(NULL),
       m_online_alter_copy_fields(NULL),
-      m_online_alter_copy_fields_end(NULL)
+      m_online_alter_copy_fields_end(NULL),
+      m_usable_keys_data(NULL)
   {}
 
   RPL_TABLE_LIST(TABLE *table, thr_lock_type lock_type, TABLE *conv_table,
@@ -279,7 +318,8 @@ struct RPL_TABLE_LIST
        m_tabledef(std::move(tabledef)),
        m_conv_table(conv_table),
        m_online_alter_copy_fields(online_alter_copy_fields),
-       m_online_alter_copy_fields_end(online_alter_copy_fields_end)
+       m_online_alter_copy_fields_end(online_alter_copy_fields_end),
+       m_usable_keys_data(NULL)
   {}
 };
 
