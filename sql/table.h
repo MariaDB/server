@@ -1678,7 +1678,7 @@ public:
 
   uint actual_n_key_parts(KEY *keyinfo);
   ulong actual_key_flags(KEY *keyinfo);
-  int update_virtual_field(Field *vf);
+  int update_virtual_field(Field *vf, bool ignore_warnings);
   int update_virtual_fields(handler *h, enum_vcol_update_mode update_mode);
   int update_default_fields(bool ignore_errors);
   void evaluate_update_default_function();

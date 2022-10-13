@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2000, 2018, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2017, MariaDB Corporation.
+   Copyright (c) 2009, 2022, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -730,7 +730,7 @@ static int compute_vcols(MI_INFO *info, uchar *record, int keynum)
   {
     Field *f= table->field[kp->fieldnr - 1];
     if (f->vcol_info && !f->vcol_info->stored_in_db)
-      table->update_virtual_field(f);
+      table->update_virtual_field(f, false);
   }
   mysql_mutex_unlock(&info->s->intern_lock);
   return 0;
