@@ -165,7 +165,7 @@ pack_row(TABLE *table, MY_BITMAP const* cols,
    unpack a row from from the backup image, but can be used for other
    purposes as well.
 
-   @param rli     Relay log info, which can be NULL
+   @param rgi     Relay group info
    @param table   Table to unpack into
    @param colcnt  Number of columns to read from record
    @param row_data
@@ -231,6 +231,7 @@ int unpack_row(rpl_group_info *rgi, TABLE *table, uint const colcnt,
                        table_found, tabledef, conv_table));
   DBUG_ASSERT(table_found);
 
+  DBUG_ASSERT(rgi);
   /*
     If rgi is NULL it means that there is no source table and that the
     row shall just be unpacked without doing any checks. This feature

@@ -4741,6 +4741,7 @@ inline void restore_empty_query_table_list(LEX *lex)
 
 int Rows_log_event::do_apply_event(rpl_group_info *rgi)
 {
+  DBUG_ASSERT(rgi);
   Relay_log_info const *rli= rgi->rli;
   TABLE* table;
   DBUG_ENTER("Rows_log_event::do_apply_event(Relay_log_info*)");
@@ -5062,7 +5063,7 @@ int Rows_log_event::do_apply_event(rpl_group_info *rgi)
       set_flags(COMPLETE_ROWS_F);
 
     Rpl_table_data rpl_data{};
-    if (rgi) rgi->get_table_data(table, &rpl_data);
+    rgi->get_table_data(table, &rpl_data);
 
     /* 
       Set tables write and read sets.
