@@ -938,3 +938,29 @@ create table t (a int) engine=myisam;
 create temporary table tm (a int) engine=merge union=(t);
 create or replace table tt like tm;
 drop tables tt, tm, t;
+#
+# MDEV-29787 CREATE OR REPLACE does not work with custom DATA/INDEX DIRECTORY
+#
+create table t1 (a int) engine=MyISAM
+data directory 'MYSQL_TMP_DIR'
+index directory 'MYSQL_TMP_DIR';
+MYSQLD_DATADIR/test:
+t1.MYD
+t1.MYI
+t1.frm
+MYSQL_TMP_DIR:
+t1.MYD
+t1.MYI
+create or replace table t1 (b int) engine=MyISAM
+data directory 'MYSQL_TMP_DIR'
+index directory 'MYSQL_TMP_DIR';
+MYSQLD_DATADIR/test:
+t1.MYD
+t1.MYI
+t1.frm
+MYSQL_TMP_DIR:
+t1.MYD
+t1.MYI
+drop table t1;
+MYSQLD_DATADIR/test:
+MYSQL_TMP_DIR:
