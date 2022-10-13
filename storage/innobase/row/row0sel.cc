@@ -1006,7 +1006,7 @@ row_sel_get_clust_rec(
 
 	dberr_t err = btr_pcur_open_with_no_init(index, plan->clust_ref,
 						 PAGE_CUR_LE, BTR_SEARCH_LEAF,
-						 &plan->clust_pcur, 0, mtr);
+						 &plan->clust_pcur, mtr);
 	if (UNIV_UNLIKELY(err != DB_SUCCESS)) {
 		goto err_exit;
 	}
@@ -1411,7 +1411,7 @@ row_sel_open_pcur(
 
 		err = btr_pcur_open_with_no_init(index, plan->tuple,
 						 plan->mode, BTR_SEARCH_LEAF,
-						 &plan->pcur, nullptr, mtr);
+						 &plan->pcur, mtr);
 	} else {
 		err = btr_pcur_open_at_index_side(plan->asc, index,
 						  BTR_SEARCH_LEAF, &plan->pcur,
@@ -1561,8 +1561,7 @@ row_sel_try_search_shortcut(
 	const rec_t* rec = btr_pcur_get_rec(&(plan->pcur));
 
 	if (!page_rec_is_user_rec(rec) || rec_is_metadata(rec, *index)) {
-retry:
-		return(SEL_RETRY);
+		return SEL_RETRY;
 	}
 
 	ut_ad(plan->mode == PAGE_CUR_GE);
@@ -1572,14 +1571,13 @@ retry:
 	fields in the user record matched to the search tuple */
 
 	if (btr_pcur_get_up_match(&(plan->pcur)) < plan->n_exact_match) {
-exhausted:
-		return(SEL_EXHAUSTED);
+		return SEL_EXHAUSTED;
 	}
 
 	if (trx_id_t bulk_trx_id = index->table->bulk_trx_id) {
 		/* See row_search_mvcc() for a comment on bulk_trx_id */
 		if (!node->read_view->changes_visible(bulk_trx_id)) {
-			goto exhausted;
+			return SEL_EXHAUSTED;
 		}
 	}
 
@@ -1596,18 +1594,18 @@ exhausted:
 	if (dict_index_is_clust(index)) {
 		if (!row_sel_clust_sees(rec, *index, offsets,
 					*node->read_view)) {
-			goto retry;
+			return SEL_RETRY;
 		}
 	} else if (!srv_read_only_mode) {
 		trx_id_t trx_id = page_get_max_trx_id(page_align(rec));
 		ut_ad(trx_id);
 		if (!node->read_view->sees(trx_id)) {
-			goto retry;
+			return SEL_RETRY;
 		}
 	}
 
 	if (rec_get_deleted_flag(rec, dict_table_is_comp(plan->table))) {
-		goto exhausted;
+		return SEL_EXHAUSTED;
 	}
 
 	/* Fetch the columns needed in test conditions.  The index
@@ -1621,7 +1619,7 @@ exhausted:
 	/* Test the rest of search conditions */
 
 	if (!row_sel_test_other_conds(plan)) {
-		goto exhausted;
+		return SEL_EXHAUSTED;
 	}
 
 	ut_ad(plan->pcur.latch_mode == BTR_SEARCH_LEAF);
@@ -1631,7 +1629,7 @@ exhausted:
 	if (UNIV_LIKELY_NULL(heap)) {
 		mem_heap_free(heap);
 	}
-	return(SEL_FOUND);
+	return SEL_FOUND;
 }
 #endif /* BTR_CUR_HASH_ADAPT */
 
@@ -3356,7 +3354,7 @@ Row_sel_get_clust_rec_for_mysql::operator()(
 	dberr_t err = btr_pcur_open_with_no_init(clust_index,
 						 prebuilt->clust_ref,
 						 PAGE_CUR_LE, BTR_SEARCH_LEAF,
-						 prebuilt->clust_pcur, 0, mtr);
+						 prebuilt->clust_pcur, mtr);
 	if (UNIV_UNLIKELY(err != DB_SUCCESS)) {
 		return err;
 	}
@@ -3941,20 +3939,16 @@ row_sel_try_search_shortcut_for_mysql(
 	ut_ad(!prebuilt->templ_contains_blob);
 	ut_ad(trx->read_view.is_open());
 
-	srw_spin_lock* ahi_latch = btr_search_sys.get_latch(*index);
-	ahi_latch->rd_lock(SRW_LOCK_CALL);
 	if (btr_pcur_open_with_no_init(index, search_tuple, PAGE_CUR_GE,
-				       BTR_SEARCH_LEAF, pcur, ahi_latch, mtr)
+				       BTR_SEARCH_LEAF, pcur, mtr)
 	    != DB_SUCCESS) {
-		goto retry;
+		return SEL_RETRY;
 	}
 
 	rec = btr_pcur_get_rec(pcur);
 
 	if (!page_rec_is_user_rec(rec) || rec_is_metadata(rec, *index)) {
-retry:
-		ahi_latch->rd_unlock();
-		return(SEL_RETRY);
+		return SEL_RETRY;
 	}
 
 	/* As the cursor is now placed on a user record after a search with
@@ -3962,16 +3956,14 @@ retry:
 	fields in the user record matched to the search tuple */
 
 	if (btr_pcur_get_up_match(pcur) < dtuple_get_n_fields(search_tuple)) {
-exhausted:
-		ahi_latch->rd_unlock();
-		return(SEL_EXHAUSTED);
+		return SEL_EXHAUSTED;
 	}
 
 	if (trx->isolation_level == TRX_ISO_READ_UNCOMMITTED) {
 	} else if (trx_id_t bulk_trx_id = index->table->bulk_trx_id) {
 		/* See row_search_mvcc() for a comment on bulk_trx_id */
 		if (!trx->read_view.changes_visible(bulk_trx_id)) {
-			goto exhausted;
+			return SEL_EXHAUSTED;
 		}
 	}
 
@@ -3982,20 +3974,19 @@ exhausted:
 				   ULINT_UNDEFINED, heap);
 
 	if (!row_sel_clust_sees(rec, *index, *offsets, trx->read_view)) {
-		goto retry;
+		return SEL_RETRY;
 	}
 
 	if (rec_get_deleted_flag(rec, dict_table_is_comp(index->table))) {
 		/* In delete-marked records, DB_TRX_ID must
 		always refer to an existing undo log record. */
 		ut_ad(row_get_rec_trx_id(rec, index, *offsets));
-		goto exhausted;
+		return SEL_EXHAUSTED;
 	}
 
 	*out_rec = rec;
 
-	ahi_latch->rd_unlock();
-	return(SEL_FOUND);
+	return SEL_FOUND;
 }
 #endif /* BTR_CUR_HASH_ADAPT */
 
@@ -4765,8 +4756,7 @@ wait_table_again:
 		}
 
 		err = btr_pcur_open_with_no_init(index, search_tuple, mode,
-					   	 BTR_SEARCH_LEAF,
-					   	 pcur, 0, &mtr);
+						 BTR_SEARCH_LEAF, pcur, &mtr);
 
 		if (err != DB_SUCCESS) {
 page_corrupted:

@@ -1,7 +1,12 @@
 --source include/innodb_page_size.inc
 # Embedded server tests do not support restarting
 --source include/not_embedded.inc
---source include/no_valgrind_without_big.inc
+# Slow shutdown may take more than 120 seconds under Valgrind,
+# causing the server to be (silently) killed.
+# Due to that, crash recovery could "heal" the damage that our
+# Perl code is inflicting, and the SELECT statements could succeed
+# instead of failing with ER_NO_SUCH_TABLE_IN_ENGINE.
+--source include/not_valgrind.inc
 
 --disable_query_log
 call mtr.add_suppression("InnoDB: Table `mysql`\\.`innodb_table_stats` not found");

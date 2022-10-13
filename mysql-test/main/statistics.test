@@ -1,3 +1,7 @@
+--source include/no_valgrind_without_big.inc
+--source include/have_stat_tables.inc
+--source include/have_innodb.inc
+
 set @SINGLE_PREC_TYPE='single_prec_hb';
 set @DOUBLE_PREC_TYPE='double_prec_hb';
 set @DEFAULT_HIST_TYPE='double_prec_hb';
@@ -7,12 +11,6 @@ if ($histogram_type_override) {
     eval set @DOUBLE_PREC_TYPE=$histogram_type_override;
     eval set @DEFAULT_HIST_TYPE=$histogram_type_override;
 }
-
---source include/have_stat_tables.inc
---source include/have_innodb.inc
---disable_warnings
-drop table if exists t1,t2;
---enable_warnings
 
 set @save_use_stat_tables=@@use_stat_tables;
 set @save_histogram_size=@@global.histogram_size;

@@ -1,6 +1,7 @@
 --source include/have_innodb.inc
 # Restarting is not supported when testing the embedded server.
 --source include/not_embedded.inc
+--source include/no_valgrind_without_big.inc
 
 if ($MTR_COMBINATION_DESC) {
   let $AUTO_INCREMENT_KEY_a= AUTO_INCREMENT, PRIMARY KEY(a DESC);

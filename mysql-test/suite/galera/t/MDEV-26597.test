@@ -1,0 +1,32 @@
+--source include/galera_cluster.inc
+
+# Save original auto_increment_offset values.
+--let $node_1=node_1
+--let $node_2=node_2
+--source include/auto_increment_offset_save.inc
+
+--connection node_2
+CREATE TABLE t3 (c1 INTEGER NOT NULL PRIMARY KEY, c2 FLOAT(3,2));
+SET GLOBAL wsrep_provider_options = 'repl.max_ws_size=512';
+SET @@autocommit=0;
+INSERT INTO t3 VALUES (1000,0.00),(1001,0.25),(1002,0.50),(1003,0.75),(1008,1.00),(1009,1.25),(1010,1.50),(1011,1.75);
+--error ER_UNKNOWN_ERROR
+CREATE TABLE t1 ( pk int primary key) ENGINE=INNODB;
+SHOW WARNINGS;
+
+--connection node_2
+SET SESSION wsrep_sync_wait = 0;
+--source include/kill_galera.inc
+
+--let $start_mysqld_params = ""
+--let $_expect_file_name= $MYSQLTEST_VARDIR/tmp/mysqld.2.expect
+--source include/start_mysqld.inc
+
+#
+# Cleanup
+#
+--source ../../galera/include/auto_increment_offset_restore.inc
+--connection node_1
+DROP TABLE t3;
+
+

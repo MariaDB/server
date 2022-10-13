@@ -2,6 +2,7 @@
 # information_schema_db.test whose results depends on which engines are
 # available (since these engines inject tables into INFORMATION_SCHEMA).
 
+--source include/no_valgrind_without_big.inc
 --source include/not_embedded.inc
 --source include/have_innodb.inc
 --source include/have_perfschema.inc

@@ -1,6 +1,7 @@
 # 
 # Run subselect_sj.test with BKA enabled 
 #
+--source include/no_valgrind_without_big.inc
 --source include/default_optimizer_switch.inc
 
 set @save_optimizer_switch_jcl6=@@optimizer_switch;

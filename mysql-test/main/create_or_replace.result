@@ -567,5 +567,14 @@ SELECT * FROM t3;
 ERROR HY000: Table 't3' was not locked with LOCK TABLES
 UNLOCK TABLES;
 DROP TABLE t3;
+#
+# MDEV-29697 Assertion failure in Diagnostics_area::set_ok_status
+#            upon CREATE OR REPLACE causing ER_UPDATE_TABLE_USED
+#
+CREATE TABLE t (a INT) ENGINE=MyISAM;
+CREATE TABLE tm (a INT) ENGINE=MERGE UNION(t);
+CREATE OR REPLACE TABLE t LIKE tm;
+ERROR HY000: Table 'tm' is specified twice, both as a target for 'CREATE' and as a separate source for data
+DROP TABLE IF EXISTS tm, t;
 # End of 10.4 tests
 SET GLOBAL innodb_stats_persistent=@save_persistent;
