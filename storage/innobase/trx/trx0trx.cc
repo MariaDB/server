@@ -504,6 +504,7 @@ inline void trx_t::release_locks()
     UT_LIST_REMOVE(lock.evicted_tables, table);
     dict_mem_table_free(table);
   }
+  reset_skip_lock_inheritance();
   DEBUG_SYNC_C("after_trx_committed_in_memory");
 }
 

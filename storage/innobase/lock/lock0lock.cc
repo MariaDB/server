@@ -2153,7 +2153,8 @@ lock_rec_inherit_to_gap(hash_cell_t &heir_cell, const page_id_t heir,
        lock= lock_rec_get_next(heap_no, lock))
   {
     trx_t *lock_trx= lock->trx;
-    if (!lock->is_insert_intention() &&
+    if (!lock->trx->is_not_inheriting_locks() &&
+        !lock->is_insert_intention() &&
         (lock_trx->isolation_level > TRX_ISO_READ_COMMITTED ||
          /* When we are in a page split (not purge), then we don't set a lock
          on supremum if the donor lock type is LOCK_REC_NOT_GAP. That is, do
@@ -2192,7 +2193,8 @@ lock_rec_inherit_to_gap_if_gap_lock(
 
   for (lock_t *lock= lock_sys_t::get_first(g.cell(), id, heap_no); lock;
        lock= lock_rec_get_next(heap_no, lock))
-     if (!lock->is_insert_intention() && (heap_no == PAGE_HEAP_NO_SUPREMUM ||
+     if (!lock->trx->is_not_inheriting_locks() &&
+         !lock->is_insert_intention() && (heap_no == PAGE_HEAP_NO_SUPREMUM ||
                                           !lock->is_record_not_gap()) &&
          !lock_table_has(lock->trx, lock->index->table, LOCK_X))
        lock_rec_add_to_queue(LOCK_GAP | lock->mode(),
@@ -4112,6 +4114,7 @@ static bool lock_release_on_prepare_try(trx_t *trx)
 
   lock_sys.rd_unlock();
   trx->mutex_unlock();
+  trx->set_skip_lock_inheritance();
   return all_released;
 }
 
