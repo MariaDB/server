@@ -44,6 +44,35 @@ connection con1;
 must be 0
 0
 connection default;
+insert t1 values (1);
+lock table t1 read local;
+alter table t1 force, algorithm=copy, lock=none;
+ERROR HY000: Table 't1' was locked with a READ lock and can't be updated
+alter table t1 force, algorithm=inplace, lock=none;
+ERROR HY000: Table 't1' was locked with a READ lock and can't be updated
+alter table t1 force, algorithm=copy, lock=shared;
+ERROR HY000: Table 't1' was locked with a READ lock and can't be updated
+alter table t1 force, algorithm=inplace, lock=shared;
+ERROR HY000: Table 't1' was locked with a READ lock and can't be updated
+alter table t1 force, algorithm=copy, lock=exclusive;
+ERROR HY000: Table 't1' was locked with a READ lock and can't be updated
+alter table t1 force, algorithm=inplace, lock=exclusive;
+ERROR HY000: Table 't1' was locked with a READ lock and can't be updated
+unlock tables;
+lock table t1 write concurrent;
+alter table t1 force, algorithm=copy, lock=none;
+ERROR HY000: Table 't1' was locked with a READ lock and can't be updated
+alter table t1 force, algorithm=inplace, lock=none;
+ERROR HY000: Table 't1' was locked with a READ lock and can't be updated
+alter table t1 force, algorithm=copy, lock=shared;
+ERROR HY000: Table 't1' was locked with a READ lock and can't be updated
+alter table t1 force, algorithm=inplace, lock=shared;
+ERROR HY000: Table 't1' was locked with a READ lock and can't be updated
+alter table t1 force, algorithm=copy, lock=exclusive;
+ERROR HY000: Table 't1' was locked with a READ lock and can't be updated
+alter table t1 force, algorithm=inplace, lock=exclusive;
+ERROR HY000: Table 't1' was locked with a READ lock and can't be updated
+unlock tables;
 drop table t1;
 #
 # MDEV-29056 Replica SQL thread stops with 1846 error on ALTER ONLINE after LOCK WRITE
