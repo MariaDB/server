@@ -1,6 +1,8 @@
 # Turn on compression between the client and server
 # and run a number of tests
 
+# Too slow for valgrind
+--source include/no_valgrind_without_big.inc
 # Can't test with embedded server
 -- source include/not_embedded.inc
 -- source include/have_compress.inc

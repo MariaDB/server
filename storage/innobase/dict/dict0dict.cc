@@ -4163,7 +4163,7 @@ void dict_set_corrupted(dict_index_t *index, const char *ctx)
 	dict_index_copy_types(tuple, sys_index, 2);
 
 	if (btr_cur_search_to_nth_level(sys_index, 0, tuple, PAGE_CUR_LE,
-					BTR_MODIFY_LEAF, &cursor, 0, &mtr)
+					BTR_MODIFY_LEAF, &cursor, &mtr)
 	    != DB_SUCCESS) {
 		goto fail;
 	}
@@ -4238,7 +4238,7 @@ dict_index_set_merge_threshold(
 	dict_index_copy_types(tuple, sys_index, 2);
 
 	if (btr_cur_search_to_nth_level(sys_index, 0, tuple, PAGE_CUR_GE,
-					BTR_MODIFY_LEAF, &cursor, 0, &mtr)
+					BTR_MODIFY_LEAF, &cursor, &mtr)
 	    != DB_SUCCESS) {
 		goto func_exit;
 	}

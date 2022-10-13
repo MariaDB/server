@@ -1,9 +1,11 @@
+--source include/no_valgrind_without_big.inc
+--source include/default_optimizer_switch.inc
+--source include/default_charset.inc
+
 --disable_warnings
 DROP TABLE IF EXISTS t1,t2,t3,t4,t5,t6,t7,t8,t9,t10,t11;
 DROP DATABASE IF EXISTS world;
 --enable_warnings
---source include/default_optimizer_switch.inc
---source include/default_charset.inc
 
 set @org_optimizer_switch=@@optimizer_switch;
 set @save_join_cache_level=@@join_cache_level;

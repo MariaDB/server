@@ -72,9 +72,8 @@ row_purge_poss_sec(
 	bool		is_tree=false);
 
 /***************************************************************
-Does the purge operation for a single undo log record. This is a high-level
-function used in an SQL execution graph.
-@return query thread to run next or NULL */
+Does the purge operation.
+@return query thread to run next */
 que_thr_t*
 row_purge_step(
 /*===========*/
@@ -198,21 +197,7 @@ public:
 	}
 
   /** Start processing an undo log record. */
-  void start()
-  {
-    ut_ad(in_progress);
-    DBUG_ASSERT(common.type == QUE_NODE_PURGE);
-
-    row= nullptr;
-    ref= nullptr;
-    index= nullptr;
-    update= nullptr;
-    found_clust= FALSE;
-    rec_type= ULINT_UNDEFINED;
-    cmpl_info= ULINT_UNDEFINED;
-    if (!purge_thd)
-      purge_thd= current_thd;
-  }
+  inline void start();
 
 
   /** Close the existing table and release the MDL for it. */
@@ -253,16 +238,7 @@ public:
 
   /** Reset the state at end
   @return the query graph parent */
-  que_node_t* end()
-  {
-    DBUG_ASSERT(common.type == QUE_NODE_PURGE);
-    close_table();
-    ut_ad(undo_recs.empty());
-    ut_d(in_progress= false);
-    purge_thd= nullptr;
-    mem_heap_empty(heap);
-    return common.parent;
-  }
+  inline que_node_t *end();
 };
 
 #endif

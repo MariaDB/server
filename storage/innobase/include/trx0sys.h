@@ -523,6 +523,7 @@ class rw_trx_hash_t
     if (element->trx)
       validate_element(element->trx);
     element->mutex.wr_unlock();
+    ut_ad(element->id < element->no);
     return arg->action(element, arg->argument);
   }
 #endif

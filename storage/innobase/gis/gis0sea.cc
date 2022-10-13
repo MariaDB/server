@@ -556,7 +556,7 @@ rtr_pcur_open(
 
 	if (btr_cur_search_to_nth_level(index, 0, tuple, PAGE_CUR_RTREE_LOCATE,
                                         latch_mode,
-					btr_cursor, 0, mtr) != DB_SUCCESS) {
+					btr_cursor, mtr) != DB_SUCCESS) {
 		return true;
 	}
 
@@ -682,7 +682,7 @@ static const rec_t* rtr_get_father_node(
 
 	if (btr_cur_search_to_nth_level(index, level, tuple,
 					PAGE_CUR_RTREE_LOCATE,
-					BTR_CONT_MODIFY_TREE, btr_cur, 0, mtr)
+					BTR_CONT_MODIFY_TREE, btr_cur, mtr)
 	    != DB_SUCCESS) {
 	} else if (sea_cur && sea_cur->tree_height == level) {
 		rec = btr_cur_get_rec(btr_cur);

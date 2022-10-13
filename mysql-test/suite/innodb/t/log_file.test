@@ -3,6 +3,7 @@
 --echo # Bug#16418661 - CHANGING NAME IN FOR INNODB_DATA_FILE_PATH SHOULD NOT SUCCEED WITH LOG FILES
 
 --source include/have_innodb.inc
+--source include/no_valgrind_without_big.inc
 
 --disable_query_log
 call mtr.add_suppression("InnoDB: Could not create undo tablespace.*undo002");

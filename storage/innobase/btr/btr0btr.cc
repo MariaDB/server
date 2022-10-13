@@ -753,7 +753,7 @@ btr_page_get_father_node_ptr_func(
 								  user_rec, 0,
 								  heap, level),
 					PAGE_CUR_LE, latch_mode,
-					cursor, 0, mtr) != DB_SUCCESS) {
+					cursor, mtr) != DB_SUCCESS) {
 		return nullptr;
 	}
 
@@ -1410,7 +1410,10 @@ static dberr_t btr_page_reorganize_low(page_cur_t *cursor, dict_index_t *index,
                 block->page.frame + PAGE_MAX_TRX_ID + PAGE_HEADER,
                 PAGE_DATA - (PAGE_MAX_TRX_ID + PAGE_HEADER)));
 
-  if (index->has_locking())
+  if (!index->has_locking());
+  else if (index->page == FIL_NULL)
+    ut_ad(index->is_dummy);
+  else
     lock_move_reorganize_page(block, old);
 
   /* Write log for the changes, if needed. */
@@ -2379,7 +2382,7 @@ btr_insert_on_non_leaf_level(
 
 	dberr_t err = btr_cur_search_to_nth_level(index, level, tuple, mode,
 						  BTR_CONT_MODIFY_TREE,
-						  &cursor, 0, mtr);
+						  &cursor, mtr);
 	ut_ad(cursor.flag == BTR_CUR_BINARY);
 
 	if (UNIV_LIKELY(err == DB_SUCCESS)) {

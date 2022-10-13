@@ -1210,36 +1210,31 @@ If mode is PAGE_CUR_GE, then up_match will a have a sensible value.
 If mode is PAGE_CUR_LE , cursor is left at the place where an insert of the
 search tuple should be performed in the B-tree. InnoDB does an insert
 immediately after the cursor. Thus, the cursor may end up on a user record,
-or on a page infimum record. */
+or on a page infimum record.
+@param index      index
+@param level      the tree level of search
+@param tuple      data tuple; NOTE: n_fields_cmp in tuple must be set so that
+                  it cannot get compared to the node ptr page number field!
+@param mode       PAGE_CUR_L, ...; NOTE that if the search is made using a
+                  unique prefix of a record, mode should be PAGE_CUR_LE, not
+                  PAGE_CUR_GE, as the latter may end up on the previous page of
+                  the record! Inserts should always be made using PAGE_CUR_LE
+                  to search the position!
+@param latch_mode BTR_SEARCH_LEAF, ..., ORed with at most one of BTR_INSERT,
+                  BTR_DELETE_MARK, or BTR_DELETE;
+                  cursor->left_block is used to store a pointer to the left
+                  neighbor page
+@param cursor     tree cursor; the cursor page is s- or x-latched, but see also
+                  above!
+@param mtr        mini-transaction
+@param autoinc    PAGE_ROOT_AUTO_INC to be written (0 if none)
+@return DB_SUCCESS on success or error code otherwise */
 TRANSACTIONAL_TARGET
-dberr_t
-btr_cur_search_to_nth_level_func(
-	dict_index_t*	index,	/*!< in: index */
-	ulint		level,	/*!< in: the tree level of search */
-	const dtuple_t*	tuple,	/*!< in: data tuple; NOTE: n_fields_cmp in
-				tuple must be set so that it cannot get
-				compared to the node ptr page number field! */
-	page_cur_mode_t	mode,	/*!< in: PAGE_CUR_L, ...;
-				Inserts should always be made using
-				PAGE_CUR_LE to search the position! */
-	ulint		latch_mode, /*!< in: BTR_SEARCH_LEAF, ..., ORed with
-				at most one of BTR_INSERT, BTR_DELETE_MARK,
-				BTR_DELETE;
-				cursor->left_block is used to store a pointer
-				to the left neighbor page, in the cases
-				BTR_SEARCH_PREV and BTR_MODIFY_PREV;
-				NOTE that if ahi_latch, we might not have a
-				cursor page latch, we assume that ahi_latch
-				protects the record! */
-	btr_cur_t*	cursor, /*!< in/out: tree cursor; the cursor page is
-				s- or x-latched, but see also above! */
-#ifdef BTR_CUR_HASH_ADAPT
-	srw_spin_lock*	ahi_latch,
-				/*!< in: currently held AHI rdlock, or NULL */
-#endif /* BTR_CUR_HASH_ADAPT */
-	mtr_t*		mtr,	/*!< in: mtr */
-	ib_uint64_t	autoinc)/*!< in: PAGE_ROOT_AUTO_INC to be written
-				(0 if none) */
+dberr_t btr_cur_search_to_nth_level(dict_index_t *index, ulint level,
+                                    const dtuple_t *tuple,
+                                    page_cur_mode_t mode, ulint latch_mode,
+                                    btr_cur_t *cursor, mtr_t *mtr,
+                                    ib_uint64_t autoinc)
 {
 	page_t*		page = NULL; /* remove warning */
 	buf_block_t*	block;
@@ -1381,14 +1376,12 @@ btr_cur_search_to_nth_level_func(
 # ifdef UNIV_SEARCH_PERF_STAT
 	info->n_searches++;
 # endif
+	/* We do a dirty read of btr_search_enabled below,
+	and btr_search_guess_on_hash() will have to check it again. */
 	if (!btr_search_enabled) {
 	} else if (autoinc == 0
 	    && latch_mode <= BTR_MODIFY_LEAF
 	    && !modify_external
-	    /* If !ahi_latch, we do a dirty read of
-	    btr_search_enabled below, and btr_search_guess_on_hash()
-	    will have to check it again. */
-	    && btr_search_enabled
 # ifdef PAGE_CUR_LE_OR_EXTENDS
 	    && mode != PAGE_CUR_LE_OR_EXTENDS
 # endif /* PAGE_CUR_LE_OR_EXTENDS */
@@ -1396,8 +1389,7 @@ btr_cur_search_to_nth_level_func(
 	    && !(tuple->info_bits & REC_INFO_MIN_REC_FLAG)
 	    && !index->is_spatial() && !index->table->is_temporary()
 	    && btr_search_guess_on_hash(index, info, tuple, mode,
-					latch_mode, cursor,
-					ahi_latch, mtr)) {
+					latch_mode, cursor, mtr)) {
 
 		/* Search using the hash index succeeded */
 
@@ -1418,13 +1410,6 @@ btr_cur_search_to_nth_level_func(
 
 	/* If the hash search did not succeed, do binary search down the
 	tree */
-
-#ifdef BTR_CUR_HASH_ADAPT
-	if (ahi_latch) {
-		/* Release possible search latch to obey latching order */
-		ahi_latch->rd_unlock();
-	}
-#endif /* BTR_CUR_HASH_ADAPT */
 
 	/* Store the position of the tree latch we push to mtr so that we
 	know how to release it when we have latched leaf node(s) */
@@ -2459,12 +2444,6 @@ func_exit:
 		/* remember that we will need to adjust parent MBR */
 		cursor->rtr_info->mbr_adj = true;
 	}
-
-#ifdef BTR_CUR_HASH_ADAPT
-	if (ahi_latch) {
-		ahi_latch->rd_lock(SRW_LOCK_CALL);
-	}
-#endif /* BTR_CUR_HASH_ADAPT */
 
 	DBUG_RETURN(err);
 }

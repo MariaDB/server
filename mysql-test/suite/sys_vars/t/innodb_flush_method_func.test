@@ -1,6 +1,8 @@
 --source include/have_innodb.inc
 # Embedded server tests do not support restarting.
 --source include/not_embedded.inc
+# InnoDB: Cannot read first page of './ibdata1' I/O error
+--source include/not_valgrind.inc
 
 call mtr.add_suppression("InnoDB: Failed to set .*DIRECT");
 --replace_result unbuffered fsync

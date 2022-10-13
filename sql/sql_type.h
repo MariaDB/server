@@ -2,7 +2,7 @@
 #define SQL_TYPE_H_INCLUDED
 /*
    Copyright (c) 2015  MariaDB Foundation.
-   Copyright (c) 2015, 2021, MariaDB Corporation.
+   Copyright (c) 2015, 2022, MariaDB Corporation.
 
  This program is free software; you can redistribute it and/or modify
  it under the terms of the GNU General Public License as published by
@@ -3810,8 +3810,8 @@ public:
   {
     return this;
   }
-  virtual bool partition_field_check(const LEX_CSTRING &field_name,
-                                     Item *item_expr) const
+  virtual bool partition_field_check(const LEX_CSTRING &field_name, Item *)
+    const
   {
     partition_field_type_not_allowed(field_name);
     return true;
@@ -4180,8 +4180,8 @@ public:
                                             CHARSET_INFO *cs,
                                             bool send_error) const
   {
-    DBUG_ASSERT(0);
-    return NULL;
+    MY_ASSERT_UNREACHABLE();
+    return nullptr;
   }
   Item_literal *create_literal_item(THD *thd, const String *str,
                                     bool send_error) const
@@ -4192,12 +4192,13 @@ public:
   virtual Item *create_typecast_item(THD *thd, Item *item,
                                      const Type_cast_attributes &attr) const
   {
-    return NULL;
+    MY_ASSERT_UNREACHABLE();
+    return nullptr;
   }
   virtual Item_copy *create_item_copy(THD *thd, Item *item) const;
   virtual int cmp_native(const Native &a, const Native &b) const
   {
-    DBUG_ASSERT(0);
+    MY_ASSERT_UNREACHABLE();
     return 0;
   }
   virtual bool set_comparator_func(THD *thd, Arg_comparator *cmp) const= 0;
@@ -4351,11 +4352,10 @@ class Type_handler_row: public Type_handler
 public:
   virtual ~Type_handler_row() {}
   const Name &default_value() const override;
-  bool validate_implicit_default_value(THD *thd,
-                                       const Column_definition &def) const
-                                       override
+  bool validate_implicit_default_value(THD *, const Column_definition &)
+    const override
   {
-    DBUG_ASSERT(0);
+    MY_ASSERT_UNREACHABLE();
     return true;
   }
   const Type_collection *type_collection() const override;
@@ -4369,12 +4369,12 @@ public:
   bool can_return_time() const override { return false; }
   enum_field_types field_type() const override
   {
-    DBUG_ASSERT(0);
+    MY_ASSERT_UNREACHABLE();
     return MYSQL_TYPE_NULL;
   };
   protocol_send_type_t protocol_send_type() const override
   {
-    DBUG_ASSERT(0);
+    MY_ASSERT_UNREACHABLE();
     return PROTOCOL_SEND_STRING;
   }
   Item_result result_type() const override
@@ -4385,47 +4385,44 @@ public:
   {
     return ROW_RESULT;
   }
-  enum_dynamic_column_type dyncol_type(const Type_all_attributes *attr)
+  enum_dynamic_column_type dyncol_type(const Type_all_attributes *)
                                        const override
   {
-    DBUG_ASSERT(0);
+    MY_ASSERT_UNREACHABLE();
     return DYN_COL_NULL;
   }
   const Type_handler *type_handler_for_comparison() const override;
-  int stored_field_cmp_to_item(THD *thd, Field *field, Item *item) const override
+  int stored_field_cmp_to_item(THD *, Field *, Item *) const override
   {
-    DBUG_ASSERT(0);
+    MY_ASSERT_UNREACHABLE();
     return 0;
   }
-  bool subquery_type_allows_materialization(const Item *, const Item *,
-                                            bool) const override
+  bool subquery_type_allows_materialization(const Item *, const Item *, bool)
+    const override
   {
-    DBUG_ASSERT(0);
+    MY_ASSERT_UNREACHABLE();
     return false;
   }
-  Field *make_num_distinct_aggregator_field(MEM_ROOT *, const Item *) const override
+  Field *make_num_distinct_aggregator_field(MEM_ROOT *, const Item *) const
+    override
   {
-    DBUG_ASSERT(0);
-    return NULL;
+    MY_ASSERT_UNREACHABLE();
+    return nullptr;
   }
-  Field *make_conversion_table_field(MEM_ROOT *root,
-                                     TABLE *table,
-                                     uint metadata,
-                                     const Field *target) const override
+  Field *make_conversion_table_field(MEM_ROOT *, TABLE *, uint, const Field *)
+    const override
   {
-    DBUG_ASSERT(0);
-    return NULL;
+    MY_ASSERT_UNREACHABLE();
+    return nullptr;
   }
-  bool Column_definition_fix_attributes(Column_definition *c) const override
+  bool Column_definition_fix_attributes(Column_definition *) const override
   {
     return false;
   }
-  void Column_definition_reuse_fix_attributes(THD *thd,
-                                              Column_definition *c,
-                                              const Field *field)
-                                              const override
+  void Column_definition_reuse_fix_attributes(THD *, Column_definition *,
+                                              const Field *) const override
   {
-    DBUG_ASSERT(0);
+    MY_ASSERT_UNREACHABLE();
   }
   bool Column_definition_prepare_stage1(THD *thd,
                                         MEM_ROOT *mem_root,
@@ -4435,28 +4432,25 @@ public:
                                         const Column_derived_attributes
                                               *derived_attr)
                                         const override;
-  bool Column_definition_redefine_stage1(Column_definition *def,
-                                         const Column_definition *dup,
-                                         const handler *file)
+  bool Column_definition_redefine_stage1(Column_definition *,
+                                         const Column_definition *,
+                                         const handler *)
                                          const override
   {
-    DBUG_ASSERT(0);
+    MY_ASSERT_UNREACHABLE();
     return true;
   }
-  bool Column_definition_prepare_stage2(Column_definition *c,
-                                        handler *file,
-                                        ulonglong table_flags) const override
+  bool Column_definition_prepare_stage2(Column_definition *, handler *,
+                                        ulonglong) const override
   {
     return false;
   }
-  Field *make_table_field(MEM_ROOT *root,
-                          const LEX_CSTRING *name,
-                          const Record_addr &addr,
-                          const Type_all_attributes &attr,
-                          TABLE_SHARE *share) const override
+  Field *make_table_field(MEM_ROOT *, const LEX_CSTRING *, const Record_addr &,
+                          const Type_all_attributes &, TABLE_SHARE *)
+    const override
   {
-    DBUG_ASSERT(0);
-    return NULL;
+    MY_ASSERT_UNREACHABLE();
+    return nullptr;
   }
   Field *make_table_field_from_def(TABLE_SHARE *share,
                                    MEM_ROOT *mem_root,
@@ -4469,76 +4463,73 @@ public:
                           const SORT_FIELD_ATTR *sort_field,
                           Sort_param *param) const override
   {
-    DBUG_ASSERT(0);
+    MY_ASSERT_UNREACHABLE();
   }
-  uint make_packed_sort_key_part(uchar *to, Item *item,
-                                 const SORT_FIELD_ATTR *sort_field,
-                                 Sort_param *param) const override
+  uint make_packed_sort_key_part(uchar *, Item *, const SORT_FIELD_ATTR *,
+                                 Sort_param *) const override
   {
-    DBUG_ASSERT(0);
+    MY_ASSERT_UNREACHABLE();
     return 0;
   }
-  void sort_length(THD *thd, const Type_std_attributes *item,
-                   SORT_FIELD_ATTR *attr) const override
+  void sort_length(THD *, const Type_std_attributes *, SORT_FIELD_ATTR *)
+    const override
   {
-    DBUG_ASSERT(0);
+    MY_ASSERT_UNREACHABLE();
   }
-  uint32 max_display_length(const Item *item) const override
+  uint32 max_display_length(const Item *) const override
   {
-    DBUG_ASSERT(0);
+    MY_ASSERT_UNREACHABLE();
     return 0;
   }
-  uint32 max_display_length_for_field(const Conv_source &src) const override
+  uint32 max_display_length_for_field(const Conv_source &) const override
   {
-    DBUG_ASSERT(0);
+    MY_ASSERT_UNREACHABLE();
     return 0;
   }
-  uint32 calc_pack_length(uint32 length) const override
+  uint32 calc_pack_length(uint32) const override
   {
-    DBUG_ASSERT(0);
+    MY_ASSERT_UNREACHABLE();
     return 0;
   }
   bool Item_eq_value(THD *thd, const Type_cmp_attributes *attr,
                      Item *a, Item *b) const override;
-  decimal_digits_t Item_decimal_precision(const Item *item) const override
+  decimal_digits_t Item_decimal_precision(const Item *) const override
   {
-    DBUG_ASSERT(0);
+    MY_ASSERT_UNREACHABLE();
     return DECIMAL_MAX_PRECISION;
   }
-  bool Item_save_in_value(THD *thd, Item *item, st_value *value) const override;
+  bool Item_save_in_value(THD *thd, Item *item, st_value *value) const
+    override;
   bool Item_param_set_from_value(THD *thd,
                                  Item_param *param,
                                  const Type_all_attributes *attr,
                                  const st_value *value) const override;
-  bool Item_send(Item *item, Protocol *protocol, st_value *buf) const override
+  bool Item_send(Item *, Protocol *, st_value *) const override
   {
-    DBUG_ASSERT(0);
+    MY_ASSERT_UNREACHABLE();
     return true;
   }
   void Item_update_null_value(Item *item) const override;
-  int Item_save_in_field(Item *item, Field *field, bool no_conversions)
-                         const override
+  int Item_save_in_field(Item *, Field *, bool) const override
   {
-    DBUG_ASSERT(0);
+    MY_ASSERT_UNREACHABLE();
     return 1;
   }
   String *print_item_value(THD *thd, Item *item, String *str) const override;
-  bool can_change_cond_ref_to_const(Item_bool_func2 *target,
-                                   Item *target_expr, Item *target_value,
-                                   Item_bool_func2 *source,
-                                   Item *source_expr, Item *source_const)
-                                   const override
+  bool can_change_cond_ref_to_const(Item_bool_func2 *, Item *, Item *,
+                                   Item_bool_func2 *, Item *, Item *)
+    const override
   {
-    DBUG_ASSERT(0);
+    MY_ASSERT_UNREACHABLE();
     return false;
   }
-  Item *make_const_item_for_comparison(THD *, Item *src, const Item *cmp)
-                                       const override;
+  Item *make_const_item_for_comparison(THD *, Item *src, const Item *cmp) const
+    override;
   Item_cache *Item_get_cache(THD *thd, const Item *item) const override;
-  Item_copy *create_item_copy(THD *thd, Item *item) const override
+  Item_copy *create_item_copy(THD *, Item *) const override
   {
-    DBUG_ASSERT(0);
-    return NULL;
+    MY_ASSERT_UNREACHABLE();
+    return nullptr;
   }
   bool set_comparator_func(THD *thd, Arg_comparator *cmp) const override;
   bool Item_hybrid_func_fix_attributes(THD *thd,
@@ -4548,188 +4539,187 @@ public:
                                        Item **items, uint nitems)
                                        const override
   {
-    DBUG_ASSERT(0);
+    MY_ASSERT_UNREACHABLE();
     return true;
   }
-  bool Item_sum_hybrid_fix_length_and_dec(Item_sum_hybrid *func) const override
+  bool Item_sum_hybrid_fix_length_and_dec(Item_sum_hybrid *) const override
   {
-    DBUG_ASSERT(0);
+    MY_ASSERT_UNREACHABLE();
     return true;
   }
   bool Item_sum_sum_fix_length_and_dec(Item_sum_sum *) const override
   {
-    DBUG_ASSERT(0);
+    MY_ASSERT_UNREACHABLE();
     return true;
   }
   bool Item_sum_avg_fix_length_and_dec(Item_sum_avg *) const override
   {
-    DBUG_ASSERT(0);
+    MY_ASSERT_UNREACHABLE();
     return true;
   }
   bool Item_sum_variance_fix_length_and_dec(Item_sum_variance *) const override
   {
-    DBUG_ASSERT(0);
+    MY_ASSERT_UNREACHABLE();
     return true;
   }
   bool Item_val_bool(Item *item) const override
   {
-    DBUG_ASSERT(0);
+    MY_ASSERT_UNREACHABLE();
     return false;
   }
-  void Item_get_date(THD *thd, Item *item,
-                     Temporal::Warn *warn, MYSQL_TIME *ltime,
-                     date_mode_t fuzzydate) const override
+  void Item_get_date(THD *, Item *, Temporal::Warn *, MYSQL_TIME *ltime,
+                     date_mode_t) const override
   {
-    DBUG_ASSERT(0);
+    MY_ASSERT_UNREACHABLE();
     set_zero_time(ltime, MYSQL_TIMESTAMP_NONE);
   }
-  longlong Item_val_int_signed_typecast(Item *item) const override
+  longlong Item_val_int_signed_typecast(Item *) const override
   {
-    DBUG_ASSERT(0);
+    MY_ASSERT_UNREACHABLE();
     return 0;
   }
-  longlong Item_val_int_unsigned_typecast(Item *item) const override
+  longlong Item_val_int_unsigned_typecast(Item *) const override
   {
-    DBUG_ASSERT(0);
+    MY_ASSERT_UNREACHABLE();
     return 0;
   }
-  String *Item_func_hex_val_str_ascii(Item_func_hex *item, String *str)
-                                      const override
+  String *Item_func_hex_val_str_ascii(Item_func_hex *, String *) const override
   {
-    DBUG_ASSERT(0);
-    return NULL;
+    MY_ASSERT_UNREACHABLE();
+    return nullptr;
   }
   String *Item_func_hybrid_field_type_val_str(Item_func_hybrid_field_type *,
                                               String *) const override
   {
-    DBUG_ASSERT(0);
-    return NULL;
+    MY_ASSERT_UNREACHABLE();
+    return nullptr;
   }
   double Item_func_hybrid_field_type_val_real(Item_func_hybrid_field_type *)
                                               const override
   {
-    DBUG_ASSERT(0);
+    MY_ASSERT_UNREACHABLE();
     return 0.0;
   }
   longlong Item_func_hybrid_field_type_val_int(Item_func_hybrid_field_type *)
                                                const override
   {
-    DBUG_ASSERT(0);
+    MY_ASSERT_UNREACHABLE();
     return 0;
   }
   my_decimal *Item_func_hybrid_field_type_val_decimal(
                                               Item_func_hybrid_field_type *,
                                               my_decimal *) const override
   {
-    DBUG_ASSERT(0);
-    return NULL;
+    MY_ASSERT_UNREACHABLE();
+    return nullptr;
   }
   void Item_func_hybrid_field_type_get_date(THD *,
                                             Item_func_hybrid_field_type *,
                                             Temporal::Warn *,
                                             MYSQL_TIME *ltime,
-                                            date_mode_t fuzzydate)
-                                            const override
+                                            date_mode_t) const override
   {
-    DBUG_ASSERT(0);
+    MY_ASSERT_UNREACHABLE();
     set_zero_time(ltime, MYSQL_TIMESTAMP_NONE);
   }
 
-  String *Item_func_min_max_val_str(Item_func_min_max *, String *) const override
+  String *Item_func_min_max_val_str(Item_func_min_max *, String *) const
+    override
   {
-    DBUG_ASSERT(0);
-    return NULL;
+    MY_ASSERT_UNREACHABLE();
+    return nullptr;
   }
   double Item_func_min_max_val_real(Item_func_min_max *) const override
   {
-    DBUG_ASSERT(0);
+    MY_ASSERT_UNREACHABLE();
     return 0;
   }
   longlong Item_func_min_max_val_int(Item_func_min_max *) const override
   {
-    DBUG_ASSERT(0);
+    MY_ASSERT_UNREACHABLE();
     return 0;
   }
   my_decimal *Item_func_min_max_val_decimal(Item_func_min_max *,
                                             my_decimal *) const override
   {
-    DBUG_ASSERT(0);
-    return NULL;
+    MY_ASSERT_UNREACHABLE();
+    return nullptr;
   }
-  bool Item_func_min_max_get_date(THD *thd, Item_func_min_max*,
-                                  MYSQL_TIME *, date_mode_t fuzzydate)
-                                  const override
+  bool Item_func_min_max_get_date(THD *, Item_func_min_max*, MYSQL_TIME *,
+                                  date_mode_t) const override
   {
-    DBUG_ASSERT(0);
+    MY_ASSERT_UNREACHABLE();
     return true;
   }
-  bool Item_func_between_fix_length_and_dec(Item_func_between *func)
-                                            const override
+  bool Item_func_between_fix_length_and_dec(Item_func_between *) const override
   {
-    DBUG_ASSERT(0);
+    MY_ASSERT_UNREACHABLE();
     return true;
   }
   longlong Item_func_between_val_int(Item_func_between *func) const override;
   cmp_item *make_cmp_item(THD *thd, CHARSET_INFO *cs) const override;
-  in_vector *make_in_vector(THD *thd, const Item_func_in *f, uint nargs)
-                            const override;
-  bool Item_func_in_fix_comparator_compatible_types(THD *thd, Item_func_in *)
-                                                    const override;
+  in_vector *make_in_vector(THD *thd, const Item_func_in *f, uint nargs) const
+    override;
+  bool Item_func_in_fix_comparator_compatible_types(THD *thd,
+                                                    Item_func_in *) const
+    override;
   bool Item_func_round_fix_length_and_dec(Item_func_round *) const override;
-  bool Item_func_int_val_fix_length_and_dec(Item_func_int_val *) const override;
+  bool Item_func_int_val_fix_length_and_dec(Item_func_int_val *) const
+    override;
   bool Item_func_abs_fix_length_and_dec(Item_func_abs *) const override;
   bool Item_func_neg_fix_length_and_dec(Item_func_neg *) const override;
 
   bool Item_func_signed_fix_length_and_dec(Item_func_signed *) const override
   {
-    DBUG_ASSERT(0);
+    MY_ASSERT_UNREACHABLE();
     return true;
   }
-  bool Item_func_unsigned_fix_length_and_dec(Item_func_unsigned *) const override
+  bool Item_func_unsigned_fix_length_and_dec(Item_func_unsigned *) const
+    override
   {
-    DBUG_ASSERT(0);
+    MY_ASSERT_UNREACHABLE();
     return true;
   }
-  bool Item_double_typecast_fix_length_and_dec(Item_double_typecast *)
-                                               const override
+  bool Item_double_typecast_fix_length_and_dec(Item_double_typecast *) const
+    override
   {
-    DBUG_ASSERT(0);
+    MY_ASSERT_UNREACHABLE();
     return true;
   }
-  bool Item_float_typecast_fix_length_and_dec(Item_float_typecast *)
-                                              const override
+  bool Item_float_typecast_fix_length_and_dec(Item_float_typecast *) const
+    override
   {
-    DBUG_ASSERT(0);
+    MY_ASSERT_UNREACHABLE();
     return true;
   }
-  bool Item_decimal_typecast_fix_length_and_dec(Item_decimal_typecast *)
-                                                const override
+  bool Item_decimal_typecast_fix_length_and_dec(Item_decimal_typecast *) const
+    override
   {
-    DBUG_ASSERT(0);
+    MY_ASSERT_UNREACHABLE();
     return true;
   }
-  bool Item_char_typecast_fix_length_and_dec(Item_char_typecast *)
-                                             const override
+  bool Item_char_typecast_fix_length_and_dec(Item_char_typecast *) const
+    override
   {
-    DBUG_ASSERT(0);
+    MY_ASSERT_UNREACHABLE();
     return true;
   }
-  bool Item_time_typecast_fix_length_and_dec(Item_time_typecast *)
-                                             const override
+  bool Item_time_typecast_fix_length_and_dec(Item_time_typecast *) const
+    override
   {
-    DBUG_ASSERT(0);
+    MY_ASSERT_UNREACHABLE();
     return true;
   }
-  bool Item_date_typecast_fix_length_and_dec(Item_date_typecast *)
-                                             const override
+  bool Item_date_typecast_fix_length_and_dec(Item_date_typecast *) const
+    override
   {
-    DBUG_ASSERT(0);
+    MY_ASSERT_UNREACHABLE();
     return true;
   }
   bool Item_datetime_typecast_fix_length_and_dec(Item_datetime_typecast *)
-                                                 const override
+    const override
   {
-    DBUG_ASSERT(0);
+    MY_ASSERT_UNREACHABLE();
     return true;
   }
 
@@ -4749,8 +4739,6 @@ class Type_handler_numeric: public Type_handler
 public:
   const Name &default_value() const override;
   String *print_item_value(THD *thd, Item *item, String *str) const override;
-  double Item_func_min_max_val_real(Item_func_min_max *) const override;
-  longlong Item_func_min_max_val_int(Item_func_min_max *) const override;
   bool Column_definition_prepare_stage1(THD *thd,
                                         MEM_ROOT *mem_root,
                                         Column_definition *c,
@@ -4759,19 +4747,23 @@ public:
                                         const Column_derived_attributes
                                               *derived_attr)
                                         const override;
+  double Item_func_min_max_val_real(Item_func_min_max *) const override;
+  longlong Item_func_min_max_val_int(Item_func_min_max *) const override;
   my_decimal *Item_func_min_max_val_decimal(Item_func_min_max *,
                                             my_decimal *) const override;
   bool Item_func_min_max_get_date(THD *thd, Item_func_min_max*,
-                                  MYSQL_TIME *, date_mode_t fuzzydate)
-                                  const override;
+                                  MYSQL_TIME *, date_mode_t fuzzydate) const
+    override;
   virtual ~Type_handler_numeric() { }
   bool can_change_cond_ref_to_const(Item_bool_func2 *target,
                                    Item *target_expr, Item *target_value,
                                    Item_bool_func2 *source,
-                                   Item *source_expr, Item *source_const)
-                                   const override;
-  bool Item_func_between_fix_length_and_dec(Item_func_between *func) const override;
-  bool Item_char_typecast_fix_length_and_dec(Item_char_typecast *) const override;
+                                   Item *source_expr, Item *source_const) const
+    override;
+  bool Item_func_between_fix_length_and_dec(Item_func_between *func) const
+    override;
+  bool Item_char_typecast_fix_length_and_dec(Item_char_typecast *) const
+    override;
 };
 
 
@@ -5266,8 +5258,8 @@ public:
     return type_limits_int()->char_length();
   }
   uint32 Item_decimal_notation_int_digits(const Item *item) const override;
-  bool partition_field_check(const LEX_CSTRING &field_name,
-                             Item *item_expr) const override
+  bool partition_field_check(const LEX_CSTRING &, Item *item_expr)
+    const override
   {
     return partition_field_check_result_type(item_expr, INT_RESULT);
   }
@@ -6105,8 +6097,8 @@ public:
                                               const override;
   bool Item_param_val_native(THD *thd, Item_param *item, Native *to)
                              const override;
-  bool partition_field_check(const LEX_CSTRING &field_name,
-                             Item *item_expr) const override
+  bool partition_field_check(const LEX_CSTRING &, Item *item_expr)
+    const override
   {
     return partition_field_check_result_type(item_expr, STRING_RESULT);
   }
@@ -6315,8 +6307,8 @@ public:
   {
     return true;
   }
-  bool partition_field_check(const LEX_CSTRING &field_name,
-                             Item *item_expr) const override
+  bool partition_field_check(const LEX_CSTRING &, Item *item_expr)
+    const override
   {
     return partition_field_check_result_type(item_expr, STRING_RESULT);
   }
@@ -6445,8 +6437,8 @@ public:
   {
     return true;
   }
-  bool partition_field_check(const LEX_CSTRING &field_name,
-                             Item *item_expr) const override
+  bool partition_field_check(const LEX_CSTRING &, Item *item_expr)
+    const override
   {
     return partition_field_check_result_type(item_expr, STRING_RESULT);
   }
@@ -6896,12 +6888,13 @@ public:
   bool is_param_long_data_type() const override { return true; }
   uint32 max_display_length_for_field(const Conv_source &src) const override;
   uint32 calc_pack_length(uint32 length) const override { return length; }
-  const Type_handler *type_handler_for_tmp_table(const Item *item) const override
+  const Type_handler *type_handler_for_tmp_table(const Item *item) const
+    override
   {
     return varstring_type_handler(item);
   }
-  bool partition_field_check(const LEX_CSTRING &field_name,
-                             Item *item_expr) const override
+  bool partition_field_check(const LEX_CSTRING &, Item *item_expr)
+    const override
   {
     return partition_field_check_result_type(item_expr, STRING_RESULT);
   }
@@ -6988,7 +6981,8 @@ public:
   {
     return (length + (length < 256 ? 1: 2));
   }
-  const Type_handler *type_handler_for_tmp_table(const Item *item) const override
+  const Type_handler *type_handler_for_tmp_table(const Item *item) const
+    override
   {
     return varstring_type_handler(item);
   }
@@ -6997,8 +6991,8 @@ public:
     return varstring_type_handler(item);
   }
   bool is_param_long_data_type() const override { return true; }
-  bool partition_field_check(const LEX_CSTRING &field_name,
-                             Item *item_expr) const override
+  bool partition_field_check(const LEX_CSTRING &, Item *item_expr)
+    const override
   {
     return partition_field_check_result_type(item_expr, STRING_RESULT);
   }
@@ -7058,12 +7052,12 @@ public:
   }
   ulong KEY_pack_flags(uint column_nr) const override
   {
-    DBUG_ASSERT(0);
+    MY_ASSERT_UNREACHABLE();
     return 0;
   }
   uint32 max_display_length_for_field(const Conv_source &src) const override;
-  bool partition_field_check(const LEX_CSTRING &field_name,
-                             Item *item_expr) const override
+  bool partition_field_check(const LEX_CSTRING &field_name, Item *)
+    const override
   {
     partition_field_type_not_allowed(field_name);
     return true;
@@ -7143,7 +7137,7 @@ public:
   void Item_param_setup_conversion(THD *thd, Item_param *) const override;
 
   bool partition_field_check(const LEX_CSTRING &field_name,
-                        Item *item_expr) const override;
+                             Item *item_expr) const override;
   Field *make_schema_field(MEM_ROOT *root,
                            TABLE *table,
                            const Record_addr &addr,
@@ -7181,7 +7175,8 @@ class Type_handler_medium_blob: public Type_handler_blob_common
 public:
   virtual ~Type_handler_medium_blob() {}
   uint length_bytes() const override { return 3; }
-  enum_field_types field_type() const override { return MYSQL_TYPE_MEDIUM_BLOB; }
+  enum_field_types field_type() const override
+  { return MYSQL_TYPE_MEDIUM_BLOB; }
   uint32 max_display_length_for_field(const Conv_source &src) const override;
   uint32 calc_pack_length(uint32 length) const override;
   Field *make_table_field(MEM_ROOT *root,
@@ -7238,7 +7233,7 @@ public:
   }
   ulong KEY_pack_flags(uint) const override
   {
-    DBUG_ASSERT(0);
+    MY_ASSERT_UNREACHABLE();
     return 0;
   }
   uint32 max_display_length_for_field(const Conv_source &src) const override;

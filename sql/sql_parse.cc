@@ -9897,7 +9897,7 @@ bool create_table_precheck(THD *thd, TABLE_LIST *tables,
 {
   LEX *lex= thd->lex;
   SELECT_LEX *select_lex= lex->first_select_lex();
-  privilege_t want_priv(NO_ACL);
+  privilege_t want_priv{CREATE_ACL};
   bool error= TRUE;                                 // Error message is given
   DBUG_ENTER("create_table_precheck");
 
@@ -9906,8 +9906,10 @@ bool create_table_precheck(THD *thd, TABLE_LIST *tables,
     CREATE TABLE ... SELECT, also require INSERT.
   */
 
-  want_priv= lex->tmp_table() ? CREATE_TMP_ACL :
-             (CREATE_ACL | (select_lex->item_list.elements ? INSERT_ACL : NO_ACL));
+  if (lex->tmp_table())
+    want_priv= CREATE_TMP_ACL;
+  else if (select_lex->item_list.elements || select_lex->tvc)
+    want_priv|= INSERT_ACL;
 
   /* CREATE OR REPLACE on not temporary tables require DROP_ACL */
   if (lex->create_info.or_replace() && !lex->tmp_table())
