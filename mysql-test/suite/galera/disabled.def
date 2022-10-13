@@ -36,9 +36,5 @@ pxc-421: wsrep_provider is read-only for security reasons
 query_cache: MDEV-15805 Test failure on galera.query_cache
 versioning_trx_id: MDEV-18590: galera.versioning_trx_id: Test failure: mysqltest: Result content mismatch
 galera_bf_abort_at_after_statement : Unstable
+galera_bf_abort_shutdown : MDEV-29773 Assertion failure on sql/wsrep_mysqld.cc:2893 in wsrep_bf_abort_shutdown
 
-# Recent trouble
-MDEV-26597 : crashes on 10.5
-MDEV-27615 : crashes on 10.5 after MDEV-26597 fix
-MDEV-29142 : fails on 10.5 with WSREP: Inconsistency detected
-galera_bf_abort_shutdown : MDEV-29368 shutdown hang

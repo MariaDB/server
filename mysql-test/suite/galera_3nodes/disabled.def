@@ -32,3 +32,4 @@ galera_ipv6_rsync_section : MDEV-24097 MTR sporadaically fails: Failed to start 
 galera_ssl_reload : MDEV-24097 MTR sporadaically fails: Failed to start mysqld or mysql_shutdown failed
 galera_toi_vote : MDEV-24097 MTR sporadaically fails: Failed to start mysqld or mysql_shutdown failed
 galera_wsrep_schema_init : MDEV-24097 MTR sporadaically fails: Failed to start mysqld or mysql_shutdown failed
+galera_parallel_apply_3nodes : MDEV-29774 Galera test galera_parallel_apply_3nodes is unstable
