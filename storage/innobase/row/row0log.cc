@@ -2254,7 +2254,7 @@ func_exit_committed:
 		row, NULL, index, heap, ROW_BUILD_NORMAL);
 	upd_t*		update	= row_upd_build_difference_binary(
 		index, entry, btr_pcur_get_rec(&pcur), cur_offsets,
-		false, NULL, heap, dup->table, &error);
+		false, false, NULL, heap, dup->table, &error);
 	if (error != DB_SUCCESS) {
 		goto func_exit;
 	}
