@@ -1140,7 +1140,7 @@ row_ins_foreign_check_on_constraint(
 					tmp_heap);
 		err = btr_pcur_open_with_no_init(clust_index, ref,
 						 PAGE_CUR_LE, BTR_SEARCH_LEAF,
-						 cascade->pcur, 0, mtr);
+						 cascade->pcur, mtr);
 		if (UNIV_UNLIKELY(err != DB_SUCCESS)) {
 			goto nonstandard_exit_func;
 		}
@@ -2909,7 +2909,7 @@ row_ins_sec_index_entry_low(
 		err = btr_cur_search_to_nth_level(
 			index, 0, entry, PAGE_CUR_RTREE_INSERT,
 			search_mode,
-			&cursor, 0, &mtr);
+			&cursor, &mtr);
 
 		if (err == DB_SUCCESS && search_mode == BTR_MODIFY_LEAF
 		    && rtr_info.mbr_adj) {
@@ -2928,7 +2928,7 @@ row_ins_sec_index_entry_low(
 			err = btr_cur_search_to_nth_level(
 				index, 0, entry, PAGE_CUR_RTREE_INSERT,
 				search_mode,
-				&cursor, 0, &mtr);
+				&cursor, &mtr);
 		}
 
 		DBUG_EXECUTE_IF(
@@ -2943,7 +2943,7 @@ row_ins_sec_index_entry_low(
 		err = btr_cur_search_to_nth_level(
 			index, 0, entry, PAGE_CUR_LE,
 			search_mode,
-			&cursor, 0, &mtr);
+			&cursor, &mtr);
 	}
 
 	if (err != DB_SUCCESS) {
@@ -3023,7 +3023,7 @@ row_ins_sec_index_entry_low(
 			index, 0, entry, PAGE_CUR_LE,
 			(search_mode
 			 & ~(BTR_INSERT | BTR_IGNORE_SEC_UNIQUE)),
-			&cursor, 0, &mtr);
+			&cursor, &mtr);
 		if (err != DB_SUCCESS) {
 			goto func_exit;
 		}

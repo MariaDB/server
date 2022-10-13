@@ -5265,6 +5265,7 @@ bool mysql_create_like_table(THD* thd, TABLE_LIST* table,
     if ((duplicate= unique_table(thd, table, src_table, 0)))
     {
       update_non_unique_table_error(src_table, "CREATE", duplicate);
+      res= 1;
       goto err;
     }
   }
@@ -7898,6 +7899,20 @@ void append_drop_column(THD *thd, String *str, Field *field)
 }
 
 
+static inline
+void rename_field_in_list(Create_field *field, List<const char> *field_list)
+{
+  DBUG_ASSERT(field->change.str);
+  List_iterator<const char> it(*field_list);
+  while (const char *name= it++)
+  {
+    if (my_strcasecmp(system_charset_info, name, field->change.str))
+      continue;
+    it.replace(field->field_name.str);
+  }
+}
+
+
 /**
   Prepare column and key definitions for CREATE TABLE in ALTER TABLE.
 
@@ -8268,6 +8283,34 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
         field->default_value->expr->walk(&Item::rename_fields_processor, 1,
                                         &column_rename_param);
     }
+#ifdef WITH_PARTITION_STORAGE_ENGINE
+    if (thd->work_part_info)
+    {
+      partition_info *part_info= thd->work_part_info;
+      List_iterator<Create_field> def_it(column_rename_param.fields);
+      const bool part_field_list= !part_info->part_field_list.is_empty();
+      const bool subpart_field_list= !part_info->subpart_field_list.is_empty();
+      if (part_info->part_expr)
+        part_info->part_expr->walk(&Item::rename_fields_processor, 1,
+                                  &column_rename_param);
+      if (part_info->subpart_expr)
+        part_info->subpart_expr->walk(&Item::rename_fields_processor, 1,
+                                      &column_rename_param);
+      if (part_field_list || subpart_field_list)
+      {
+        while (Create_field *def= def_it++)
+        {
+          if (def->change.str)
+          {
+            if (part_field_list)
+              rename_field_in_list(def, &part_info->part_field_list);
+            if (subpart_field_list)
+              rename_field_in_list(def, &part_info->subpart_field_list);
+          } /* if (def->change.str) */
+        } /* while (def) */
+      } /* if (part_field_list || subpart_field_list) */
+    } /* if (part_info) */
+#endif
     // Force reopen because new column name is on thd->mem_root
     table->mark_table_for_reopen();
   }
@@ -10337,6 +10380,9 @@ do_continue:;
 
 #ifdef WITH_PARTITION_STORAGE_ENGINE
   {
+    /*
+      Partitioning: part_info is prepared and returned via thd->work_part_info
+    */
     if (prep_alter_part_table(thd, table, alter_info, create_info,
                               &partition_changed, &fast_alter_partition))
     {
@@ -10551,8 +10597,10 @@ do_continue:;
 
     No ddl logging needed as ddl_log_alter_query will take care of failed
     table creations.
+
+    Partitioning: part_info is passed via thd->work_part_info
   */
-  error= create_table_impl(thd, (DDL_LOG_STATE*) 0, (DDL_LOG_STATE*) 0,
+  error= create_table_impl(thd, nullptr, nullptr,
                            alter_ctx.db, alter_ctx.table_name,
                            alter_ctx.new_db, alter_ctx.tmp_name,
                            alter_ctx.get_tmp_cstring_path(),

@@ -113,39 +113,22 @@ btr_pcur_open_low(
 	MY_ATTRIBUTE((nonnull, warn_unused_result));
 #define btr_pcur_open(i,t,md,l,c,m)				\
 	btr_pcur_open_low(i,0,t,md,l,c,0,m)
-/**************************************************************//**
-Opens an persistent cursor to an index tree without initializing the
-cursor. */
-UNIV_INLINE
-dberr_t
-btr_pcur_open_with_no_init_func(
-/*============================*/
-	dict_index_t*	index,	/*!< in: index */
-	const dtuple_t*	tuple,	/*!< in: tuple on which search done */
-	page_cur_mode_t	mode,	/*!< in: PAGE_CUR_L, ...;
-				NOTE that if the search is made using a unique
-				prefix of a record, mode should be
-				PAGE_CUR_LE, not PAGE_CUR_GE, as the latter
-				may end up on the previous page of the
-				record! */
-	ulint		latch_mode,/*!< in: BTR_SEARCH_LEAF, ...;
-				NOTE that if ahi_latch then we might not
-				acquire a cursor page latch, but assume
-				that the ahi_latch protects the record! */
-	btr_pcur_t*	cursor, /*!< in: memory buffer for persistent cursor */
-#ifdef BTR_CUR_HASH_ADAPT
-	srw_spin_lock*	ahi_latch,
-				/*!< in: currently held AHI rdlock, or NULL */
-#endif /* BTR_CUR_HASH_ADAPT */
-	mtr_t*		mtr)	/*!< in: mtr */
-	MY_ATTRIBUTE((warn_unused_result));
-#ifdef BTR_CUR_HASH_ADAPT
-# define btr_pcur_open_with_no_init(ix,t,md,l,cur,ahi,m)		\
-	btr_pcur_open_with_no_init_func(ix,t,md,l,cur,ahi,m)
-#else /* BTR_CUR_HASH_ADAPT */
-# define btr_pcur_open_with_no_init(ix,t,md,l,cur,ahi,m)		\
-	btr_pcur_open_with_no_init_func(ix,t,md,l,cur,m)
-#endif /* BTR_CUR_HASH_ADAPT */
+/** Opens an persistent cursor to an index tree without initializing the
+cursor.
+@param index      index
+@param tuple      tuple on which search done
+@param mode       PAGE_CUR_L, ...; NOTE that if the search is made using a
+                  unique prefix of a record, mode should be PAGE_CUR_LE, not
+                  PAGE_CUR_GE, as the latter may end up on the previous page of
+                  the record!
+@param latch_mode BTR_SEARCH_LEAF, ...
+@param cursor     memory buffer for persistent cursor
+@param mtr        mini-transaction
+@return DB_SUCCESS on success or error code otherwise. */
+inline
+dberr_t btr_pcur_open_with_no_init(dict_index_t *index, const dtuple_t *tuple,
+                                   page_cur_mode_t mode, ulint latch_mode,
+                                   btr_pcur_t *cursor, mtr_t *mtr);
 
 /*****************************************************************//**
 Opens a persistent cursor at either end of an index. */

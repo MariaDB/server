@@ -861,6 +861,13 @@ int ha_myisam::open(const char *name, int mode, uint test_if_locked)
       /* purecov: end */
     }
   }
+
+  DBUG_EXECUTE_IF("key",
+    Debug_key_myisam::print_keys_myisam(table->in_use,
+                                        "ha_myisam::open: ",
+                                        table, file->s->keyinfo,
+                                        file->s->base.keys);
+  );
   
   if (test_if_locked & (HA_OPEN_IGNORE_IF_LOCKED | HA_OPEN_TMP_TABLE))
     (void) mi_extra(file, HA_EXTRA_NO_WAIT_LOCK, 0);

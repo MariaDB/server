@@ -63,15 +63,9 @@ both have sensible values.
 @param[in,out]	info		index search info
 @param[in]	tuple		logical record
 @param[in]	mode		PAGE_CUR_L, ....
-@param[in]	latch_mode	BTR_SEARCH_LEAF, ...;
-				NOTE that only if has_search_latch is 0, we will
-				have a latch set on the cursor page, otherwise
-				we assume the caller uses his search latch
-				to protect the record!
+@param[in]	latch_mode	BTR_SEARCH_LEAF, ...
 @param[out]	cursor		tree cursor
-@param[in]	ahi_latch	the adaptive hash index latch being held,
-				or NULL
-@param[in]	mtr		mini transaction
+@param[in]	mtr		mini-transaction
 @return whether the search succeeded */
 bool
 btr_search_guess_on_hash(
@@ -81,7 +75,6 @@ btr_search_guess_on_hash(
 	ulint		mode,
 	ulint		latch_mode,
 	btr_cur_t*	cursor,
-	srw_spin_lock*	ahi_latch,
 	mtr_t*		mtr);
 
 /** Move or delete hash entries for moved records, usually in a page split.
