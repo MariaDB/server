@@ -153,7 +153,10 @@ select benchmark(100, (select avg(func_26093_a(a)) from table_26093));
 select @invoked;
 
 set @invoked := 0;
+#enable after fix MDEV-27871
+--disable_view_protocol
 select benchmark(100, (select avg(func_26093_b(a, rand())) from table_26093));
+--enable_view_protocol
 # Returns 1000, due to rand() preventing caching.
 select @invoked;
 
@@ -262,10 +265,12 @@ set @@session.time_zone=@save_tz;
 #
 # Bug#42014: Crash, name_const with collate
 #
+--disable_view_protocol
 CREATE TABLE t1 (a DATE);
 SELECT * FROM t1 WHERE a = NAME_CONST('reportDate',
   _binary'2009-01-09' COLLATE 'binary');
 DROP TABLE t1;
+--enable_view_protocol
 
 #
 # Bug#35515: Aliases of variables in binary log are ignored with NAME_CONST
@@ -626,6 +631,8 @@ DROP TABLE t1;
 --echo # GET_LOCK, RELEASE_LOCK, IS_USED_LOCK functions test
 --echo #
 
+--disable_service_connection
+
 --echo # IS_USED_LOCK, IS_FREE_LOCK: the  lock is not acquired
 --echo # Note: IS_USED_LOCK returns NULL if the lock is unused
 select is_used_lock('test');
@@ -786,6 +793,7 @@ select is_free_lock(repeat('a', 193));
 --error ER_TOO_LONG_IDENT
 select release_lock(repeat('a', 193));
 
+--enable_service_connection
 
 --echo
 --echo # --
@@ -936,8 +944,11 @@ SELECT INET6_NTOA(INET6_ATON('1:2:3:4:5::7:8'));
 SELECT INET6_NTOA(INET6_ATON('1:2:3:4:5:6::8'));
 SELECT INET6_NTOA(INET6_ATON('1:2:3:4:5:6:7::'));
 SELECT INET6_NTOA(INET6_ATON('0000:0000::0000:0001'));
+#enable after fix MDEV-27871
+--disable_view_protocol
 SELECT INET6_NTOA(INET6_ATON('1234:5678:9abc:def0:4321:8765:cba9:0fed'));
 SELECT INET6_NTOA(INET6_ATON('0000:0000:0000:0000:0000:0000:0000:0001'));
+--enable_view_protocol
 SELECT INET6_NTOA(INET6_ATON('::C0A8:0102'));
 SELECT INET6_NTOA(INET6_ATON('::c0a8:0102'));
 SELECT INET6_NTOA(INET6_ATON('::192.168.1.2'));
@@ -1108,12 +1119,14 @@ select release_lock('test');
 --echo #
 --echo # MDEV-13685 Can not replay binary log due to Illegal mix of collations (latin1_swedish_ci,IMPLICIT) and (utf8mb4_general_ci,COERCIBLE) for operation 'concat'
 --echo #
+--disable_service_connection
 SET NAMES utf8;
 SELECT COERCIBILITY(NAME_CONST('name','test'));
 SELECT COERCIBILITY(NAME_CONST('name',TIME'00:00:00'));
 SELECT COERCIBILITY(NAME_CONST('name',15));
 SELECT CONCAT(NAME_CONST('name',15),'오');
 SET NAMES latin1;
+--enable_service_connection
 
 --echo #
 --echo # MDEV-14116 INET6_NTOA output is set as null to varchar(39) variable
@@ -1228,9 +1241,11 @@ SELECT RELEASE_LOCK('foo');
 
 --enable_metadata
 --disable_ps_protocol
+--disable_view_protocol
 
 SELECT INET_ATON("255.255.255.255.255.255.255.255");
 
+--enable_view_protocol
 --enable_ps_protocol
 --disable_metadata
 
@@ -1240,7 +1255,9 @@ SELECT INET_ATON("255.255.255.255.255.255.255.255");
 
 --enable_metadata
 --disable_ps_protocol
+--disable_view_protocol
 SELECT 18446744073709551615 AS c1, name_const('a',18446744073709551615) AS c2;
+--enable_view_protocol
 --enable_ps_protocol
 --disable_metadata
 
@@ -1282,6 +1299,7 @@ DROP TABLE t1;
 --echo #
 --echo # MDEV-10569 Add RELEASE_ALL_LOCKS SQL-function
 --echo #
+--disable_view_protocol
 
 --echo # Test function without any locks
 SELECT RELEASE_ALL_LOCKS();
@@ -1335,3 +1353,5 @@ FROM information_schema.metadata_lock_info WHERE thread_id>0 ORDER BY TABLE_SCHE
 SELECT RELEASE_ALL_LOCKS();
 SELECT LOCK_MODE, LOCK_TYPE, TABLE_SCHEMA
 FROM information_schema.metadata_lock_info WHERE thread_id>0 ORDER BY TABLE_SCHEMA;
+
+--enable_view_protocol

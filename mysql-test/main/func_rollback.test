@@ -38,6 +38,7 @@
 # Created:
 # 2008-04-09 mleich
 #
+-- source include/no_view_protocol.inc
 
 let $fixed_bug_35877 = 0;
 

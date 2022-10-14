@@ -1,3 +1,7 @@
+#remove this include after fix MDEV-27871
+# maybe some tests need to be excluded separately after fix
+--source include/no_view_protocol.inc
+
 SET TIME_ZONE = _latin1 '+03:00';
 
 --echo #
@@ -1631,6 +1635,7 @@ SELECT charset(@x), collation(@x);
 --echo #
 --echo # Bug#54916 GROUP_CONCAT + IFNULL truncates output
 --echo #
+
 SELECT @@collation_connection;
 # ENGINE=MYISAM is very important to make sure "SYSTEM" join type
 # is in use, which will create instances of Item_copy.

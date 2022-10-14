@@ -1314,6 +1314,9 @@ DROP TABLE t1,t2,t3,t4,t5;
 --echo # MDEV-7992: Nested left joins + 'not exists' optimization
 --echo #
 
+#view protocol gives different query plan (it doesnt' contain database name)
+--disable_view_protocol
+
 CREATE TABLE t1(
   K1 INT PRIMARY KEY,
   Name VARCHAR(15)
@@ -1378,6 +1381,8 @@ eval EXPLAIN EXTENDED $q2;
 
 DROP VIEW v1;
 DROP TABLE t1,t2;
+
+--enable_view_protocol
 
 set optimizer_search_depth= @tmp_mdev621;
 

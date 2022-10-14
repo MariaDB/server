@@ -1,4 +1,5 @@
 --source include/not_embedded.inc
+--source include/no_view_protocol.inc
 
 SET timestamp=UNIX_TIMESTAMP('2014-11-01 10:20:30');
 SET GLOBAL event_scheduler=off;

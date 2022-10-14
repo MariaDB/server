@@ -1081,6 +1081,7 @@ drop trigger t1_ai;
 drop table t4;
 # Rename between different databases if triggers exist should fail
 create database mysqltest;
+--disable_service_connection
 use mysqltest;
 create table t1 (id int);
 create trigger t1_bi before insert on t1 for each row set @a:=new.id;
@@ -1096,6 +1097,7 @@ select @a;
 select trigger_schema, trigger_name, event_object_schema,
        event_object_table, action_statement from information_schema.triggers
        where event_object_schema = 'test' or event_object_schema = 'mysqltest';
+--enable_service_connection
 # There should be no fantom .TRN files 
 --error ER_TRG_DOES_NOT_EXIST
 drop trigger test.t1_bi;
