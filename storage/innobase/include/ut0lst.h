@@ -475,7 +475,7 @@ void ut_list_validate(const List& list, Functor& functor)
 	ut_list_map(list, functor);
 #ifdef UNIV_DEBUG
 	/* Validate the list backwards. */
-	auto count = list.count;
+	ulint count = list.count;
 
 	for (typename List::elem_type* elem = list.end;
 	     elem != 0;
@@ -495,7 +495,7 @@ inline void ut_list_validate(const List& list, const Functor& functor)
 	ut_list_map(list, functor);
 #ifdef UNIV_DEBUG
 	/* Validate the list backwards. */
-	auto count = list.count;
+	ulint count = list.count;
 
 	for (typename List::elem_type* elem = list.end;
 	     elem != 0;
