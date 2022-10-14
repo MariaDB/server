@@ -757,3 +757,14 @@ drop table t1;
 --list_files $MYSQLD_DATADIR/test *t1*
 --echo MYSQL_TMP_DIR:
 --list_files $MYSQL_TMP_DIR *t1*
+
+--echo #
+--echo # MDEV-29793 Assertion failure in translog_write_record upon CREATE OR REPLACE
+--echo #
+CREATE TABLE t1 (id INT, f INT, KEY(f), PRIMARY KEY (id)) ENGINE=Aria;
+INSERT INTO t1 VALUES (1,1),(2,7),(3,9);
+CREATE TABLE t2 (a INT) ENGINE=Aria;
+INSERT INTO t2 VALUES (2),(1);
+CREATE OR REPLACE TABLE t3 AS SELECT t2.* FROM t2, t1 WHERE t2.a = t1.f OR t2.a = t1.id;
+# Cleanup
+DROP TABLE t1, t2, t3;
