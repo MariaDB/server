@@ -11,13 +11,12 @@
 #                           t/concurrent_innodb_unsafelog.test
 #               new wrapper t/concurrent_innodb_safelog.test
 #
-
 --source include/have_innodb.inc
 
 let $engine_type= InnoDB;
 
 SET GLOBAL TRANSACTION ISOLATION LEVEL REPEATABLE READ;
 # innodb_locks_unsafe_for_binlog not set for this test
-
+--disable_service_connection
 --source include/concurrent.inc
-
+--enable_service_connection

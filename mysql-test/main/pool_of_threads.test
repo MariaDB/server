@@ -1,3 +1,7 @@
+# Tests will be skipped for the view protocol because the view protocol creates 
+# an additional util connection
+-- source include/no_view_protocol.inc
+
 # Start with thread_handling=pool-of-threads
 # and run a number of tests
 

@@ -1301,6 +1301,8 @@ create function f1() returns int
   return (select sum(data) from t1)|
 
 # Let us also test some weird cases where no real tables is used
+# enable after fix MDEV-28535
+--disable_view_protocol
 create function f0() returns int
   return (select * from (select 100) as r)|
 select f0()|
@@ -1308,10 +1310,13 @@ select *, f0() from (select 1) as t|
 create view v0 as select f0()|
 select * from v0|
 select *, f0() from v0|
+--enable_view_protocol
 
 #
 # Let us test how well prelocking works with explicit LOCK TABLES.
 #
+#use disable/enable_service_connection after fix MDEV-28535
+--disable_service_connection
 lock tables t1 read, t1 as t11 read|
 # These should work well
 select f3()|
@@ -1328,9 +1333,11 @@ select id, f3() from t1|
 --error ER_TABLE_NOT_LOCKED
 select f4()|
 unlock tables|
+--enable_service_connection
 
 # Let us test how LOCK TABLES which implicitly depends on functions
 # works
+--disable_service_connection
 lock tables v2 read, mysql.proc read|
 select * from v2|
 select * from v1|
@@ -1340,6 +1347,7 @@ select * from v1, t1|
 --error ER_TABLE_NOT_LOCKED
 select f4()|
 unlock tables|
+--enable_service_connection
 
 # Tests for handling of temporary tables in functions.
 #
@@ -1363,6 +1371,7 @@ select f9()|
 select f9() from t1 limit 1|
 
 # Function which uses both temporary and permanent tables.
+--disable_view_protocol
 create function f10() returns int
 begin
   drop temporary table if exists t3;
@@ -1375,6 +1384,7 @@ end|
 select f10()|
 create table t4 as select 1 as id|
 select f10()|
+--enable_view_protocol
 
 create function f11() returns int
 begin
@@ -6005,6 +6015,7 @@ SHOW CREATE FUNCTION bug16211_f2|
 SHOW CREATE FUNCTION mysqltest2.bug16211_f3|
 SHOW CREATE FUNCTION mysqltest2.bug16211_f4|
 
+--disable_service_connection
 SELECT dtd_identifier
 FROM INFORMATION_SCHEMA.ROUTINES
 WHERE ROUTINE_SCHEMA = "mysqltest1" AND ROUTINE_NAME = "bug16211_f1"|
@@ -6020,6 +6031,7 @@ WHERE ROUTINE_SCHEMA = "mysqltest2" AND ROUTINE_NAME = "bug16211_f3"|
 SELECT dtd_identifier
 FROM INFORMATION_SCHEMA.ROUTINES
 WHERE ROUTINE_SCHEMA = "mysqltest2" AND ROUTINE_NAME = "bug16211_f4"|
+--enable_service_connection
 
 SELECT CHARSET(bug16211_f1())|
 SELECT CHARSET(bug16211_f2())|

@@ -18,6 +18,6 @@ let $engine_type= InnoDB;
 
 SET GLOBAL TRANSACTION ISOLATION LEVEL REPEATABLE READ;
 # innodb_locks_unsafe_for_binlog is set fro this test.
-
+--disable_service_connection
 --source include/concurrent.inc
-
+--enable_service_connection

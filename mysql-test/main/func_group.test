@@ -583,6 +583,8 @@ DROP TABLE t1;
 #
 # Bug #16792  query with subselect, join, and group not returning proper values
 #
+#enable after fix MDEV-28573
+--disable_view_protocol
 CREATE TABLE t1 (a INT, b INT);
 INSERT INTO t1 VALUES (1,1),(1,2),(2,3);
 
@@ -593,6 +595,7 @@ SELECT AVG(2), BIT_AND(2), BIT_OR(2), BIT_XOR(2), COUNT(*), COUNT(12),
        COUNT(DISTINCT 12), MIN(2),MAX(2),STD(2), VARIANCE(2),SUM(2),
        GROUP_CONCAT(2),GROUP_CONCAT(DISTINCT 2);
 DROP TABLE t1;
+--enable_view_protocol
 
 # End of 4.1 tests
 
@@ -624,11 +627,13 @@ drop table t1, t2, t3;
 #
 # BUG#3190, WL#1639: Standard Deviation STDDEV - 2 different calculations
 #
-
+#enable after fix MDEV-28573
+--disable_view_protocol
 CREATE TABLE t1 (id int(11),value1 float(10,2));
 INSERT INTO t1 VALUES (1,0.00),(1,1.00), (1,2.00), (2,10.00), (2,11.00), (2,12.00), (2,13.00);
 select id, stddev_pop(value1), var_pop(value1), stddev_samp(value1), var_samp(value1) from t1 group by id;
 DROP TABLE t1;
+--enable_view_protocol
 
 #
 # BUG#8464 decimal AVG returns incorrect result
@@ -964,6 +969,8 @@ INSERT INTO D VALUES
   (83,45,4,repeat('  X', 42)),
   (105,53,12,NULL);
 
+#enable after fix MDEV-27871
+--disable_view_protocol
 SELECT 
   (SELECT COUNT( int_nokey ) 
    FROM derived1 AS X 
@@ -977,6 +984,7 @@ GROUP BY int_nokey LIMIT 1;
 
 DROP TABLE derived1;
 DROP TABLE D;
+--enable_view_protocol
 
 #
 # Bug #39656: Behaviour different for agg functions with & without where -

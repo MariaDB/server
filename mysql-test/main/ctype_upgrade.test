@@ -85,13 +85,15 @@ DROP TABLE maria050533_xxx_croatian_ci;
 --copy_file std_data/ctype_upgrade/maria050533_xxx_croatian_ci.MYI $MYSQLD_DATADIR/test/maria050533_xxx_croatian_ci.MYI
 ALTER TABLE maria050533_xxx_croatian_ci FORCE;
 SHOW CREATE TABLE maria050533_xxx_croatian_ci;
+# enable after fix MDEV-28571
+--disable_view_protocol
 SELECT GROUP_CONCAT(a ORDER BY BINARY a) FROM maria050533_xxx_croatian_ci GROUP BY a;
 SELECT GROUP_CONCAT(b ORDER BY BINARY b) FROM maria050533_xxx_croatian_ci GROUP BY b;
 SELECT GROUP_CONCAT(c ORDER BY BINARY c) FROM maria050533_xxx_croatian_ci GROUP BY c;
 SELECT GROUP_CONCAT(d ORDER BY BINARY d) FROM maria050533_xxx_croatian_ci GROUP BY d;
 SELECT GROUP_CONCAT(e ORDER BY BINARY e) FROM maria050533_xxx_croatian_ci GROUP BY e;
 DROP TABLE maria050533_xxx_croatian_ci;
-
+--enable_view_protocol
 
 --echo #
 --echo # Upgrade from Maria-10.0.4
@@ -116,13 +118,15 @@ DROP TABLE maria100004_xxx_croatian_ci;
 --copy_file std_data/ctype_upgrade/maria100004_xxx_croatian_ci.MYI $MYSQLD_DATADIR/test/maria100004_xxx_croatian_ci.MYI
 ALTER TABLE maria100004_xxx_croatian_ci FORCE;
 SHOW CREATE TABLE maria100004_xxx_croatian_ci;
+# enable after fix MDEV-28571
+--disable_view_protocol
 SELECT GROUP_CONCAT(a ORDER BY BINARY a) FROM maria100004_xxx_croatian_ci GROUP BY a;
 SELECT GROUP_CONCAT(b ORDER BY BINARY b) FROM maria100004_xxx_croatian_ci GROUP BY b;
 SELECT GROUP_CONCAT(c ORDER BY BINARY c) FROM maria100004_xxx_croatian_ci GROUP BY c;
 SELECT GROUP_CONCAT(d ORDER BY BINARY d) FROM maria100004_xxx_croatian_ci GROUP BY d;
 SELECT GROUP_CONCAT(e ORDER BY BINARY e) FROM maria100004_xxx_croatian_ci GROUP BY e;
 DROP TABLE maria100004_xxx_croatian_ci;
-
+--enable_view_protocol
 
 
 --echo #
@@ -137,13 +141,15 @@ DROP TABLE maria100004_xxx_croatian_ci;
 --copy_file std_data/ctype_upgrade/mysql050614_xxx_croatian_ci.MYI $MYSQLD_DATADIR/test/mysql050614_xxx_croatian_ci.MYI
 CHECK TABLE mysql050614_xxx_croatian_ci FOR UPGRADE;
 SHOW CREATE TABLE mysql050614_xxx_croatian_ci;
+# enable after fix MDEV-28571
+--disable_view_protocol
 SELECT GROUP_CONCAT(a ORDER BY BINARY a) FROM mysql050614_xxx_croatian_ci GROUP BY a;
 SELECT GROUP_CONCAT(b ORDER BY BINARY b) FROM mysql050614_xxx_croatian_ci GROUP BY b;
 SELECT GROUP_CONCAT(c ORDER BY BINARY c) FROM mysql050614_xxx_croatian_ci GROUP BY c;
 SELECT GROUP_CONCAT(d ORDER BY BINARY d) FROM mysql050614_xxx_croatian_ci GROUP BY d;
 SELECT GROUP_CONCAT(e ORDER BY BINARY e) FROM mysql050614_xxx_croatian_ci GROUP BY e;
 DROP TABLE mysql050614_xxx_croatian_ci;
-
+--enable_view_protocol
 
 --echo #
 --echo # Checking mysql_upgrade

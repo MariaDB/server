@@ -143,7 +143,9 @@ drop table t1;
 create table t1 (a bit(7)) engine=innodb;
 insert into t1 values (0x60);
 --enable_metadata
+--disable_view_protocol
 select * from t1;
+--enable_view_protocol
 --disable_metadata
 drop table t1;
 

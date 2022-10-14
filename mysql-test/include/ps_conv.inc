@@ -77,7 +77,9 @@ show create table t5 ;
 --vertical_results
 --enable_metadata
 --disable_ps_protocol
+--disable_view_protocol
 select * from t5 ;
+--enable_view_protocol
 --enable_ps_protocol
 --disable_metadata
 --horizontal_results

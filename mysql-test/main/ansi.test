@@ -5,7 +5,7 @@
 --disable_warnings
 drop table if exists t1;
 --enable_warnings
-
+--disable_service_connection
 set sql_mode="MySQL40";
 select @@sql_mode;
 set @@sql_mode="ANSI";
@@ -72,3 +72,4 @@ SELECT -1||0^1 AS a FROM DUAL;
 
 EXPLAIN EXTENDED SELECT -1^1||1 AS a FROM DUAL;
 EXPLAIN EXTENDED SELECT -1||0^1 AS a FROM DUAL;
+--enable_service_connection
