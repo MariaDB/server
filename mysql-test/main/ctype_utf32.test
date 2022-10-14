@@ -1,6 +1,7 @@
 -- source include/have_utf32.inc
 -- source include/have_utf8mb4.inc
 
+--disable_service_connection
 SET TIME_ZONE = '+03:00';
 
 --disable_warnings
@@ -62,12 +63,18 @@ DROP TABLE t1;
 SELECT hex(LPAD(_utf32 X'0420',10,_utf32 X'0421'));
 SELECT hex(LPAD(_utf32 X'0420',10,_utf32 X'0000042100000422'));
 SELECT hex(LPAD(_utf32 X'0420',10,_utf32 X'000004210000042200000423'));
+#enable after fix MDEV-27871
+--disable_view_protocol
 SELECT hex(LPAD(_utf32 X'000004200000042100000422000004230000042400000425000004260000042700000428000004290000042A0000042B',10,_utf32 X'000004210000042200000423'));
+--enable_view_protocol
 
 SELECT hex(RPAD(_utf32 X'0420',10,_utf32 X'0421'));
 SELECT hex(RPAD(_utf32 X'0420',10,_utf32 X'0000042100000422'));
 SELECT hex(RPAD(_utf32 X'0420',10,_utf32 X'000004210000042200000423'));
+#enable after fix MDEV-27871
+--disable_view_protocol
 SELECT hex(RPAD(_utf32 X'000004200000042100000422000004230000042400000425000004260000042700000428000004290000042A0000042B',10,_utf32 X'000004210000042200000423'));
+--enable_view_protocol
 
 CREATE TABLE t1 SELECT 
 LPAD(_utf32 X'0420',10,_utf32 X'0421') l,
@@ -117,8 +124,11 @@ DROP TABLE t1;
 #
 # Check that INSERT() works fine. 
 # This invokes charpos() function.
+#enable after fix MDEV-27871
+--disable_view_protocol
 select insert(_utf32 0x000000610000006200000063,10,2,_utf32 0x000000640000006500000066);
 select insert(_utf32 0x000000610000006200000063,1,2,_utf32 0x000000640000006500000066);
+--enable_view_protocol
 
 #######################################################
 
@@ -794,6 +804,7 @@ CREATE TABLE t1 (
   s3 MEDIUMTEXT CHARACTER SET utf32,
   s4 LONGTEXT CHARACTER SET utf32
 );
+--disable_view_protocol
 --enable_metadata
 SET NAMES utf8mb4, @@character_set_results=NULL;
 SELECT *, HEX(s1) FROM t1;
@@ -802,6 +813,7 @@ SELECT *, HEX(s1) FROM t1;
 SET NAMES utf8mb4;
 SELECT *, HEX(s1) FROM t1;
 --disable_metadata
+--enable_view_protocol
 CREATE TABLE t2 AS SELECT CONCAT(s1) FROM t1;
 SHOW CREATE TABLE t2;
 DROP TABLE t1, t2;
@@ -872,8 +884,10 @@ ORDER BY l DESC;
 --echo #
 --echo # incorrect charset for val_str_ascii
 --echo #
-
+#enable after fix MDEV-27871
+--disable_view_protocol
 SELECT '2010-10-10 10:10:10' + INTERVAL GeometryType(GeomFromText('POINT(1 1)')) hour_second;
+--enable_view_protocol
 
 --echo #
 --echo # MDEV-5745 analyze MySQL fix for bug#12368495
@@ -1085,7 +1099,7 @@ CREATE TABLE t1 (
 SHOW CREATE TABLE t1;
 DROP TABLE t1;
 
-
+--enable_service_connection
 --echo #
 --echo # End of 10.2 tests
 --echo #

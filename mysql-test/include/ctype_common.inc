@@ -67,10 +67,12 @@ drop table t1;
 --echo #
 --echo # MDEV-6134 SUBSTRING_INDEX returns wrong result for 8bit character sets when delimiter is not found
 --echo #
+--disable_service_connection
 SET character_set_client=latin1;
 SET character_set_connection= @test_character_set;
 SET collation_connection= @test_collation;
 SELECT COLLATION('.'), SUBSTRING_INDEX('.wwwmysqlcom', '.', -2) AS c1;
+--enable_service_connection
 
 #
 # Bug#27580 SPACE() function collation bug?

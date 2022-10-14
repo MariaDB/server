@@ -309,6 +309,7 @@ DROP TABLE t1,t2;
 # Bug#40536: SELECT is blocked by INSERT DELAYED waiting on upgrading lock,
 #            even with low_priority_updates
 #
+--disable_service_connection
 
 set @old_delayed_updates = @@global.low_priority_updates;
 set global low_priority_updates = 1;
@@ -344,7 +345,7 @@ select * from t1;
 drop table t1;
 
 set global low_priority_updates = @old_delayed_updates;
-
+--enable_service_connection
 
 --echo #
 --echo # Bug #47682 strange behaviour of INSERT DELAYED
@@ -414,6 +415,7 @@ DROP TABLE t1;
 --echo # This test is not supposed to work under --ps-protocol since
 --echo # INSERT DELAYED doesn't work under LOCK TABLES with this protocol.
 --disable_ps_protocol
+--disable_view_protocol
 
 --disable_warnings
 DROP TABLE IF EXISTS t1, t2;
@@ -563,11 +565,12 @@ disconnect con1;
 connection default;
 DROP TABLE t1, t2, t3;
 --enable_ps_protocol
-
+--enable_view_protocol
 
 --echo #
 --echo # Test for bug #56251 "Deadlock with INSERT DELAYED and MERGE tables".
 --echo #
+--disable_view_protocol
 connect (con1,localhost,root,,);
 connection default;
 --disable_warnings
@@ -608,6 +611,7 @@ disconnect con1;
 --source include/wait_until_disconnected.inc
 connection default;
 drop tables tm, t1, t2;
+--enable_view_protocol
 
 --echo #
 --echo # MDEV-9621 INSERT DELAYED fails on insert for tables with many columns

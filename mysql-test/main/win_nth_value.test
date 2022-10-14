@@ -42,11 +42,16 @@ select pk,
 from t1
 order by pk asc;
 
+#enable after fix MDEV-27871
+--disable_view_protocol
 select pk,
        a,
        nth_value(pk, 1) over (partition by a order by pk ROWS between 1 preceding and 1 following)
 from t1;
+--enable_view_protocol
 
+#enable after fix MDEV-28535
+--disable_view_protocol
 select pk,
        a,
        nth_value(a, 1) over (order by a RANGE BETWEEN 1 preceding and 1 following),
@@ -63,5 +68,6 @@ select pk,
        nth_value(a, 12) over (order by a RANGE BETWEEN 1 preceding and 1 following)
 from t1
 order by pk asc;
+--enable_view_protocol
 
 drop table t1;

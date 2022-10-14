@@ -5,6 +5,8 @@
 --source include/have_innodb.inc
 --source include/have_metadata_lock_info.inc
 --source include/not_embedded.inc
+--source include/no_view_protocol.inc
+
 
 --echo #
 --echo # Testing which locks we get from all stages

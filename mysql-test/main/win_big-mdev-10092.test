@@ -85,6 +85,9 @@ call add_data();
 call add_data();
 set sort_buffer_size = 1024;
 
+#enable after fix MDEV-27871
+--disable_view_protocol
+
 flush status;
 select o_custkey, Avg(o_custkey) OVER ( ORDER BY o_custkey ) from orders;
 select variable_name,
@@ -98,6 +101,8 @@ select variable_name,
        case when variable_value > 0 then 'WITH PASSES' else 'NO PASSES' end
 from information_schema.session_status
 where variable_name like 'Sort_merge_passes';
+
+--enable_view_protocol
 
 drop table orders;
 drop procedure add_data;

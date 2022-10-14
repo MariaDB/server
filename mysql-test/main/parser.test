@@ -408,6 +408,9 @@ select "terminated";$$
 select "non terminated, space"      $$
 select "terminated, space";      $$
 select "non terminated, comment" /* comment */$$
+
+#--view-protocol test mode can not parse query
+--disable_view_protocol
 select "terminated, comment"; /* comment */$$
 
 # Multi queries can not be used in --ps-protocol test mode
@@ -430,6 +433,7 @@ DROP PROCEDURE IF EXISTS p26030; CREATE PROCEDURE p26030() SELECT 1; CALL p26030
 $$
 
 --enable_ps_protocol
+--enable_view_protocol
 
 delimiter ;$$
 DROP PROCEDURE p26030;
@@ -689,7 +693,12 @@ DROP TABLE IF EXISTS t1;
 --enable_warnings
 
 SELECT STR_TO_DATE('10:00 PM', '%h:%i %p') + INTERVAL 10 MINUTE;
+
+#enable view protocol after fix MDEV-27871 
+--disable_view_protocol
 SELECT STR_TO_DATE('10:00 PM', '%h:%i %p') + INTERVAL (INTERVAL(1,2,3) + 1) MINUTE;
+--enable_view_protocol
+
 SELECT "1997-12-31 23:59:59" + INTERVAL 1 SECOND;
 SELECT 1 + INTERVAL(1,0,1,2) + 1;
 SELECT INTERVAL(1^1,0,1,2) + 1;
@@ -849,10 +858,13 @@ SELECT 1 FROM t1
   WHERE EXISTS(SELECT 1 FROM DUAL WHERE 1 GROUP BY 1 HAVING 1 ORDER BY 1
                PROCEDURE ANALYSE() FOR UPDATE);
 
+#enableafter fix MDEV-29537
+--disable_view_protocol
 SELECT 1 FROM t1
 UNION
 SELECT 1 FROM DUAL WHERE 1 GROUP BY 1 HAVING 1 ORDER BY 1
   FOR UPDATE;
+--enable_view_protocol
 
 --error ER_CANT_USE_OPTION_HERE
 SELECT 1 FROM t1
@@ -880,8 +892,10 @@ UNION
 
 SELECT 1 FROM t1 UNION SELECT 1 FROM t1 ORDER BY 1 LIMIT 1;
 (SELECT 1 FROM t1 FOR UPDATE) UNION SELECT 1 FROM t1 ORDER BY 1 LIMIT 1;
+#enableafter fix MDEV-29537
+--disable_view_protocol
 SELECT 1 FROM t1 UNION SELECT 1 FROM t1 ORDER BY 1 LIMIT 1 FOR UPDATE;
-
+--enable_view_protocol
 
 --echo # "INTO" clause tests
 
@@ -1179,12 +1193,18 @@ SELECT (SELECT * FROM t1 GROUP BY a WITH ROLLUP HAVING a IS NULL);
 SELECT (SELECT * FROM t1 GROUP BY a WITH ROLLUP HAVING a IS NOT NULL);
 SELECT (SELECT * FROM t1 GROUP BY a WITH ROLLUP LIMIT 1);
 SELECT (SELECT GROUP_CONCAT(a) FROM t1 GROUP BY a WITH ROLLUP LIMIT 1);
+#enable view protocol after fix MDEV-27871 
+--disable_view_protocol
 SELECT (SELECT GROUP_CONCAT(a ORDER BY a) FROM t1 GROUP BY a WITH ROLLUP LIMIT 1);
+--enable_view_protocol
 SELECT (SELECT * FROM t1 GROUP BY a WITH ROLLUP HAVING a IS NULL) FROM t1;
 SELECT (SELECT * FROM t1 GROUP BY a WITH ROLLUP HAVING a IS NOT NULL) FROM t1;
 SELECT (SELECT * FROM t1 GROUP BY a WITH ROLLUP LIMIT 1) FROM t1;
 SELECT (SELECT GROUP_CONCAT(a) FROM t1 GROUP BY a WITH ROLLUP LIMIT 1) FROM t1;
+#enable view protocol after fix MDEV-27871 
+--disable_view_protocol
 SELECT (SELECT GROUP_CONCAT(a ORDER BY a) FROM t1 GROUP BY a WITH ROLLUP LIMIT 1) FROM t1;
+--enable_view_protocol
 
 --error ER_SUBQUERY_NO_1_ROW
 SELECT (SELECT * FROM t1 GROUP BY a WITH ROLLUP);
@@ -1220,10 +1240,16 @@ CREATE TABLE t1 (a INT);
 INSERT INTO t1 VALUES (10),(20),(30);
 SELECT (SELECT * FROM t1 GROUP BY a WITH ROLLUP LIMIT 1);
 SELECT (SELECT GROUP_CONCAT(a) FROM t1 GROUP BY a WITH ROLLUP LIMIT 1);
+#enable view protocol after fix MDEV-27871 
+--disable_view_protocol
 SELECT (SELECT GROUP_CONCAT(a ORDER BY a) FROM t1 GROUP BY a WITH ROLLUP LIMIT 1);
+--enable_view_protocol
 SELECT (SELECT * FROM t1 GROUP BY a WITH ROLLUP LIMIT 1) FROM t1;
 SELECT (SELECT GROUP_CONCAT(a) FROM t1 GROUP BY a WITH ROLLUP LIMIT 1) FROM t1;
+#enable view protocol after fix MDEV-27871 
+--disable_view_protocol
 SELECT (SELECT GROUP_CONCAT(a ORDER BY a) FROM t1 GROUP BY a WITH ROLLUP LIMIT 1) FROM t1;
+--enable_view_protocol
 
 --error ER_SUBQUERY_NO_1_ROW
 SELECT (SELECT * FROM t1 GROUP BY a WITH ROLLUP);
@@ -1541,6 +1567,8 @@ DROP PROCEDURE p1;
 --echo # MDEV-16697: Fix difference between 32bit/windows and 64bit
 --echo # systems in allowed select nest level
 --echo #
+#enable view protocol after fix MDEV-27871 
+--disable_view_protocol
  SELECT (SELECT (SELECT (SELECT (SELECT (SELECT (SELECT (SELECT
 (SELECT (SELECT (SELECT (SELECT (SELECT (SELECT (SELECT (SELECT
 (SELECT (SELECT (SELECT (SELECT (SELECT (SELECT (SELECT (SELECT
@@ -1551,6 +1579,7 @@ DROP PROCEDURE p1;
 (SELECT (SELECT (SELECT (SELECT (SELECT (SELECT (SELECT (SELECT
 1
 )))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))));
+--enable_view_protocol
 
 --echo #
 --echo # MDEV-17693 Shift/reduce conflicts for NAMES,ROLE,PASSWORD in the option_value_no_option_type grammar
@@ -1655,7 +1684,7 @@ SET @@sql_mode=@save_sql_mode;
 --echo # MDEV-19540: 10.4 allow lock options with SELECT in brackets
 --echo # which previous version do not
 --echo #
-
+--disable_service_connection
 create table t1 (a int);
 (select * from t1) for update;
 --error ER_WRONG_USAGE
@@ -1663,11 +1692,13 @@ create table t1 (a int);
 (select * from t1 for update);
 select * from t1 for update;
 drop table t1;
+--enable_service_connection
 
 --echo #
 --echo # MDEV-20108: [ERROR] mysqld got signal 11 in
 --echo # st_select_lex::add_table_to_list
 --echo #
+--disable_service_connection
 CREATE TABLE t1 (c1 INT NULL);
 CREATE TABLE t2 (c1 INT NULL);
 
@@ -1677,6 +1708,7 @@ select * from t1;
 select * from t2;
 SET STATEMENT max_statement_time=900 FOR unlock tables;
 drop table t1, t2;
+--enable_service_connection
 
 --echo #
 --echo # MDEV-21616: Server crash when using

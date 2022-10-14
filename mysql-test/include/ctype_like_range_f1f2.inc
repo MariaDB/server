@@ -17,9 +17,12 @@ INSERT INTO t1 (a, b) VALUES (2, repeat(0xF1F2,10));
 INSERT INTO t1 (a, b) VALUES (3, repeat(0xF1F2,11));
 INSERT INTO t1 (a, b) VALUES (4, repeat(0xF1F2,12));
 
+#check after fix MDEV-29290
+--disable_view_protocol
 # Check pattern (important for ucs2, utf16, utf32)
 SELECT hex(concat(repeat(0xF1F2, 10), '%'));
 
 --echo 3 rows expected
 SELECT a, hex(b), c FROM t1 WHERE b LIKE concat(repeat(0xF1F2,10), '%');
 DROP TABLE t1;
+--enable_view_protocol

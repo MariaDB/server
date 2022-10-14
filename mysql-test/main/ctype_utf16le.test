@@ -3,6 +3,8 @@
 -- source include/have_utf32.inc
 -- source include/have_utf8mb4.inc
 
+--disable_service_connection
+
 let $MYSQLD_DATADIR= `select @@datadir`;
 
 SET TIME_ZONE='+03:00';
@@ -701,6 +703,7 @@ CREATE TABLE t1 (
   s3 MEDIUMTEXT CHARACTER SET utf16le,
   s4 LONGTEXT CHARACTER SET utf16le
 );
+--disable_view_protocol
 --enable_metadata
 SET NAMES utf8, @@character_set_results=NULL;
 SELECT *, HEX(s1) FROM t1;
@@ -709,6 +712,7 @@ SELECT *, HEX(s1) FROM t1;
 SET NAMES utf8;
 SELECT *, HEX(s1) FROM t1;
 --disable_metadata
+--enable_view_protocol
 CREATE TABLE t2 AS SELECT CONCAT(s1) FROM t1;
 SHOW CREATE TABLE t2;
 DROP TABLE t1, t2;
@@ -846,6 +850,7 @@ SELECT TABLE_NAME, TABLE_SCHEMA, HEX(TABLE_NAME) FROM INFORMATION_SCHEMA.TABLES 
 DROP TABLE t;
 
 SET NAMES utf8;
+--enable_service_connection
 
 --echo #
 --echo # End of 10.2 tests

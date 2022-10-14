@@ -192,6 +192,8 @@ INSERT INTO t2 VALUES (1000,6,2);
 
 set @@optimizer_switch='materialization=on,partial_match_rowid_merge=on,partial_match_table_scan=off,in_to_exists=off';
 
+#enable after fix MDEV-27871
+--disable_view_protocol
 EXPLAIN
 SELECT (f1, f2, f3) NOT IN
        (SELECT COUNT(DISTINCT f2), f1, f3 FROM t1 GROUP BY f1, f3)
@@ -200,6 +202,8 @@ FROM t2;
 SELECT (f1, f2, f3) NOT IN
        (SELECT COUNT(DISTINCT f2), f1, f3 FROM t1 GROUP BY f1, f3)
 FROM t2;
+
+--enable_view_protocol
 
 drop table t1, t2;
 

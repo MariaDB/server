@@ -5,6 +5,7 @@
 --echo #
 --echo # Test privileges for BACKUP STAGES
 --echo #
+--disable_service_connection
 
 set sql_mode="";
 
@@ -50,3 +51,5 @@ DROP USER user1@localhost, user2@localhost;
 --error ER_SP_BADSTATEMENT
 create procedure foo42()
   BACKUP STAGE START;
+
+--enable_service_connection

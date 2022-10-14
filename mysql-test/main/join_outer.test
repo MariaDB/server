@@ -1368,7 +1368,7 @@ drop table t1,t2,t3,t4;
 --echo # Bug#57024: Poor performance when conjunctive condition over the outer 
 --echo #            table is used in the on condition of an outer join
 --echo # 
-
+--disable_view_protocol
 create table t1 (a int);
 insert into t1 values (NULL), (NULL), (NULL), (NULL);
 insert into t1 select * from t1; 
@@ -1409,6 +1409,7 @@ select sum(t3.b) from t2 left join t3 on t3.a=t2.a and t2.a <> 10;
 show status like "handler_read%";
 
 drop table t1,t2,t3;
+--enable_view_protocol
 
 --echo #
 --echo # Bug#57688 Assertion `!table || (!table->write_set || bitmap_is_set(table->write_set, field
@@ -1887,6 +1888,9 @@ drop table t1,t2,t3;
 --echo # MDEV-11958: LEFT JOIN with stored routine produces incorrect result
 --echo #
 
+#view cannot contains duplicate column name
+--disable_view_protocol
+
 CREATE TABLE t (x INT);
 INSERT INTO t VALUES(1),(NULL);
 CREATE FUNCTION f (val INT, ret INT) RETURNS INT DETERMINISTIC RETURN IFNULL(val, ret);
@@ -1909,6 +1913,7 @@ SELECT t1.x, t2.x, IFNULL(t2.x,0), f(t2.x,0)
                             FROM t t1 LEFT JOIN t t2
                             ON t1.x = t2.x
                             WHERE f(t2.x,0)=0;
+--enable_view_protocol
 
 drop function f;
 drop table t;

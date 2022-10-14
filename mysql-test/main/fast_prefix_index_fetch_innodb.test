@@ -1,4 +1,5 @@
 -- source include/have_innodb.inc
+--disable_service_connection
 
 SET @save_opt= @@GLOBAL.innodb_prefix_index_cluster_optimization;
 set global innodb_prefix_index_cluster_optimization = ON;
@@ -717,3 +718,4 @@ AND path IN ( '/fondsinvesteringer/', '/' );
 DROP TABLE wp_blogs;
 
 SET GLOBAL innodb_prefix_index_cluster_optimization = @save_opt;
+--enable_service_connection
