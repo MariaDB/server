@@ -730,3 +730,14 @@ create table t (a int) engine=myisam;
 create temporary table tm (a int) engine=merge union=(t);
 create or replace table tt like tm;
 drop tables tt, tm, t;
+
+--echo #
+--echo # MDEV-29793 Assertion failure in translog_write_record upon CREATE OR REPLACE
+--echo #
+CREATE TABLE t1 (id INT, f INT, KEY(f), PRIMARY KEY (id)) ENGINE=Aria;
+INSERT INTO t1 VALUES (1,1),(2,7),(3,9);
+CREATE TABLE t2 (a INT) ENGINE=Aria;
+INSERT INTO t2 VALUES (2),(1);
+CREATE OR REPLACE TABLE t3 AS SELECT t2.* FROM t2, t1 WHERE t2.a = t1.f OR t2.a = t1.id;
+# Cleanup
+DROP TABLE t1, t2, t3;
