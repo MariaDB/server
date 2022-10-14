@@ -880,6 +880,7 @@ SELECT * FROM t1 PARTITION (p0);
 UNLOCK TABLES;
 DROP TABLE t1, t2;
 --enable_service_connection
+
 --echo #
 --echo # MDEV-18371 Server crashes in ha_innobase::cmp_ref upon UPDATE with PARTITION clause.
 --echo #
