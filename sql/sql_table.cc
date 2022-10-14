@@ -4477,6 +4477,7 @@ bool HA_CREATE_INFO::finalize_atomic_replace(THD *thd, TABLE_LIST *orig_table)
     param.old_alias= lower_case_table_names == 2 ? orig_table->alias :
                                                    table_name;
     param.new_alias= backup_name.table_name;
+    param.lock_triggers= true;
     if (rename_table_and_triggers(thd, &param, NULL, orig_table,
                                   &backup_name.db, false, &dummy))
     {
@@ -4494,6 +4495,7 @@ bool HA_CREATE_INFO::finalize_atomic_replace(THD *thd, TABLE_LIST *orig_table)
   param.old_version= tabledef_version;
   param.old_alias= tmp_name.table_name;
   param.new_alias= table_name;
+  param.lock_triggers= false;
   ulonglong option_bits_save= thd->variables.option_bits;
   thd->variables.option_bits&= ~OPTION_NO_FOREIGN_KEY_CHECKS;
   if (ddl_log_create_table(ddl_log_state_create, param.from_table_hton,

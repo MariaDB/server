@@ -90,11 +90,13 @@ public:
   bool upgrading50to51;
   bool got_error;
   int rename_flags;
+  bool lock_triggers;
 
   TRIGGER_RENAME_PARAM()
   {
     upgrading50to51= got_error= 0;
     rename_flags= 0;
+    lock_triggers= false;
     table.reset();
   }
   ~TRIGGER_RENAME_PARAM()
@@ -154,6 +156,7 @@ public:
   bool change_on_table_name(void* param_arg);
   bool change_table_name(void* param_arg);
   bool add_to_file_list(void* param_arg);
+  bool lock_trigger(void* param);
 };
 
 typedef bool (Trigger::*Triggers_processor)(void *arg);
@@ -326,6 +329,11 @@ public:
   Trigger *find_trigger(const LEX_CSTRING *name, bool remove_from_list);
 
   Trigger* for_all_triggers(Triggers_processor func, void *arg);
+
+  bool lock_triggers(THD *thd)
+  {
+    return (bool) for_all_triggers(&Trigger::lock_trigger, (void *) thd);
+  }
 
 private:
   bool prepare_record_accessors(TABLE *table);
