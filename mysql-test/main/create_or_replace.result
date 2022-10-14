@@ -575,4 +575,7 @@ CREATE TABLE tm (a INT) ENGINE=MERGE UNION(t);
 CREATE OR REPLACE TABLE t LIKE tm;
 ERROR HY000: Table 'tm' is specified twice, both as a target for 'CREATE' and as a separate source for data
 DROP TABLE IF EXISTS tm, t;
+#
+# End of 10.3 tests
+#
 # End of 10.4 tests

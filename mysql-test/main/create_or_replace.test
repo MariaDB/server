@@ -523,4 +523,8 @@ CREATE OR REPLACE TABLE t LIKE tm;
 # Cleanup
 DROP TABLE IF EXISTS tm, t;
 
+--echo #
+--echo # End of 10.3 tests
+--echo #
+
 --echo # End of 10.4 tests
