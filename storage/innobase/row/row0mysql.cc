@@ -2801,7 +2801,13 @@ row_rename_table_for_mysql(
 				fk_tables);
 
 			if (err != DB_SUCCESS) {
-				if (old_is_tmp) {
+				if (old_is_tmp && fk == RENAME_FK &&
+				    !trx->check_foreigns) {
+					/* Reverting atomic C-O-R from backup,
+					don't warn anything here. */
+					err = DB_SUCCESS;
+					break;
+				} else if (old_is_tmp) {
 					/* In case of copy alter, ignore the
 					loading of foreign key constraint
 					when foreign_key_check is disabled */
