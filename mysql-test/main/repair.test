@@ -1,6 +1,7 @@
 #
 # Test of repair table
 #
+
 --source include/have_sequence.inc
 --source include/default_charset.inc
 
@@ -235,6 +236,7 @@ drop table t1;
 #
 # MDEV-11539 test_if_reopen: Assertion `strcmp(share->unique_file_name,filename) || share->last_version' failed upon select from I_S
 #
+--disable_view_protocol
 CREATE TABLE t1 (i INT) ENGINE=MyISAM;
 INSERT t1 VALUES (1);
 LOCK TABLE t1 WRITE;
@@ -245,7 +247,7 @@ SELECT * FROM INFORMATION_SCHEMA.TABLES;
 SELECT * FROM t1;
 UNLOCK TABLES;
 DROP TABLE t1;
-
+--enable_view_protocol
 --echo # End of 10.0 tests
 
 #

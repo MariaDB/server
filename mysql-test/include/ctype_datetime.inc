@@ -18,6 +18,8 @@ SET time_zone=default;
 
 # TODO: remove "--disable_ps_protocol" when MDEV-5444 is fixed
 --disable_ps_protocol
+#remove "--disable_view_protocol" in 10.6 version
+--disable_view_protocol
 SELECT CHARSET('2013-11-15 00:41:28' - INTERVAL 7 DAY);
 SELECT COERCIBILITY('2013-11-15 00:41:28' - INTERVAL 7 DAY);
 SELECT CHARSET(TIMESTAMP'2013-11-15 00:41:28' - INTERVAL 7 DAY);
@@ -55,3 +57,4 @@ SELECT * FROM t1 WHERE t = CONCAT('2001-01-08 00:00:00',LEFT(RAND(),0)) - INTERV
 SELECT * FROM t1 WHERE t < TIMESTAMP'2013-11-15 00:41:28' - INTERVAL 7 DAY; 
 SELECT * FROM t1 WHERE t = TIMESTAMP'2001-01-08 00:00:00' - INTERVAL 7 DAY;
 DROP TABLE t1;
+--enable_view_protocol

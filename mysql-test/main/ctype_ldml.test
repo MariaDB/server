@@ -3,6 +3,9 @@
 --source include/have_utf16.inc
 --source include/have_utf32.inc
 
+#remove this include after fix MDEV-27871
+--source include/no_view_protocol.inc
+
 --disable_query_log
 call mtr.add_suppression("Charset id.*trying to replace");
 --enable_query_log

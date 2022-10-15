@@ -115,6 +115,7 @@ DROP TABLE t1, t2;
 --echo #
 --echo # Bug#25972285: UNCLEAR ERROR MESSAGE FOR NOWAIT
 --echo #
+--disable_view_protocol
 CREATE USER test@localhost;
 GRANT CREATE, SELECT, UPDATE on *.* to test@localhost;
 
@@ -144,6 +145,7 @@ disconnect con2;
 DROP TABLE t1;
 DROP USER test@localhost;
 DROP USER test2@localhost;
+--enable_view_protocol
 
 --echo #
 --echo # Bug#30237291: "SELECT ... INTO VAR_NAME FOR UPDATE" NOT WORKING IN

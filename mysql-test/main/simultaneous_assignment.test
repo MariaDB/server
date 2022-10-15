@@ -29,7 +29,7 @@ UPDATE t1, t2
 --echo #
 --echo # Check standard update
 --echo #
-
+--disable_view_protocol
 UPDATE t1
    SET c1 = c1+1,
        c2 = c1+1,
@@ -43,6 +43,7 @@ UPDATE t1
        c3 = c2+1;
 SELECT * FROM t1;
 ROLLBACK;
+--enable_view_protocol
 
 --echo #
 --echo # Check update through a single view
@@ -73,7 +74,8 @@ CREATE VIEW v1 (a, b) AS SELECT t1.c1, t2.c1  FROM t1, t2 WHERE t1.c1=t2.c1;
 UPDATE v1
    SET a = 10,
        b = 20;
-
+       
+--disable_view_protocol
 START TRANSACTION;
 UPDATE v1
    SET a = 10;
@@ -116,6 +118,7 @@ UPDATE t1
 SELECT * FROM t1;
 SELECT * FROM t2;
 ROLLBACK;
+--enable_view_protocol
 
 DROP TABLE t1;
 DROP TABLE t2;
