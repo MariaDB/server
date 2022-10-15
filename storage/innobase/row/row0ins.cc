@@ -307,7 +307,7 @@ row_ins_clust_index_entry_by_modify(
 	}
 
 	update = row_upd_build_difference_binary(
-		cursor->index, entry, rec, NULL, true,
+		cursor->index, entry, rec, NULL, true, true,
 		thr_get_trx(thr), heap, mysql_table, &err);
 	if (err != DB_SUCCESS) {
 		return(err);
