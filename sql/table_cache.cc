@@ -219,6 +219,7 @@ static void intern_close_table(TABLE *table)
   DBUG_ASSERT(table->file);
   closefrm(table);
   tdc_release_share(table->s);
+  table->destroy();
   my_free(table);
 }
 

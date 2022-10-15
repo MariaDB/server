@@ -58,15 +58,15 @@ connect (con1, localhost, root,,);
 connect (con2, localhost, root,,);
 
 connection con1;
-set debug_sync='statistics_mem_alloc_start1  WAIT_FOR second_thread_started_too';
-set debug_sync='statistics_mem_alloc_start2  SIGNAL first_thread_working';
+set debug_sync='read_statistics_for_table_start1  WAIT_FOR second_thread_started_too';
+set debug_sync='read_statistics_for_table_start2  SIGNAL first_thread_working';
 use dbt3_s001;
 set use_stat_tables='preferably';
 --send_eval $Q6                                            
 
 connection con2;
-set debug_sync='statistics_mem_alloc_start1  SIGNAL second_thread_started_too';
-set debug_sync='statistics_mem_alloc_start2  WAIT_FOR first_thread_working';
+set debug_sync='read_statistics_for_table_start1  SIGNAL second_thread_started_too';
+set debug_sync='read_statistics_for_table_start2  WAIT_FOR first_thread_working';
 use dbt3_s001;
 set use_stat_tables='preferably';
 --send_eval $Q6

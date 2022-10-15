@@ -2020,6 +2020,7 @@ retry_share:
 
     if (unlikely(error))
     {
+      table->destroy();
       my_free(table);
 
       if (error == OPEN_FRM_DISCOVER)
@@ -2038,6 +2039,7 @@ retry_share:
     if (open_table_entry_fini(thd, share, table))
     {
       closefrm(table);
+      table->destroy();
       my_free(table);
       goto err_lock;
     }

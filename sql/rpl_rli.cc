@@ -1106,6 +1106,7 @@ void Relay_log_info::close_temporary_tables()
         for the same table (TABLE_SHARE).
       */
       closefrm(table);
+      table->destroy();
       my_free(table);
     }
 

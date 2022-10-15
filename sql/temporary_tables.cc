@@ -1126,6 +1126,7 @@ TABLE *THD::open_temporary_table(TMP_TABLE_SHARE *share,
                              (open_options & HA_OPEN_FOR_CREATE)),
                             table, false))
   {
+    table->destroy();
     my_free(table);
     DBUG_RETURN(NULL);
   }
@@ -1240,6 +1241,7 @@ void THD::close_temporary_table(TABLE *table)
                           table, table->alias.c_ptr()));
 
   closefrm(table);
+  table->destroy();
   my_free(table);
 
   if (rgi_slave)

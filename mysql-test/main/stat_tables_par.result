@@ -58,8 +58,8 @@ revenue
 connect  con1, localhost, root,,;
 connect  con2, localhost, root,,;
 connection con1;
-set debug_sync='statistics_mem_alloc_start1  WAIT_FOR second_thread_started_too';
-set debug_sync='statistics_mem_alloc_start2  SIGNAL first_thread_working';
+set debug_sync='read_statistics_for_table_start1  WAIT_FOR second_thread_started_too';
+set debug_sync='read_statistics_for_table_start2  SIGNAL first_thread_working';
 use dbt3_s001;
 set use_stat_tables='preferably';
 select round(sum(l_extendedprice*l_discount),4) as revenue
@@ -69,8 +69,8 @@ and l_shipdate < date '1994-01-01' + interval '1' year
 and l_discount between 0.06 - 0.01 and 0.06 + 0.01
 and l_quantity < 24                                            ;
 connection con2;
-set debug_sync='statistics_mem_alloc_start1  SIGNAL second_thread_started_too';
-set debug_sync='statistics_mem_alloc_start2  WAIT_FOR first_thread_working';
+set debug_sync='read_statistics_for_table_start1  SIGNAL second_thread_started_too';
+set debug_sync='read_statistics_for_table_start2  WAIT_FOR first_thread_working';
 use dbt3_s001;
 set use_stat_tables='preferably';
 select round(sum(l_extendedprice*l_discount),4) as revenue

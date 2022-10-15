@@ -19746,6 +19746,7 @@ bool Virtual_tmp_table::init(uint field_count)
     DBUG_RETURN(true);
   s->reset();
   s->blob_field= blob_field;
+  s->tmp_table= INTERNAL_TMP_TABLE;
   setup_tmp_table_column_bitmaps(this, bitmaps, field_count);
   m_alloced_field_count= field_count;
   DBUG_RETURN(false);
@@ -20449,7 +20450,6 @@ free_tmp_table(THD *thd, TABLE *entry)
   if (entry->temp_pool_slot != MY_BIT_NONE)
     bitmap_lock_clear_bit(&temp_pool, entry->temp_pool_slot);
 
-  plugin_unlock(0, entry->s->db_plugin);
   entry->alias.free();
 
   if (entry->pos_in_table_list && entry->pos_in_table_list->table)
@@ -20457,6 +20457,8 @@ free_tmp_table(THD *thd, TABLE *entry)
     DBUG_ASSERT(entry->pos_in_table_list->table == entry);
     entry->pos_in_table_list->table= NULL;
   }
+
+  free_table_share(entry->s);
 
   free_root(&own_root, MYF(0)); /* the table is allocated in its own root */
   thd_proc_info(thd, save_proc_info);

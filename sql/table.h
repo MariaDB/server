@@ -30,11 +30,13 @@
 #include "handler.h"                /* row_type, ha_choice, handler */
 #include "mysql_com.h"              /* enum_field_types */
 #include "thr_lock.h"                  /* thr_lock_type */
+#include "thr_malloc.h"
 #include "filesort_utils.h"
 #include "parse_file.h"
 #include "sql_i_s.h"
 #include "sql_type.h"               /* vers_kind_t */
 #include "privilege.h"              /* privilege_t */
+#include "memory_helpers.h"
 
 /*
   Buffer for unix timestamp in microseconds:
@@ -633,7 +635,7 @@ class TABLE_STATISTICS_CB
       LOADING, /** data is being loaded in some connection */
       READY    /** data is loaded and available for use */
     };
-    int32 state;
+    int32 state= state_codes::EMPTY;
 
   public:
     /** No state copy */
@@ -691,6 +693,17 @@ class TABLE_STATISTICS_CB
   class Statistics_state hist_state;
 
 public:
+  TABLE_STATISTICS_CB() : table_stats(nullptr), total_hist_size(0)
+  {
+    init_sql_alloc(PSI_INSTRUMENT_ME, &mem_root, TABLE_ALLOC_BLOCK_SIZE,
+                   0, MYF(0));
+  }
+
+  ~TABLE_STATISTICS_CB()
+  {
+    free_root(&mem_root, MYF(0));
+  }
+
   MEM_ROOT  mem_root; /* MEM_ROOT to allocate statistical data for the table */
   Table_statistics *table_stats; /* Structure to access the statistical data */
   ulong total_hist_size;         /* Total size of all histograms */
@@ -749,7 +762,7 @@ struct TABLE_SHARE
   uint	*blob_field;			/* Index to blobs in Field arrray*/
   LEX_CUSTRING vcol_defs;              /* definitions of generated columns */
 
-  TABLE_STATISTICS_CB stats_cb;
+  Shared_ptr<TABLE_STATISTICS_CB> stats_cb;
 
   uchar	*default_values;		/* row with default values */
   LEX_CSTRING comment;			/* Comment about table */
@@ -1551,7 +1564,6 @@ public:
 #endif
   uint max_keys; /* Size of allocated key_info array. */
   bool stats_is_read;     /* Persistent statistics is read for the table */
-  bool histograms_are_read;
   MDL_ticket *mdl_ticket;
 
   /*
@@ -1569,7 +1581,13 @@ public:
   */
   Item *notnull_cond;
 
-  inline void reset() { bzero((void*)this, sizeof(*this)); }
+  Shared_ptr<TABLE_STATISTICS_CB> stats_cb;
+
+  inline void reset()
+  {
+    stats_cb.reset();
+    bzero((void *) this, sizeof(*this));
+  }
   void init(THD *thd, TABLE_LIST *tl);
   bool fill_item_list(List<Item> *item_list) const;
   void reset_item_list(List<Item> *item_list, uint skip) const;
@@ -1800,6 +1818,11 @@ public:
     return field[s->period.end_fieldno];
   }
 
+  /* Specific cleanup steps required during the TABLE destruction */
+  void destroy()
+  {
+    stats_cb.reset();
+  }
 
   ulonglong vers_start_id() const;
   ulonglong vers_end_id() const;

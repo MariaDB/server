@@ -934,6 +934,75 @@ select * from t1 where a=1 and b=3;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	10	10.00	2.78	10.00	Using where
 drop table t1;
+#
+# MDEV-29693 ANALYZE TABLE still flushes table definition cache
+# when engine-independent statistics is used
+#
+create table t1 (a int);
+insert into t1 select seq from seq_0_to_99;
+analyze table t1 persistent for all;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
+explain extended select count(*) from t1 where a < 50;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	100	50.51	Using where
+Warnings:
+Note	1003	select count(0) AS `count(*)` from `test`.`t1` where `test`.`t1`.`a` < 50
+connect  con1, localhost, root,,;
+connection con1;
+explain extended select count(*) from t1 where a < 50;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	100	50.51	Using where
+Warnings:
+Note	1003	select count(0) AS `count(*)` from `test`.`t1` where `test`.`t1`.`a` < 50
+connection default;
+update t1 set a= a +100;
+# Explain shows outdated statistics:
+explain extended select count(*) from t1 where a < 50;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	100	50.51	Using where
+Warnings:
+Note	1003	select count(0) AS `count(*)` from `test`.`t1` where `test`.`t1`.`a` < 50
+connection con1;
+explain extended select count(*) from t1 where a < 50;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	100	50.51	Using where
+Warnings:
+Note	1003	select count(0) AS `count(*)` from `test`.`t1` where `test`.`t1`.`a` < 50
+connection default;
+analyze table t1 persistent for all;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
+# Now explain shows updated statistics:
+explain extended select count(*) from t1 where a < 50;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	100	1.00	Using where
+Warnings:
+Note	1003	select count(0) AS `count(*)` from `test`.`t1` where `test`.`t1`.`a` < 50
+connection con1;
+explain extended select count(*) from t1 where a < 50;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	100	1.00	Using where
+Warnings:
+Note	1003	select count(0) AS `count(*)` from `test`.`t1` where `test`.`t1`.`a` < 50
+connection con1;
+# Run update and analyze in con1:
+update t1 set a= a - 150;
+analyze table t1 persistent for all;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
+connection default;
+# Explain shows updated statistics:
+explain extended select count(*) from t1 where a < 50;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	100	99.22	Using where
+Warnings:
+Note	1003	select count(0) AS `count(*)` from `test`.`t1` where `test`.`t1`.`a` < 50
+disconnect con1;
+drop table t1;
 set @@global.histogram_size=@save_histogram_size;
 # End of 10.4 tests
 set global innodb_stats_persistent= @innodb_stats_persistent_save;

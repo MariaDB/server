@@ -26,3 +26,5 @@ IF(WIN32)
   MY_ADD_TESTS(my_delete LINK_LIBRARIES mysys)
 ENDIF()
 
+MY_ADD_TESTS(memory EXT "cc" LINK_LIBRARIES mysys)
+

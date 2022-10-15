@@ -611,7 +611,11 @@ bool open_and_lock_for_insert_delayed(THD *thd, TABLE_LIST *table_list)
   table_list->mdl_request.ticket= NULL;
 
   if (error || table_list->table)
+  {
+    if (table_list->table)
+      table_list->table->destroy();
     DBUG_RETURN(error);
+  }
 #endif
   /*
     * This is embedded library and we don't have auxiliary
@@ -1145,6 +1149,7 @@ values_loop_end:
     {
       info.copied=values_list.elements;
       end_delayed_insert(thd);
+      table_list->table->destroy();
     }
   }
   else
@@ -1365,6 +1370,7 @@ abort:
       (*ptr)->free();
     if (table_list->table->expr_arena)
       table_list->table->expr_arena->free_items();
+    table_list->table->destroy();
   }
 #endif
   if (table != NULL)
@@ -2795,6 +2801,14 @@ TABLE *Delayed_insert::get_local_table(THD* client_thd)
   bzero((char*) bitmap, share->column_bitmap_size * bitmaps_used);
   copy->read_set=  &copy->def_read_set;
   copy->write_set= &copy->def_write_set;
+  if (table->stats_cb)
+  {
+    /*
+      Make a copy of the table statistics shared pointer to increase the count
+      of references and thus lock the statistics
+    */
+    copy->stats_cb= table->stats_cb;
+  }
 
   DBUG_RETURN(copy);
 
@@ -4438,7 +4452,7 @@ TABLE *select_create::create_table_from_items(THD *thd, List<Item> *items,
     promote_first_timestamp_column(&alter_info->create_list);
 
   if (create_info->fix_create_fields(thd, alter_info, *create_table))
-    DBUG_RETURN(NULL);
+    goto error;
 
   while ((item=it++))
   {
@@ -4446,7 +4460,7 @@ TABLE *select_create::create_table_from_items(THD *thd, List<Item> *items,
                                                            &tmp_table);
 
     if (!tmp_field)
-      DBUG_RETURN(NULL);
+      goto error;
 
     Field *table_field;
 
@@ -4470,7 +4484,7 @@ TABLE *select_create::create_table_from_items(THD *thd, List<Item> *items,
                                   Create_field(thd, tmp_field, table_field);
 
     if (!cr_field)
-      DBUG_RETURN(NULL);
+      goto error;
 
     if (item->maybe_null)
       cr_field->flags &= ~NOT_NULL_FLAG;
@@ -4491,7 +4505,7 @@ TABLE *select_create::create_table_from_items(THD *thd, List<Item> *items,
                                 create_table->table_name,
                                 create_table->db,
                                 select_field_count))
-    DBUG_RETURN(NULL);
+    goto error;
 
   DEBUG_SYNC(thd,"create_table_select_before_create");
 
@@ -4582,7 +4596,7 @@ TABLE *select_create::create_table_from_items(THD *thd, List<Item> *items,
   {
     if (likely(!thd->is_error()))             // CREATE ... IF NOT EXISTS
       my_ok(thd);                             //   succeed, but did nothing
-    DBUG_RETURN(NULL);
+    goto error;
   }
 
   DEBUG_SYNC(thd,"create_table_select_before_lock");
@@ -4620,7 +4634,7 @@ TABLE *select_create::create_table_from_items(THD *thd, List<Item> *items,
       *lock= 0;
     }
     drop_open_table(thd, table, &create_table->db, &create_table->table_name);
-    DBUG_RETURN(0);
+    goto error;
     /* purecov: end */
   }
   table->s->table_creation_was_logged= save_table_creation_was_logged;
@@ -4636,7 +4650,12 @@ TABLE *select_create::create_table_from_items(THD *thd, List<Item> *items,
       thd->is_current_stmt_binlog_format_row())
     thd->variables.binlog_annotate_row_events= 1;
 #endif
+  free_table_share(&share);
   DBUG_RETURN(table);
+
+error:
+  free_table_share(&share);
+  DBUG_RETURN(NULL);
 }
 
 

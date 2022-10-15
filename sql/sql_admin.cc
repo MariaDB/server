@@ -1234,13 +1234,9 @@ send_result_message:
     thd->transaction->stmt.mark_executed_table_admin_cmd();
     if (table->table && !table->view)
     {
-      /*
-        Don't skip flushing if we are collecting EITS statistics.
-      */
       const bool skip_flush=
         (operator_func == &handler::ha_analyze) && 
-        (table->table->file->ha_table_flags() & HA_ONLINE_ANALYZE) &&
-        !collect_eis;
+        (table->table->file->ha_table_flags() & HA_ONLINE_ANALYZE);
       if (table->table->s->tmp_table)
       {
         /*
@@ -1259,6 +1255,15 @@ send_result_message:
         */
         table->table= 0;                        // For query cache
         query_cache_invalidate3(thd, table, 0);
+      }
+      else if (collect_eis && skip_flush)
+      {
+        DBUG_ASSERT(operator_func == &handler::ha_analyze &&
+                    table->table->file->ha_table_flags() & HA_ONLINE_ANALYZE);
+
+        // OLEGS: should we push warning/do something else in case of error
+        // or just ignore it?
+        read_statistics_for_tables(thd, table, true /* force_reload */);
       }
     }
     /* Error path, a admin command failed. */

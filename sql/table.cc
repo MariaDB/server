@@ -353,8 +353,7 @@ TABLE_SHARE *alloc_table_share(const char *db, const char *table_name,
         table_alias_charset->strnncoll(key, 6, "mysql", 6) == 0)
       share->not_usable_by_query_cache= 1;
 
-    init_sql_alloc(PSI_INSTRUMENT_ME, &share->stats_cb.mem_root,
-                   TABLE_ALLOC_BLOCK_SIZE, 0, MYF(0));
+    share->stats_cb.reset(new TABLE_STATISTICS_CB);
 
     memcpy((char*) &share->mem_root, (char*) &mem_root, sizeof(mem_root));
     mysql_mutex_init(key_TABLE_SHARE_LOCK_share,
@@ -432,6 +431,7 @@ void init_tmp_table_share(THD *thd, TABLE_SHARE *share, const char *key,
   share->frm_version= 		 FRM_VER_CURRENT;
   share->not_usable_by_query_cache= 1;
   share->can_do_row_logging= 0;           // No row logging
+  share->stats_cb.reset(new TABLE_STATISTICS_CB);
 
   /*
     table_map_id is also used for MERGE tables to suppress repeated
@@ -461,9 +461,10 @@ void TABLE_SHARE::destroy()
     ha_share= NULL;                             // Safety
   }
 
-  delete_stat_values_for_table_share(this);
   delete sequence;
-  free_root(&stats_cb.mem_root, MYF(0));
+  sequence= NULL;
+  delete_stat_values_for_table_share(this);
+  stats_cb.reset();
 
   /* The mutexes are initialized only for shares that are part of the TDC */
   if (tmp_table == NO_TMP_TABLE)
@@ -478,7 +479,7 @@ void TABLE_SHARE::destroy()
 
   /* Release fulltext parsers */
   info_it= key_info;
-  for (idx= keys; idx; idx--, info_it++)
+  for (idx= keys; idx && info_it; idx--, info_it++)
   {
     if (info_it->flags & HA_USES_PARSER)
     {
