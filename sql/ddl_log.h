@@ -251,6 +251,8 @@ typedef struct st_ddl_log_state
   DDL_LOG_MEMORY_ENTRY *main_entry;
   uint16 flags;                                 /* Cache for flags */
   uint master_chain_pos;
+  /* Don't update execute_entry while accumulating atomic block of entries */
+  bool atomic_block;
   bool is_active() { return list != 0; }
 } DDL_LOG_STATE;
 
@@ -355,5 +357,7 @@ bool ddl_log_store_query(THD *thd, DDL_LOG_STATE *ddl_log_state,
                          const char *query, size_t length);
 bool ddl_log_delete_frm(DDL_LOG_STATE *ddl_state, const char *to_path);
 bool ddl_log_link_chains(DDL_LOG_STATE *state, DDL_LOG_STATE *master_state);
+void ddl_log_start_atomic_block(DDL_LOG_STATE *state);
+bool ddl_log_commit_atomic_block(DDL_LOG_STATE *state);
 extern mysql_mutex_t LOCK_gdl;
 #endif /* DDL_LOG_INCLUDED */

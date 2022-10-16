@@ -3089,10 +3089,12 @@ static bool ddl_log_write(DDL_LOG_STATE *ddl_state,
   DBUG_ENTER("ddl_log_write");
 
   mysql_mutex_lock(&LOCK_gdl);
-  error= ((ddl_log_write_entry(ddl_log_entry, &log_entry)) ||
-          ddl_log_write_execute_entry(log_entry->entry_pos,
-                                      ddl_state->master_chain_pos,
-                                      &ddl_state->execute_entry));
+  error= ddl_log_write_entry(ddl_log_entry, &log_entry);
+
+  if (!error && !ddl_state->atomic_block)
+    error= ddl_log_write_execute_entry(log_entry->entry_pos,
+                                       ddl_state->master_chain_pos,
+                                       &ddl_state->execute_entry);
   mysql_mutex_unlock(&LOCK_gdl);
   if (error)
   {
@@ -3689,4 +3691,30 @@ bool ddl_log_link_chains(DDL_LOG_STATE *state, DDL_LOG_STATE *master_state)
   DBUG_ASSERT(master_state->execute_entry);
   state->master_chain_pos= master_state->execute_entry->entry_pos;
   return false;
+}
+
+/*
+  Don't update execute_entry until commit_atomic_block()
+*/
+
+void ddl_log_start_atomic_block(DDL_LOG_STATE *state)
+{
+  DBUG_ASSERT(!state->atomic_block);
+  state->atomic_block= true;
+}
+
+/*
+  Finish atomic block, update execute_entry.
+*/
+
+bool ddl_log_commit_atomic_block(DDL_LOG_STATE *state)
+{
+  DBUG_ASSERT(state->atomic_block);
+  mysql_mutex_lock(&LOCK_gdl);
+  bool error= ddl_log_write_execute_entry(state->list->entry_pos,
+                                          state->master_chain_pos,
+                                          &state->execute_entry);
+  mysql_mutex_unlock(&LOCK_gdl);
+  state->atomic_block= false;
+  return error;
 }
