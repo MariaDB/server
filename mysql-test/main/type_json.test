@@ -80,12 +80,14 @@ CREATE TABLE t1 (
   js2 TEXT CHECK (LENGTH(js2) > 0 AND JSON_VALID(js2)),
   js3 TEXT CHECK (LENGTH(js2) > 0 OR JSON_VALID(js2))
 ) CHARACTER SET utf8;
+--disable_view_protocol
 --disable_ps_protocol
 --enable_metadata
 SELECT * FROM t1;
 SELECT js0, JSON_COMPACT(js0), JSON_COMPACT('{}') FROM t1;
 --disable_metadata
 --enable_ps_protocol
+--enable_view_protocol
 DROP TABLE t1;
 
 
@@ -95,6 +97,7 @@ DROP TABLE t1;
 
 CREATE TABLE t1 (a JSON);
 INSERT INTO t1 VALUES ('{"a":"b"}');
+--disable_view_protocol
 --disable_ps_protocol
 --enable_metadata
 SELECT a, JSON_COMPACT(a), COALESCE(a) FROM t1;
@@ -102,6 +105,7 @@ SELECT JSON_ARRAYAGG(1), JSON_ARRAYAGG(a) FROM t1;
 SELECT JSON_OBJECTAGG('a','b'), JSON_OBJECTAGG('a',a) FROM t1;
 --disable_metadata
 --disable_ps_protocol
+--enable_view_protocol
 DROP TABLE t1;
 
 
@@ -109,12 +113,13 @@ DROP TABLE t1;
 --echo # MDEV-27018 IF and COALESCE lose "json" property
 --echo #
 
+--disable_view_protocol
 --disable_ps_protocol
 --enable_metadata
 SELECT json_object('a', (SELECT json_objectagg(b, c) FROM (SELECT 'b','c') d)) AS j FROM DUAL;
 --disable_metadata
 --disable_ps_protocol
-
+--enable_view_protocol
 
 --echo #
 --echo # End of 10.5 tests

@@ -4501,6 +4501,10 @@ create or replace view v1 as select 3 BETWEEN 1 AND 2 AND NULL, 3 BETWEEN (1 AND
 Select view_definition from information_schema.views where table_schema='test' and table_name='v1';
 select 3 BETWEEN 1 AND 2 AND NULL, 3 BETWEEN (1 AND 2) AND NULL, 3 BETWEEN 1 AND (2 AND NULL), (3 BETWEEN 1 AND 2) AND NULL union select * from v1;
 
+# Looks like it is necessary that the view protocol uses the same connection,
+# not util connection
+--disable_service_connection
+
 set sql_mode=PIPES_AS_CONCAT;
 create or replace view v1 as select 2 OR 3 || 3, 2 OR (3 || 3), (2 OR 3) || 3;
 Select view_definition from information_schema.views where table_schema='test' and table_name='v1';
@@ -4787,5 +4791,7 @@ Select view_definition from information_schema.views where table_schema='test' a
 
 create or replace view v1 as select 2 IS TRUE = 3, 2 IS FALSE = 3, 2 IS UNKNOWN = 3, 2 IS NULL = 3, ISNULL(2) = 1;
 Select view_definition from information_schema.views where table_schema='test' and table_name='v1';
+
+--enable_service_connection
 
 drop view v1;

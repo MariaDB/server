@@ -20,6 +20,9 @@
 --echo # then call a DDL operation on a procedure, and then check
 --echo # that the savepoint is no longer present.
 
+# Tests will be skipped for the view protocol
+-- source include/no_view_protocol.inc
+
 --disable_warnings
 drop table if exists t1;
 drop procedure if exists p1;

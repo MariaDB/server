@@ -139,10 +139,12 @@ DROP TABLE t1;
 # Bug 19491 (CAST DATE AS DECIMAL returns incorrect result
 #
 SELECT CAST(CAST('2006-08-10' AS DATE) AS DECIMAL(20,6));
+#enable after fix MDEV-27871
+--disable_view_protocol
 SELECT CAST(CAST('2006-08-10 10:11:12' AS DATETIME(6)) AS DECIMAL(20,6));
 SELECT CAST(CAST('2006-08-10 10:11:12' AS DATETIME(6)) + INTERVAL 14 MICROSECOND AS DECIMAL(20,6));
 SELECT CAST(CAST('10:11:12.098700' AS TIME(6)) AS DECIMAL(20,6));
-
+--disable_view_protocol
 
 #
 # Test of storing datetime into date fields
@@ -250,7 +252,10 @@ select least(cast('01-01-01' as date), '01-01-02') + 0;
 select greatest(cast('01-01-01' as date), '01-01-02') + 0;
 select least(cast('01-01-01' as datetime), '01-01-02') + 0;
 select cast(least(cast('01-01-01' as datetime), '01-01-02') as signed);
+#enable after fix MDEV-27871
+--disable_view_protocol
 select cast(least(cast('01-01-01' as datetime), '01-01-02') as decimal(16,2));
+--enable_view_protocol
 --disable_warnings
 DROP PROCEDURE IF EXISTS test27759 ;
 --enable_warnings
@@ -359,6 +364,7 @@ drop table t1;
 #
 # Bug #32694: NOT NULL table field in a subquery produces invalid results
 #
+--disable_view_protocol
 create table t1 (id int(10) not null, cur_date datetime not null);
 create table t2 (id int(10) not null, cur_date date not null);
 insert into t1 (id, cur_date) values (1, '2007-04-25 18:30:22');
@@ -398,6 +404,7 @@ SET optimizer_switch=@save_optimizer_switch;
 
 drop table t1,t2;
 
+--enable_view_protocol
 
 #
 # Bug #37526: asymertic operator <=> in trigger
@@ -438,6 +445,9 @@ create table t1 (da date default '1962-03-32 23:33:34', dt datetime default '196
 create table t1 (t time default '916:00:00 a');
 set @@sql_mode= @org_mode;
 
+#enable after fix MDEV-27871
+--disable_view_protocol
+
 #
 # Bug #42146 - DATETIME fractional seconds parse error
 #
@@ -449,11 +459,13 @@ SELECT CAST(CAST('00000002006-000008-0000010 000010:0000011:00000012.0123450' AS
 # once more with feeling (but no warnings)
 SELECT CAST(CAST('00000002006-000008-0000010 000010:0000011:00000012.012345'  AS DATETIME(6)) AS DECIMAL(30,7));
 
+
 #
 # Bug #38435 - LONG Microseconds cause MySQL to fail a CAST to DATETIME or DATE
 #
 # show we truncate microseconds from the right
 SELECT CAST(CAST('2008-07-29T10:42:51.1234567' AS DateTime(6)) AS DECIMAL(30,7));
+--enable_view_protocol
 
 --echo # 
 --echo # Bug#59173: Failure to handle DATE(TIME) values where Year, Month or
@@ -496,8 +508,10 @@ drop table t1,t2;
 --echo #
 --echo # MDEV-4634 Crash in CONVERT_TZ
 --echo #
+#enable after fix MDEV-27871
+--disable_view_protocol
 SELECT CONVERT_TZ(GREATEST(TIMESTAMP('2021-00-00'),TIMESTAMP('2022-00-00')),'+00:00','+7:5');
-
+--enable_view_protocol
 
 --echo #
 --echo # MDEV-5041 Inserting a TIME with hour>24 into a DATETIME column produces a wrong value
@@ -658,7 +672,10 @@ SELECT CAST(TIME'00:00:00.000001' AS DATETIME(6));
 SELECT CAST(CAST('10:20:30' AS TIME) AS DATETIME);
 SELECT CAST(CAST('00:00:00.000001' AS TIME(6)) AS DATETIME(6));
 SELECT CAST(CAST(TIMESTAMP'0000-00-00 10:20:30' AS TIME) AS DATETIME);
+#enable after fix MDEV-27871
+--disable_view_protocol
 SELECT CAST(CAST(TIMESTAMP'0000-00-00 00:00:00.000001' AS TIME(6)) AS DATETIME(6));
+--enable_view_protocol
 SET old_mode=DEFAULT;
 SET sql_mode=DEFAULT;
 
@@ -683,9 +700,11 @@ SET timestamp=UNIX_TIMESTAMP('2015-01-01 00:00:00');
 CREATE TABLE t1 (a TIME);
 INSERT INTO t1 VALUES ('00:00:00'),('00:01:00');
 --disable_ps_protocol
+--disable_view_protocol
 --enable_metadata
 SELECT MAX(CAST(a AS DATETIME)) FROM t1;
 --disable_metadata
+--enable_view_protocol
 --enable_ps_protocol
 CREATE TABLE t2 AS SELECT MAX(CAST(a AS DATETIME)) FROM t1;
 SHOW CREATE TABLE t2;

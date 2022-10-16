@@ -155,6 +155,7 @@ delimiter ;|
 
 grant execute on function f1 to bar@localhost;
 
+--disable_view_protocol
 connection con_foo;
 set optimizer_trace='enabled=on';
 select * from db1.t1;
@@ -186,6 +187,7 @@ select f1(a) from db1.t1;
 --echo #
 select query, INSUFFICIENT_PRIVILEGES from information_schema.OPTIMIZER_TRACE;
 set optimizer_trace='enabled=off';
+--enable_view_protocol
 
 connection default;
 select current_user();

@@ -89,6 +89,7 @@ DROP PROCEDURE p1;
 --echo # DEFINER root, SQL SECURITY INVOKER
 --echo #
 
+--disable_service_connection
 connection default;
 DELIMITER $$;
 CREATE PROCEDURE p1()
@@ -160,7 +161,7 @@ DROP PROCEDURE p1;
 --echo # Stored function: Using TYPE OF for with a table that we don't have access to
 --echo # DEFINER user1, SQL SECURITY DEFAULT
 --echo #
-
+--disable_view_protocol
 CREATE TABLE t1 (a INT);
 DELIMITER $$;
 CREATE FUNCTION f1() RETURNS INT
@@ -197,7 +198,7 @@ connection conn1;
 SELECT f1();
 DROP FUNCTION f1;
 DROP TABLE t1;
-
+--enable_view_protocol
 
 --echo #
 --echo # Stored function: Using TYPE OF for with a table that we don't have access to
@@ -269,7 +270,7 @@ INSERT INTO t1 (a) VALUES (10);
 SELECT * FROM t1;
 DROP TRIGGER tr1;
 DROP TABLE t1;
-
+--enable_service_connection
 
 
 --echo #

@@ -110,7 +110,9 @@ insert into t1 values ('Y');
 alter table t1 add b set ('Y','N') CHARACTER SET utf8 COLLATE utf8_bin;
 alter table t1 add c enum ('Y','N') CHARACTER SET utf8 COLLATE utf8_bin;
 --enable_metadata
+--disable_view_protocol
 select * from t1;
+--enable_view_protocol
 --disable_metadata
 drop table t1;
 
@@ -234,7 +236,9 @@ CREATE TABLE t1 (
 ) ENGINE=MyISAM;
 INSERT INTO t1 VALUES (1),(2);
 --enable_metadata
+--disable_view_protocol
 SELECT AVG(f1) FROM t1;
+--enable_view_protocol
 --disable_metadata
 drop table t1;
 
@@ -571,11 +575,13 @@ CREATE OR REPLACE TABLE t2 AS SELECT COALESCE(c_int, c_enum)  FROM t1;
 SHOW CREATE TABLE t2;
 DROP TABLE t2;
 
+--disable_view_protocol
 --disable_ps_protocol
 --enable_metadata
 SELECT c_int FROM t1 UNION SELECT c_enum FROM t1;
 SELECT COALESCE(c_int, c_enum)  FROM t1;
 --disable_metadata
 --enable_ps_protocol
+--enable_view_protocol
 
 DROP TABLE t1;

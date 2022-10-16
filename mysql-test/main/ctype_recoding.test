@@ -74,11 +74,13 @@ SHOW TABLES IN РЕЯР;
 SET CHARACTER SET koi8r;
 DROP DATABASE тест;
 
+# Enable view protocol after fix MDEV-27944
+--disable_view_protocol
 SET NAMES koi8r;
 SELECT hex('тест');
 SET character_set_connection=cp1251;
 SELECT hex('тест');
-
+--enable_view_protocol
 USE test;
 
 # Bug#4417
@@ -94,9 +96,12 @@ DROP TABLE `я┌п╣я│я┌`;
 SET NAMES binary;
 SET character_set_connection=utf8;
 SELECT 'я┌п╣я│я┌' as s;
+# enable view-protocol in 10.6 version
+--disable_view_protocol
 SET NAMES utf8;
 SET character_set_connection=binary;
 SELECT 'я┌п╣я│я┌' as s;
+--enable_view_protocol
 
 # Bug#4417, another aspect:
 # Check that both "SHOW CREATE TABLE" and "SHOW COLUMNS"
@@ -173,6 +178,8 @@ drop table t1;
 #
 # Check more automatic conversion
 #
+# Enable view protocol after fix MDEV-28017
+--disable_view_protocol
 set names koi8r;
 create table t1 (c1 char(10) character set cp1251);
 insert into t1 values ('ъ');
@@ -197,7 +204,8 @@ select rpad(c1,3,'Ж'), rpad('Ж',3,c1) from t1;
 #select case c1 when 'ъ' then 'ъ' when 'Ж' then 'Ж' else 'c' end from t1;
 #select export_set(5,c1,'Ж'), export_set(5,'Ж',c1) from t1;
 drop table t1;
- 
+--enable_view_protocol
+
 #
 # Bug 20695: problem with field default value's character set
 #

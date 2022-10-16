@@ -1,4 +1,5 @@
 # This test is checking that old password authentication works
+--disable_service_connection
 set global secure_auth=0;
 #
 # functional change user tests
@@ -149,3 +150,4 @@ select year(now()) > 2011;
 --echo change_user
 --change_user
 select year(now()) > 2011;
+--enable_service_connection
