@@ -913,12 +913,10 @@ Warning	1265	Data truncated for column 'stat_description' at row 2
 Warning	1265	Data truncated for column 'stat_description' at row 3
 lock table t write;
 create or replace table t (y int);
-ERROR HY000: Error on rename of './test/t' to './test/#sql-backup-t' (errno: 168 "Unknown (generic) error from engine")
 unlock tables;
 alter table mysql.innodb_index_stats modify stat_description varchar(1024) not null;
 select * from t;
-x
-77
+y
 drop table t;
 set sql_mode= default;
 #

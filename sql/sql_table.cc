@@ -4423,14 +4423,21 @@ bool HA_CREATE_INFO::finalize_atomic_replace(THD *thd, TABLE_LIST *orig_table)
   char path[FN_REFLEN + 1];
   cpath.str= path;
   bool locked_tables_decremented= false;
+  bool backed_old= true;
+  DDL_LOG_MEMORY_ENTRY *restore_backup;
 
   DBUG_ASSERT(is_atomic_replace());
 
   debug_crash_here("ddl_log_create_before_install_new");
+  /* If old table exists, rename it to backup_name */
   if (old_hton)
   {
-    /* Old table exists, rename it to backup_name */
-    ddl_log_link_chains(ddl_log_state_rm, ddl_log_state_create);
+    /*
+      Cleanup chain (ddl_log_state_rm) will not be executed unless
+      rollback chain (ddl_log_state_create) is active.
+    */
+    if (ddl_log_link_chains(ddl_log_state_rm, ddl_log_state_create))
+      return true;
 
     cpath.length= build_table_filename(path, sizeof(path) - 1,
                                        backup_name.db.str,
@@ -4451,12 +4458,14 @@ bool HA_CREATE_INFO::finalize_atomic_replace(THD *thd, TABLE_LIST *orig_table)
                               DDL_RENAME_PHASE_TRIGGER,
                               DDL_LOG_FLAG_FROM_IS_TMP))
       return true;
+    restore_backup= ddl_log_state_create->main_entry;
 
     debug_crash_here("ddl_log_create_after_log_rename_backup");
 
     if (thd->locked_tables_mode == LTM_LOCK_TABLES ||
         thd->locked_tables_mode == LTM_PRELOCKED_UNDER_LOCK_TABLES)
     {
+      /* NOTE: wait_while_table_is_used() was done in in create_table_impl(). */
       DBUG_ASSERT(thd->mdl_context.is_lock_owner(MDL_key::TABLE, db.str,
                                                  table_name.str,
                                                  MDL_EXCLUSIVE));
@@ -4478,13 +4487,68 @@ bool HA_CREATE_INFO::finalize_atomic_replace(THD *thd, TABLE_LIST *orig_table)
                                                    table_name;
     param.new_alias= backup_name.table_name;
     param.lock_triggers= true;
+    Dummy_error_handler suppress_errors;
+    /*
+      Suppress warnings for rename to backup. If something fails we drop the
+      old table and the warnings are shown in mysql_rm_table_no_locks().
+    */
+    thd->push_internal_handler(&suppress_errors);
     if (rename_table_and_triggers(thd, &param, NULL, orig_table,
                                   &backup_name.db, false, &dummy))
     {
-      if (locked_tables_decremented)
-        thd->locked_tables_list.add_back_last_deleted_lock(pos_in_locked_tables);
-      return true;
+      debug_crash_here("ddl_log_replace_broken_1");
+      thd->pop_internal_handler();
+      /*
+        Something is wrong with the old table! But C-O-R is almost done,
+        so we finish it anyway by dropping the old table and applying new table.
+      */
+      if (ddl_log_rename_table(ddl_log_state_create, db_type,
+                               &db, &table_name,
+                               &tmp_name.db, &tmp_name.table_name,
+                               DDL_RENAME_PHASE_TRIGGER,
+                               DDL_LOG_FLAG_FROM_IS_TMP))
+        return true;
+
+      debug_crash_here("ddl_log_replace_broken_2");
+      /* We don't need restore from backup entry anymore, disabling it */
+      ddl_log_state_create->main_entry= restore_backup;
+      ddl_log_update_phase(ddl_log_state_create, DDL_LOG_FINAL_PHASE);
+      debug_crash_here("ddl_log_replace_broken_3");
+
+      /*
+        mysql_rm_table_no_locks() does its own DDL logging but it cannot add
+        to existing chain (ddl_log_drop_table_init() overwrites execute entry).
+        So we organize the separate chain drop_broken_table for that and link
+        the rollback chain so drop_broken_table will be executed first.
+      */
+      DDL_LOG_STATE drop_broken_table;
+      bzero(&drop_broken_table, sizeof(drop_broken_table));
+      if (ddl_log_link_chains(ddl_log_state_create, &drop_broken_table))
+      {
+        if (locked_tables_decremented)
+          thd->locked_tables_list.add_back_last_deleted_lock(pos_in_locked_tables);
+        return true;
+      }
+      debug_crash_here("ddl_log_replace_broken_4");
+
+      TABLE_LIST table_list;
+      table_list.init_one_table(&db, &table_name, 0, TL_WRITE);
+
+      enum_locked_tables_mode ltm_save= thd->locked_tables_mode;
+      thd->locked_tables_mode= LTM_NONE;
+      if (mysql_rm_table_no_locks(thd, &table_list, &thd->db, &drop_broken_table,
+                                  0, 0, 0, 0, 1, 1))
+      {
+        thd->locked_tables_mode= ltm_save;
+        if (locked_tables_decremented)
+          thd->locked_tables_list.add_back_last_deleted_lock(pos_in_locked_tables);
+        return true;
+      }
+      thd->locked_tables_mode= ltm_save;
+      backed_old= false;
     }
+    else
+      thd->pop_internal_handler();
     debug_crash_here("ddl_log_create_after_save_backup");
   }
 
@@ -4498,8 +4562,9 @@ bool HA_CREATE_INFO::finalize_atomic_replace(THD *thd, TABLE_LIST *orig_table)
   param.lock_triggers= false;
   ulonglong option_bits_save= thd->variables.option_bits;
   thd->variables.option_bits&= ~OPTION_NO_FOREIGN_KEY_CHECKS;
-  if (ddl_log_create_table(ddl_log_state_create, param.from_table_hton,
-                           &cpath, &db, &table_name, false) ||
+  if ((backed_old &&
+       ddl_log_create_table(ddl_log_state_create, param.from_table_hton,
+                           &cpath, &db, &table_name, false)) ||
       rename_table_and_triggers(thd, &param, NULL, &tmp_name, &db, false,
                                 &dummy))
   {
@@ -4792,7 +4857,15 @@ int create_table_impl(THD *thd,
             if (!create_info->table)
             {
               if (open_table(thd, &table_list, &ot_ctx))
-                goto err;
+              {
+                thd->clear_error();
+                /*
+                  Remove from cache, otherwise that broken share will be used
+                  by normal CREATE .. SELECT and it will fail on open_table().
+                */
+                tdc_remove_table(thd, orig_db.str, orig_table_name.str);
+                goto skip_foreign_check;
+              }
               table= table_list.table;
             }
             FOREIGN_KEY_INFO *fk;
@@ -4809,6 +4882,7 @@ int create_table_impl(THD *thd,
               goto err;
             }
           }
+skip_foreign_check:
 
           if (thd->locked_tables_mode == LTM_LOCK_TABLES ||
               thd->locked_tables_mode == LTM_PRELOCKED_UNDER_LOCK_TABLES)
@@ -5594,6 +5668,10 @@ mysql_rename_table(handlerton *base, const LEX_CSTRING *old_db,
     }
     else
       log_query= true;
+  }
+  else if (file && error)
+  {
+    file->ha_rename_table(to_base, from_base);
   }
   if (!error && log_query && !(flags & (FN_TO_IS_TMP | FN_FROM_IS_TMP)))
   {

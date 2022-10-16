@@ -2832,7 +2832,8 @@ int ddl_log_execute_recovery()
 
       uint cond_entry= (uint)(ddl_log_entry.unique_id >> DDL_LOG_RETRY_BITS);
 
-      if (cond_entry && is_execute_entry_active(cond_entry))
+      if ((cond_entry && is_execute_entry_active(cond_entry)) ||
+          !ddl_log_entry.next_entry)
       {
         if (disable_execute_entry(i))
           error= -1;
@@ -3672,8 +3673,20 @@ bool ddl_log_delete_frm(DDL_LOG_STATE *ddl_state, const char *to_path)
    CREATE OR REPLACE ... is used.
 */
 
-void ddl_log_link_chains(DDL_LOG_STATE *state, DDL_LOG_STATE *master_state)
+bool ddl_log_link_chains(DDL_LOG_STATE *state, DDL_LOG_STATE *master_state)
 {
+  if (!master_state->execute_entry)
+  {
+    mysql_mutex_lock(&LOCK_gdl);
+    if (ddl_log_write_execute_entry(0, master_state->master_chain_pos,
+                                    &master_state->execute_entry))
+    {
+      mysql_mutex_unlock(&LOCK_gdl);
+      return true;
+    }
+    mysql_mutex_unlock(&LOCK_gdl);
+  }
   DBUG_ASSERT(master_state->execute_entry);
   state->master_chain_pos= master_state->execute_entry->entry_pos;
+  return false;
 }

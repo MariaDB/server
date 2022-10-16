@@ -699,9 +699,6 @@ create table t (x int) engine innodb;
 insert into t values (77);
 alter table mysql.innodb_index_stats modify stat_description char(10);
 lock table t write;
---replace_regex /#sql-backup-.+-.+-/#sql-backup-/
---replace_result $MYSQLD_DATADIR ./
---error ER_ERROR_ON_RENAME
 create or replace table t (y int);
 # cleanup
 unlock tables;
