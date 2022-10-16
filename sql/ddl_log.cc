@@ -3194,6 +3194,7 @@ static bool ddl_log_drop_init(DDL_LOG_STATE *ddl_state,
 
   DDL_LOG_MEMORY_ENTRY *main_entry_save= ddl_state->main_entry;
   bool result= ddl_log_write(ddl_state, &ddl_log_entry);
+  ddl_state->drop_init_entry= ddl_state->list;
   ddl_state->main_entry= main_entry_save;
 
   DBUG_RETURN(result);
@@ -3248,6 +3249,7 @@ static bool ddl_log_drop(DDL_LOG_STATE *ddl_state,
   DBUG_ENTER("ddl_log_drop");
 
   DBUG_ASSERT(ddl_state->list);
+  DBUG_ASSERT(ddl_state->drop_init_entry);
   DBUG_ASSERT(action_code == DDL_LOG_DROP_TABLE_ACTION ||
               action_code == DDL_LOG_DROP_VIEW_ACTION);
   bzero(&ddl_log_entry, sizeof(ddl_log_entry));
@@ -3269,7 +3271,7 @@ static bool ddl_log_drop(DDL_LOG_STATE *ddl_state,
     goto error;
 
   (void) ddl_log_sync_no_lock();
-  if (update_next_entry_pos(ddl_state->list->entry_pos,
+  if (update_next_entry_pos(ddl_state->drop_init_entry->entry_pos,
                             log_entry->entry_pos))
   {
     ddl_log_release_memory_entry(log_entry);
@@ -3278,6 +3280,7 @@ static bool ddl_log_drop(DDL_LOG_STATE *ddl_state,
 
   mysql_mutex_unlock(&LOCK_gdl);
   ddl_log_add_entry(ddl_state, log_entry);
+  ddl_state->list= ddl_state->drop_init_entry;
   DBUG_RETURN(0);
 
 error:
@@ -3713,11 +3716,12 @@ void ddl_log_start_atomic_block(DDL_LOG_STATE *state)
   Finish atomic block, update execute_entry.
 */
 
-bool ddl_log_commit_atomic_block(DDL_LOG_STATE *state)
+bool ddl_log_commit_atomic_block(DDL_LOG_STATE *state, uint entry_pos)
 {
-  DBUG_ASSERT(state->atomic_block);
+  if (!state->atomic_block)
+    return false;
   mysql_mutex_lock(&LOCK_gdl);
-  bool error= ddl_log_write_execute_entry(state->list->entry_pos,
+  bool error= ddl_log_write_execute_entry(entry_pos,
                                           state->master_chain_pos,
                                           &state->execute_entry);
   mysql_mutex_unlock(&LOCK_gdl);

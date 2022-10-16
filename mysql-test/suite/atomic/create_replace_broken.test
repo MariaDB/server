@@ -22,8 +22,6 @@ let $MYSQLD_DATADIR= `SELECT @@datadir`;
 let $crash_count=13;
 let $crash_points='ddl_log_replace_broken_1',
                   'ddl_log_replace_broken_2',
-                  'ddl_log_replace_broken_3',
-                  'ddl_log_replace_broken_4',
                   'ddl_log_drop_before_delete_table',
                   'ddl_log_drop_after_delete_table',
                   'ddl_log_drop_before_drop_trigger',
@@ -31,6 +29,8 @@ let $crash_points='ddl_log_replace_broken_1',
                   'ddl_log_drop_after_drop_trigger',
                   'ddl_log_drop_before_binlog',
                   'ddl_log_drop_after_binlog',
+                  'ddl_log_replace_broken_3',
+                  'ddl_log_replace_broken_4',
                   'ddl_log_create_after_save_backup',
                   'ddl_log_create_after_install_new';
 

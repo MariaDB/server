@@ -1681,7 +1681,8 @@ int mysql_rm_table_no_locks(THD *thd, TABLE_LIST *tables,
       else
         res= ddl_log_drop_table(ddl_log_state, hton, &cpath, &db,
                                 &table_name, 0);
-      if (res)
+      if (res || ddl_log_commit_atomic_block(ddl_log_state,
+                                             ddl_log_state->drop_init_entry->entry_pos))
       {
         error= -1;
         goto err;
@@ -1767,7 +1768,9 @@ int mysql_rm_table_no_locks(THD *thd, TABLE_LIST *tables,
       */
       ddl_log_disable_entry(ddl_log_state);
       if (ddl_log_drop_table(ddl_log_state, 0, &cpath, &db,
-                             &table_name, 0))
+                             &table_name, 0) ||
+          ddl_log_commit_atomic_block(ddl_log_state,
+                                      ddl_log_state->drop_init_entry->entry_pos))
       {
         error= -1;
         goto err;
@@ -4515,20 +4518,17 @@ bool HA_CREATE_INFO::finalize_atomic_replace(THD *thd, TABLE_LIST *orig_table)
         return true;
       }
 
-      cpath.length= build_table_filename(path, sizeof(path) - 1, db.str,
-                                         table_name.str, "", 0);
+      debug_crash_here("ddl_log_replace_broken_4");
 
-      if (ddl_log_drop_table_init(ddl_log_state_create, &db, &empty_clex_str) ||
-          ddl_log_drop_table(ddl_log_state_create, old_hton, &cpath,
-                            &db, &table_name, 0))
-      {
-        if (locked_tables_decremented)
-          thd->locked_tables_list.add_back_last_deleted_lock(pos_in_locked_tables);
-        return true;
-      }
+      TABLE_LIST table_list;
+      table_list.init_one_table(&db, &table_name, 0, TL_WRITE);
 
-      if (ddl_log_commit_atomic_block(ddl_log_state_create))
+      enum_locked_tables_mode ltm_save= thd->locked_tables_mode;
+      thd->locked_tables_mode= LTM_NONE;
+      if (mysql_rm_table_no_locks(thd, &table_list, &thd->db, ddl_log_state_create,
+                                  0, 0, 0, 0, 1, 1))
       {
+        thd->locked_tables_mode= ltm_save;
         if (locked_tables_decremented)
           thd->locked_tables_list.add_back_last_deleted_lock(pos_in_locked_tables);
         return true;
@@ -4540,35 +4540,6 @@ bool HA_CREATE_INFO::finalize_atomic_replace(THD *thd, TABLE_LIST *orig_table)
       ddl_log_update_phase(ddl_log_state_create, DDL_LOG_FINAL_PHASE);
       debug_crash_here("ddl_log_replace_broken_3");
 
-      /*
-        mysql_rm_table_no_locks() does its own DDL logging but it cannot add
-        to existing chain (ddl_log_drop_table_init() overwrites execute entry).
-        So we organize the separate chain drop_broken_table for that and link
-        the rollback chain so drop_broken_table will be executed first.
-      */
-      DDL_LOG_STATE drop_broken_table;
-      bzero(&drop_broken_table, sizeof(drop_broken_table));
-      if (ddl_log_link_chains(&drop_broken_table, ddl_log_state_create))
-      {
-        if (locked_tables_decremented)
-          thd->locked_tables_list.add_back_last_deleted_lock(pos_in_locked_tables);
-        return true;
-      }
-      debug_crash_here("ddl_log_replace_broken_4");
-
-      TABLE_LIST table_list;
-      table_list.init_one_table(&db, &table_name, 0, TL_WRITE);
-
-      enum_locked_tables_mode ltm_save= thd->locked_tables_mode;
-      thd->locked_tables_mode= LTM_NONE;
-      if (mysql_rm_table_no_locks(thd, &table_list, &thd->db, &drop_broken_table,
-                                  0, 0, 0, 0, 1, 1))
-      {
-        thd->locked_tables_mode= ltm_save;
-        if (locked_tables_decremented)
-          thd->locked_tables_list.add_back_last_deleted_lock(pos_in_locked_tables);
-        return true;
-      }
       thd->locked_tables_mode= ltm_save;
       backed_old= false;
     }

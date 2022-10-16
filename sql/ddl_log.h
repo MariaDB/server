@@ -249,6 +249,7 @@ typedef struct st_ddl_log_state
     case of a query log event, this points to the main event.
   */
   DDL_LOG_MEMORY_ENTRY *main_entry;
+  DDL_LOG_MEMORY_ENTRY *drop_init_entry;
   uint16 flags;                                 /* Cache for flags */
   uint master_chain_pos;
   /* Don't update execute_entry while accumulating atomic block of entries */
@@ -358,6 +359,6 @@ bool ddl_log_store_query(THD *thd, DDL_LOG_STATE *ddl_log_state,
 bool ddl_log_delete_frm(DDL_LOG_STATE *ddl_state, const char *to_path);
 bool ddl_log_link_chains(DDL_LOG_STATE *state, DDL_LOG_STATE *master_state);
 void ddl_log_start_atomic_block(DDL_LOG_STATE *state);
-bool ddl_log_commit_atomic_block(DDL_LOG_STATE *state);
+bool ddl_log_commit_atomic_block(DDL_LOG_STATE *state, uint entry_pos);
 extern mysql_mutex_t LOCK_gdl;
 #endif /* DDL_LOG_INCLUDED */
