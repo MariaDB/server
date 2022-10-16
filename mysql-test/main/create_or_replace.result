@@ -913,12 +913,10 @@ Warning	1265	Data truncated for column 'stat_description' at row 2
 Warning	1265	Data truncated for column 'stat_description' at row 3
 lock table t write;
 create or replace table t (y int);
-ERROR HY000: Error on rename of './test/t' to './test/#sql-backup-t' (errno: 168 "Unknown (generic) error from engine")
 unlock tables;
 alter table mysql.innodb_index_stats modify stat_description varchar(1024) not null;
 select * from t;
-x
-77
+y
 drop table t;
 set sql_mode= default;
 #
@@ -947,3 +945,42 @@ CREATE TABLE t2 (a INT) ENGINE=Aria;
 INSERT INTO t2 VALUES (2),(1);
 CREATE OR REPLACE TABLE t3 AS SELECT t2.* FROM t2, t1 WHERE t2.a = t1.f OR t2.a = t1.id;
 DROP TABLE t1, t2, t3;
+#
+# MDEV-29770 Broken table cannot be CREATE OR REPLACE -ed anymore
+#
+create table t1 (a int);
+create trigger tr before delete on t1 for each row begin end;
+create or replace table t1 (x int);
+Warnings:
+Error	1017	Can't find file: './test/t1.MYI' (errno: 2 "No such file or directory")
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `x` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+show triggers;
+Trigger	Event	Table	Statement	Timing	Created	sql_mode	Definer	character_set_client	collation_connection	Database Collation
+create trigger tr before delete on t1 for each row begin end;
+create or replace table t1 select 1 as y;
+Warnings:
+Error	1017	Can't find file: './test/t1.MYI' (errno: 2 "No such file or directory")
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `y` int(1) NOT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+show triggers;
+Trigger	Event	Table	Statement	Timing	Created	sql_mode	Definer	character_set_client	collation_connection	Database Collation
+create trigger tr before delete on t1 for each row begin end;
+create table t2 (z int);
+create or replace table t1 like t2;
+Warnings:
+Error	1017	Can't find file: './test/t1.MYI' (errno: 2 "No such file or directory")
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `z` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+show triggers;
+Trigger	Event	Table	Statement	Timing	Created	sql_mode	Definer	character_set_client	collation_connection	Database Collation
+drop tables if exists t1, t2;

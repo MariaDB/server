@@ -699,9 +699,6 @@ create table t (x int) engine innodb;
 insert into t values (77);
 alter table mysql.innodb_index_stats modify stat_description char(10);
 lock table t write;
---replace_regex /#sql-backup-.+-.+-/#sql-backup-/
---replace_result $MYSQLD_DATADIR ./
---error ER_ERROR_ON_RENAME
 create or replace table t (y int);
 # cleanup
 unlock tables;
@@ -741,3 +738,35 @@ INSERT INTO t2 VALUES (2),(1);
 CREATE OR REPLACE TABLE t3 AS SELECT t2.* FROM t2, t1 WHERE t2.a = t1.f OR t2.a = t1.id;
 # Cleanup
 DROP TABLE t1, t2, t3;
+
+
+--echo #
+--echo # MDEV-29770 Broken table cannot be CREATE OR REPLACE -ed anymore
+--echo #
+create table t1 (a int);
+create trigger tr before delete on t1 for each row begin end;
+
+--let $datadir= `select @@datadir`
+--remove_file $datadir/test/t1.MYI
+--replace_result $MYSQLD_DATADIR ./
+create or replace table t1 (x int);
+show create table t1;
+show triggers;
+
+create trigger tr before delete on t1 for each row begin end;
+--remove_file $datadir/test/t1.MYI
+--replace_result $MYSQLD_DATADIR ./
+create or replace table t1 select 1 as y;
+show create table t1;
+show triggers;
+
+create trigger tr before delete on t1 for each row begin end;
+--remove_file $datadir/test/t1.MYI
+create table t2 (z int);
+--replace_result $MYSQLD_DATADIR ./
+create or replace table t1 like t2;
+show create table t1;
+show triggers;
+
+# Cleanup
+drop tables if exists t1, t2;
