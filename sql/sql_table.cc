@@ -4502,12 +4502,37 @@ bool HA_CREATE_INFO::finalize_atomic_replace(THD *thd, TABLE_LIST *orig_table)
         Something is wrong with the old table! But C-O-R is almost done,
         so we finish it anyway by dropping the old table and applying new table.
       */
+
+      ddl_log_start_atomic_block(ddl_log_state_create);
       if (ddl_log_rename_table(ddl_log_state_create, db_type,
                                &db, &table_name,
                                &tmp_name.db, &tmp_name.table_name,
                                DDL_RENAME_PHASE_TRIGGER,
                                DDL_LOG_FLAG_FROM_IS_TMP))
+      {
+        if (locked_tables_decremented)
+          thd->locked_tables_list.add_back_last_deleted_lock(pos_in_locked_tables);
         return true;
+      }
+
+      cpath.length= build_table_filename(path, sizeof(path) - 1, db.str,
+                                         table_name.str, "", 0);
+
+      if (ddl_log_drop_table_init(ddl_log_state_create, &db, &empty_clex_str) ||
+          ddl_log_drop_table(ddl_log_state_create, old_hton, &cpath,
+                            &db, &table_name, 0))
+      {
+        if (locked_tables_decremented)
+          thd->locked_tables_list.add_back_last_deleted_lock(pos_in_locked_tables);
+        return true;
+      }
+
+      if (ddl_log_commit_atomic_block(ddl_log_state_create))
+      {
+        if (locked_tables_decremented)
+          thd->locked_tables_list.add_back_last_deleted_lock(pos_in_locked_tables);
+        return true;
+      }
 
       debug_crash_here("ddl_log_replace_broken_2");
       /* We don't need restore from backup entry anymore, disabling it */
@@ -4523,7 +4548,7 @@ bool HA_CREATE_INFO::finalize_atomic_replace(THD *thd, TABLE_LIST *orig_table)
       */
       DDL_LOG_STATE drop_broken_table;
       bzero(&drop_broken_table, sizeof(drop_broken_table));
-      if (ddl_log_link_chains(ddl_log_state_create, &drop_broken_table))
+      if (ddl_log_link_chains(&drop_broken_table, ddl_log_state_create))
       {
         if (locked_tables_decremented)
           thd->locked_tables_list.add_back_last_deleted_lock(pos_in_locked_tables);

@@ -3192,7 +3192,11 @@ static bool ddl_log_drop_init(DDL_LOG_STATE *ddl_state,
   ddl_log_entry.from_db=      *const_cast<LEX_CSTRING*>(db);
   ddl_log_entry.tmp_name=     *const_cast<LEX_CSTRING*>(comment);
 
-  DBUG_RETURN(ddl_log_write(ddl_state, &ddl_log_entry));
+  DDL_LOG_MEMORY_ENTRY *main_entry_save= ddl_state->main_entry;
+  bool result= ddl_log_write(ddl_state, &ddl_log_entry);
+  ddl_state->main_entry= main_entry_save;
+
+  DBUG_RETURN(result);
 }
 
 
@@ -3249,6 +3253,8 @@ static bool ddl_log_drop(DDL_LOG_STATE *ddl_state,
   bzero(&ddl_log_entry, sizeof(ddl_log_entry));
 
   ddl_log_entry.action_type=  action_code;
+  ddl_log_entry.next_entry=   ddl_state->main_entry ? ddl_state->main_entry->entry_pos : 0;
+
   if (hton)
     lex_string_set(&ddl_log_entry.handler_name,
                    ha_resolve_storage_engine_name(hton));
