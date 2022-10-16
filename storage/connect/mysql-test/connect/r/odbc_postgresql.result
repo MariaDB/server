@@ -2,7 +2,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `Name` varchar(256) NOT NULL,
   `Description` varchar(256) DEFAULT NULL
-) ENGINE=CONNECT DEFAULT CHARSET=latin1 `TABLE_TYPE`='ODBC' `CATFUNC`='Sources'
+) ENGINE=CONNECT DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci `TABLE_TYPE`='ODBC' `CATFUNC`='Sources'
 SET NAMES utf8;
 #
 # Checking CATFUNC=Tables
@@ -157,7 +157,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(10) NOT NULL
-) ENGINE=CONNECT DEFAULT CHARSET=latin1 CONNECTION='DSN=ConnectEnginePostgresql;UID=mtr;PWD=mtr' `TABLE_TYPE`='ODBC'
+) ENGINE=CONNECT DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci CONNECTION='DSN=ConnectEnginePostgresql;UID=mtr;PWD=mtr' `TABLE_TYPE`='ODBC'
 SELECT * FROM t1;
 a
 10
@@ -168,7 +168,7 @@ SHOW CREATE TABLE t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `a` int(10) NOT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 SELECT * FROM t2;
 a
 10
@@ -189,7 +189,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(10) NOT NULL
-) ENGINE=CONNECT DEFAULT CHARSET=latin1 CONNECTION='DSN=ConnectEnginePostgresql;UID=mtr;PWD=mtr' `TABLE_TYPE`='ODBC' `TABNAME`='public.t1'
+) ENGINE=CONNECT DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci CONNECTION='DSN=ConnectEnginePostgresql;UID=mtr;PWD=mtr' `TABLE_TYPE`='ODBC' `TABNAME`='public.t1'
 SELECT * FROM t1;
 a
 10
@@ -202,7 +202,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` char(10) NOT NULL
-) ENGINE=CONNECT DEFAULT CHARSET=utf8mb3 CONNECTION='DSN=ConnectEnginePostgresql;UID=mtr;PWD=mtr' `TABLE_TYPE`='ODBC' `TABNAME`='schema1.t1' `DATA_CHARSET`='utf8'
+) ENGINE=CONNECT DEFAULT CHARSET=utf8 COLLATE=utf8_general_ci CONNECTION='DSN=ConnectEnginePostgresql;UID=mtr;PWD=mtr' `TABLE_TYPE`='ODBC' `TABNAME`='schema1.t1' `DATA_CHARSET`='utf8'
 SELECT * FROM t1;
 a
 aaa
@@ -213,8 +213,8 @@ CREATE TABLE t2 AS SELECT * FROM t1;
 SHOW CREATE TABLE t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
-  `a` char(10) CHARACTER SET utf8mb3 NOT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+  `a` char(10) CHARACTER SET utf8 COLLATE utf8_general_ci NOT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 SELECT * FROM t2;
 a
 aaa
@@ -237,7 +237,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` char(10) DEFAULT NULL
-) ENGINE=CONNECT DEFAULT CHARSET=utf8mb3 CONNECTION='DSN=ConnectEnginePostgresql;UID=mtr;PWD=mtr' `TABLE_TYPE`='ODBC' `TABNAME`='schema1.v1' `DATA_CHARSET`='utf8'
+) ENGINE=CONNECT DEFAULT CHARSET=utf8 COLLATE=utf8_general_ci CONNECTION='DSN=ConnectEnginePostgresql;UID=mtr;PWD=mtr' `TABLE_TYPE`='ODBC' `TABNAME`='schema1.v1' `DATA_CHARSET`='utf8'
 SELECT * FROM t1;
 a
 aaa
@@ -248,8 +248,8 @@ CREATE TABLE t2 AS SELECT * FROM t1;
 SHOW CREATE TABLE t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
-  `a` char(10) CHARACTER SET utf8mb3 DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+  `a` char(10) CHARACTER SET utf8 COLLATE utf8_general_ci DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 SELECT * FROM t2;
 a
 aaa
@@ -272,7 +272,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` char(10) NOT NULL
-) ENGINE=CONNECT DEFAULT CHARSET=utf8mb3 CONNECTION='DSN=ConnectEnginePostgresql;UID=mtr;PWD=mtr' `TABLE_TYPE`='ODBC' `TABNAME`='schema1.t2' `DATA_CHARSET`='utf8'
+) ENGINE=CONNECT DEFAULT CHARSET=utf8 COLLATE=utf8_general_ci CONNECTION='DSN=ConnectEnginePostgresql;UID=mtr;PWD=mtr' `TABLE_TYPE`='ODBC' `TABNAME`='schema1.t2' `DATA_CHARSET`='utf8'
 SELECT * FROM t1;
 a
 xxx
@@ -283,8 +283,8 @@ CREATE TABLE t2 AS SELECT * FROM t1;
 SHOW CREATE TABLE t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
-  `a` char(10) CHARACTER SET utf8mb3 NOT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+  `a` char(10) CHARACTER SET utf8 COLLATE utf8_general_ci NOT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 SELECT * FROM t2;
 a
 xxx
