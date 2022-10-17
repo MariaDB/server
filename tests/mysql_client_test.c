@@ -21017,6 +21017,104 @@ static void test_explain_meta()
   mct_close_log();
 }
 
+static void test_mdev_16128()
+{
+  int        rc, res;
+  MYSQL_STMT *stmt;
+  MYSQL_BIND bind, bind_res;
+  char bind_arg_1[]="d", bind_arg_2[]="b";
+  ulong length= 0;
+  const char *query=
+    "SELECT 300 FROM t1 WHERE EXISTS (SELECT 100 FROM t2 WHERE t2.b = ?)";
+
+  myheader("test_mdev_16128");
+
+  rc= mysql_query(mysql, "DROP TABLE IF EXISTS t1");
+  myquery(rc);
+
+  rc= mysql_query(mysql, "DROP TABLE IF EXISTS t2");
+  myquery(rc);
+
+  rc= mysql_query(mysql, "CREATE TABLE t1 (a VARCHAR(10))");
+  myquery(rc);
+
+  rc= mysql_query(mysql, "CREATE TABLE t2 (b VARCHAR(10) CHARACTER SET utf8)");
+  myquery(rc);
+
+  rc= mysql_query(mysql, "INSERT INTO t1 VALUES('b')");
+  myquery(rc);
+
+  rc= mysql_query(mysql, "INSERT INTO t2 VALUES('d')");
+  myquery(rc);
+
+  stmt= mysql_stmt_init(mysql);
+  check_stmt(stmt);
+
+  rc= mysql_stmt_prepare(stmt, query, strlen(query));
+  check_execute(stmt, rc);
+
+  memset(&bind, 0, sizeof(bind));
+  bind.buffer_type= MYSQL_TYPE_STRING;
+  bind.buffer_length= strlen(bind_arg_1);
+  bind.buffer= bind_arg_1;
+
+  rc= mysql_stmt_bind_param(stmt, &bind);
+  check_execute(stmt, rc);
+
+  memset(&bind_res, 0, sizeof(bind_res));
+  bind_res.buffer_type= MYSQL_TYPE_LONG;
+  bind_res.buffer= &res;
+  bind_res.is_null= NULL;
+  bind_res.length= &length;
+
+  rc= mysql_stmt_bind_result(stmt, &bind_res);
+  check_execute(stmt, rc);
+
+  rc= mysql_stmt_execute(stmt);
+  check_execute(stmt, rc);
+
+  rc= mysql_stmt_store_result(stmt);
+  check_execute(stmt, rc);
+
+  rc= mysql_stmt_fetch(stmt);
+
+  /**
+    It's expected that the query
+      SELECT 300 FROM t1 WHERE EXISTS (SELECT 100 FROM t2 WHERE t2.b = ?)"
+    executed in PS-mode and bound with the value 'd' returns exactly
+    one row containing the value (300).
+   */
+  check_execute(stmt, rc);
+  DIE_UNLESS(bind_res.buffer_type == MYSQL_TYPE_LONG);
+  DIE_UNLESS(res == 300);
+
+  memset(&bind, 0, sizeof(bind));
+  bind.buffer_type= MYSQL_TYPE_STRING;
+  bind.buffer_length= strlen(bind_arg_2);
+  bind.buffer= bind_arg_2;
+
+  rc= mysql_stmt_bind_param(stmt, &bind);
+  check_execute(stmt, rc);
+
+  rc= mysql_stmt_execute(stmt);
+  check_execute(stmt, rc);
+
+  rc= mysql_stmt_store_result(stmt);
+  check_execute(stmt, rc);
+
+  rc= mysql_stmt_fetch(stmt);
+  /**
+    It's expected that the query
+      SELECT 300 FROM t1 WHERE EXISTS (SELECT 100 FROM t2 WHERE t2.b = ?)"
+    executed in PS-mode and bound with the value 'd' returns empty result set.
+   */
+  DIE_UNLESS(rc == MYSQL_NO_DATA);
+
+  mysql_stmt_close(stmt);
+
+  rc= mysql_query(mysql, "DROP TABLE t1, t2");
+  myquery(rc);
+}
 
 #ifndef EMBEDDED_LIBRARY
 #define MDEV19838_MAX_PARAM_COUNT 32
@@ -21466,6 +21564,7 @@ static struct my_tests_st my_tests[]= {
 #ifndef EMBEDDED_LIBRARY
   { "test_mdev19838", test_mdev19838 },
 #endif
+  { "test_mdev_16128", test_mdev_16128 },
   { 0, 0 }
 };
 
