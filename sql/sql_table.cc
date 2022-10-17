@@ -1681,8 +1681,7 @@ int mysql_rm_table_no_locks(THD *thd, TABLE_LIST *tables,
       else
         res= ddl_log_drop_table(ddl_log_state, hton, &cpath, &db,
                                 &table_name, 0);
-      if (res || ddl_log_commit_atomic_block(ddl_log_state,
-                                             ddl_log_state->drop_init_entry->entry_pos))
+      if (res)
       {
         error= -1;
         goto err;
@@ -1768,9 +1767,7 @@ int mysql_rm_table_no_locks(THD *thd, TABLE_LIST *tables,
       */
       ddl_log_disable_entry(ddl_log_state);
       if (ddl_log_drop_table(ddl_log_state, 0, &cpath, &db,
-                             &table_name, 0) ||
-          ddl_log_commit_atomic_block(ddl_log_state,
-                                      ddl_log_state->drop_init_entry->entry_pos))
+                             &table_name, 0))
       {
         error= -1;
         goto err;
@@ -4426,8 +4423,6 @@ bool HA_CREATE_INFO::finalize_atomic_replace(THD *thd, TABLE_LIST *orig_table)
   char path[FN_REFLEN + 1];
   cpath.str= path;
   bool locked_tables_decremented= false;
-  bool backed_old= true;
-  DDL_LOG_MEMORY_ENTRY *restore_backup;
 
   DBUG_ASSERT(is_atomic_replace());
 
@@ -4461,7 +4456,6 @@ bool HA_CREATE_INFO::finalize_atomic_replace(THD *thd, TABLE_LIST *orig_table)
                               DDL_RENAME_PHASE_TRIGGER,
                               DDL_LOG_FLAG_FROM_IS_TMP))
       return true;
-    restore_backup= ddl_log_state_create->main_entry;
 
     debug_crash_here("ddl_log_create_after_log_rename_backup");
 
@@ -4499,15 +4493,20 @@ bool HA_CREATE_INFO::finalize_atomic_replace(THD *thd, TABLE_LIST *orig_table)
     if (rename_table_and_triggers(thd, &param, NULL, orig_table,
                                   &backup_name.db, false, &dummy))
     {
-      debug_crash_here("ddl_log_replace_broken_1");
       thd->pop_internal_handler();
+
+      debug_crash_here("ddl_log_replace_broken_1");
+      /* We don't need restore from backup entry anymore, disabling it */
+      ddl_log_update_phase(ddl_log_state_create, DDL_LOG_FINAL_PHASE);
+      debug_crash_here("ddl_log_replace_broken_2");
+
       /*
         Something is wrong with the old table! But C-O-R is almost done,
         so we finish it anyway by dropping the old table and applying new table.
       */
 
-      ddl_log_start_atomic_block(ddl_log_state_create);
-      if (ddl_log_rename_table(ddl_log_state_create, db_type,
+      ddl_log_start_atomic_block(ddl_log_state_rm);
+      if (ddl_log_rename_table(ddl_log_state_rm, db_type,
                                &db, &table_name,
                                &tmp_name.db, &tmp_name.table_name,
                                DDL_RENAME_PHASE_TRIGGER,
@@ -4518,30 +4517,30 @@ bool HA_CREATE_INFO::finalize_atomic_replace(THD *thd, TABLE_LIST *orig_table)
         return true;
       }
 
-      debug_crash_here("ddl_log_replace_broken_4");
+      debug_crash_here("ddl_log_replace_broken_3");
+      cpath.length= build_table_filename(path, sizeof(path) - 1, db.str,
+                                         table_name.str, "", 0);
 
-      TABLE_LIST table_list;
-      table_list.init_one_table(&db, &table_name, 0, TL_WRITE);
-
-      enum_locked_tables_mode ltm_save= thd->locked_tables_mode;
-      thd->locked_tables_mode= LTM_NONE;
-      if (mysql_rm_table_no_locks(thd, &table_list, &thd->db, ddl_log_state_create,
-                                  0, 0, 0, 0, 1, 1))
+      if (ddl_log_drop_table_init(ddl_log_state_rm, &db, &empty_clex_str) ||
+          ddl_log_drop_table(ddl_log_state_rm, old_hton, &cpath,
+                            &db, &table_name, 0))
       {
-        thd->locked_tables_mode= ltm_save;
         if (locked_tables_decremented)
           thd->locked_tables_list.add_back_last_deleted_lock(pos_in_locked_tables);
         return true;
       }
 
-      debug_crash_here("ddl_log_replace_broken_2");
-      /* We don't need restore from backup entry anymore, disabling it */
-      ddl_log_state_create->main_entry= restore_backup;
-      ddl_log_update_phase(ddl_log_state_create, DDL_LOG_FINAL_PHASE);
-      debug_crash_here("ddl_log_replace_broken_3");
+      debug_crash_here("ddl_log_replace_broken_4");
+      if (ddl_log_commit_atomic_block(ddl_log_state_rm,
+                                      ddl_log_state_rm->drop_init_entry->entry_pos))
+      {
+        if (locked_tables_decremented)
+          thd->locked_tables_list.add_back_last_deleted_lock(pos_in_locked_tables);
+        return true;
+      }
 
-      thd->locked_tables_mode= ltm_save;
-      backed_old= false;
+      debug_crash_here("ddl_log_replace_broken_5");
+      return false;
     }
     else
       thd->pop_internal_handler();
@@ -4558,9 +4557,8 @@ bool HA_CREATE_INFO::finalize_atomic_replace(THD *thd, TABLE_LIST *orig_table)
   param.lock_triggers= false;
   ulonglong option_bits_save= thd->variables.option_bits;
   thd->variables.option_bits&= ~OPTION_NO_FOREIGN_KEY_CHECKS;
-  if ((backed_old &&
-       ddl_log_create_table(ddl_log_state_create, param.from_table_hton,
-                           &cpath, &db, &table_name, false)) ||
+  if (ddl_log_create_table(ddl_log_state_create, param.from_table_hton,
+                           &cpath, &db, &table_name, false) ||
       rename_table_and_triggers(thd, &param, NULL, &tmp_name, &db, false,
                                 &dummy))
   {
