@@ -3912,7 +3912,8 @@ select_create::select_create(THD *thd, TABLE_LIST *table_arg,
   if (!thd->is_current_stmt_binlog_format_row() ||
       !ha_check_storage_engine_flag(create_info->db_type,
                                     HTON_NO_BINLOG_ROW_OPT))
-    atomic_replace= create_info->is_atomic_replace();
+    atomic_replace= create_info->is_atomic_replace(thd, &orig_table->db,
+                                                   &orig_table->table_name);
   else
     DBUG_ASSERT(!atomic_replace);
   create_info->ddl_log_state_create= &ddl_log_state_create;
