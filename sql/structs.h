@@ -549,7 +549,9 @@ public:
   Options create_like_options() const
   {
     return (DDL_options_st::Options)
-           (((uint) m_options) & (OPT_IF_NOT_EXISTS | OPT_OR_REPLACE));
+    /* TODO: that filter is only adding problems, remove it */
+           (((uint) m_options) & (OPT_IF_NOT_EXISTS | OPT_OR_REPLACE |
+                                  OPT_OR_REPLACE_SLAVE_GENERATED));
   }
   void init() { m_options= OPT_NONE; }
   void init(Options options) { m_options= options; }
