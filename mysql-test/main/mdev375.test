@@ -3,6 +3,7 @@
 #
 --source include/not_embedded.inc
 
+--disable_service_connection
 set @save_log_warnings=@@log_warnings, @save_max_connections=@@max_connections;
 SET GLOBAL log_warnings=4;
 SET GLOBAL max_connections=10;
@@ -33,3 +34,4 @@ show status like "Threads_connected";
 
 SET GLOBAL log_warnings=@save_log_warnings;
 SET GLOBAL max_connections=@save_max_connections;
+--enable_service_connection

@@ -3,6 +3,7 @@
 --source include/have_innodb.inc
 --source include/default_optimizer_switch.inc
 
+--disable_service_connection
 call mtr.add_suppression("Deadlock found when trying to get lock; try restarting transaction");
 
 set global default_storage_engine='innodb';
@@ -94,7 +95,7 @@ DROP TABLE t1;
 --echo # Bug#54747: Deadlock between REORGANIZE PARTITION and
 --echo #            SELECT is not detected
 --echo #
-
+--disable_view_protocol
 CREATE TABLE t1
 (user_num BIGINT,
  hours SMALLINT,
@@ -140,11 +141,12 @@ COMMIT;
 --connection default
 
 DROP TABLE t1;
-
+--enable_view_protocol
 
 --echo #
 --echo # Bug#50418: DROP PARTITION does not interact with transactions
 --echo #
+--disable_view_protocol
 CREATE TABLE t1 (
     id INT AUTO_INCREMENT NOT NULL,
     name CHAR(50) NOT NULL,
@@ -183,7 +185,7 @@ SELECT * FROM t1;
 --echo # No changes.
 COMMIT;
 DROP TABLE t1;
-
+--enable_view_protocol
 
 --echo #
 --echo # Bug#51830: Incorrect partition pruning on range partition (regression)
@@ -582,6 +584,7 @@ DROP TABLE t1;
 --echo # Bug#47343: InnoDB fails to clean-up after lock wait timeout on
 --echo #            REORGANIZE PARTITION
 --echo #
+--disable_view_protocol
 CREATE TABLE t1 (
 	a INT,
 	b DATE NOT NULL,
@@ -616,6 +619,7 @@ connection default;
 SELECT * FROM t1;
 COMMIT;
 DROP TABLE t1;
+--enable_view_protocol
 
 #
 # Bug #55146    Assertion `m_part_spec.start_part == m_part_spec.end_part' in index_read_idx_map
@@ -968,6 +972,7 @@ set global default_storage_engine=default;
 --echo # Bug#13737949: CRASH IN HA_PARTITION::INDEX_INIT
 --echo # Bug#18694052: SERVER CRASH IN HA_PARTITION::INIT_RECORD_PRIORITY_QUEUE
 --echo #
+--disable_view_protocol
 CREATE TABLE t1
 (a INT,
  b INT,
@@ -1001,7 +1006,7 @@ SELECT b FROM t1 WHERE b = 0;
 SELECT b FROM t1 WHERE b = 0;
 --disconnect con1
 DROP TABLE t1;
-
+--enable_view_protocol
 --echo #
 --echo # MDEV-11167: InnoDB: Warning: using a partial-field key prefix
 --echo # in search, results in assertion failure or "Can't find record" error
@@ -1144,3 +1149,4 @@ DROP TABLE t1;
 --echo #
 --echo # End of 10.3 tests
 --echo #
+--enable_service_connection

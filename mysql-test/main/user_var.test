@@ -1,6 +1,7 @@
 # Initialise
 source include/have_sequence.inc;
 
+
 --error 1054
 set @a := foo;
 set @a := connection_id() + 3;
@@ -492,6 +493,7 @@ DROP TABLE t1;
 --echo # Check that used memory extends if we set a variable
 --echo #
 
+--disable_service_connection
 # Execute twice so number stablizes a bit
 let $tmp= `select memory_used from information_schema.processlist`;
 set @var= repeat('a',20000);
@@ -501,6 +503,7 @@ let $tmp2= `select memory_used from information_schema.processlist`;
 eval select $tmp < $tmp2;
 --enable_column_names
 --enable_query_log
+--enable_service_connection
 
 #
 # MDEV-13897 SELECT @a := MAX(col) FROM t requires full index scan

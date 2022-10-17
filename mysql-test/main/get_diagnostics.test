@@ -359,10 +359,13 @@ SHOW WARNINGS;
 --echo # Statement information runtime
 --echo
 
+#enable after fix MDEV-28535
+--disable_view_protocol
 SELECT CAST(-19999999999999999999 AS SIGNED),
        CAST(-19999999999999999999 AS SIGNED);
 GET DIAGNOSTICS @var = NUMBER;
 SELECT @var;
+--enable_view_protocol
 
 SELECT COUNT(max_questions) INTO @var FROM mysql.user;
 GET DIAGNOSTICS @var = NUMBER;

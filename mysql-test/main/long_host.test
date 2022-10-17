@@ -1,6 +1,8 @@
 
 --source include/have_debug_sync.inc
 --source include/not_embedded.inc
+#enable view protocol after fix MDEV-29542
+--source include/no_view_protocol.inc
 
 --echo # check user
 

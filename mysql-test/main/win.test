@@ -2,6 +2,9 @@
 #  Window Functions Tests
 #
 --source include/no_valgrind_without_big.inc
+#remove this include after fix MDEV-27871, MDEV-27938
+--source include/no_view_protocol.inc
+
 --source include/have_sequence.inc
 
 --disable_warnings

@@ -126,10 +126,12 @@ DROP TABLE t1;
 --echo # MDEV-4848 Wrong metadata or column type for LEAST(1.0,'10')
 --echo #
 --disable_ps_protocol
+--disable_view_protocol
 --enable_metadata
 SELECT LEAST(1.0,'10');
 --disable_metadata
 --enable_ps_protocol
+--enable_view_protocol
 CREATE TABLE t1 AS SELECT LEAST(1.0,'10');
 SHOW CREATE TABLE t1;
 DROP TABLE t1;
@@ -148,6 +150,7 @@ DROP TABLE t1;
 --echo #
 SET timestamp=UNIX_TIMESTAMP('2010-01-01 01:02:03');
 --disable_ps_protocol
+--disable_view_protocol
 --enable_metadata
 # Expect DATETIME type (12) in metadata
 SELECT GREATEST(CURRENT_TIME, CURRENT_DATE), COALESCE(CURRENT_TIME, CURRENT_DATE);
@@ -160,6 +163,7 @@ SELECT COALESCE(a,a) FROM t1;
 DROP TABLE t1;
 --disable_metadata
 --enable_ps_protocol
+--enable_view_protocol
 CREATE TABLE t1 (a TIMESTAMP, b DATETIME);
 CREATE TABLE t2 AS SELECT LEAST(a,a),LEAST(b,b),LEAST(a,b) FROM t1;
 SHOW CREATE TABLE t2;
@@ -179,6 +183,7 @@ SELECT
   MAX(COALESCE(c4)) AS c4
 FROM t1;
 SHOW CREATE TABLE t2;
+--disable_view_protocol
 --disable_ps_protocol
 --enable_metadata
 SELECT
@@ -189,6 +194,7 @@ SELECT
 FROM t1;
 --disable_metadata
 --enable_ps_protocol
+--enable_view_protocol
 DROP TABLE t2;
 DROP TABLE t1;
 
@@ -199,6 +205,7 @@ SELECT
   MAX(COALESCE(c2)) AS c2
 FROM t1;
 SHOW CREATE TABLE t2;
+--disable_view_protocol
 --disable_ps_protocol
 --enable_metadata
 SELECT
@@ -207,6 +214,7 @@ SELECT
 FROM t1;
 --disable_metadata
 --enable_ps_protocol
+--enable_view_protocol
 DROP TABLE t2;
 DROP TABLE t1;
 
@@ -217,6 +225,7 @@ SELECT
   MAX(COALESCE(c2)) AS c2
 FROM t1;
 SHOW CREATE TABLE t2;
+--disable_view_protocol
 --disable_ps_protocol
 --enable_metadata
 SELECT
@@ -225,6 +234,7 @@ SELECT
 FROM t1;
 --disable_metadata
 --enable_ps_protocol
+--enable_view_protocol
 DROP TABLE t2;
 DROP TABLE t1;
 
@@ -236,6 +246,7 @@ SELECT
   MAX(COALESCE(c3)) AS c3
 FROM t1;
 SHOW CREATE TABLE t2;
+--disable_view_protocol
 --disable_ps_protocol
 --enable_metadata
 SELECT
@@ -245,6 +256,7 @@ SELECT
 FROM t1;
 --disable_metadata
 --enable_ps_protocol
+--enable_view_protocol
 DROP TABLE t2;
 DROP TABLE t1;
 
@@ -256,6 +268,7 @@ SELECT
   MAX(COALESCE(c3)) AS c3
 FROM t1;
 SHOW CREATE TABLE t2;
+--disable_view_protocol
 --disable_ps_protocol
 --enable_metadata
 SELECT
@@ -265,6 +278,7 @@ SELECT
 FROM t1;
 --disable_metadata
 --enable_ps_protocol
+--enable_view_protocol
 DROP TABLE t2;
 DROP TABLE t1;
 
@@ -274,6 +288,7 @@ SELECT
   MAX(COALESCE(c1)) AS c1
 FROM t1;
 SHOW CREATE TABLE t2;
+--disable_view_protocol
 --disable_ps_protocol
 --enable_metadata
 SELECT
@@ -281,6 +296,7 @@ SELECT
 FROM t1;
 --disable_metadata
 --enable_ps_protocol
+--enable_view_protocol
 DROP TABLE t2;
 DROP TABLE t1;
 
@@ -290,6 +306,7 @@ SELECT
   MAX(COALESCE(c1)) AS c1
 FROM t1;
 SHOW CREATE TABLE t2;
+--disable_view_protocol
 --disable_ps_protocol
 --enable_metadata
 SELECT
@@ -297,6 +314,7 @@ SELECT
 FROM t1;
 --disable_metadata
 --enable_ps_protocol
+--enable_view_protocol
 DROP TABLE t2;
 DROP TABLE t1;
 
@@ -313,6 +331,7 @@ SELECT
   @c4:=c4 AS c4
 FROM t1;
 SHOW CREATE TABLE t2;
+--disable_view_protocol
 --disable_ps_protocol
 --enable_metadata
 SELECT
@@ -323,6 +342,7 @@ SELECT
 FROM t1;
 --disable_metadata
 --enable_ps_protocol
+--enable_view_protocol
 DROP TABLE t2;
 DROP TABLE t1;
 
@@ -333,6 +353,7 @@ SELECT
   @c2:=c2 AS c2
 FROM t1;
 SHOW CREATE TABLE t2;
+--disable_view_protocol
 --disable_ps_protocol
 --enable_metadata
 SELECT
@@ -341,6 +362,7 @@ SELECT
 FROM t1;
 --disable_metadata
 --enable_ps_protocol
+--enable_view_protocol
 DROP TABLE t2;
 DROP TABLE t1;
 
@@ -351,6 +373,7 @@ SELECT
   @c2:=c2 AS c2
 FROM t1;
 SHOW CREATE TABLE t2;
+--disable_view_protocol
 --disable_ps_protocol
 --enable_metadata
 SELECT
@@ -359,6 +382,7 @@ SELECT
 FROM t1;
 --disable_metadata
 --enable_ps_protocol
+--enable_view_protocol
 DROP TABLE t2;
 DROP TABLE t1;
 
@@ -370,6 +394,7 @@ SELECT
   @c:=c3 AS c3
 FROM t1;
 SHOW CREATE TABLE t2;
+--disable_view_protocol
 --disable_ps_protocol
 --enable_metadata
 SELECT
@@ -379,6 +404,7 @@ SELECT
 FROM t1;
 --disable_metadata
 --enable_ps_protocol
+--enable_view_protocol
 DROP TABLE t2;
 DROP TABLE t1;
 
@@ -390,6 +416,7 @@ SELECT
   @c:=c3 AS c3
 FROM t1;
 SHOW CREATE TABLE t2;
+--disable_view_protocol
 --disable_ps_protocol
 --enable_metadata
 SELECT
@@ -399,6 +426,7 @@ SELECT
 FROM t1;
 --disable_metadata
 --enable_ps_protocol
+--enable_view_protocol
 DROP TABLE t2;
 DROP TABLE t1;
 
@@ -408,6 +436,7 @@ SELECT
   @c:=c1 AS c1
 FROM t1;
 SHOW CREATE TABLE t2;
+--disable_view_protocol
 --disable_ps_protocol
 --enable_metadata
 SELECT
@@ -415,6 +444,7 @@ SELECT
 FROM t1;
 --disable_metadata
 --enable_ps_protocol
+--enable_view_protocol
 DROP TABLE t2;
 DROP TABLE t1;
 
@@ -424,6 +454,7 @@ SELECT
   @c:=c1 AS c1
 FROM t1;
 SHOW CREATE TABLE t2;
+--disable_view_protocol
 --disable_ps_protocol
 --enable_metadata
 SELECT
@@ -431,6 +462,7 @@ SELECT
 FROM t1;
 --disable_metadata
 --enable_ps_protocol
+--enable_view_protocol
 DROP TABLE t2;
 DROP TABLE t1;
 
@@ -438,15 +470,20 @@ DROP TABLE t1;
 --echo #
 --echo # MDEV-9653 Assertion `length || !scale' failed in uint my_decimal_length_to_precision(uint, uint, bool)
 --echo #
+#enable after fix MDEV-27871
+--disable_view_protocol
 SELECT CASE 0 WHEN 1 THEN (CASE 2 WHEN 3 THEN NULL END) WHEN 4 THEN 5 END;
+--enable_view_protocol
 SELECT CASE 0 WHEN 1 THEN (COALESCE(NULL)) WHEN 4 THEN 5 END;
 SELECT CASE WHEN TRUE THEN COALESCE(NULL) ELSE 4 END;
 
+--disable_view_protocol
 --disable_ps_protocol
 --enable_metadata
 SELECT COALESCE(COALESCE(NULL), 1.1) AS c0, IF(0, COALESCE(NULL), 1.1) AS c1;
 --disable_metadata
 --enable_ps_protocol
+--enable_view_protocol
 
 
 --echo #
@@ -653,6 +690,7 @@ SET sql_mode=DEFAULT;
 
 SET sql_mode='NO_ZERO_DATE,NO_ZERO_IN_DATE';
 
+--disable_view_protocol
 --disable_ps_protocol
 --enable_metadata
 SELECT
@@ -666,6 +704,7 @@ SELECT
   LEAST(20010001,TIMESTAMP'2001-01-01 00:00:00') AS i4;
 --disable_metadata
 --enable_ps_protocol
+--enable_view_protocol
 
 SET sql_mode='NO_ZERO_DATE,NO_ZERO_IN_DATE';
 CREATE TABLE t1 AS SELECT
@@ -730,6 +769,7 @@ DROP TABLE t1;
 
 SET sql_mode='NO_ZERO_DATE,NO_ZERO_IN_DATE';
 
+--disable_view_protocol
 --disable_ps_protocol
 --enable_metadata
 SELECT
@@ -743,6 +783,7 @@ SELECT
   LEAST(20010001,TIMESTAMP'2001-01-01 00:00:00') AS i4;
 --disable_metadata
 --enable_ps_protocol
+--enable_view_protocol
 
 SET sql_mode='NO_ZERO_DATE,NO_ZERO_IN_DATE';
 CREATE TABLE t1 AS SELECT
@@ -836,11 +877,13 @@ SELECT 0 + LEAST(TIME'-10:00:00',TIME'10:00:00') AS c;
 --echo #
 
 CREATE TABLE t1 (a INT UNSIGNED, b TIMESTAMP);
+--disable_view_protocol
 --disable_ps_protocol
 --enable_metadata
 SELECT COALESCE(a,b) FROM t1;
 --disable_metadata
 --enable_ps_protocol
+--enable_view_protocol
 DROP TABLE t1;
 
 --echo #
