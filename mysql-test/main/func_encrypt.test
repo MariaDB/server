@@ -1,4 +1,6 @@
 -- source include/have_des.inc
+#double warning for view protocol 
+--source include/no_view_protocol.inc
 
 --disable_warnings
 drop table if exists t1;

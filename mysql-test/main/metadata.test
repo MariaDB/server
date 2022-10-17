@@ -1,6 +1,8 @@
 #
 # Test metadata
 #
+#View protocol gives slightly different metadata
+--source include/no_view_protocol.inc
 
 --disable_warnings
 drop table if exists t1,t2;

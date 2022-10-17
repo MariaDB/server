@@ -1,5 +1,7 @@
 source include/not_embedded.inc;
 source include/have_debug.inc;
+-- source include/no_view_protocol.inc
+
 --echo #
 --echo # MDEV-18353 Shutdown may miss to wait for connection thread
 --echo #

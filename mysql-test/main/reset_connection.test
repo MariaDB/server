@@ -4,6 +4,7 @@ FLUSH STATUS;
 
 --disable_result_log
 --disable_query_log
+--disable_service_connection
 
 let $i = 10;
 begin;
@@ -38,3 +39,5 @@ SELECT IF(@@character_set_client='latin1','OK', 'FAIL') AS RESULT;
 --reset_connection
 SELECT IF(@@character_set_client='latin1','OK', 'FAIL') AS RESULT;
 disconnect latin1_conn;
+
+--enable_service_connection

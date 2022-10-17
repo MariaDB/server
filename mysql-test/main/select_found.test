@@ -1,6 +1,11 @@
 #
 # Testing of found_rows()
 #
+
+# Tests will be skipped for the view protocol otherwise
+# found_rows()  will return an incorrect result.
+-- source include/no_view_protocol.inc
+
 --disable_warnings
 drop table if exists t1,t2;
 --enable_warnings

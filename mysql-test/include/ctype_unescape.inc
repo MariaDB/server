@@ -309,12 +309,15 @@ CALL p2();
 --disable_warnings
 # All records marked with '[BAD]' mean that the string was unescaped
 # in a unexpected way, that means there is a bug in UNESCAPE() above.
+#check after fix MDEV-29290
+--disable_view_protocol
 SELECT HEX(a),HEX(b),
   CONCAT(unescape_type(a,b),
          wellformedness(a,b),
          mysql_real_escape_string_generated(a),
          IF(UNESCAPE(a)<>b,CONCAT('[BAD',HEX(UNESCAPE(a)),']'),'')) AS comment
 FROM t1 ORDER BY LENGTH(a),a;
+--enable_view_protocol
 --enable_warnings
 DROP TABLE t1;
 DROP PROCEDURE p1;

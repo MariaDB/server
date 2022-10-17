@@ -20,7 +20,9 @@ alter table mysql.event modify definer char(77) collate utf8_bin not null defaul
 flush privileges;
 
 --enable_metadata
+--disable_view_protocol
 select user();
+--enable_view_protocol
 --disable_metadata
 
 --error ER_WRONG_STRING_LENGTH
@@ -40,7 +42,9 @@ alter table mysql.event modify definer varchar(384) collate utf8_bin not null de
 flush privileges;
 
 --enable_metadata
+--disable_view_protocol
 select user();
+--enable_view_protocol
 --disable_metadata
 
 set global sql_mode=default;

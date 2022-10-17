@@ -18,9 +18,12 @@ select min(name),min(concat("*",name,"*")),max(name),max(concat("*",name,"*")) f
 select * from t2 order by name;
 select concat("*",name,"*") from t2 order by 1;
 select min(name),min(concat("*",name,"*")),max(name),max(concat("*",name,"*")) from t2;
+#check after fix MDEV-29601
+--disable_service_connection
 select name from t1 where name between 'Ä' and 'Ö';
 select name from t2 where name between 'ä' and 'ö';
 select name from t2 where name between 'Ä' and 'Ö';
+--enable_service_connection
 
 drop table t1,t2;
 

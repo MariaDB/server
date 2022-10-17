@@ -1293,7 +1293,11 @@ INSERT INTO t1 (s1) VALUES
 (_ucs2 0x101C1000103A10181000103A),
 (_ucs2 0x101C103910181000103A /* tea */);
 
+# enable view-protocol after fix MDEV-27871
+--disable_view_protocol
+
 SELECT id, IF(LEFT(s1,1)='-',s1,CONCAT(HEX(WEIGHT_STRING(s1)),'\t', HEX(CONVERT(s1 USING ucs2)))) FROM t1 ORDER BY id;
+--enable_view_protocol
 
 DROP TABLE t1;
 
