@@ -1143,6 +1143,11 @@ public:
   {
     return fixed() ? false : fix_fields(thd, ref);
   }
+
+  /*
+   fix_fields_if_needed_for_scalar() is used where we need to filter items
+   that can't be scalars and want to return error for it.
+  */
   bool fix_fields_if_needed_for_scalar(THD *thd, Item **ref)
   {
     return fix_fields_if_needed(thd, ref) || check_cols(1);

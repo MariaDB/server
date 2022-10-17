@@ -1009,6 +1009,12 @@ name  VARCHAR(10) CHARACTER SET latin1 COLLATE DEFAULT PATH '$.name'
 name
 Jeans
 #
+# MDEV-28480: Assertion `0' failed in Item_row::illegal_method_call
+#             on SELECT FROM JSON_TABLE
+#
+SELECT 1 FROM JSON_TABLE (row(1,2), '$' COLUMNS (o FOR ORDINALITY)) AS j;
+ERROR 21000: Operand should contain 1 column(s)
+#
 # End of 10.6 tests
 #
 #

@@ -1,6 +1,8 @@
 --source include/have_innodb.inc
 --source include/have_sequence.inc
 
+SET default_storage_engine= innodb;
+
 # Ensure that the history list length will actually be decremented by purge.
 SET @saved_frequency = @@GLOBAL.innodb_purge_rseg_truncate_frequency;
 SET GLOBAL innodb_purge_rseg_truncate_frequency = 1;
@@ -280,9 +282,9 @@ DROP TABLE t1;
 CREATE TABLE t1(a INT PRIMARY KEY, b INT, vb DATE AS(b) VIRTUAL, KEY(vb))
 ENGINE=InnoDB;
 INSERT IGNORE INTO t1 (a,b) VALUES(1,20190132);
+SELECT * FROM t1;
 BEGIN;
 DELETE FROM t1;
---error ER_TRUNCATED_WRONG_VALUE
 INSERT INTO t1 (a,b) VALUES(1,20190123);
 SELECT * FROM t1;
 ROLLBACK;
@@ -341,3 +343,49 @@ DROP TABLE t1;
 
 --echo # End of 10.2 tests
 
+--echo #
+--echo # MDEV-29299 SELECT from table with vcol index reports warning
+--echo #
+
+CREATE TABLE t(fld1 INT NOT NULL,
+               fld2 INT AS (100/fld1) VIRTUAL,
+               KEY(fld1), KEY(fld2));
+CREATE TABLE t_odd(id int);
+INSERT INTO t(fld1) VALUES(1), (2);
+
+--connect stop_purge,localhost,root
+# This prevents purge for records in t
+START TRANSACTION WITH CONSISTENT SNAPSHOT;
+INSERT INTO t_odd VALUES(10000);
+
+--connection default
+UPDATE IGNORE t SET fld1= 3 WHERE fld1= 2;
+UPDATE IGNORE t SET fld1= 4 WHERE fld1= 3;
+UPDATE IGNORE t SET fld1= 0 WHERE fld1= 4;
+SELECT fld2 FROM t FORCE INDEX(fld2);
+SELECT fld2 FROM t FORCE INDEX(fld1);
+
+--disconnect stop_purge
+DROP TABLE t, t_odd;
+
+--echo #
+--echo # MDEV-29753 An error is wrongly reported during INSERT with vcol index
+--echo # See also Bug #22990029
+--echo #
+
+CREATE TABLE t(pk INT PRIMARY KEY,
+               fld1 INT NOT NULL,
+               fld2 INT AS (100/fld1) VIRTUAL,
+               KEY(fld1), KEY(fld2));
+INSERT IGNORE t(pk, fld1) VALUES(1, 0);
+SELECT * FROM t;
+BEGIN;
+DELETE FROM t;
+INSERT INTO t (pk, fld1) VALUES(1,1);
+SELECT * FROM t;
+
+--echo # Cleanup
+ROLLBACK;
+DROP TABLE t;
+
+--echo # End of 10.3 tests
