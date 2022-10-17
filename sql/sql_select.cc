@@ -7400,6 +7400,7 @@ best_access_path(JOIN      *join,
   table_map best_ref_depends_map= 0;
   Range_rowid_filter_cost_info *best_filter= 0;
   double tmp;
+  double keyread_tmp= 0;
   ha_rows rec;
   bool best_uses_jbuf= FALSE;
   MY_BITMAP *eq_join_set= &s->table->eq_join_set;
@@ -7666,11 +7667,16 @@ best_access_path(JOIN      *join,
             tmp= records;
             set_if_smaller(tmp, (double) thd->variables.max_seeks_for_key);
             if (table->covering_keys.is_set(key))
-              tmp= table->file->keyread_time(key, 1, (ha_rows) tmp);
+              keyread_tmp=
+                tmp= table->file->keyread_time(key, 1, (ha_rows) tmp);
             else
+            {
+              keyread_tmp= table->file->keyread_time(key, 1, (ha_rows) tmp);
               tmp= table->file->read_time(key, 1,
                                           (ha_rows) MY_MIN(tmp,s->worst_seeks));
+            }
             tmp= COST_MULT(tmp, record_count);
+            keyread_tmp= COST_MULT(keyread_tmp, record_count);
           }
         }
         else
@@ -7847,11 +7853,16 @@ best_access_path(JOIN      *join,
             /* Limit the number of matched rows */
             set_if_smaller(tmp, (double) thd->variables.max_seeks_for_key);
             if (table->covering_keys.is_set(key))
-              tmp= table->file->keyread_time(key, 1, (ha_rows) tmp);
+              keyread_tmp=
+                tmp= table->file->keyread_time(key, 1, (ha_rows) tmp);
             else
+	    {
+              keyread_tmp= table->file->keyread_time(key, 1, (ha_rows) tmp);
               tmp= table->file->read_time(key, 1,
                                           (ha_rows) MY_MIN(tmp,s->worst_seeks));
+            }
             tmp= COST_MULT(tmp, record_count);
+            keyread_tmp= COST_MULT(keyread_tmp, record_count);
           }
           else
           {
@@ -7870,7 +7881,35 @@ best_access_path(JOIN      *join,
 	  (found_part & 1))   // start_key->key can be used for index access
       {
         double rows= record_count * records;
-        double access_cost_factor= MY_MIN(tmp / rows, 1.0);
+
+        /*
+          If we use filter F with selectivity s the the cost of fetching data
+          by key using this filter will be
+             cost_of_fetching_1_row * rows * s +
+             cost_of_fetching_1_key_tuple * rows * (1 - s) +
+             cost_of_1_lookup_into_filter * rows
+          Without using any filter the cost would be just
+             cost_of_fetching_1_row * rows
+
+          So the gain in access cost per row will be
+             cost_of_fetching_1_row * (1 - s) -
+             cost_of_fetching_1_key_tuple * (1 - s) -
+             cost_of_1_lookup_into_filter
+             =
+             (cost_of_fetching_1_row - cost_of_fetching_1_key_tuple) * (1 - s)
+             - cost_of_1_lookup_into_filter
+
+          Here we have:
+             cost_of_fetching_1_row = tmp/rows
+             cost_of_fetching_1_key_tuple = keyread_tmp/rows
+
+          Note that access_cost_factor may be greater than 1.0. In this case
+          we still can expect a gain of using rowid filter due to smaller number
+          of checks for conditions pushed to the joined table.
+	*/
+        double rows_access_cost= MY_MIN(rows, s->worst_seeks);
+        double access_cost_factor= MY_MIN((rows_access_cost - keyread_tmp) /
+                                           rows, 1.0);
         filter=
           table->best_range_rowid_filter_for_partial_join(start_key->key, rows,
                                                           access_cost_factor);
@@ -8029,8 +8068,11 @@ best_access_path(JOIN      *join,
       if ( s->quick->get_type() == QUICK_SELECT_I::QS_TYPE_RANGE)
       {
         double rows= record_count * s->found_records;
-        double access_cost_factor= MY_MIN(tmp / rows, 1.0);
         uint key_no= s->quick->index;
+
+        /* See the comment concerning using rowid filter for with ref access */
+        keyread_tmp= s->table->quick_index_only_costs[key_no];
+        double access_cost_factor= MY_MIN((rows - keyread_tmp) / rows, 1.0);
         filter=
         s->table->best_range_rowid_filter_for_partial_join(key_no, rows,
                                                            access_cost_factor);
@@ -18810,6 +18852,7 @@ create_tmp_table(THD *thd, TMP_TABLE_PARAM *param, List<Item> &fields,
     delete table->file;
     goto err;
   }
+  table->file->set_table(table);
 
   if (!using_unique_constraint)
     reclength+= group_null_items;	// null flag is stored separately
@@ -20651,6 +20694,8 @@ sub_select(JOIN *join,JOIN_TAB *join_tab,bool end_of_records)
     DBUG_RETURN(NESTED_LOOP_ERROR);
 
   join_tab->build_range_rowid_filter_if_needed();
+  if (join_tab->rowid_filter && join_tab->rowid_filter->is_empty())
+    rc= NESTED_LOOP_NO_MORE_ROWS;
 
   join->return_tab= join_tab;
 

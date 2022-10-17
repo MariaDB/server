@@ -355,11 +355,14 @@ public:
 
   uint get_container_elements() { return container_elements; }
 
+  uint get_container_lookups() { return n_checks; }
+
   double get_r_selectivity_pct()
   {
-    return (double)n_positive_checks/(double)n_checks;
+    return n_checks ? (double)n_positive_checks/(double)n_checks : 0;
   }
 
   size_t get_container_buff_size() { return container_buff_size; }
+
 };
 

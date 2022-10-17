@@ -3156,6 +3156,11 @@ public:
     DBUG_ASSERT(m_lock_type == F_UNLCK);
     DBUG_ASSERT(inited == NONE);
   }
+  /* To check if table has been properely opened */
+  bool is_open()
+  {
+    return ref != 0;
+  }
   virtual handler *clone(const char *name, MEM_ROOT *mem_root);
   /** This is called after create to allow us to set up cached variables */
   void init()
@@ -4804,6 +4809,7 @@ public:
     ha_share= arg_ha_share;
     return false;
   }
+  void set_table(TABLE* table_arg) { table= table_arg; }
   int get_lock_type() const { return m_lock_type; }
 public:
   /* XXX to be removed, see ha_partition::partition_ht() */
