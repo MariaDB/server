@@ -31,14 +31,22 @@ ${SSL_INTERNAL_INCLUDE_DIRS}
 )
 
 SET(GEN_SOURCES
-${CMAKE_BINARY_DIR}/sql/sql_yacc.hh 
+${CMAKE_BINARY_DIR}/sql/sql_yacc.hh
 ${CMAKE_BINARY_DIR}/sql/yy_mariadb.cc
 ${CMAKE_BINARY_DIR}/sql/yy_oracle.hh
 ${CMAKE_BINARY_DIR}/sql/yy_oracle.cc
-${CMAKE_BINARY_DIR}/sql/lex_hash.h 
+${CMAKE_BINARY_DIR}/sql/lex_hash.h
 )
 
 SET_SOURCE_FILES_PROPERTIES(${GEN_SOURCES} PROPERTIES GENERATED TRUE)
+
+IF(CMAKE_C_COMPILER_ID MATCHES "Clang" AND
+   NOT CMAKE_C_COMPILER_VERSION VERSION_LESS "13.0.0")
+ ADD_COMPILE_FLAGS(
+   ${CMAKE_BINARY_DIR}/sql/yy_mariadb.cc
+   ${CMAKE_BINARY_DIR}/sql/yy_oracle.cc
+   COMPILE_FLAGS "-Wno-unused-but-set-variable")
+ENDIF()
 
 SET(SQL_EMBEDDED_SOURCES emb_qcache.cc libmysqld.c lib_sql.cc 
            libmysql.c ../sql-common/errmsg.c
