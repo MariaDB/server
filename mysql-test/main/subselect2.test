@@ -264,6 +264,8 @@ set optimizer_switch=@tmp_mdev567;
 --echo # MDEV-4996: degenerate OR formula in WHERE of a subquery
 --echo #
 
+--disable_view_protocol
+
 CREATE TABLE t1 (a int, c1 varchar(1)) ENGINE=MyISAM;
 INSERT INTO t1 VALUES (2,'x'), (8,'d');
 
@@ -282,6 +284,8 @@ SELECT * FROM t1 WHERE c1 NOT IN (
                           ( t2b.m != a OR t2b.m = t2a.m ));
 
 DROP TABLE t1,t2;
+
+--enable_view_protocol
 
 --echo #
 --echo # MDEV-614, also MDEV-536, also LP:1050806:

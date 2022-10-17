@@ -1,5 +1,8 @@
 source include/not_embedded.inc;
 source include/have_perfschema.inc;
+
+--disable_service_connection
+
 #
 # LOCK TABLES and privileges on views
 #
@@ -92,3 +95,4 @@ exec $MYSQL_DUMP test v1 -uu1 --compact;
 drop view v1;
 drop table t1;
 drop user u1@localhost;
+--enable_service_connection

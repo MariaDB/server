@@ -105,7 +105,7 @@ drop table t1,t2;
 
 set @@optimizer_use_condition_selectivity= @save_optimizer_use_condition_selectivity;
 set @@use_stat_tables= @save_use_stat_tables;
-
+--disable_view_protocol
 CREATE TABLE t1 (a INT NOT NULL PRIMARY KEY) engine=innodb;
 CREATE TABLE t2 (a INT NOT NULL PRIMARY KEY) engine=innodb;
 INSERT INTO t1 VALUES (1);
@@ -159,5 +159,6 @@ commit;
 --connection default
 disconnect con2;
 drop table t1,t2;
+--enable_view_protocol
 
 --echo # End of 10.4 tests

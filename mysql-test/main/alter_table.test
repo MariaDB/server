@@ -780,6 +780,8 @@ drop table t1;
 # Unix/Windows and transactional/non-transactional tables).
 # See also innodb_mysql.test
 #
+
+--disable_service_connection
 --disable_warnings
 drop table if exists t1, t2, t3;
 --enable_warnings
@@ -822,7 +824,7 @@ unlock tables;
 insert into t1 values ();
 select * from t1;
 drop tables t1, t3;
-
+--enable_service_connection
 
 #
 # Bug#18775 - Temporary table from alter table visible to other threads

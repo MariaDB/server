@@ -128,6 +128,9 @@ SET @charset=(SELECT @@character_set_client);
 --echo # SET NAMES CHARACTER SET cs [COLLATE cl]
 --echo #
 
+#enable after fix MDEV-29554
+--disable_view_protocol
+
 CREATE VIEW vars AS
 SELECT * FROM INFORMATION_SCHEMA.SESSION_VARIABLES WHERE variable_name IN
 ('character_set_client','character_set_connection','character_set_results',
@@ -174,6 +177,8 @@ SET NAMES utf8mb4 COLLATE uca1400_ai_ci;
 SELECT * FROM vars;
 
 DROP VIEW vars;
+
+--enable_view_protocol
 
 --echo #
 --echo # MDEV-27009 Add UCA-14.0.0 collations

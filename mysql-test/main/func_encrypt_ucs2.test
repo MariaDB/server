@@ -1,5 +1,7 @@
 -- source include/have_des.inc
 -- source include/have_ucs2.inc
+#double warning for view protocol 
+--source include/no_view_protocol.inc
 
 --echo #
 --echo # Bug#59648 my_strtoll10_mb2: Assertion `(*endptr - s) % 2 == 0' failed.
@@ -8,5 +10,8 @@
 SELECT CHAR_LENGTH(DES_ENCRYPT(0, CHAR('1' USING ucs2)));
 SELECT CONVERT(DES_ENCRYPT(0, CHAR('1' USING ucs2)),UNSIGNED);
 
+#enable after fix MDEV-28643, MDEV-27871
+--disable_view_protocol
 SELECT CHAR_LENGTH(DES_DECRYPT(0xFF0DC9FC9537CA75F4, CHAR('1' USING ucs2)));
 SELECT CONVERT(DES_DECRYPT(0xFF0DC9FC9537CA75F4, CHAR('1' using ucs2)), UNSIGNED);
+--enable_view_protocol

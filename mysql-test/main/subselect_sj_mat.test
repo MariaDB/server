@@ -197,6 +197,9 @@ select * from v1m where (c2, b1) in (select distinct c2, b1 from v2m where b1 is
 
 drop view v1, v2, v1m, v2m;
 
+#--view-protocol is disabled because view gives another query plan
+--disable_view_protocol
+
 # nested subqueries, views
 explain extended
 select * from t1
@@ -330,6 +333,7 @@ explain extended
 select * from t1 where (a1, a2) in (select '1 - 01', '2 - 01' from dual);
 select * from t1 where (a1, a2) in (select '1 - 01', '2 - 01' from dual);
 
+--enable_view_protocol
 
 /******************************************************************************
 * Subqueries in other uncovered clauses.
@@ -814,6 +818,9 @@ explain extended
 select a from t1 group by a having a in (select c from t2 where d >= 20);
 select a from t1 group by a having a in (select c from t2 where d >= 20);
 
+#--view-protocol is disabled because view gives another query plan
+--disable_view_protocol
+
 explain extended
 select a from t1 group by a
 having a in (select c from t2 where d >= some(select e from t3 where max(b)=e));
@@ -824,6 +831,7 @@ select a from t1
 where a in (select c from t2 where d >= some(select e from t3 where b=e));
 select a from t1
 where a in (select c from t2 where d >= some(select e from t3 where b=e));
+--enable_view_protocol
 
 drop table t1, t2, t3;
 

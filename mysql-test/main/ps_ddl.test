@@ -1678,6 +1678,8 @@ drop table t1;
 deallocate prepare stmt;
 create table t1 (a int);
 insert into t1 (a) values (1);
+#t2-temporary table, cannot create a temporary view
+--disable_view_protocol
 prepare stmt from "create temporary table if not exists t2 as select * from t1";
 execute stmt;
 drop table t2;
@@ -1704,6 +1706,7 @@ drop table t1;
 drop temporary table t2;
 drop table t2;
 deallocate prepare stmt;
+--enable_view_protocol
 
 create table t1 (a int);
 prepare stmt from "create table t2 like t1";

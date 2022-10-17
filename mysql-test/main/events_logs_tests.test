@@ -1,5 +1,6 @@
 # Can't test with embedded server that doesn't support grants
 -- source include/not_embedded.inc
+-- source include/no_view_protocol.inc
 
 set @save_long_query_time=@@long_query_time;
 --disable_warnings

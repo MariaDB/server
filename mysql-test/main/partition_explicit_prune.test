@@ -9,6 +9,7 @@ WHERE VARIABLE_NAME LIKE 'HANDLER_%' AND VARIABLE_VALUE > 0;
 --echo #
 --echo # Bug#13559657: PARTITION SELECTION DOES NOT WORK WITH VIEWS
 --echo #
+--disable_view_protocol
 CREATE TABLE t1 (a int)
 ENGINE = InnoDB
 PARTITION BY HASH (a) PARTITIONS 2;
@@ -84,7 +85,7 @@ SELECT * FROM v1;
 SELECT * FROM t1;
 DROP VIEW v1;
 DROP TABLE t1;
-
+--enable_service_connection
 --echo # Original tests for WL#5217
 
 --echo # Must have InnoDB as engine to get the same statistics results.
@@ -100,7 +101,7 @@ eval $get_handler_status_counts;
 eval $get_handler_status_counts;
 --echo # OK, seems to add number of variables processed before HANDLER_WRITE
 --echo # and number of variables + 1 evaluated in the previous call in RND_NEXT
-
+--disable_service_connection
 CREATE TABLE t1
 (a INT NOT NULL,
  b varchar (64),
@@ -623,7 +624,7 @@ eval $get_handler_status_counts;
 SELECT * FROM t3 PARTITION (pNeg);
 
 DROP TABLE t1, t2, t3;
-#
+--enable_view_protocol
 --echo # Test from superseeded WL# 2682
 # Partition select tests.
 #
@@ -847,11 +848,12 @@ DROP TABLE t1;
 --echo #
 --echo # Test explicit partition selection on a non partitioned temp table
 --echo #
+--disable_view_protocol
 CREATE TEMPORARY TABLE t1 (a INT);
 --error ER_PARTITION_CLAUSE_ON_NONPARTITIONED
 SELECT * FROM t1 PARTITION(pNonexisting);
 DROP TEMPORARY TABLE t1;
-
+--enable_view_protocol
 --echo #
 --echo # Test CREATE LIKE does not take PARTITION clause
 --echo #
@@ -866,6 +868,7 @@ SET @@default_storage_engine = @old_default_storage_engine;
 --echo #
 --echo # MDEV-14815 - Server crash or AddressSanitizer errors or valgrind warnings in thr_lock / has_old_lock upon FLUSH TABLES
 --echo #
+--disable_service_connection
 CREATE TABLE t1 (i INT) ENGINE=MEMORY PARTITION BY RANGE (i) (PARTITION p0 VALUES LESS THAN (4), PARTITION pm VALUES LESS THAN MAXVALUE);
 CREATE TABLE t2 (i INT) ENGINE=MEMORY;
 LOCK TABLE t1 WRITE, t2 WRITE;
@@ -879,6 +882,7 @@ SELECT * FROM t1 PARTITION (p0);
 UNLOCK TABLES;
 DROP TABLE t1, t2;
 
+--enable_service_connection
 --echo #
 --echo # MDEV-18371 Server crashes in ha_innobase::cmp_ref upon UPDATE with PARTITION clause.
 --echo #
