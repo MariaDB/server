@@ -9159,11 +9159,8 @@ bool TABLE::vers_update_fields()
   bool res= false;
   if (versioned(VERS_TIMESTAMP) && !vers_start_field()->has_explicit_value())
   {
-    if (vers_start_field()->store_timestamp(in_use->query_start(),
-                                          in_use->query_start_sec_part()))
-    {
+    if (vers_start_field()->set_time())
       DBUG_ASSERT(0);
-    }
   }
 
   if (!versioned(VERS_TIMESTAMP) || !vers_end_field()->has_explicit_value())

@@ -11307,7 +11307,13 @@ bool Field::save_in_field_default_value(bool view_error_processing)
      This condition will go away as well as other conditions with vers_sys_field().
   */
   if (vers_sys_field())
+  {
+    if (flags & VERS_ROW_START)
+      set_time();
+    else
+      set_max();
     return false;
+  }
 
   if (unlikely(flags & NO_DEFAULT_VALUE_FLAG &&
                real_type() != MYSQL_TYPE_ENUM))

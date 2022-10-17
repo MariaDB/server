@@ -1,0 +1,21 @@
+#
+# simple tests that don't need to be run in multiple various combinations
+#
+set time_zone='+00:00';
+
+--echo #
+--echo # MDEV-29721 Inconsistency upon inserting history with visible system versioning columns
+--echo #
+create table t1 (a int, s timestamp(6) as row start, e timestamp(6) as row end, period for system_time(s,e)) with system versioning;
+set system_versioning_insert_history=on;
+set timestamp=unix_timestamp('2010-10-10 10:10:10');
+insert t1 (a,s,e) values (1,'2020-01-01',default), (2,'2020-02-02',ignore),(3,default,'2020-03-03'), (4,ignore,'2020-04-04');
+set timestamp=unix_timestamp('2010-11-11 11:11:11');
+insert t1 values (5,'2020-01-01',default), (6,'2020-02-02',ignore),(7,default,'2020-03-03'), (8,ignore,'2020-04-04');
+set timestamp=default;
+select * from t1 for system_time all;
+drop table t1;
+
+--echo #
+--echo # End of 10.11 tests
+--echo #
