@@ -484,7 +484,7 @@ t1	CREATE TABLE `t1` (
   `a` int(11) NOT NULL,
   `b` int(11) DEFAULT NULL,
   PRIMARY KEY (`a`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci WITH SYSTEM VERSIONING
 select *, UNIX_TIMESTAMP(row_start), UNIX_TIMESTAMP(row_end) from t1 for system_time all;
 a	b	UNIX_TIMESTAMP(row_start)	UNIX_TIMESTAMP(row_end)
 1	55	1.000000	2147483647.999999
@@ -604,7 +604,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` char(4) DEFAULT NULL,
   `b` int(11) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 select * from t1;
 a	b
 abcd	1
@@ -651,7 +651,7 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 select * from t1;
 a
 1
@@ -738,7 +738,7 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `b` blob DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 connection default;
 drop table t1;
 set debug_sync= reset;
@@ -799,7 +799,7 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 select * from t1;
 a
 1
@@ -824,7 +824,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT (`a` + 10)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 select * from t1;
 a	b
 1	11
@@ -850,7 +850,7 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 select * from t1;
 a
 1
@@ -876,8 +876,8 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
-  `b` int(11) DEFAULT (`a` + 10)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1
+  `b` int(11) DEFAULT `a`
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 select * from t1;
 a	b
 1	1
@@ -907,7 +907,7 @@ t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) GENERATED ALWAYS AS (`a`) VIRTUAL,
   CONSTRAINT `CONSTRAINT_1` CHECK (`b` = `a`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 select * from t1;
 a	b
 1	1
