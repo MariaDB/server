@@ -233,9 +233,12 @@ drop table t1;
 create table t1 ( a int, b int default 0, index (a) );
 insert into t1 (a) values (0),(0),(0),(0),(0),(0),(0),(0);
 
+# the view protocol creates an additional statistics data
+--disable_view_protocol
 flush status;
 select a from t1 order by a limit 1;
 show status like 'handler_read%';
+--enable_view_protocol
 
 flush status;
 update t1 set a=9999 order by a limit 1;

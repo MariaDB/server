@@ -3,6 +3,9 @@
 # Tests with the utf8 character set
 #
 
+# Enable after fix MDEV-27904
+-- source include/no_view_protocol.inc
+
 let $MYSQLD_DATADIR= `select @@datadir`;
 
 let collation=utf8mb3_unicode_ci;

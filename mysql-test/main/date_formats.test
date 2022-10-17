@@ -2,6 +2,9 @@
 # Test of date format functions
 #
 
+#remove this include after fix MDEV-27871
+-- source include/no_view_protocol.inc
+
 --disable_warnings
 drop table if exists t1;
 --enable_warnings

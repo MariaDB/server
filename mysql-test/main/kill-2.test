@@ -6,12 +6,12 @@
 # connection does not read() from a socket, but returns control to the
 # application. 'mysqltest' does not handle the kill request.
 #
-
 -- source include/not_embedded.inc
 
 --echo #
 --echo # MDEV-6896 kill user command cause MariaDB crash!
 --echo #
+--disable_service_connection
 
 create user foo@'127.0.0.1';
 
@@ -26,3 +26,4 @@ let $wait_condition=
     where user = "foo";
 --source include/wait_condition.inc
 drop user foo@'127.0.0.1';
+--enable_service_connection

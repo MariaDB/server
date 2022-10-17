@@ -169,7 +169,7 @@ SET collation_connection='tis620_bin';
 --echo #
 --echo # Start of 5.6 tests
 --echo #
-
+--disable_service_connection
 --echo #
 --echo # WL#3664 WEIGHT_STRING
 --echo #
@@ -186,8 +186,11 @@ set collation_connection=tis620_bin;
 --source include/weight_string.inc
 --source include/weight_string_l1.inc
 --source include/ctype_pad_space.inc
+#enable after fix MDEV-29290
+--disable_view_protocol
 select hex(weight_string(cast(0xE0A1 as char)));
 select hex(weight_string(cast(0xE0A1 as char) as char(1)));
+--enable_view_protocol
 
 --echo #
 --echo # End of 5.6 tests
@@ -208,6 +211,7 @@ let $coll_pad='tis620_thai_ci';
 let $coll='tis620_nopad_bin';
 let $coll_pad='tis620_bin';
 --source include/ctype_pad_all_engines.inc
+--enable_service_connection
 
 --echo #
 --echo # MDEV-24901 SIGSEGV in fts_get_table_name, SIGSEGV in ib_vector_size, SIGSEGV in row_merge_fts_doc_tokenize, stack smashing
