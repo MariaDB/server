@@ -3800,8 +3800,20 @@ bool ddl_log_rename_frm(DDL_LOG_STATE *ddl_state,
    CREATE OR REPLACE ... is used.
 */
 
-void ddl_log_link_chains(DDL_LOG_STATE *state, DDL_LOG_STATE *master_state)
+bool ddl_log_link_chains(DDL_LOG_STATE *state, DDL_LOG_STATE *master_state)
 {
+  if (!master_state->execute_entry)
+  {
+    mysql_mutex_lock(&LOCK_gdl);
+    if (ddl_log_write_execute_entry(0, master_state->master_chain_pos,
+                                    &master_state->execute_entry))
+    {
+      mysql_mutex_unlock(&LOCK_gdl);
+      return true;
+    }
+    mysql_mutex_unlock(&LOCK_gdl);
+  }
   DBUG_ASSERT(master_state->execute_entry);
   state->master_chain_pos= master_state->execute_entry->entry_pos;
+  return false;
 }
