@@ -1,1 +1,0 @@
---wsrep_notify_cmd=$MYSQL_TEST_DIR/std_data/wsrep_notify_ssl.sh --wsrep-sync-wait=0

@@ -22,3 +22,4 @@ eval SET PASSWORD FOR testuser1@'$IPv6' = PASSWORD ('9876');
 --replace_result ::1 localhost
 SELECT USER();
 eval DROP USER testuser1@'$IPv6';
+
