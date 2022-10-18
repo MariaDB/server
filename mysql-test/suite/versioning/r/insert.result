@@ -295,3 +295,27 @@ ERROR 42000: Access denied; you need (at least one of) the SUPER, BINLOG REPLAY 
 use test;
 # restart: --secure-timestamp=NO
 drop tables t1, t2, t3;
+#
+# MDEV-29813 REPLACE/IGNORE does not work with historical records in InnoDB
+#
+set sql_mode='STRICT_ALL_TABLES';
+create or replace table t1 (a int) with system versioning;
+set system_versioning_insert_history= on;
+insert into t1 (a,row_start,row_end) values (1,'2022-01-01','2023-01-01'),(1,'2022-01-01','2023-01-01');
+select a,row_start,row_end into outfile 'mdev29813.txt' from t1 for system_time all;
+create or replace table t1 (a int primary key) with system versioning;
+load data infile 'mdev29813.txt' ignore into table t1 (a,row_start,row_end);
+Warnings:
+Warning	1062	Duplicate entry '1' for key 'PRIMARY'
+select a,row_start,row_end from t1 for system_time all;
+a	row_start	row_end
+1	2022-01-01 00:00:00.000000	2023-01-01 00:00:00.000000
+create or replace table t1 (a int primary key) with system versioning;
+insert ignore into t1 (a,row_start,row_end) values (1,'2022-01-01','2023-01-01'),(1,'2022-01-01','2023-01-01');
+Warnings:
+Warning	1062	Duplicate entry '1' for key 'PRIMARY'
+select a,row_start,row_end from t1 for system_time all;
+a	row_start	row_end
+1	2022-01-01 00:00:00.000000	2023-01-01 00:00:00.000000
+drop table t1;
+set sql_mode=default;
