@@ -726,7 +726,7 @@ ROLLBACK/*!*/;
 use `test`/*!*/;
 SET TIMESTAMP=1253783037/*!*/;
 SET @@session.pseudo_thread_id=999999999/*!*/;
-SET @@session.foreign_key_checks=1, @@session.sql_auto_is_null=1, @@session.unique_checks=1, @@session.autocommit=1, @@session.check_constraint_checks=1/*!*/;
+SET @@session.foreign_key_checks=1, @@session.sql_auto_is_null=1, @@session.unique_checks=1, @@session.autocommit=1, @@session.check_constraint_checks=1, @@session.system_versioning_insert_history=0/*!*/;
 SET @@session.sql_mode=0/*!*/;
 SET @@session.auto_increment_increment=1, @@session.auto_increment_offset=1/*!*/;
 /*!\C latin1 *//*!*/;
@@ -780,7 +780,7 @@ DELIMITER /*!*/;
 ROLLBACK/*!*/;
 SET TIMESTAMP=1253783037/*!*/;
 SET @@session.pseudo_thread_id=999999999/*!*/;
-SET @@session.foreign_key_checks=1, @@session.sql_auto_is_null=1, @@session.unique_checks=1, @@session.autocommit=1, @@session.check_constraint_checks=1/*!*/;
+SET @@session.foreign_key_checks=1, @@session.sql_auto_is_null=1, @@session.unique_checks=1, @@session.autocommit=1, @@session.check_constraint_checks=1, @@session.system_versioning_insert_history=0/*!*/;
 SET @@session.sql_mode=0/*!*/;
 SET @@session.auto_increment_increment=1, @@session.auto_increment_offset=1/*!*/;
 /*!\C latin1 *//*!*/;
@@ -815,7 +815,7 @@ ROLLBACK /* added by mysqlbinlog */;
 DELIMITER /*!*/;
 SET TIMESTAMP=1266652094/*!*/;
 SET @@session.pseudo_thread_id=999999999/*!*/;
-SET @@session.foreign_key_checks=1, @@session.sql_auto_is_null=1, @@session.unique_checks=1, @@session.autocommit=1, @@session.check_constraint_checks=1/*!*/;
+SET @@session.foreign_key_checks=1, @@session.sql_auto_is_null=1, @@session.unique_checks=1, @@session.autocommit=1, @@session.check_constraint_checks=1, @@session.system_versioning_insert_history=0/*!*/;
 SET @@session.sql_mode=0/*!*/;
 SET @@session.auto_increment_increment=1, @@session.auto_increment_offset=1/*!*/;
 /*!\C latin1 *//*!*/;
@@ -857,7 +857,7 @@ ROLLBACK /* added by mysqlbinlog */;
 DELIMITER /*!*/;
 SET TIMESTAMP=1266652094/*!*/;
 SET @@session.pseudo_thread_id=999999999/*!*/;
-SET @@session.foreign_key_checks=1, @@session.sql_auto_is_null=1, @@session.unique_checks=1, @@session.autocommit=1, @@session.check_constraint_checks=1/*!*/;
+SET @@session.foreign_key_checks=1, @@session.sql_auto_is_null=1, @@session.unique_checks=1, @@session.autocommit=1, @@session.check_constraint_checks=1, @@session.system_versioning_insert_history=0/*!*/;
 SET @@session.sql_mode=0/*!*/;
 SET @@session.auto_increment_increment=1, @@session.auto_increment_offset=1/*!*/;
 /*!\C latin1 *//*!*/;
@@ -975,7 +975,7 @@ AAAAAAAAAAAAAAAAAAAgrgJSFzgNAAgAEgAEBAQEEgAAUwAEGggAAAAICAgC
 # Event: 	Query	thread_id=1	exec_time=0	error_code=0	xid=0
 SET TIMESTAMP=1375907364/*!*/;
 SET @@session.pseudo_thread_id=1/*!*/;
-SET @@session.foreign_key_checks=1, @@session.sql_auto_is_null=1, @@session.unique_checks=1, @@session.autocommit=1, @@session.check_constraint_checks=1/*!*/;
+SET @@session.foreign_key_checks=1, @@session.sql_auto_is_null=1, @@session.unique_checks=1, @@session.autocommit=1, @@session.check_constraint_checks=1, @@session.system_versioning_insert_history=0/*!*/;
 SET @@session.sql_mode=0/*!*/;
 SET @@session.auto_increment_increment=1, @@session.auto_increment_offset=1/*!*/;
 /*!\C latin1 *//*!*/;
@@ -1058,7 +1058,7 @@ AAAAAAAAAAAAAAAAAAA/rQJSGzgNAAgAEgAEBAQEEgAAUwAEGggAAAAICAgC
 # Event: 	Query	thread_id=1	exec_time=1	error_code=0	xid=0
 SET TIMESTAMP=1375907141/*!*/;
 SET @@session.pseudo_thread_id=1/*!*/;
-SET @@session.foreign_key_checks=1, @@session.sql_auto_is_null=1, @@session.unique_checks=1, @@session.autocommit=1, @@session.check_constraint_checks=1/*!*/;
+SET @@session.foreign_key_checks=1, @@session.sql_auto_is_null=1, @@session.unique_checks=1, @@session.autocommit=1, @@session.check_constraint_checks=1, @@session.system_versioning_insert_history=0/*!*/;
 SET @@session.sql_mode=0/*!*/;
 SET @@session.auto_increment_increment=1, @@session.auto_increment_offset=1/*!*/;
 /*!\C latin1 *//*!*/;
@@ -1141,7 +1141,7 @@ AAAAAAAAAAAAAAAAAAAnrAJSHzgNAAgAEgAEBAQEEgAAUwAEGggAAAAICAgC
 # Event: 	Query	thread_id=1	exec_time=0	error_code=0	xid=0
 SET TIMESTAMP=1375906879/*!*/;
 SET @@session.pseudo_thread_id=1/*!*/;
-SET @@session.foreign_key_checks=1, @@session.sql_auto_is_null=1, @@session.unique_checks=1, @@session.autocommit=1, @@session.check_constraint_checks=1/*!*/;
+SET @@session.foreign_key_checks=1, @@session.sql_auto_is_null=1, @@session.unique_checks=1, @@session.autocommit=1, @@session.check_constraint_checks=1, @@session.system_versioning_insert_history=0/*!*/;
 SET @@session.sql_mode=0/*!*/;
 SET @@session.auto_increment_increment=1, @@session.auto_increment_offset=1/*!*/;
 /*!\C latin1 *//*!*/;
@@ -1224,7 +1224,7 @@ AAAAAAAAAAAAAAAAAABbsAJSEzgNAAgAEgAEBAQEEgAAUwAEGggAAAAICAgC
 # Event: 	Query	thread_id=1	exec_time=0	error_code=0	xid=0
 SET TIMESTAMP=1375907933/*!*/;
 SET @@session.pseudo_thread_id=1/*!*/;
-SET @@session.foreign_key_checks=1, @@session.sql_auto_is_null=1, @@session.unique_checks=1, @@session.autocommit=1, @@session.check_constraint_checks=1/*!*/;
+SET @@session.foreign_key_checks=1, @@session.sql_auto_is_null=1, @@session.unique_checks=1, @@session.autocommit=1, @@session.check_constraint_checks=1, @@session.system_versioning_insert_history=0/*!*/;
 SET @@session.sql_mode=0/*!*/;
 SET @@session.auto_increment_increment=1, @@session.auto_increment_offset=1/*!*/;
 /*!\C latin1 *//*!*/;
