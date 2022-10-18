@@ -8170,7 +8170,7 @@ int TABLE::update_virtual_field(Field *vf, bool ignore_warnings)
   Counting_error_handler count_errors;
   Suppress_warnings_error_handler warning_handler;
   in_use->push_internal_handler(&count_errors);
-  bool abort_on_warning;
+  bool abort_on_warning= ignore_warnings;
   if (ignore_warnings)
   {
     abort_on_warning= in_use->abort_on_warning;
