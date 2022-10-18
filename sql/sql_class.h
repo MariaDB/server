@@ -5579,7 +5579,8 @@ public:
   {
     DBUG_ASSERT(table->versioned());
     return table->versioned(VERS_TIMESTAMP) &&
-           (variables.option_bits & OPTION_INSERT_HISTORY);
+           (variables.option_bits & OPTION_INSERT_HISTORY) &&
+            lex->duplicates == DUP_ERROR;
   }
 
   bool vers_insert_history(const Field *field)
@@ -5590,8 +5591,6 @@ public:
       return false;
     if (lex->sql_command != SQLCOM_INSERT &&
         lex->sql_command != SQLCOM_INSERT_SELECT &&
-        lex->sql_command != SQLCOM_REPLACE &&
-        lex->sql_command != SQLCOM_REPLACE_SELECT &&
         lex->sql_command != SQLCOM_LOAD)
       return false;
     return !is_set_timestamp_forbidden(this);

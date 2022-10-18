@@ -127,6 +127,8 @@ update t2 set row_start= '1971-01-01 00:00:00';
 insert t1 (x) values (2) on duplicate key update x= 3, row_end= '1970-01-01 00:00:00';
 --error ER_WARNING_NON_DEFAULT_VALUE_FOR_GENERATED_COLUMN
 insert t2 (y) values (1) on duplicate key update y= 3, row_end= '1970-01-01 00:00:00';
+--error ER_WARNING_NON_DEFAULT_VALUE_FOR_GENERATED_COLUMN
+insert t2 (y,row_end) values (1, '1970-01-01 00:00:00') on duplicate key update y= 3;
 # this should work, row_start/row_end must be mentioned explicitly:
 insert into t1 values (4);
 insert into t1 set x= 5, row_start= '1980-01-01 00:00:00', row_end= '1980-01-01 00:00:01';
@@ -177,22 +179,13 @@ replace into t2 (a, row_start, row_end) values (1, '1980-01-01 00:00:00', '1980-
 --error ER_BAD_FIELD_ERROR
 replace into t2 (a, row_start, row_end) select x, row_start, row_end from t1;
 set @@system_versioning_insert_history= 1;
---replace_regex /'202\d-\d\d-\d\d .*'/'now'/
---error ER_WRONG_VALUE
+--echo # REPLACE ignores system_versioning_insert_history
+--error ER_BAD_FIELD_ERROR
 replace into t2 (a, row_end) values (0, '1980-01-01 00:00:00');
-replace into t2 (a, row_start, row_end) values (1, '1980-01-01 00:00:00', '1980-01-01 00:00:01');
-select a, row_start, row_end from t2 for system_time all order by a, row_start, row_end;
---echo # Changing row_end via REPLACE is NOT possible, we just insert new row:
-replace into t2 (a, row_start, row_end) values (1, '1980-01-01 00:00:00', '1990-01-01 00:00:01');
-select a, row_start, row_end from t2 for system_time all order by a, row_start, row_end;
---echo # REPLACE is DELETE + INSERT
-set timestamp=unix_timestamp('2020-10-10 10:10:10');
-replace into t2 (a, row_start, row_end) values (1, '1971-01-01 00:00:00', '1980-01-01 00:00:01');
-set timestamp=default;
-select a, row_start, row_end from t2 for system_time all order by a, row_start, row_end;
-eval replace into t2 (a, row_start, row_end) select x, row_start, row_end from t1 for system_time all
-where x > 1 and row_end < $MAX_TIMESTAMP;
-select a, row_start, row_end from t2 for system_time all order by a, row_start, row_end;
+--error ER_WARNING_NON_DEFAULT_VALUE_FOR_GENERATED_COLUMN
+replace into t3 (z, row_start) values (0, '1980-01-01 00:00:00');
+--error ER_WARNING_NON_DEFAULT_VALUE_FOR_GENERATED_COLUMN
+replace into t3 values (0,  '1980-01-01 00:00:00', '1981-01-01 00:00:00');
 
 --echo # LOAD DATA
 --let DATAFILE= $MYSQLTEST_VARDIR/tmp/test_versioning_t3.data

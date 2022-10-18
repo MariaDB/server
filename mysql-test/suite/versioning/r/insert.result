@@ -163,6 +163,8 @@ insert t1 (x) values (2) on duplicate key update x= 3, row_end= '1970-01-01 00:0
 ERROR 42S22: Unknown column 'row_end' in 'field list'
 insert t2 (y) values (1) on duplicate key update y= 3, row_end= '1970-01-01 00:00:00';
 ERROR HY000: The value specified for generated column 'row_end' in table 't2' has been ignored
+insert t2 (y,row_end) values (1, '1970-01-01 00:00:00') on duplicate key update y= 3;
+ERROR HY000: The value specified for generated column 'row_end' in table 't2' has been ignored
 insert into t1 values (4);
 insert into t1 set x= 5, row_start= '1980-01-01 00:00:00', row_end= '1980-01-01 00:00:01';
 insert into t1(x, row_start, row_end) values (6, '1980-01-01 00:00:01', '1980-01-01 00:00:00');
@@ -231,36 +233,13 @@ ERROR 42S22: Unknown column 'row_start' in 'field list'
 replace into t2 (a, row_start, row_end) select x, row_start, row_end from t1;
 ERROR 42S22: Unknown column 'row_start' in 'field list'
 set @@system_versioning_insert_history= 1;
+# REPLACE ignores system_versioning_insert_history
 replace into t2 (a, row_end) values (0, '1980-01-01 00:00:00');
-ERROR HY000: Incorrect row_start value: 'now'
-replace into t2 (a, row_start, row_end) values (1, '1980-01-01 00:00:00', '1980-01-01 00:00:01');
-select a, row_start, row_end from t2 for system_time all order by a, row_start, row_end;
-a	row_start	row_end
-1	1980-01-01 00:00:00.000000	1980-01-01 00:00:01.000000
-# Changing row_end via REPLACE is NOT possible, we just insert new row:
-replace into t2 (a, row_start, row_end) values (1, '1980-01-01 00:00:00', '1990-01-01 00:00:01');
-select a, row_start, row_end from t2 for system_time all order by a, row_start, row_end;
-a	row_start	row_end
-1	1980-01-01 00:00:00.000000	1980-01-01 00:00:01.000000
-1	1980-01-01 00:00:00.000000	1990-01-01 00:00:01.000000
-# REPLACE is DELETE + INSERT
-set timestamp=unix_timestamp('2020-10-10 10:10:10');
-replace into t2 (a, row_start, row_end) values (1, '1971-01-01 00:00:00', '1980-01-01 00:00:01');
-set timestamp=default;
-select a, row_start, row_end from t2 for system_time all order by a, row_start, row_end;
-a	row_start	row_end
-1	1971-01-01 00:00:00.000000	1980-01-01 00:00:01.000000
-1	1980-01-01 00:00:00.000000	1990-01-01 00:00:01.000000
-1	1980-01-01 00:00:00.000000	2020-10-10 10:10:10.000000
-replace into t2 (a, row_start, row_end) select x, row_start, row_end from t1 for system_time all
-where x > 1 and row_end < TIMESTAMP'2038-01-19 03:14:07.999999';
-select a, row_start, row_end from t2 for system_time all order by a, row_start, row_end;
-a	row_start	row_end
-1	1971-01-01 00:00:00.000000	1980-01-01 00:00:01.000000
-1	1980-01-01 00:00:00.000000	1990-01-01 00:00:01.000000
-1	1980-01-01 00:00:00.000000	2020-10-10 10:10:10.000000
-3	1980-01-01 00:00:00.000000	1980-01-01 00:00:01.000000
-5	1980-01-01 00:00:00.000000	1980-01-01 00:00:01.000000
+ERROR 42S22: Unknown column 'row_end' in 'field list'
+replace into t3 (z, row_start) values (0, '1980-01-01 00:00:00');
+ERROR HY000: The value specified for generated column 'row_start' in table 't3' has been ignored
+replace into t3 values (0,  '1980-01-01 00:00:00', '1981-01-01 00:00:00');
+ERROR HY000: The value specified for generated column 'row_start' in table 't3' has been ignored
 # LOAD DATA
 select x, row_start, row_end into outfile 'DATAFILE' from t1 for system_time all;
 create or replace table t2 like t1;
