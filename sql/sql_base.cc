@@ -8930,8 +8930,7 @@ fill_record(THD *thd, TABLE *table_arg, List<Item> &fields, List<Item> &values,
       table->auto_increment_field_not_null= TRUE;
 
     const bool skip_sys_field= rfield->vers_sys_field() &&
-      (update || table->versioned(VERS_TRX_ID) ||
-       !(thd->variables.option_bits & OPTION_INSERT_HISTORY));
+                       (update || !thd->vers_insert_history_fast(table));
 
     if ((rfield->vcol_info || skip_sys_field) &&
         !value->vcol_assignment_allowed_value() &&
@@ -9217,8 +9216,7 @@ fill_record(THD *thd, TABLE *table, Field **ptr, List<Item> &values,
     DBUG_ASSERT(value);
 
     const bool skip_sys_field= field->vers_sys_field() &&
-                      (table->versioned(VERS_TRX_ID) ||
-                       !(thd->variables.option_bits & OPTION_INSERT_HISTORY));
+                               !thd->vers_insert_history_fast(table);
 
     if (field->field_index == autoinc_index)
       table->auto_increment_field_not_null= TRUE;

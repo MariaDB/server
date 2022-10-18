@@ -5575,14 +5575,18 @@ public:
     lex= backup_lex;
   }
 
+  bool vers_insert_history_fast(const TABLE *table)
+  {
+    DBUG_ASSERT(table->versioned());
+    return table->versioned(VERS_TIMESTAMP) &&
+           (variables.option_bits & OPTION_INSERT_HISTORY);
+  }
+
   bool vers_insert_history(const Field *field)
   {
     if (!field->vers_sys_field())
       return false;
-    DBUG_ASSERT(field->table->versioned());
-    if (field->table->versioned(VERS_TRX_ID))
-      return false;
-    if (!(variables.option_bits & OPTION_INSERT_HISTORY))
+    if (!vers_insert_history_fast(field->table))
       return false;
     if (lex->sql_command != SQLCOM_INSERT &&
         lex->sql_command != SQLCOM_INSERT_SELECT &&

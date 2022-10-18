@@ -898,10 +898,8 @@ bool mysql_insert(THD *thd, TABLE_LIST *table_list,
     For single line insert, generate an error if try to set a NOT NULL field
     to NULL.
   */
-  thd->count_cuted_fields= ((values_list.elements == 1 &&
-                             !ignore) ?
-			    CHECK_FIELD_ERROR_FOR_NULL :
-			    CHECK_FIELD_WARN);
+  thd->count_cuted_fields= (values_list.elements == 1 && !ignore)
+                           ? CHECK_FIELD_ERROR_FOR_NULL : CHECK_FIELD_WARN;
   thd->cuted_fields = 0L;
   table->next_number_field=table->found_next_number_field;
 
