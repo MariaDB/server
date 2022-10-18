@@ -186,13 +186,13 @@ then
     fi
 fi
 
-case "$STATUS" in
-    'joined' | 'donor' | 'synced')
+case $STATUS in
+    "joined" | "donor" | "synced")
         "$COM" | eval "$CLIENT" -B "-u'$USER'"${PSWD:+" -p'$PSWD'"}\
                       "-h'$HOST'" "-P$PORT"$SSL_PARAM
         ;;
     *)
-        # The node might be shutting down or not initialized
+        # The node might be shutting down
         ;;
 esac
 

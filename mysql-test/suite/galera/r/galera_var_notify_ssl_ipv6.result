@@ -1,5 +1,3 @@
-connection node_2;
-connection node_1;
 connection node_1;
 SELECT COUNT(DISTINCT uuid) AS EXPECT_2 FROM mtr_wsrep_notify.membership;
 EXPECT_2
