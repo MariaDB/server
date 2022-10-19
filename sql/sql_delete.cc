@@ -1662,6 +1662,10 @@ bool Sql_cmd_delete::prepare_inner(THD *thd)
     {
       goto err;
     }
+
+    if (!multitable &&
+        select_lex->sj_subselects.elements)
+      multitable= true;
   }
 
   if (multitable)
