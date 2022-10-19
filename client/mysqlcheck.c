@@ -1111,6 +1111,8 @@ static int dbConnect(char *host, char *user, char *passwd)
     mysql_options(&mysql_connection, MYSQL_OPT_SSL_CRL, opt_ssl_crl);
     mysql_options(&mysql_connection, MYSQL_OPT_SSL_CRLPATH, opt_ssl_crlpath);
   }
+  mysql_options(&mysql_connection, MYSQL_OPT_SSL_VERIFY_SERVER_CERT,
+                (char*)&opt_ssl_verify_server_cert);
 #endif
   if (opt_protocol)
     mysql_options(&mysql_connection,MYSQL_OPT_PROTOCOL,(char*)&opt_protocol);
