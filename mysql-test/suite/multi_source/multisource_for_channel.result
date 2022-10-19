@@ -279,6 +279,10 @@ Last_SQL_Errno = '0'
 #
 START SLAVE for channel 'master1';
 include/wait_for_slave_to_start.inc
+connection master1;
+create table foo (a int);
+drop table foo;
+connection slave;
 
 show slave status for channel 'master1'
 Master_Port = 'MYPORT_1'
