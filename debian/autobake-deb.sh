@@ -76,14 +76,12 @@ disable_libfmt()
 
 architecture=$(dpkg-architecture -q DEB_BUILD_ARCH)
 
-LSBID="$(lsb_release -si  | tr '[:upper:]' '[:lower:]')"
-LSBVERSION="$(lsb_release -sr | sed -e "s#\.##g")"
-LSBNAME="$(lsb_release -sc)"
+source /etc/os-release
+LSBID=${ID:-unknown}
+LSBVERSION=${VERSION_ID:-unknown}
+LSBVERSION=${LSBVERSION/\./}
+LSBNAME=${VERSION_CODENAME:-sid}
 
-if [ -z "${LSBID}" ]
-then
-    LSBID="unknown"
-fi
 case "${LSBNAME}" in
   stretch)
     # MDEV-16525 libzstd-dev-1.1.3 minimum version
