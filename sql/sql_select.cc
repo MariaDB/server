@@ -5847,7 +5847,6 @@ make_join_statistics(JOIN *join, List<TABLE_LIST> &tables_list,
         s->records= s->found_records= records;
         s->records_init= s->records_out= rows2double(records);
         s->read_time=1.0;
-        s->worst_seeks=1.0;
         table_records.add_table_name(s).
           add("rows", s->found_records).
           add("cost", s->read_time).
@@ -5864,21 +5863,6 @@ make_join_statistics(JOIN *join, List<TABLE_LIST> &tables_list,
 
       if (s->table->is_splittable())
         s->add_keyuses_for_splitting();
-
-      /*
-        Set a max range of how many seeks we can expect when using keys
-        This is can't be to high as otherwise we are likely to use
-        table scan.
-      */
-#ifdef OLD_CODE_LIMITED_SEEKS
-      s->worst_seeks= MY_MIN((double) s->found_records / 10,
-                             (double) s->read_time*3);
-      s->worst_seeks= s->found_records;        // Disable worst seeks
-      if (s->worst_seeks < 2.0)			// Fix for small tables
-        s->worst_seeks=2.0;
-#else
-      s->worst_seeks= DBL_MAX;
-#endif
 
       /*
         Add to stat->const_keys those indexes for which all group fields or
@@ -7862,9 +7846,8 @@ static double matching_candidates_in_table(JOIN_TAB *s,
   WHERE_COST cost is not added to any result.
 */
 
-ALL_READ_COST cost_for_index_read(const THD *thd, const TABLE *table,
-                                  uint key, ha_rows records,
-                                  ha_rows worst_seeks)
+static ALL_READ_COST cost_for_index_read(const THD *thd, const TABLE *table,
+                                         uint key, ha_rows records)
 {
   ALL_READ_COST cost;
   handler *file= table->file;
@@ -8327,7 +8310,7 @@ best_access_path(JOIN      *join,
             }
             else
             {
-              tmp= cost_for_index_read(thd, table, key, 1, 1);
+              tmp= cost_for_index_read(thd, table, key, 1);
             }
             /*
               Calculate an adjusted cost based on how many records are read
@@ -8435,13 +8418,11 @@ best_access_path(JOIN      *join,
             }
             /* Calculate the cost of the index access */
             tmp= cost_for_index_read(thd, table, key,
-                                     (ha_rows) records,
-                                     (ha_rows) s->worst_seeks);
+                                     (ha_rows) records);
           }
         }
         else
         {
-          ha_rows tmp_records;
           type = ref_or_null_part ? JT_REF_OR_NULL : JT_REF;
           if (unlikely(trace_access_idx.trace_started()))
             trace_access_idx.
@@ -8620,13 +8601,8 @@ best_access_path(JOIN      *join,
               }
             }
 
-            /* Limit the number of matched rows */
             set_if_smaller(records, (double) s->records);
-            tmp_records= records;
-            set_if_smaller(tmp_records, thd->variables.max_seeks_for_key);
-            tmp= cost_for_index_read(thd, table, key,
-                                     tmp_records,
-                                     (ha_rows) s->worst_seeks);
+            tmp= cost_for_index_read(thd, table, key, (ha_rows)records);
             tmp.copy_cost+= extra_cost;
           }
           else
@@ -9006,9 +8982,8 @@ best_access_path(JOIN      *join,
             if ((forced_index= find_shortest_key(table, &keys)) < MAX_KEY)
             {
               ALL_READ_COST cost= cost_for_index_read(thd, table,
-                                                        forced_index,
-                                                        s->records,
-                                                        s->worst_seeks);
+                                                      forced_index,
+                                                      s->records);
               cur_cost= file->cost(cost);
               /* Calculate cost of checking the attached WHERE */
               cur_cost= COST_ADD(cur_cost,
@@ -10136,7 +10111,7 @@ double JOIN::get_examined_rows()
                COST_MULT((double) (tab->get_examined_rows()), prev_fanout));
     prev_tab= tab;
   }
-  examined_rows= double_to_rows(records);
+  examined_rows= records;
   return examined_rows;
 }
 
@@ -30293,10 +30268,7 @@ static bool get_range_limit_read_cost(const POSITION *pos,
     <=> N > refkey_rows_estimate.
   */
   ALL_READ_COST cost= cost_for_index_read(table->in_use, table, keynr,
-                                          rows_to_scan,
-                                          pos ?
-                                          (ha_rows) pos->table->worst_seeks :
-                                          HA_ROWS_MAX);
+                                          rows_to_scan);
   *read_cost= (table->file->cost(&cost) +
                rows_to_scan * WHERE_COST_THD(table->in_use));
   *read_rows= rows2double(rows_to_scan);
