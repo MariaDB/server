@@ -174,24 +174,13 @@ bool Parser::read_filekey(const char *filekey, char *secret)
     return 1;
   }
 
-  int len= read(f, secret, MAX_SECRET_SIZE + 1);
+  int len= read(f, secret, MAX_SECRET_SIZE);
   if (len <= 0)
   {
     my_error(EE_READ,ME_ERROR_LOG, filekey, errno);
     close(f);
     return 1;
   }
-
-  if (len > MAX_SECRET_SIZE)
-  {
-    my_printf_error(EE_READ,
-                    "Cannot decrypt %s, the secret file has incorrect length, "
-                    "max secret size is %dB ",
-                    ME_ERROR_LOG, filekey, MAX_SECRET_SIZE);
-    close(f);
-    return 1;
-  }
-
   close(f);
   while (secret[len - 1] == '\r' || secret[len - 1] == '\n') len--;
   secret[len]= '\0';
