@@ -565,11 +565,11 @@ bool SELECT_LEX::is_sj_conversion_prohibited(THD *thd)
   switch (thd->lex->sql_command) {
   case SQLCOM_UPDATE:
     return
-      !((Sql_cmd_update *) cmd)->is_multitable() ||
+      !((Sql_cmd_update *) cmd)->is_multitable() &&
       ((Sql_cmd_update *) cmd)->processing_as_multitable_update_prohibited(thd);
   case SQLCOM_DELETE:
     return
-      !((Sql_cmd_delete *) cmd)->is_multitable() ||
+      !((Sql_cmd_delete *) cmd)->is_multitable() &&
       ((Sql_cmd_delete *) cmd)->processing_as_multitable_delete_prohibited(thd);
   default:
     return false;
