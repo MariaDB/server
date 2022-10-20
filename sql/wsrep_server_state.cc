@@ -17,6 +17,7 @@
 #include "wsrep_api.h"
 #include "wsrep_server_state.h"
 #include "wsrep_allowlist_service.h"
+#include "wsrep_event_service.h"
 #include "wsrep_binlog.h" /* init/deinit group commit */
 
 mysql_mutex_t LOCK_wsrep_server_state;
@@ -89,6 +90,7 @@ void Wsrep_server_state::destroy()
 void Wsrep_server_state::init_provider_services()
 {
   m_provider_services.allowlist_service= wsrep_allowlist_service_init();
+  m_provider_services.event_service= Wsrep_event_service::instance();
 }
 
 void Wsrep_server_state::deinit_provider_services()
