@@ -42,6 +42,13 @@ public:
     Wsrep_status::m_instance->report_progress(progress);
   }
 
+  static void report_event(const std::string& event)
+  {
+    if (!Wsrep_status::m_instance) return;
+
+    Wsrep_status::m_instance->report_event(event);
+  }
+
   static void report_log_msg(wsrep::reporter::log_level level,
                              const char* tag, size_t tag_len,
                              const char* buf, size_t buf_len,
