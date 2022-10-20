@@ -7703,6 +7703,11 @@ ha_innobase::build_template(
 	m_prebuilt->versioned_write = table->versioned_write(VERS_TRX_ID);
 	m_prebuilt->need_to_access_clustered = (index == clust_index);
 
+	if (m_prebuilt->in_fts_query) {
+		/* Do clustered index lookup to fetch the FTS_DOC_ID */
+		m_prebuilt->need_to_access_clustered = true;
+	}
+
 	/* Either m_prebuilt->index should be a secondary index, or it
 	should be the clustered index. */
 	ut_ad(dict_index_is_clust(index) == (index == clust_index));
