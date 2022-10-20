@@ -129,6 +129,7 @@ static my_bool  verbose= 0, opt_no_create_info= 0, opt_no_data= 0, opt_no_data_m
                 opt_include_master_host_port= 0,
                 opt_events= 0, opt_comments_used= 0,
                 opt_alltspcs=0, opt_notspcs= 0, opt_logging,
+                opt_header=0,
                 opt_drop_trigger= 0;
 #define OPT_SYSTEM_ALL 1
 #define OPT_SYSTEM_USERS 2
@@ -150,7 +151,7 @@ static my_bool insert_pat_inited= 0, debug_info_flag= 0, debug_check_flag= 0,
 static ulong opt_max_allowed_packet, opt_net_buffer_length;
 static double opt_max_statement_time= 0.0;
 static MYSQL mysql_connection,*mysql=0;
-static DYNAMIC_STRING insert_pat, select_field_names;
+static DYNAMIC_STRING insert_pat, select_field_names, select_field_names_for_header;
 static char  *opt_password=0,*current_user=0,
              *current_host=0,*path=0,*fields_terminated=0,
              *lines_terminated=0, *enclosed=0, *opt_enclosed=0, *escaped=0,
@@ -412,6 +413,8 @@ static struct my_option my_long_options[] =
    "output, but only commented.",
    &opt_use_gtid, &opt_use_gtid, 0, GET_BOOL, NO_ARG,
    0, 0, 0, 0, 0, 0},
+  {"header", 0, "Used together with --tab. When enabled, adds header with column names to the top of output txt files.",
+   &opt_header, &opt_header, 0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
   {"help", '?', "Display this help message and exit.", 0, 0, 0, GET_NO_ARG,
    NO_ARG, 0, 0, 0, 0, 0, 0},
   {"hex-blob", OPT_HEXBLOB, "Dump binary strings (BINARY, "
@@ -1297,6 +1300,12 @@ static int get_options(int *argc, char ***argv)
             "%s: You must use option --tab with --fields-...\n", my_progname_short);
     return(EX_USAGE);
   }
+  if (!path && opt_header)
+  {
+    fprintf(stderr,
+            "%s: You must use option --tab with --header\n", my_progname_short);
+    return(EX_USAGE);
+  }
 
   /* We don't delete master logs if slave data option */
   if (opt_slave_data)
@@ -1952,6 +1961,7 @@ static void free_resources()
   dynstr_free(&dynamic_where);
   dynstr_free(&insert_pat);
   dynstr_free(&select_field_names);
+  dynstr_free(&select_field_names_for_header);
   if (defaults_argv)
     free_defaults(defaults_argv);
   mysql_library_end();
@@ -2092,7 +2102,7 @@ static my_bool test_if_special_chars(const char *str)
 
 
 /*
-  quote_name(name, buff, force)
+  quote(name, buff, force, quote_c)
 
   Quotes a string, if it requires quoting. To force quoting regardless
   of the characters within the string, the force flag can be set to true.
@@ -2102,16 +2112,17 @@ static my_bool test_if_special_chars(const char *str)
   name                 Unquoted string containing that which will be quoted
   buff                 The buffer that contains the quoted value, also returned
   force                Flag to make it ignore 'test_if_special_chars'
+  quote_c              Charater to use as the enclosing quote
 
   Returns
      A pointer to the quoted string, or the original string if nothing has
      changed.
 
 */
-static char *quote_name(const char *name, char *buff, my_bool force)
+static char *quote(const char *name, char *buff, my_bool force, char quote_c)
 {
   char *to= buff;
-  char qtype= (opt_compatible_mode & MASK_ANSI_QUOTES) ? '\"' : '`';
+  char qtype= (opt_compatible_mode & MASK_ANSI_QUOTES) ? '\"' : quote_c;
 
   if (!force && !opt_quoted && !test_if_special_chars(name))
     return (char*) name;
@@ -2125,7 +2136,29 @@ static char *quote_name(const char *name, char *buff, my_bool force)
   to[0]= qtype;
   to[1]= 0;
   return buff;
-} /* quote_name */
+} /* quote */
+
+
+/*
+  quote_name(name, buff, force)
+
+  quote() with the ` character
+*/
+static char *quote_name(const char *name, char *buff, my_bool force)
+{
+  return quote(name, buff, force, '`');
+}
+
+
+/*
+  quote_string(name, buff, force)
+
+  quote() with the ' character
+*/
+static char *quote_string(const char *name, char *buff)
+{
+  return quote(name, buff, 0, '\'');
+}
 
 
 /*
@@ -3126,9 +3159,15 @@ static uint get_table_structure(const char *table, const char *db, char *table_t
   {
     select_field_names_inited= 1;
     init_dynamic_string_checked(&select_field_names, "", 1024, 1024);
+    if (opt_header)
+      init_dynamic_string_checked(&select_field_names_for_header, "", 1024, 1024);
   }
   else
+  {
     dynstr_set_checked(&select_field_names, "");
+    if (opt_header)
+      dynstr_set_checked(&select_field_names_for_header, "");
+  }
   insert_option= ((delayed && opt_ignore) ? " DELAYED IGNORE " :
                   delayed ? " DELAYED " : opt_ignore ? " IGNORE " : "");
 
@@ -3382,10 +3421,15 @@ static uint get_table_structure(const char *table, const char *db, char *table_t
       if (init)
       {
         dynstr_append_checked(&select_field_names, ", ");
+        if (opt_header)
+          dynstr_append_checked(&select_field_names_for_header, ", ");
       }
       init=1;
       dynstr_append_checked(&select_field_names,
               quote_name(row[SHOW_FIELDNAME], name_buff, 0));
+      if (opt_header)
+        dynstr_append_checked(&select_field_names_for_header,
+                              quote_string(row[SHOW_FIELDNAME], name_buff));
     }
     init=0;
     /*
@@ -3482,9 +3526,15 @@ static uint get_table_structure(const char *table, const char *db, char *table_t
       if (init)
       {
         dynstr_append_checked(&select_field_names, ", ");
+        if (opt_header)
+          dynstr_append_checked(&select_field_names_for_header, ", ");
+
       }
       dynstr_append_checked(&select_field_names,
               quote_name(row[SHOW_FIELDNAME], name_buff, 0));
+      if (opt_header)
+        dynstr_append_checked(&select_field_names_for_header,
+                              quote_string(row[SHOW_FIELDNAME], name_buff));
       init=1;
     }
     init=0;
@@ -4132,7 +4182,6 @@ static void dump_table(const char *table, const char *db, const uchar *hash_key,
   if (path)
   {
     char filename[FN_REFLEN], tmp_path[FN_REFLEN];
-
     /*
       Convert the path to native os format
       and resolve to the full filepath.
@@ -4163,15 +4212,23 @@ static void dump_table(const char *table, const char *db, const uchar *hash_key,
 
     if (fields_terminated || enclosed || opt_enclosed || escaped)
       dynstr_append_checked(&query_string, " FIELDS");
-    
+
     add_load_option(&query_string, " TERMINATED BY ", fields_terminated);
     add_load_option(&query_string, " ENCLOSED BY ", enclosed);
     add_load_option(&query_string, " OPTIONALLY ENCLOSED BY ", opt_enclosed);
     add_load_option(&query_string, " ESCAPED BY ", escaped);
     add_load_option(&query_string, " LINES TERMINATED BY ", lines_terminated);
 
+    if (opt_header)
+    {
+      dynstr_append_checked(&query_string, " FROM (SELECT 0 AS `_$is_data_row$_`,");
+      dynstr_append_checked(&query_string, select_field_names_for_header.str);
+      dynstr_append_checked(&query_string, " UNION ALL SELECT 1 AS `_$is_data_row$_`,");
+      dynstr_append_checked(&query_string, select_field_names.str);
+    }
     dynstr_append_checked(&query_string, " FROM ");
     dynstr_append_checked(&query_string, result_table);
+
     if (versioned)
       vers_append_system_time(&query_string);
 
@@ -4180,10 +4237,15 @@ static void dump_table(const char *table, const char *db, const uchar *hash_key,
       dynstr_append_checked(&query_string, " WHERE ");
       dynstr_append_checked(&query_string, where);
     }
+    if (opt_header)
+      dynstr_append_checked(&query_string, ") s ORDER BY `_$is_data_row$_`");
 
     if (order_by)
     {
-      dynstr_append_checked(&query_string, " ORDER BY ");
+      if (opt_header)
+        dynstr_append_checked(&query_string, ",");
+      else
+        dynstr_append_checked(&query_string, " ORDER BY ");
       dynstr_append_checked(&query_string, order_by);
       my_free(order_by);
       order_by= 0;
