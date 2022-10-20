@@ -8084,7 +8084,7 @@ static Create_field *vers_init_sys_field(THD *thd, const char *field_name, int f
   f->field_name.str= field_name;
   f->field_name.length= strlen(field_name);
   f->charset= system_charset_info;
-  f->flags= flags | NOT_NULL_FLAG;
+  f->flags= flags | NO_DEFAULT_VALUE_FLAG | NOT_NULL_FLAG;
   if (integer)
   {
     DBUG_ASSERT(0); // Not implemented yet

@@ -320,7 +320,8 @@ static int check_insert_fields(THD *thd, TABLE_LIST *table_list,
 
 static bool has_no_default_value(THD *thd, Field *field, TABLE_LIST *table_list)
 {
-  if ((field->flags & NO_DEFAULT_VALUE_FLAG) && field->real_type() != MYSQL_TYPE_ENUM)
+  if ((field->flags & (NO_DEFAULT_VALUE_FLAG | VERS_ROW_START | VERS_ROW_END))
+       == NO_DEFAULT_VALUE_FLAG && field->real_type() != MYSQL_TYPE_ENUM)
   {
     bool view= false;
     if (table_list)
@@ -2257,9 +2258,7 @@ int check_that_all_fields_are_given_values(THD *thd, TABLE *entry, TABLE_LIST *t
   for (Field **field=entry->field ; *field ; field++)
   {
     if (!bitmap_is_set(write_set, (*field)->field_index) &&
-        !(*field)->vers_sys_field() &&
-        has_no_default_value(thd, *field, table_list) &&
-        ((*field)->real_type() != MYSQL_TYPE_ENUM))
+        has_no_default_value(thd, *field, table_list))
       err=1;
   }
   return thd->abort_on_warning ? err : 0;

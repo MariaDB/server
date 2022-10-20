@@ -9810,7 +9810,7 @@ bool LEX::last_field_generated_always_as_row_start_or_end(Lex_ident *p,
              last_field->field_name.str);
     return true;
   }
-  last_field->flags|= (flag | NOT_NULL_FLAG);
+  last_field->flags|= (flag | NO_DEFAULT_VALUE_FLAG | NOT_NULL_FLAG);
   DBUG_ASSERT(p);
   *p= last_field->field_name;
   return false;

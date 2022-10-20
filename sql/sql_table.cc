@@ -3793,7 +3793,8 @@ without_overlaps_err:
     }
     if (sql_field->invisible == INVISIBLE_USER &&
         sql_field->flags & NOT_NULL_FLAG &&
-        sql_field->flags & NO_DEFAULT_VALUE_FLAG)
+        sql_field->flags & NO_DEFAULT_VALUE_FLAG &&
+        !sql_field->vers_sys_field())
     {
       my_error(ER_INVISIBLE_NOT_NULL_WITHOUT_DEFAULT, MYF(0),
                           sql_field->field_name.str);
