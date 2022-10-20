@@ -17,5 +17,15 @@ select * from t1 for system_time all;
 drop table t1;
 
 --echo #
+--echo # MDEV-29830 Assertion `table->versioned()' in THD::vers_insert_history_fast
+--echo #
+create table t1 (a int) with system versioning;
+insert into t1 values (1),(2);
+create table t2 (a timestamp);
+insert into t2 (a) values (now()),(now());
+select * from t2 where a in (select row_start from t1);
+drop table t1, t2;
+
+--echo #
 --echo # End of 10.11 tests
 --echo #

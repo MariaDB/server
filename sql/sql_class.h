@@ -5577,7 +5577,6 @@ public:
 
   bool vers_insert_history_fast(const TABLE *table)
   {
-    DBUG_ASSERT(table->versioned());
     return table->versioned(VERS_TIMESTAMP) &&
            (variables.option_bits & OPTION_INSERT_HISTORY) &&
             lex->duplicates == DUP_ERROR;
