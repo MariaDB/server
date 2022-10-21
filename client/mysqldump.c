@@ -353,7 +353,11 @@ static struct my_option my_long_options[] =
    "'/*!40000 ALTER TABLE tb_name DISABLE KEYS */; and '/*!40000 ALTER "
    "TABLE tb_name ENABLE KEYS */; will be put in the output.", &opt_disable_keys,
    &opt_disable_keys, 0, GET_BOOL, NO_ARG, 1, 0, 0, 0, 0, 0},
-  {"dump-history", 'H', "Dump tables with history", &opt_dump_history,
+  {"dump-date", OPT_DUMP_DATE, "Put a dump date to the end of the output.",
+   &opt_dump_date, &opt_dump_date, 0,
+   GET_BOOL, NO_ARG, 1, 0, 0, 0, 0, 0},
+  {"dump-history", 'H', "Dump system-versioned tables with history (only for "
+    "timestamp based versioning)", &opt_dump_history,
     &opt_dump_history, 0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
   {"dump-slave", OPT_MYSQLDUMP_SLAVE_DATA,
    "This causes the binary log position and filename of the master to be "
@@ -571,9 +575,6 @@ static struct my_option my_long_options[] =
    "isolated from them. Option automatically turns off --lock-tables.",
    &opt_single_transaction, &opt_single_transaction, 0,
    GET_BOOL, NO_ARG,  0, 0, 0, 0, 0, 0},
-  {"dump-date", OPT_DUMP_DATE, "Put a dump date to the end of the output.",
-   &opt_dump_date, &opt_dump_date, 0,
-   GET_BOOL, NO_ARG, 1, 0, 0, 0, 0, 0},
   {"skip-opt", OPT_SKIP_OPTIMIZATION,
    "Disable --opt. Disables --add-drop-table, --add-locks, --create-options, --quick, --extended-insert, --lock-tables, --set-charset, and --disable-keys.",
    0, 0, 0, GET_NO_ARG, NO_ARG, 0, 0, 0, 0, 0, 0},
