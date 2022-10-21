@@ -108,7 +108,7 @@ static int prepare_for_fill(TABLE_LIST *tables)
   thd->security_ctx->master_access= ALL_KNOWN_ACL;
   bzero((char*) &thd->net, sizeof(thd->net));
   lex_start(thd);
-  mysql_init_select(thd->lex);
+  thd->lex->init_select();
 
   LEX_CSTRING tbl_name= {i_s_feedback->table_name, strlen(i_s_feedback->table_name) };
 

@@ -985,7 +985,7 @@ Item *Item_func_in::in_predicate_to_in_subs_transformer(THD *thd,
   */
   if (mysql_new_select(lex, 1, NULL))
     goto err;
-  mysql_init_select(lex);
+  lex->init_select();
   /* Create item list as '*' for the subquery SQ */
   Item *item;
   SELECT_LEX *sq_select; // select for IN subquery;
@@ -1003,7 +1003,7 @@ Item *Item_func_in::in_predicate_to_in_subs_transformer(THD *thd,
   SELECT_LEX_UNIT *derived_unit; // unit for tvc_select
   if (mysql_new_select(lex, 1, NULL))
     goto err;
-  mysql_init_select(lex);
+  lex->init_select();
   tvc_select= lex->current_select;
   derived_unit= tvc_select->master_unit();
   tvc_select->set_linkage(DERIVED_TABLE_TYPE);

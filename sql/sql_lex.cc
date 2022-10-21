@@ -6402,7 +6402,7 @@ bool LEX::sf_return_fill_definition(const Lex_field_type_st &def)
 void LEX::set_stmt_init()
 {
   sql_command= SQLCOM_SET_OPTION;
-  mysql_init_select(this);
+  init_select();
   option_type= OPT_SESSION;
   autocommit= 0;
   var_list.empty();
@@ -10384,8 +10384,7 @@ bool LEX::parsed_TVC_start()
   save_values_list_state();
   many_values.empty();
   insert_list= 0;
-  if (!(sel= alloc_select(TRUE)) ||
-        push_select(sel))
+  if (!(sel= alloc_select(TRUE)) || push_select(sel))
     return true;
   sel->init_select();
   sel->braces= FALSE; // just initialisation
@@ -10397,9 +10396,7 @@ SELECT_LEX *LEX::parsed_TVC_end()
 {
   SELECT_LEX *res= pop_select(); // above TVC select
   if (!(res->tvc=
-        new (thd->mem_root) table_value_constr(many_values,
-          res,
-          res->options)))
+        new (thd->mem_root) table_value_constr(many_values, res, res->options)))
     return NULL;
   restore_values_list_state();
   return res;

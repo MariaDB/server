@@ -12761,7 +12761,7 @@ do:
             lex->sql_command = SQLCOM_DO;
             if (lex->main_select_push(true))
               MYSQL_YYABORT;
-            mysql_init_select(lex);
+            lex->init_select();
           }
           expr_list
           {
@@ -12985,7 +12985,7 @@ replace:
 insert_start: {
                 if (Lex->main_select_push())
                   MYSQL_YYABORT;
-                mysql_init_select(Lex);
+                Lex->init_select();
                 Lex->inc_select_stack_outer_barrier();
                 Lex->current_select->parsing_place= BEFORE_OPT_LIST;
               }
@@ -13252,7 +13252,7 @@ update:
             LEX *lex= Lex;
             if (Lex->main_select_push())
               MYSQL_YYABORT;
-            mysql_init_select(lex);
+            lex->init_select();
             lex->sql_command= SQLCOM_UPDATE;
             lex->duplicates= DUP_ERROR; 
           }
@@ -13334,7 +13334,7 @@ delete:
             YYPS->m_mdl_type= MDL_SHARED_WRITE;
             if (Lex->main_select_push())
               MYSQL_YYABORT;
-            mysql_init_select(lex);
+            lex->init_select();
             lex->ignore= 0;
             lex->first_select_lex()->order_list.empty();
           }
@@ -13611,7 +13611,7 @@ show:
             lex->ident= null_clex_str;
             if (Lex->main_select_push())
               MYSQL_YYABORT;
-            mysql_init_select(lex);
+            lex->init_select();
             lex->current_select->parsing_place= SELECT_LIST;
             lex->create_info.init();
           }
@@ -14111,7 +14111,7 @@ describe:
             LEX *lex= Lex;
             if (lex->main_select_push())
               MYSQL_YYABORT;
-            mysql_init_select(lex);
+            lex->init_select();
             lex->current_select->parsing_place= SELECT_LIST;
             lex->sql_command= SQLCOM_SHOW_FIELDS;
             lex->first_select_lex()->db= null_clex_str;
@@ -14202,7 +14202,7 @@ explain_for_connection:
             lex->ident= null_clex_str;
             if (Lex->main_select_push())
               MYSQL_YYABORT;
-            mysql_init_select(lex);
+            lex->init_select();
             lex->current_select->parsing_place= SELECT_LIST;
             lex->create_info.init();
             Select->parsing_place= NO_MATTER;
@@ -14572,7 +14572,7 @@ load:
             }
             if (lex->main_select_push())
               MYSQL_YYABORT;
-            mysql_init_select(lex);
+            lex->init_select();
           }
           load_data_lock opt_local INFILE TEXT_STRING_filesystem
           {

@@ -7611,21 +7611,6 @@ void THD::reset_for_next_command(bool do_clear_error)
 
 
 /**
-  Resets the lex->current_select object.
-  @note It is assumed that lex->current_select != NULL
-
-  This function is a wrapper around select_lex->init_select() with an added
-  check for the special situation when using INTO OUTFILE and LOAD DATA.
-*/
-
-void
-mysql_init_select(LEX *lex)
-{
-  lex->init_select();
-}
-
-
-/**
   Used to allocate a new SELECT_LEX object on the current thd mem_root and
   link it into the relevant lists.
 
@@ -7741,7 +7726,7 @@ void create_select_for_variable(THD *thd, LEX_CSTRING *var_name)
   DBUG_ENTER("create_select_for_variable");
 
   lex= thd->lex;
-  mysql_init_select(lex);
+  lex->init_select();
   lex->sql_command= SQLCOM_SELECT;
   /*
     We set the name of Item to @@session.var_name because that then is used
@@ -7760,7 +7745,7 @@ void create_select_for_variable(THD *thd, LEX_CSTRING *var_name)
 void mysql_init_multi_delete(LEX *lex)
 {
   lex->sql_command=  SQLCOM_DELETE_MULTI;
-  mysql_init_select(lex);
+  lex->init_select();
   lex->first_select_lex()->limit_params.clear();
   lex->unit.lim.clear();
   lex->first_select_lex()->table_list.
