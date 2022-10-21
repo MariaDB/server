@@ -8826,7 +8826,8 @@ bool TABLE_LIST::change_refs_to_fields()
 
   Item **materialized_items=
       (Item **)thd->calloc(sizeof(void *) * table->s->fields);
-  if (!materialized_items)
+  Name_resolution_context *ctx= new Name_resolution_context(this);
+  if (!materialized_items || !ctx)
     return TRUE;
 
   while ((ref= (Item_direct_ref*)li++))
@@ -8842,7 +8843,8 @@ bool TABLE_LIST::change_refs_to_fields()
     DBUG_ASSERT(!field_it.end_of_fields());
     if (!materialized_items[idx])
     {
-      materialized_items[idx]= new (thd->mem_root) Item_field(thd, table->field[idx]);
+      materialized_items[idx]=
+        new (thd->mem_root) Item_field(thd, ctx, table->field[idx]);
       if (!materialized_items[idx])
         return TRUE;
     }
