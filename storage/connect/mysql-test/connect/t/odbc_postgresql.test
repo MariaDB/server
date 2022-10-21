@@ -216,3 +216,10 @@ DROP TABLE t1;
 CREATE TABLE t1 (a VARCHAR(6), b VARCHAR(6), PRIMARY KEY(a, b)) ENGINE=CONNECT TABNAME='schema1.t3' CHARSET=utf8 DATA_CHARSET=utf8 TABLE_TYPE=ODBC CONNECTION='DSN=ConnectEnginePostgresql;UID=mtr;PWD=mtr';
 DELETE FROM t1 WHERE a='20';
 DROP TABLE t1;
+
+--echo #
+--echo # MDEV-29687 ODBC tables do not quote identifier names correctly
+--echo #
+CREATE TABLE pg_in_maria ENGINE=CONNECT TABNAME='schema1.space_in_column_name' CHARSET=utf8 DATA_CHARSET=utf8 TABLE_TYPE=ODBC CONNECTION='DSN=ConnectEnginePostgresql;UID=mtr;PWD=mtr' quoted=1;
+SELECT * from pg_in_maria;
+DROP TABLE pg_in_maria;
