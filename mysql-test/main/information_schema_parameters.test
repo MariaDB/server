@@ -291,12 +291,15 @@ USE i_s_parameters_test;
 CREATE FUNCTION test_func5 (s CHAR(20)) RETURNS VARCHAR(30)
   RETURN CONCAT('XYZ, ' ,s);
 
+--let count_routines = `select count(*) from information_schema.routines`
+
 --echo #
 --echo # We cannot use the index due to missing condition on SPECIFIC_SCHEMA,
 --echo # but we will use SPECIFIC_NAME for filtering records from mysql.proc
 FLUSH STATUS;
 query_vertical SELECT * FROM INFORMATION_SCHEMA.PARAMETERS
   WHERE SPECIFIC_NAME = 'test_func5';
+--replace_result $count_routines count_routines
 SHOW STATUS LIKE 'handler_read%next';
 
 --echo #
@@ -307,8 +310,8 @@ FLUSH STATUS;
 query_vertical SELECT * FROM INFORMATION_SCHEMA.PARAMETERS
   WHERE CONCAT(SPECIFIC_SCHEMA) = 'i_s_parameters_test'
   AND SPECIFIC_NAME = 'not_existing_proc';
+--replace_result $count_routines count_routines
 SHOW STATUS LIKE 'handler_read%next';
-
 --echo #
 --echo # Now the index must be used
 FLUSH STATUS;

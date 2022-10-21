@@ -674,7 +674,7 @@ DTD_IDENTIFIER	char(20)
 ROUTINE_TYPE	FUNCTION
 SHOW STATUS LIKE 'handler_read%next';
 Variable_name	Value
-Handler_read_next	54
+Handler_read_next	count_routines
 Handler_read_rnd_next	3
 #
 # We cannot use the index due to CONCAT(), and filtering by SPECIFIC_NAME
@@ -686,7 +686,7 @@ WHERE CONCAT(SPECIFIC_SCHEMA) = 'i_s_parameters_test'
   AND SPECIFIC_NAME = 'not_existing_proc';
 SHOW STATUS LIKE 'handler_read%next';
 Variable_name	Value
-Handler_read_next	54
+Handler_read_next	count_routines
 Handler_read_rnd_next	1
 #
 # Now the index must be used

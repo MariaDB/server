@@ -898,7 +898,7 @@ COLLATION_CONNECTION	latin1_swedish_ci
 DATABASE_COLLATION	latin1_swedish_ci
 SHOW STATUS LIKE 'handler_read%next';
 Variable_name	Value
-Handler_read_next	54
+Handler_read_next	count_routines
 Handler_read_rnd_next	2
 #
 # We cannot use the index due to CONCAT(), and filtering by ROUTINE_NAME
@@ -910,7 +910,7 @@ WHERE CONCAT(ROUTINE_SCHEMA) = 'i_s_routines_test'
   AND ROUTINE_NAME = 'not_existing_proc';
 SHOW STATUS LIKE 'handler_read%next';
 Variable_name	Value
-Handler_read_next	54
+Handler_read_next	count_routines
 Handler_read_rnd_next	1
 #
 # Now the index must be used
