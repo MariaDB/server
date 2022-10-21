@@ -5336,7 +5336,8 @@ Table_check_intact::check(TABLE *table, const TABLE_FIELD_DEF *table_def)
         error= TRUE;
       }
       else if (field_def->cset.str &&
-               strcmp(field->charset()->cs_name.str, field_def->cset.str))
+               strncmp(field->charset()->cs_name.str, field_def->cset.str,
+                       field_def->cset.length))
       {
         report_error(0, "Incorrect definition of table %s.%s: "
                      "expected the type of column '%s' at position %d "

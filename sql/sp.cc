@@ -122,12 +122,12 @@ TABLE_FIELD_TYPE proc_table_fields[MYSQL_PROC_FIELD_COUNT] =
   {
     { STRING_WITH_LEN("db") },
     { STRING_WITH_LEN("char(64)") },
-    { STRING_WITH_LEN("utf8mb3") }
+    { STRING_WITH_LEN("utf8mb") }
   },
   {
     { STRING_WITH_LEN("name") },
     { STRING_WITH_LEN("char(64)") },
-    { STRING_WITH_LEN("utf8mb3") }
+    { STRING_WITH_LEN("utf8mb") }
   },
   {
     { STRING_WITH_LEN("type") },
@@ -137,7 +137,7 @@ TABLE_FIELD_TYPE proc_table_fields[MYSQL_PROC_FIELD_COUNT] =
   {
     { STRING_WITH_LEN("specific_name") },
     { STRING_WITH_LEN("char(64)") },
-    { STRING_WITH_LEN("utf8mb3") }
+    { STRING_WITH_LEN("utf8mb") }
   },
   {
     { STRING_WITH_LEN("language") },
@@ -178,7 +178,7 @@ TABLE_FIELD_TYPE proc_table_fields[MYSQL_PROC_FIELD_COUNT] =
   {
     { STRING_WITH_LEN("definer") },
     { STRING_WITH_LEN("varchar(") },
-    { STRING_WITH_LEN("utf8mb3") }
+    { STRING_WITH_LEN("utf8mb") }
   },
   {
     { STRING_WITH_LEN("created") },
@@ -208,22 +208,22 @@ TABLE_FIELD_TYPE proc_table_fields[MYSQL_PROC_FIELD_COUNT] =
   {
     { STRING_WITH_LEN("comment") },
     { STRING_WITH_LEN("text") },
-    { STRING_WITH_LEN("utf8mb3") }
+    { STRING_WITH_LEN("utf8mb") }
   },
   {
     { STRING_WITH_LEN("character_set_client") },
     { STRING_WITH_LEN("char(32)") },
-    { STRING_WITH_LEN("utf8mb3") }
+    { STRING_WITH_LEN("utf8mb") }
   },
   {
     { STRING_WITH_LEN("collation_connection") },
     { STRING_WITH_LEN("char(32)") },
-    { STRING_WITH_LEN("utf8mb3") }
+    { STRING_WITH_LEN("utf8mb") }
   },
   {
     { STRING_WITH_LEN("db_collation") },
     { STRING_WITH_LEN("char(32)") },
-    { STRING_WITH_LEN("utf8mb3") }
+    { STRING_WITH_LEN("utf8mb") }
   },
   {
     { STRING_WITH_LEN("body_utf8") },
