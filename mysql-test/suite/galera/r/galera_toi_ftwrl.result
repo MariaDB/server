@@ -11,5 +11,5 @@ t1	CREATE TABLE `t1` (
   `id` int(11) NOT NULL,
   `f2` int(11) DEFAULT NULL,
   PRIMARY KEY (`id`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t1;

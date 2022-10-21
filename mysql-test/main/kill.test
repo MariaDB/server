@@ -10,6 +10,9 @@
 -- source include/not_embedded.inc
 -- source include/have_debug_sync.inc
 -- source include/not_threadpool.inc
+
+--disable_service_connection
+
 set local sql_mode="";
 set global sql_mode="";
 
@@ -58,7 +61,7 @@ SET DEBUG_SYNC= 'now WAIT_FOR con1_end';
 SET DEBUG_SYNC = 'RESET';
 
 connection con1;
---error 1053,2006,2013
+--error 1053,2006,2013,5014
 SELECT 1;
 
 --enable_reconnect
@@ -97,7 +100,7 @@ SET DEBUG_SYNC= 'now WAIT_FOR con1_end';
 SET DEBUG_SYNC = 'RESET';
 
 connection con1;
---error 1053,2006,2013
+--error 1053,2006,2013,5014
 SELECT 1;
 enable_reconnect;
 SELECT 1;
@@ -144,7 +147,7 @@ KILL @id;
 SET DEBUG_SYNC= 'now WAIT_FOR con1_end';
 
 connection con1;
---error 1317,1053,2006,2013
+--error 1317,1053,2006,2013,5014
 reap;
 SELECT 1;
 
@@ -272,74 +275,6 @@ connection default;
 SET DEBUG_SYNC = 'RESET';
 DROP TABLE t1, t2;
 
-#
-# Bug#28598: mysqld crash when killing a long-running explain query.
-#
-connection con1;
-let $ID= `SELECT @id := CONNECTION_ID()`;
-connection con2;
-let $ignore= `SELECT @id := $ID`;
-connection con1;
---disable_query_log
-let $tab_count= 40;
-
---disable_query_log
-begin;
-let $i= $tab_count;
-while ($i)
-{
-  eval CREATE TABLE t$i (a$i INT, KEY(a$i));
-  eval INSERT INTO t$i VALUES (1),(2),(3),(4),(5),(6),(7);
-  dec $i ;
-}
-
-commit;
---enable_query_log
-
-SET SESSION optimizer_search_depth=0;
-
-let $i=$tab_count;
-while ($i)
-{
-  let $a= a$i;
-  let $t= t$i;
-  dec $i;
-  if ($i)
-  {
-    let $comma=,;
-    let $from=$comma$t$from;
-    let $where=a$i=$a $and $where;
-  }
-  if (!$i)
-  {
-    let $from=FROM $t$from;
-    let $where=WHERE $where;
-  }
-  let $and=AND;
-}
-
---enable_query_log
-SET DEBUG_SYNC= 'before_join_optimize SIGNAL in_sync';
-eval PREPARE stmt FROM 'EXPLAIN SELECT * $from $where';
-send EXECUTE stmt;
-
-connection con2;
-SET DEBUG_SYNC= 'now WAIT_FOR in_sync';
-KILL QUERY @id;
-connection con1;
---error 1317
-reap;
---disable_query_log
-let $i= $tab_count;
-while ($i)
-{
-  eval DROP TABLE t$i;
-  dec $i ;
-}
---enable_query_log
-connection default;
-SET DEBUG_SYNC = 'RESET';
-
 --echo #
 --echo # Bug#19723: kill of active connection yields different error code
 --echo # depending on platform.
@@ -357,7 +292,7 @@ SET DEBUG_SYNC= 'now WAIT_FOR con1_end';
 connection con1;
 --echo # ER_SERVER_SHUTDOWN, CR_SERVER_GONE_ERROR, CR_SERVER_LOST,
 --echo # depending on the timing of close of the connection socket
---error 1053,2006,2013
+--error 1053,2006,2013,5014
 SELECT 1;
 --enable_reconnect
 SELECT 1;
@@ -572,6 +507,9 @@ drop table t2;
 --echo #
 --echo # Test kill USER
 --echo #
+set global sql_mode=default;
+--source include/count_sessions.inc
+set global sql_mode='';
 grant ALL on test.* to test@localhost;
 grant ALL on test.* to test2@localhost;
 connect (con3, localhost, test,,);
@@ -590,12 +528,13 @@ drop user test@localhost;
 drop user test2@localhost;
 
 connection con3;
---error 2013,2006
+--error 2013,2006,5014
 select 1;
 connection con4;
---error 2013,2006
+--error 2013,2006,5014
 select 1;
 connection default;
+--source include/wait_until_count_sessions.inc
 
 --echo #
 --echo # MDEV-4911 - add KILL query id, and add query id information to
@@ -670,3 +609,4 @@ DROP TABLE t1, t2;
 --echo #
 --error ER_PARSE_ERROR
 kill query id user 'foo';
+--enable_service_connection

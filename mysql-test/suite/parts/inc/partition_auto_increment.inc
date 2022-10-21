@@ -860,6 +860,8 @@ SELECT LAST_INSERT_ID();
 SELECT * FROM t1;
 DROP TABLE t1;
 }
+--echo ##############################################################################
+}
 
 if (!$skip_update)
 {
@@ -867,11 +869,31 @@ if (!$skip_update)
 --echo # MDEV-19622 Assertion failures in
 --echo # ha_partition::set_auto_increment_if_higher upon UPDATE on Aria table
 --echo #
-CREATE OR REPLACE TABLE t1 (pk INT AUTO_INCREMENT, a INT, KEY(pk)) ENGINE=myisam PARTITION BY HASH(a);
+eval CREATE OR REPLACE TABLE t1 (pk INT AUTO_INCREMENT, a INT, KEY(pk)) ENGINE=$engine PARTITION BY HASH(a);
 INSERT INTO t1 VALUES (1,1),(2,2);
 UPDATE t1 SET pk = 0;
 DROP TABLE t1;
 }
 
---echo ##############################################################################
+if (!$skip_delete)
+{
+--echo #
+--echo # MDEV-21027 Assertion `part_share->auto_inc_initialized || !can_use_for_auto_inc_init()'
+--echo # ha_partition::set_auto_increment_if_higher
+--echo #
+eval CREATE TABLE t1 (a INT AUTO_INCREMENT PRIMARY KEY) ENGINE=$engine PARTITION BY HASH (a) PARTITIONS 3;
+REPLACE INTO t1 PARTITION (p0) VALUES (3);
+DROP TABLE t1;
+}
+
+if (!$skip_truncate)
+{
+--echo #
+--echo # MDEV-21310 AUTO_INCREMENT column throws range error on INSERT in  partitioned table |
+--echo # Assertion `part_share->auto_inc_initialized || !can_use_for_auto_inc_init()' failed.
+--echo #
+eval CREATE TABLE t1 (c INT AUTO_INCREMENT KEY) ENGINE=$engine PARTITION BY LIST (c) (PARTITION p1 VALUES IN (1), PARTITION p2 VALUES IN (2));
+ALTER TABLE t1 TRUNCATE PARTITION p1;
+INSERT INTO t1 PARTITION (p1) (c) SELECT 1;
+DROP TABLE t1;
 }

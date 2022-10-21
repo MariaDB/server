@@ -238,7 +238,8 @@ drop table t1;
 #
 # UNIQUE prefix keys and multi-byte charsets
 #
-
+#enable view protocol after fix MDEV-27945
+--disable_view_protocol
 create table t1 (c varchar(30) character set utf8, t text character set utf8, unique (c(2)), unique (t(3))) engine=myisam;
 show create table t1;
 insert t1 values ('cccc', 'tttt'),
@@ -257,6 +258,7 @@ select t from t1 where t='tttt';
 select c from t1 where c=0xD0B1212223D0B1D0B1D0B1D0B1D0B1;
 select t from t1 where t=0xD0B1D0B1212223D0B1D0B1D0B1D0B1;
 drop table t1;
+--enable_view_protocol
 
 #
 # BUG#6151 - myisam index corruption

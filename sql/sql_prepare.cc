@@ -1446,7 +1446,7 @@ static int mysql_test_update(Prepared_statement *stmt,
     DBUG_ASSERT(update_source_table || table_list->view != 0);
     DBUG_PRINT("info", ("Switch to multi-update"));
     /* pass counter value */
-    thd->lex->table_count= table_count;
+    thd->lex->table_count_update= table_count;
     /* convert to multiupdate */
     DBUG_RETURN(2);
   }
@@ -4311,6 +4311,8 @@ bool Prepared_statement::prepare(const char *packet, uint packet_len)
     if (thd->spcont == NULL)
       general_log_write(thd, COM_STMT_PREPARE, query(), query_length());
   }
+  // The same format as for triggers to compare
+  hr_prepare_time= my_hrtime();
   DBUG_RETURN(error);
 }
 
@@ -4404,8 +4406,8 @@ Prepared_statement::execute_loop(String *expanded_query,
                                  uchar *packet_end)
 {
   Reprepare_observer reprepare_observer;
-  bool error;
   int reprepare_attempt= 0;
+  bool error;
   iterations= FALSE;
 
   /*

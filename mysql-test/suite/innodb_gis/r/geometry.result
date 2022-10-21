@@ -342,7 +342,7 @@ tab	CREATE TABLE `tab` (
   UNIQUE KEY `idx2` (`c8`(5)),
   KEY `idx1` (`c2`(5)) USING BTREE,
   KEY `idx3` (`c3`(5)) USING BTREE
-) ENGINE=InnoDB DEFAULT CHARSET=latin1
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 #check the data after modify
 SELECT ST_AsText(c1) FROM tab;
 ST_AsText(c1)
@@ -466,7 +466,7 @@ tab2	CREATE TABLE `tab2` (
   `c6` multipolygon DEFAULT NULL,
   `c7` geometrycollection DEFAULT NULL,
   `c8` geometry NOT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 #create a tigger and populate the values into tab2
 CREATE TRIGGER geom_trigger AFTER INSERT ON tab
 FOR EACH ROW
@@ -653,7 +653,7 @@ tab3	CREATE TABLE `tab3` (
   `c6` multipolygon DEFAULT NULL,
   `c7` geometrycollection DEFAULT NULL,
   `c8` geometry DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=8
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=8
 ALTER TABLE tab3 KEY_BLOCK_SIZE=16 ROW_FORMAT=Dynamic;
 #check file format
 SHOW CREATE TABLE tab3;
@@ -667,7 +667,7 @@ tab3	CREATE TABLE `tab3` (
   `c6` multipolygon DEFAULT NULL,
   `c7` geometrycollection DEFAULT NULL,
   `c8` geometry DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 ROW_FORMAT=DYNAMIC KEY_BLOCK_SIZE=16
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci ROW_FORMAT=DYNAMIC KEY_BLOCK_SIZE=16
 #check information schema for all the columns refer to 14, except POINT which is 15
 SELECT sc.name, sc.pos, sc.mtype
 FROM information_schema.innodb_sys_columns sc
@@ -778,7 +778,7 @@ tab3	CREATE TABLE `tab3` (
   UNIQUE KEY `idx2` (`c8`(5)),
   KEY `idx1` (`c2`(5)) USING BTREE,
   KEY `idx3` (`c3`(5)) USING BTREE
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 ROW_FORMAT=DYNAMIC KEY_BLOCK_SIZE=16
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci ROW_FORMAT=DYNAMIC KEY_BLOCK_SIZE=16
 #check index with  WKB function
 EXPLAIN SELECT ST_ASText(c1),ST_AsText(c2),ST_AsText(c8)
 FROM tab3 WHERE c2=ST_LineStringFromWKB(ST_AsWKB(ST_LineFromText('LINESTRING(10 10,20 20,30 30)')));

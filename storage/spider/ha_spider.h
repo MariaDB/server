@@ -168,7 +168,6 @@ public:
   bool               insert_with_update;
   bool               low_priority;
   bool               high_priority;
-  bool               insert_delayed;
   bool               use_pre_call;
   bool               use_pre_records;
   bool               pre_bitmap_checked;

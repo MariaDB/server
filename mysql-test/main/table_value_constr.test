@@ -1477,6 +1477,9 @@ execute stmt;
 execute stmt;
 deallocate prepare stmt;
 
+#enable after fix MDEV-28603
+--disable_view_protocol
+
 let $q2=
 select (values ((select * from t1 where a > 10))) from t2;
 eval $q2;
@@ -1512,6 +1515,8 @@ eval prepare stmt from "$q4";
 execute stmt;
 execute stmt;
 deallocate prepare stmt;
+
+--enable_view_protocol
 
 drop view v1;
 drop table t1,t2,t3;
@@ -1584,6 +1589,10 @@ values ((values (2))), ((values ((values (4)))))
 union all
 values ((values (8))), ((values ((select 4))));
 
+#A view definition cannot contain a subquery in the FROM clause 
+# in the SELECT statement
+--disable_view_protocol
+
 select * from (values ((values (2)))) dt;
 
 select * from (values ((values (2)), (5), (select 4))) dt;
@@ -1595,6 +1604,8 @@ select * from (values ((values (2))), ((values (3)))) dt;
 select * from (values ((values (2))), ((values (3)))) dt;
 
 select * from (values ((values (2))), ((select 4)), ((values (3)))) dt;
+
+--enable_view_protocol
 
 create table t1 (a int);
 insert into t1 values (3), (7), (1);
@@ -1619,9 +1630,15 @@ values ((values ((select (values(2)) from t1 where a=8))));
 --error ER_SUBQUERY_NO_1_ROW
 values ((select (values(2)) from t1 where a<7));
 
+#A view definition cannot contain a subquery in the FROM clause 
+# in the SELECT statement
+--disable_view_protocol
+
 select * from (values ((values ((select a from t1 where a=7))))) dt;
 
 select * from (values ((values ((select (values(2)) from t1 where a=8))))) dt;
+
+--enable_view_protocol
 
 insert into t1(a) values ((values (2))), ((values (3)));
 select * from t1;
@@ -1632,6 +1649,10 @@ drop table t1;
 --echo #
 --echo # MDEV-25484: Derived table using TVC with LIMIT and ORDER BY
 --echo #
+
+#A view definition cannot contain a subquery in the FROM clause 
+# in the SELECT statement
+--disable_view_protocol
 
 create table t1 (a int);
 insert into t1 values (3), (7), (1);
@@ -1649,6 +1670,8 @@ values (3),(7),(1) union values (2),(4) order by 1 limit 2;
 select * from (values (3),(7),(1) union values (2),(4) order by 1 limit 2) as dt;
 
 drop table t1;
+
+--enable_view_protocol
 
 --echo #
 --echo # MDEV-23182: Server crashes in

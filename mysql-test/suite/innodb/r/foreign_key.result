@@ -39,7 +39,7 @@ t1	CREATE TABLE `t1` (
   `a` int(11) NOT NULL,
   `b` int(11) NOT NULL,
   KEY `idx` (`a`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 show create table t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
@@ -48,7 +48,7 @@ t2	CREATE TABLE `t2` (
   PRIMARY KEY (`a`),
   KEY `ind` (`b`),
   CONSTRAINT `t2_ibfk_1` FOREIGN KEY (`b`) REFERENCES `t1` (`a`) ON DELETE CASCADE ON UPDATE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=latin1
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 INSERT INTO t1 VALUES (1, 80);
 INSERT INTO t1 VALUES (2, 81);
 INSERT INTO t1 VALUES (3, 82);
@@ -217,7 +217,7 @@ t2	CREATE TABLE `t2` (
   PRIMARY KEY (`a`),
   FULLTEXT KEY `b` (`b`),
   CONSTRAINT `t2_ibfk_1` FOREIGN KEY (`a`) REFERENCES `test`.`t1` (`a`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP DATABASE best;
 #
 # MDEV-17541 KILL QUERY during lock wait in FOREIGN KEY check hangs
@@ -556,7 +556,7 @@ t2	CREATE TABLE `t2` (
   PRIMARY KEY (`id`),
   KEY `ref_id` (`ref_id`),
   CONSTRAINT `t2_ibfk_1` FOREIGN KEY (`ref_id`) REFERENCES `t1` (`id`) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=latin1
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 connection con1;
 BEGIN;
 UPDATE t2 SET f = 11 WHERE id = 1;
@@ -777,7 +777,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `id` int(11) NOT NULL,
   PRIMARY KEY (`id`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 show create table t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
@@ -785,7 +785,7 @@ t2	CREATE TABLE `t2` (
   `fid` int(11) NOT NULL,
   PRIMARY KEY (`id`),
   CONSTRAINT `fk_fid` FOREIGN KEY (`fid`) REFERENCES `t1` (`id`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 drop table t1,t2;
 ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails
 drop table t1,t2;
@@ -812,7 +812,7 @@ t2	CREATE TABLE `t2` (
   `f2` int(11) NOT NULL,
   `f3` int(11) NOT NULL,
   PRIMARY KEY (`f3`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 CREATE TABLE t2 (f1 INT NOT NULL)ENGINE=InnoDB;
 ERROR 42S01: Table 't2' already exists
 DROP TABLE t2, t1;
@@ -858,3 +858,17 @@ Error	1296	Got error 193 '`test`.`t1`, CONSTRAINT `t1_ibfk_1` FOREIGN KEY (`a`) 
 DROP TABLE t1;
 FOUND 1 /InnoDB: Cannot delete/update rows with cascading foreign key constraints that exceed max depth of 15.*/ in mysqld.1.err
 # End of 10.2 tests
+#
+# MDEV-28980 InnoDB: Failing assertion: len <= MAX_TABLE_NAME_LEN
+#
+SET NAMES utf8;
+CREATE TABLE t (a INT PRIMARY KEY) ENGINE=InnoDB;
+CREATE DATABASE `db`;
+CREATE TABLE `db`.u (
+a INT PRIMARY KEY,
+CONSTRAINT `††††††††††††††††††††††††††††††††††††††††††††††††††††††††††††††††`
+  FOREIGN KEY (a) REFERENCES test.t (a)) ENGINE=InnoDB;
+DROP TABLE `db`.u;
+DROP DATABASE `db`;
+DROP TABLE t;
+# End of 10.3 tests

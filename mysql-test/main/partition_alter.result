@@ -69,7 +69,7 @@ t1	CREATE TABLE `t1` (
   `b` tinyint(1) NOT NULL DEFAULT 0,
   PRIMARY KEY (`id`,`d`),
   CONSTRAINT `CONSTRAINT_1` CHECK (`b` in (0,10))
-) ENGINE=InnoDB DEFAULT CHARSET=latin1
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
  PARTITION BY RANGE  COLUMNS(`d`)
 (PARTITION `p1` VALUES LESS THAN ('2016-10-18') ENGINE = InnoDB,
  PARTITION `p2` VALUES LESS THAN ('2020-10-19') ENGINE = InnoDB)
@@ -94,7 +94,7 @@ t1	CREATE TABLE `t1` (
   `b` tinyint(1) NOT NULL DEFAULT 0,
   PRIMARY KEY (`id`,`d`),
   CONSTRAINT `CONSTRAINT_1` CHECK (`b` in (0,10))
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
  PARTITION BY RANGE  COLUMNS(`d`)
 (PARTITION `p1` VALUES LESS THAN ('2016-10-18') ENGINE = MyISAM,
  PARTITION `p2` VALUES LESS THAN ('2020-10-19') ENGINE = MyISAM)
@@ -116,7 +116,7 @@ t1	CREATE TABLE `t1` (
   `dt2` datetime DEFAULT current_timestamp() ON UPDATE current_timestamp(),
   PRIMARY KEY (`id_2`,`id_3`),
   KEY `id_1` (`id_1`)
-) ENGINE=MyISAM AUTO_INCREMENT=2 DEFAULT CHARSET=latin1 DELAY_KEY_WRITE=1
+) ENGINE=MyISAM AUTO_INCREMENT=2 DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci DELAY_KEY_WRITE=1
  PARTITION BY HASH (`id_2`)
 (PARTITION `p01` ENGINE = MyISAM,
  PARTITION `p02` ENGINE = MyISAM,
@@ -200,4 +200,15 @@ pk
 2
 delete from t1;
 drop table t1;
+#
+# MDEV-28576 RENAME COLUMN with NOCOPY algorithm leads to corrupt partitioned table
+#
+create table t (a int, b int) partition by list (b) (partition p1 values in (1, 2));
+insert into t values (0, 1), (2, 2);
+alter table t change b f int, change a b int, algorithm=nocopy;
+check table t;
+Table	Op	Msg_type	Msg_text
+test.t	check	status	OK
+delete from t order by b limit 1;
+drop table t;
 # End of 10.3 tests

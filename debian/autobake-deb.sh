@@ -17,8 +17,15 @@ export DEB_BUILD_OPTIONS="nocheck"
 # Debian policy and targeting Debian Sid. Then case-by-case run in autobake-deb.sh
 # tests for backwards compatibility and strip away parts on older builders.
 
-CODENAME="$(lsb_release -sc)"
-case "${CODENAME}" in
+LSBID="$(lsb_release -si  | tr '[:upper:]' '[:lower:]')"
+LSBVERSION="$(lsb_release -sr | sed -e "s#\.##g")"
+LSBNAME="$(lsb_release -sc)"
+
+if [ -z "${LSBID}" ]
+then
+    LSBID="unknown"
+fi
+case "${LSBNAME}" in
 	stretch)
 		# MDEV-28022 libzstd-dev-1.1.3 minimum version
 		sed -i -e '/libzstd-dev/d' debian/control
@@ -55,10 +62,11 @@ UPSTREAM="${MYSQL_VERSION_MAJOR}.${MYSQL_VERSION_MINOR}.${MYSQL_VERSION_PATCH}${
 PATCHLEVEL="+maria"
 LOGSTRING="MariaDB build"
 EPOCH="1:"
+VERSION="${EPOCH}${UPSTREAM}${PATCHLEVEL}~${LSBID:0:3}${LSBVERSION}"
 
-dch -b -D ${CODENAME} -v "${EPOCH}${UPSTREAM}${PATCHLEVEL}~${CODENAME}" "Automatic build with ${LOGSTRING}."
+dch -b -D ${LSBNAME} -v "${VERSION}" "Automatic build with ${LOGSTRING}."
 
-echo "Creating package version ${EPOCH}${UPSTREAM}${PATCHLEVEL}~${CODENAME} ... "
+echo "Creating package version ${VERSION} ... "
 
 # Build the package
 # Pass -I so that .git and other unnecessary temporary and source control files

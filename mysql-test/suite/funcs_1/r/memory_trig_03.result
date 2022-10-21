@@ -99,7 +99,7 @@ test_noprivs@localhost
 use priv_db;
 create trigger trg1_1 before INSERT on t1 for each row
 set new.f1 = 'trig 3.5.3.2_1-no';
-ERROR 42000: TRIGGER command denied to user 'test_noprivs'@'localhost' for table 't1'
+ERROR 42000: TRIGGER command denied to user 'test_noprivs'@'localhost' for table `priv_db`.`t1`
 connection default;
 use priv_db;
 insert into t1 (f1) values ('insert 3.5.3.2-no');
@@ -135,7 +135,7 @@ Testcase 3.5.3.6:
 connection no_privs;
 use priv_db;
 drop trigger trg1_2;
-ERROR 42000: TRIGGER command denied to user 'test_noprivs'@'localhost' for table 't1'
+ERROR 42000: TRIGGER command denied to user 'test_noprivs'@'localhost' for table `priv_db`.`t1`
 connection default;
 use priv_db;
 insert into t1 (f1) values ('insert 3.5.3.6-yes');
@@ -688,7 +688,7 @@ insert into t2 values (new.f1);
 connection default;
 use priv_db;
 insert into t1 (f1) values (4);
-ERROR 42000: INSERT command denied to user 'test_yesprivs'@'localhost' for table 't2'
+ERROR 42000: INSERT command denied to user 'test_yesprivs'@'localhost' for table `priv_db`.`t2`
 revoke SELECT on priv_db.t2 from test_yesprivs@localhost;
 grant INSERT on priv_db.t2 to test_yesprivs@localhost;
 insert into t1 (f1) values (4);
@@ -706,7 +706,7 @@ update t2 set f2=new.f1-1;
 connection default;
 use priv_db;
 insert into t1 (f1) values (2);
-ERROR 42000: UPDATE command denied to user 'test_yesprivs'@'localhost' for table 't2'
+ERROR 42000: UPDATE command denied to user 'test_yesprivs'@'localhost' for table `priv_db`.`t2`
 revoke INSERT on priv_db.t2 from test_yesprivs@localhost;
 grant UPDATE on priv_db.t2 to test_yesprivs@localhost;
 insert into t1 (f1) values (2);
@@ -725,7 +725,7 @@ select f2 into @aaa from t2 where f2=new.f1;
 connection default;
 use priv_db;
 insert into t1 (f1) values (1);
-ERROR 42000: SELECT command denied to user 'test_yesprivs'@'localhost' for table 't2'
+ERROR 42000: SELECT command denied to user 'test_yesprivs'@'localhost' for table `priv_db`.`t2`
 revoke UPDATE on priv_db.t2 from test_yesprivs@localhost;
 grant SELECT on priv_db.t2 to test_yesprivs@localhost;
 insert into t1 (f1) values (1);
@@ -748,7 +748,7 @@ delete from t2;
 connection default;
 use priv_db;
 insert into t1 (f1) values (1);
-ERROR 42000: DELETE command denied to user 'test_yesprivs'@'localhost' for table 't2'
+ERROR 42000: DELETE command denied to user 'test_yesprivs'@'localhost' for table `priv_db`.`t2`
 revoke SELECT on priv_db.t2 from test_yesprivs@localhost;
 grant DELETE on priv_db.t2 to test_yesprivs@localhost;
 insert into t1 (f1) values (1);

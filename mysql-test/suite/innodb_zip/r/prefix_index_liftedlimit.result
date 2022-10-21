@@ -1290,7 +1290,7 @@ worklog5743	CREATE TABLE `worklog5743` (
   `col_2_text` text DEFAULT NULL,
   PRIMARY KEY (`col_1_text`(500)),
   KEY `prefix_idx` (`col_1_text`(3072))
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 ROW_FORMAT=DYNAMIC
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci ROW_FORMAT=DYNAMIC
 INSERT INTO worklog5743 VALUES(REPEAT("a", 4000),REPEAT("o", 4000));
 SELECT col_1_text = REPEAT("a", 4000) FROM worklog5743;
 col_1_text = REPEAT("a", 4000)
@@ -1418,5 +1418,5 @@ worklog5743	CREATE TABLE `worklog5743` (
   `col_2_varchar` varchar(4000) DEFAULT NULL,
   PRIMARY KEY (`col_1_varchar`(767)),
   KEY `prefix_idx` (`col_1_varchar`(1000))
-) ENGINE=InnoDB DEFAULT CHARSET=latin1
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE worklog5743;

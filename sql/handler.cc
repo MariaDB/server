@@ -6270,7 +6270,7 @@ static int write_locked_table_maps(THD *thd)
       continue;
 
     TABLE **const end_ptr= lock->table + lock->table_count;
-    for (TABLE **table_ptr= lock->table ; 
+    for (TABLE **table_ptr= lock->table ;
          table_ptr != end_ptr ;
          ++table_ptr)
     {
@@ -6294,8 +6294,10 @@ static int write_locked_table_maps(THD *thd)
         */
         bool const has_trans= thd->lex->sql_command == SQLCOM_CREATE_TABLE ||
           table->file->has_transactions();
-        int const error= thd->binlog_write_table_map(table, has_trans,
-                                                     &with_annotate);
+
+        int const error=
+          thd->binlog_write_table_map(table, has_trans, &with_annotate);
+
         /*
           If an error occurs, it is the responsibility of the caller to
           roll back the transaction.

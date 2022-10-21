@@ -1,7 +1,12 @@
 include/master-slave.inc
 [connection master]
 call mtr.add_suppression("Unsafe statement written to the binary log using statement format since BINLOG_FORMAT = STATEMENT");
-call mtr.add_suppression("Slave SQL: The incident LOST_EVENTS occurred on the master. .*");
+call mtr.add_suppression("Slave SQL: The incident LOST_EVENTS occured on the master. .*");
+call mtr.add_suppression("Write to binary log failed: Multi-row statements required more than .max_binlog_stmt_cache_size.* ");
+call mtr.add_suppression("Write to binary log failed: Multi-statement transaction required more than .max_binlog_cache_size.* ");
+call mtr.add_suppression("Incident event write to the binary log file failed");
+call mtr.add_suppression("handlerton rollback failed");
+"*********** Annotate Event write failure **************"
 SET GLOBAL max_binlog_cache_size = 4096;
 SET GLOBAL binlog_cache_size = 4096;
 SET GLOBAL max_binlog_stmt_cache_size = 4096;
@@ -10,12 +15,212 @@ disconnect master;
 connect  master,127.0.0.1,root,,test,$MASTER_MYPORT,;
 CREATE TABLE t1(a INT PRIMARY KEY, data VARCHAR(30000)) ENGINE=MYISAM;
 connection master;
-ERROR HY000: Writing one row to the row-based binary log failed
+"#######################################################################"
+"# Test Case1: Annotate event write failure for MyISAM                 #"
+"#######################################################################"
+ERROR HY000: Multi-row statements required more than 'max_binlog_stmt_cache_size' bytes of storage; increase this mysqld variable and try again
+# Validating update was not binlogged..
+# ..success
+# Validating that the inserted data was saved on the master..
+# ..success
+connection slave;
 include/wait_for_slave_sql_error_and_skip.inc [errno=1590]
+# Validating that the insert was not replicated to the slave..
+# ..success
+"#######################################################################"
+"# Test Case2: Annotate event write failure for INNODB                 #"
+"#######################################################################"
 connection master;
+CREATE TABLE t2(a INT PRIMARY KEY, data VARCHAR(30000)) ENGINE=INNODB;
+ERROR HY000: Multi-statement transaction required more than 'max_binlog_cache_size' bytes of storage; increase this mysqld variable and try again
+# Validating binlog GTID position progressed from first insert..
+# ..success
+# Validating that only the first insert into t2 saved..
+# ..success
+include/save_master_gtid.inc
+connection slave;
+include/sync_with_master_gtid.inc
+# Validating the first insert into t2 replicated to slave..
+include/diff_tables.inc [master:test.t2,slave:test.t2]
+# ..success
+"#######################################################################"
+"# Test Case3: Annotate event write failure for mixed engine UPDATE    #"
+"#######################################################################"
+connection master;
+ERROR HY000: Multi-row statements required more than 'max_binlog_stmt_cache_size' bytes of storage; increase this mysqld variable and try again
+# Validating update was not binlogged..
+# ..success
+# Validating non-transactional part of update saved..
+# ..success
+# Validating transactional part of update was rolled back..
+# ..success
+include/save_master_gtid.inc
+connection slave;
+include/wait_for_slave_sql_error_and_skip.inc [errno=1590]
+# Validating the rolled-back multi-engine update did not replicate to slave at all..
+# ..success
+connection master;
+"****** Clean up *******"
 SET GLOBAL max_binlog_cache_size= ORIGINAL_VALUE;
 SET GLOBAL binlog_cache_size= ORIGINAL_VALUE;
 SET GLOBAL max_binlog_stmt_cache_size= ORIGINAL_VALUE;
 SET GLOBAL binlog_stmt_cache_size= ORIGINAL_VALUE;
-DROP TABLE t1;
+DROP TABLE t1,t2;
+"*********** TABLE MAP Event write failure **************"
+CREATE TABLE tm (f INT) ENGINE=MYISAM;
+CREATE TABLE ti (f INT) ENGINE=INNODB;
+INSERT INTO tm VALUES (10);
+INSERT INTO ti VALUES (20);
+connection slave;
+"#######################################################################"
+"# Test Case4: Table_map event write failure for trans engine UPDATE   #"
+"#######################################################################"
+# Transaction should be rolled back without writing incident event
+connection master;
+SET debug_dbug="+d,table_map_write_error";
+UPDATE ti, tm set ti.f=30;
+ERROR HY000: Multi-statement transaction required more than 'max_binlog_cache_size' bytes of storage; increase this mysqld variable and try again
+# Validating update was not binlogged..
+# ..success
+# Validating update was rolled back from storage engines..
+# ..success
+include/save_master_gtid.inc
+connection slave;
+include/sync_with_master_gtid.inc
+"#######################################################################"
+"# Test Case5: Table_map event write failure for mixed engine UPDATE   #"
+"#######################################################################"
+connection master;
+# In case of mixed engines if non trans table is updated write INCIDENT event
+UPDATE ti,tm SET tm.f=88, ti.f=120;
+ERROR HY000: Multi-statement transaction required more than 'max_binlog_cache_size' bytes of storage; increase this mysqld variable and try again
+# Validating update was not binlogged..
+# ..success
+# Validating that only the non-transactional update saved on master..
+# ..success
+connection slave;
+include/wait_for_slave_sql_error_and_skip.inc [errno=1590]
+# Validating that neither of the updates replicated to slave..
+# ..success
+"#######################################################################"
+"# Test Case6: Committing a transaction consisting of two updates:
+"#   S1) Update transactional table
+"#   S2) Update transactional table
+"# with a table_map event write failure on the second event should
+"# roll-back only the second update without incident
+"#######################################################################"
+connection master;
+SET debug_dbug="";
+BEGIN;
+UPDATE ti, tm set ti.f=40;
+SET debug_dbug="+d,table_map_write_error";
+UPDATE ti, tm set ti.f=50;
+ERROR HY000: Multi-statement transaction required more than 'max_binlog_cache_size' bytes of storage; increase this mysqld variable and try again
+COMMIT;
+# Validating binlog GTID position progressed from first update..
+# ..success
+# Validating the first update saved..
+# ..and that the second update did not save..
+# ..success
+# Validating that only the first update replicated to slave without incident
+connection master;
+include/save_master_gtid.inc
+connection slave;
+include/sync_with_master_gtid.inc
+include/diff_tables.inc [master:test.ti,slave:test.ti]
+"#######################################################################"
+"# Test Case7: Rolling back a transaction consisting of two updates:
+"#   S1) Update transactional table
+"#   S2) Update transactional table
+"# with a table_map event write failure on the second event should
+"# roll-back both updates without incident
+"#######################################################################"
+connection master;
+SET debug_dbug="";
+BEGIN;
+UPDATE ti, tm set ti.f=60;
+SET debug_dbug="+d,table_map_write_error";
+UPDATE ti, tm set ti.f=70;
+ERROR HY000: Multi-statement transaction required more than 'max_binlog_cache_size' bytes of storage; increase this mysqld variable and try again
+ROLLBACK;
+# Validating update was not binlogged..
+# ..success
+# Validating that neither update saved on master..
+# ..success
+# Validating the transaction did not replicate to the slave
+connection master;
+include/save_master_gtid.inc
+connection slave;
+include/sync_with_master_gtid.inc
+include/diff_tables.inc [master:test.ti,slave:test.ti]
+"#######################################################################"
+"# Test Case8: Committing a transaction consisting of two updates:
+"#   S1) Update transactional table
+"#   S2) Update mixed trans/non-trans tables
+"# with a table_map event write failure on the second event should
+"# roll-back only the second update with incident
+"#######################################################################"
+connection master;
+BEGIN;
+SET debug_dbug="";
+UPDATE ti, tm set ti.f=80;
+SET debug_dbug="+d,table_map_write_error";
+UPDATE ti, tm set ti.f=90,tm.f=99;
+ERROR HY000: Multi-statement transaction required more than 'max_binlog_cache_size' bytes of storage; increase this mysqld variable and try again
+COMMIT;
+# Validating binlog GTID position progressed from first update..
+# ..success
+# Validating the first update saved..
+# ..and the transactional part of the second update did not save..
+# ..whereas the non-trans part of the second update did save..
+# ..success
+# Validating that the incident propagated to the slave
+connection slave;
+include/wait_for_slave_sql_error_and_skip.inc [errno=1590]
+# Validating that the first update replicated to the slave..
+# ..and neither part of the second update replicated..
+# ..success
+"#######################################################################"
+"# Test Case9: Rolling back a transaction consisting of two updates:
+"#   S1) Update transactional table
+"#   S2) Update mixed trans/non-trans tables
+"# with a table_map event write failure on the second event should
+"# roll-back both transactional updates, preserve the non-transactional
+"# update on the master (only), and write an incident event
+"#######################################################################"
+connection master;
+SET debug_dbug="";
+BEGIN;
+UPDATE ti, tm set ti.f=100;
+SET debug_dbug="+d,table_map_write_error";
+UPDATE ti, tm set ti.f=110,tm.f=111;
+ERROR HY000: Multi-statement transaction required more than 'max_binlog_cache_size' bytes of storage; increase this mysqld variable and try again
+ROLLBACK;
+# Validating update was not binlogged..
+# ..success
+# Validating trans updates rollback, but the non-trans update stays..
+# ..success
+# Validating that the incident propagated to the slave
+connection slave;
+include/wait_for_slave_sql_error_and_skip.inc [errno=1590]
+# Validating that none of the updates replicated to the slave
+include/diff_tables.inc [master:test.ti,slave:test.ti]
+# ..success
+"#######################################################################"
+"# Test Case10: If an incident event fails to write, a specific error
+"# should be logged
+"#
+"# Note: This test case is the same as test case 5, with the caveat of
+"# the incident event failing to write.
+"#######################################################################"
+connection master;
+SET debug_dbug="d,table_map_write_error,incident_event_write_error";
+UPDATE ti, tm set ti.f=120, tm.f=122;
+ERROR HY000: Multi-statement transaction required more than 'max_binlog_cache_size' bytes of storage; increase this mysqld variable and try again
+# Validate error message indicating incident event failed to write
+FOUND 1 /Incident event write to the binary log file failed/ in mysqld.1.err
+connection master;
+"******** Clean Up **********"
+SET GLOBAL debug_dbug = '';
+DROP TABLE tm,ti;
 include/rpl_end.inc

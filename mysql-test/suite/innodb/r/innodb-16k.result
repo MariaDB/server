@@ -240,7 +240,7 @@ t1	CREATE TABLE `t1` (
   `d` text NOT NULL,
   PRIMARY KEY (`a`,`b`(255),`c`(255)),
   KEY `b` (`b`(767))
-) ENGINE=InnoDB DEFAULT CHARSET=utf8
+) ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE=utf8_general_ci
 CHECK TABLE t1;
 Table	Op	Msg_type	Msg_text
 test.t1	check	status	OK
@@ -349,7 +349,7 @@ t1	CREATE TABLE `t1` (
   KEY `t1r` (`r`(767)),
   KEY `t1s` (`s`(767)),
   KEY `t1t` (`t`(767))
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 ROW_FORMAT=DYNAMIC
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci ROW_FORMAT=DYNAMIC
 DROP TABLE t1;
 Test an assertion failure on purge.
 CREATE TABLE t1_purge (
@@ -465,7 +465,7 @@ tlong2	CREATE TABLE `tlong2` (
   KEY `ndx_n` (`n`(500)),
   KEY `ndx_o` (`o`(500)),
   KEY `ndx_p` (`p`(500))
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 ROW_FORMAT=DYNAMIC
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci ROW_FORMAT=DYNAMIC
 SET SESSION innodb_strict_mode = ON;
 CREATE TABLE bug12547647(
 a int NOT NULL, b blob NOT NULL, c text,

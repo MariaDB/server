@@ -48,6 +48,9 @@ drop table t1;
 # note that when LOW_MEMORY is set the "test" below is meaningless
 #
 
+#view protocol generates additional warning
+--disable_view_protocol
+
 set @@global.max_allowed_packet=1048576*100;
 --replace_result "''" XXX "'1'" XXX
 
@@ -58,6 +61,8 @@ disconnect newconn;
 --source include/wait_until_disconnected.inc
 connection default;
 set @@global.max_allowed_packet=@save_max_allowed_packet;
+
+--enable_view_protocol
 
 #
 # Bug #18643: problem with null values
@@ -174,10 +179,6 @@ DROP TABLE t1;
 --echo #
 
 --echo #
---echo # Start of 10.2 tests
---echo #
-
---echo #
 --echo # MDEV-10134 Add full support for DEFAULT
 --echo #
 CREATE TABLE t1 (a TEXT, b BLOB DEFAULT COMPRESS(a), bl INT DEFAULT UNCOMPRESSED_LENGTH(b), a1 TEXT DEFAULT UNCOMPRESS(b));
@@ -185,6 +186,13 @@ SHOW CREATE TABLE t1;
 INSERT INTO t1 (a) VALUES (REPEAT('a',100));
 SELECT bl, a1 FROM t1;
 DROP TABLE t1;
+
+--echo #
+--echo # MDEV-23149 Server crashes in my_convert / ErrConvString::ptr / Item_char_typecast::check_truncation_with_warn
+--echo #
+--disable_view_protocol
+select 'foo' in (cast(compress('bar') as char(4)), 'qux');
+--enable_view_protocol
 
 --echo #
 --echo # End of 10.2 tests

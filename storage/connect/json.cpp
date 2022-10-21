@@ -208,7 +208,7 @@ PJSON ParseJson(PGLOBAL g, char* s, size_t len, int* ptyp, bool* comma)
           break;
         } // endif pretty
 
-        sprintf(g->Message, "Unexpected ',' (pretty=%d)", pretty);
+        snprintf(g->Message, sizeof(g->Message), "Unexpected ',' (pretty=%d)", pretty);
         throw 3;
       case '(':
         b = true;
@@ -229,7 +229,7 @@ PJSON ParseJson(PGLOBAL g, char* s, size_t len, int* ptyp, bool* comma)
       }; // endswitch s[i]
 
     if (!jsp)
-      sprintf(g->Message, "Invalid Json string '%.*s'", MY_MIN((int)len, 50), s);
+      snprintf(g->Message, sizeof(g->Message), "Invalid Json string '%.*s'", MY_MIN((int)len, 50), s);
     else if (ptyp && pretty == 3) {
       *ptyp = 3;     // Not recognized pretty
 
@@ -278,7 +278,7 @@ PSZ Serialize(PGLOBAL g, PJSON jsp, char* fn, int pretty) {
       b = pretty == 1;
     } else {
       if (!(fs = fopen(fn, "wb"))) {
-        sprintf(g->Message, MSG(OPEN_MODE_ERROR),
+        snprintf(g->Message, sizeof(g->Message), MSG(OPEN_MODE_ERROR),
           "w", (int)errno, fn);
         strcat(strcat(g->Message, ": "), strerror(errno));
         throw 2;
@@ -571,7 +571,7 @@ PJAR JDOC::ParseArray(PGLOBAL g, int& i)
     switch (s[i]) {
       case ',':
         if (level < 2) {
-          sprintf(g->Message, "Unexpected ',' near %.*s",ARGS);
+          snprintf(g->Message, sizeof(g->Message), "Unexpected ',' near %.*s",ARGS);
           throw 1;
         } else
           level = 1;
@@ -579,7 +579,7 @@ PJAR JDOC::ParseArray(PGLOBAL g, int& i)
         break;
       case ']':
         if (level == 1) {
-          sprintf(g->Message, "Unexpected ',]' near %.*s", ARGS);
+          snprintf(g->Message, sizeof(g->Message), "Unexpected ',]' near %.*s", ARGS);
           throw 1;
         } // endif level
 
@@ -594,7 +594,7 @@ PJAR JDOC::ParseArray(PGLOBAL g, int& i)
         break;
       default:
         if (level == 2) {
-          sprintf(g->Message, "Unexpected value near %.*s", ARGS);
+          snprintf(g->Message, sizeof(g->Message), "Unexpected value near %.*s", ARGS);
           throw 1;
         } else
           jarp->AddArrayValue(g, ParseValue(g, i));
@@ -630,7 +630,7 @@ PJOB JDOC::ParseObject(PGLOBAL g, int& i)
           jpp = jobp->AddPair(g, key);
           level = 1;
         } else {
-          sprintf(g->Message, "misplaced string near %.*s", ARGS);
+          snprintf(g->Message, sizeof(g->Message), "misplaced string near %.*s", ARGS);
           throw 2;
         } // endif level
 
@@ -640,14 +640,14 @@ PJOB JDOC::ParseObject(PGLOBAL g, int& i)
           jpp->Val = ParseValue(g, ++i);
           level = 2;
         } else {
-          sprintf(g->Message, "Unexpected ':' near %.*s", ARGS);
+          snprintf(g->Message, sizeof(g->Message), "Unexpected ':' near %.*s", ARGS);
           throw 2;
         } // endif level
 
         break;
       case ',':
         if (level < 2) {
-          sprintf(g->Message, "Unexpected ',' near %.*s", ARGS);
+          snprintf(g->Message, sizeof(g->Message), "Unexpected ',' near %.*s", ARGS);
           throw 2;
         } else
           level = 0;
@@ -655,7 +655,7 @@ PJOB JDOC::ParseObject(PGLOBAL g, int& i)
         break;
       case '}':
         if (level == 0 || level == 1) {
-          sprintf(g->Message, "Unexpected '}' near %.*s", ARGS);
+          snprintf(g->Message, sizeof(g->Message), "Unexpected '}' near %.*s", ARGS);
           throw 2;
           } // endif level
 
@@ -667,7 +667,7 @@ PJOB JDOC::ParseObject(PGLOBAL g, int& i)
       case '\t':
         break;
       default:
-        sprintf(g->Message, "Unexpected character '%c' near %.*s",
+        snprintf(g->Message, sizeof(g->Message), "Unexpected character '%c' near %.*s",
                 s[i], ARGS);
         throw 2;
     }; // endswitch s[i]
@@ -750,7 +750,7 @@ PJVAL JDOC::ParseValue(PGLOBAL g, int& i)
   return jvp;
 
 err:
-  sprintf(g->Message, "Unexpected character '%c' near %.*s", s[i], ARGS);
+  snprintf(g->Message, sizeof(g->Message), "Unexpected character '%c' near %.*s", s[i], ARGS);
   throw 3;
 } // end of ParseValue
 
@@ -1023,13 +1023,13 @@ bool JDOC::SerializeValue(PJVAL jvp)
     case TYPE_DTM:
       return js->Escape(jvp->Strp);
     case TYPE_INTG:
-      sprintf(buf, "%d", jvp->N);
+      snprintf(buf, sizeof(buf), "%d", jvp->N);
       return js->WriteStr(buf);
     case TYPE_BINT:
-      sprintf(buf, "%lld", jvp->LLn);
+      snprintf(buf, sizeof(buf), "%lld", jvp->LLn);
       return js->WriteStr(buf);
     case TYPE_DBL:  // dfp to limit to the default number of decimals
-      sprintf(buf, "%.*f", MY_MIN(jvp->Nd, dfp), jvp->F);
+      snprintf(buf, sizeof(buf), "%.*f", MY_MIN(jvp->Nd, dfp), jvp->F);
       return js->WriteStr(buf);
     case TYPE_NULL:
       return js->WriteStr("null");
@@ -1764,7 +1764,7 @@ void JVALUE::SetValue(PGLOBAL g, PVAL valp)
     DataType = TYPE_BINT;
     break;
   default:
-    sprintf(g->Message, "Unsupported typ %d\n", valp->GetType());
+    snprintf(g->Message, sizeof(g->Message), "Unsupported typ %d\n", valp->GetType());
     throw(777);
   } // endswitch Type
 

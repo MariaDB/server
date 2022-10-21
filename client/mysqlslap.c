@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2005, 2015, Oracle and/or its affiliates.
-   Copyright (c) 2010, 2017, MariaDB
+   Copyright (c) 2010, 2022, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -23,7 +23,7 @@
   then reporting the timing of each stage.
 
   MySQL slap runs three stages:
-  1) Create schema,table, and optionally any SP or data you want to beign
+  1) Create schema,table, and optionally any SP or data you want to begin
      the test with. (single client)
   2) Load test (many clients)
   3) Cleanup (disconnection, drop table if specified, single client)
@@ -1846,12 +1846,11 @@ run_scheduler(stats *sptr, statement *stmts, uint concur, ulonglong limit)
 
 pthread_handler_t run_task(void *p)
 {
-  ulonglong counter= 0, queries;
+  ulonglong queries;
   ulonglong detach_counter;
   unsigned int commit_counter;
   MYSQL *mysql;
   MYSQL_RES *result;
-  MYSQL_ROW row;
   statement *ptr;
   thread_context *con= (thread_context *)p;
 
@@ -1972,8 +1971,7 @@ limit_not_met:
                     my_progname, mysql_errno(mysql), mysql_error(mysql));
           else
           {
-            while ((row= mysql_fetch_row(result)))
-              counter++;
+            while (mysql_fetch_row(result)) {}
             mysql_free_result(result);
           }
         }
@@ -1983,7 +1981,7 @@ limit_not_met:
       if (commit_rate && (++commit_counter == commit_rate))
       {
         commit_counter= 0;
-        run_query(mysql, "COMMIT", strlen("COMMIT"));
+        run_query(mysql, C_STRING_WITH_LEN("COMMIT"));
       }
 
       if (con->limit && queries == con->limit)
@@ -1995,7 +1993,7 @@ limit_not_met:
 
 end:
   if (commit_rate)
-    run_query(mysql, "COMMIT", strlen("COMMIT"));
+    run_query(mysql, C_STRING_WITH_LEN("COMMIT"));
 
   mysql_close(mysql);
 
@@ -2035,7 +2033,7 @@ parse_option(const char *origin, option_string **stmt, char delm)
     char *buffer_ptr;
 
     /*
-      Return an error if the length of the any of the comma seprated value
+      Return an error if the length of the comma separated values
       exceeds HUGE_STRING_LENGTH.
     */
     if ((size_t)(retstr - ptr) > HUGE_STRING_LENGTH)
@@ -2081,7 +2079,7 @@ parse_option(const char *origin, option_string **stmt, char delm)
     char *origin_ptr;
 
     /*
-      Return an error if the length of the any of the comma seprated value
+      Return an error if the length of any of the comma separated values
       exceeds HUGE_STRING_LENGTH.
     */
     if (strlen(ptr) > HUGE_STRING_LENGTH)

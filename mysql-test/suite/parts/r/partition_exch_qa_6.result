@@ -117,7 +117,7 @@ Grants for test2@localhost
 GRANT USAGE ON *.* TO `test2`@`localhost`
 GRANT SELECT, UPDATE, CREATE, DROP, ALTER ON `test`.* TO `test2`@`localhost`
 ALTER TABLE tp EXCHANGE PARTITION p0 WITH TABLE t_10;
-ERROR 42000: INSERT command denied to user 'test2'@'localhost' for table 'tp'
+ERROR 42000: INSERT command denied to user 'test2'@'localhost' for table `test`.`tp`
 disconnect test2;
 connection default;
 GRANT INSERT ON test.* TO test2@localhost;
@@ -129,7 +129,7 @@ Grants for test2@localhost
 GRANT USAGE ON *.* TO `test2`@`localhost`
 GRANT SELECT, INSERT, UPDATE, DROP, ALTER ON `test`.* TO `test2`@`localhost`
 ALTER TABLE tsp EXCHANGE PARTITION sp00 WITH TABLE tsp_00;
-ERROR 42000: CREATE command denied to user 'test2'@'localhost' for table 'tsp'
+ERROR 42000: CREATE command denied to user 'test2'@'localhost' for table `test`.`tsp`
 disconnect test2;
 connection default;
 GRANT CREATE ON test.* TO test2@localhost;
@@ -140,7 +140,7 @@ Grants for test2@localhost
 GRANT USAGE ON *.* TO `test2`@`localhost`
 GRANT SELECT, INSERT, UPDATE, CREATE, ALTER ON `test`.* TO `test2`@`localhost`
 ALTER TABLE tp EXCHANGE PARTITION p0 WITH TABLE t_10;
-ERROR 42000: DROP command denied to user 'test2'@'localhost' for table 'tp'
+ERROR 42000: DROP command denied to user 'test2'@'localhost' for table `test`.`tp`
 disconnect test2;
 connection default;
 DROP TABLE IF EXISTS t_10;

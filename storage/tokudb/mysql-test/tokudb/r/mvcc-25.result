@@ -14,14 +14,14 @@ foo	CREATE TABLE `foo` (
   `a` int(11) NOT NULL,
   `b` varchar(100) DEFAULT NULL,
   PRIMARY KEY (`a`)
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 show create table bar;
 Table	Create Table
 bar	CREATE TABLE `bar` (
   `a` int(11) NOT NULL,
   `b` varchar(100) DEFAULT NULL,
   PRIMARY KEY (`a`)
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 connection conn1;
 set session transaction isolation level repeatable read;
 begin;

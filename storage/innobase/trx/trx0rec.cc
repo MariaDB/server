@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2019, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2021, MariaDB Corporation.
+Copyright (c) 2017, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -1655,182 +1655,6 @@ trx_undo_update_rec_get_update(
 	return(const_cast<byte*>(ptr));
 }
 
-/*******************************************************************//**
-Builds a partial row from an update undo log record, for purge.
-It contains the columns which occur as ordering in any index of the table.
-Any missing columns are indicated by col->mtype == DATA_MISSING.
-@return pointer to remaining part of undo record */
-byte*
-trx_undo_rec_get_partial_row(
-/*=========================*/
-	const byte*	ptr,	/*!< in: remaining part in update undo log
-				record of a suitable type, at the start of
-				the stored index columns;
-				NOTE that this copy of the undo log record must
-				be preserved as long as the partial row is
-				used, as we do NOT copy the data in the
-				record! */
-	dict_index_t*	index,	/*!< in: clustered index */
-	const upd_t*	update,	/*!< in: updated columns */
-	dtuple_t**	row,	/*!< out, own: partial row */
-	ibool		ignore_prefix, /*!< in: flag to indicate if we
-				expect blob prefixes in undo. Used
-				only in the assertion. */
-	mem_heap_t*	heap)	/*!< in: memory heap from which the memory
-				needed is allocated */
-{
-	const byte*	end_ptr;
-	bool		first_v_col = true;
-	bool		is_undo_log = true;
-
-	ut_ad(index->is_primary());
-
-	*row = dtuple_create_with_vcol(
-		heap, dict_table_get_n_cols(index->table),
-		dict_table_get_n_v_cols(index->table));
-
-	/* Mark all columns in the row uninitialized, so that
-	we can distinguish missing fields from fields that are SQL NULL. */
-	for (ulint i = 0; i < dict_table_get_n_cols(index->table); i++) {
-		dfield_get_type(dtuple_get_nth_field(*row, i))
-			->mtype = DATA_MISSING;
-	}
-
-	dtuple_init_v_fld(*row);
-
-	for (const upd_field_t* uf = update->fields, * const ue
-		     = update->fields + update->n_fields;
-	     uf != ue; uf++) {
-		if (uf->old_v_val) {
-			continue;
-		}
-		ulint c = dict_index_get_nth_col(index, uf->field_no)->ind;
-		*dtuple_get_nth_field(*row, c) = uf->new_val;
-	}
-
-	end_ptr = ptr + mach_read_from_2(ptr);
-	ptr += 2;
-
-	while (ptr != end_ptr) {
-		dfield_t*	dfield;
-		const byte*	field;
-		ulint		field_no;
-		const dict_col_t* col;
-		ulint		col_no;
-		ulint		len;
-		ulint		orig_len;
-		bool		is_virtual;
-
-		field_no = mach_read_next_compressed(&ptr);
-
-		is_virtual = (field_no >= REC_MAX_N_FIELDS);
-
-		if (is_virtual) {
-			ptr = trx_undo_read_v_idx(
-				index->table, ptr, first_v_col, &is_undo_log,
-				&field_no);
-			first_v_col = false;
-		}
-
-		ptr = trx_undo_rec_get_col_val(ptr, &field, &len, &orig_len);
-
-		/* This column could be dropped or no longer indexed */
-		if (field_no == ULINT_UNDEFINED) {
-			ut_ad(is_virtual);
-			continue;
-		}
-
-		if (is_virtual) {
-			dict_v_col_t* vcol = dict_table_get_nth_v_col(
-						index->table, field_no);
-			col = &vcol->m_col;
-			col_no = dict_col_get_no(col);
-			dfield = dtuple_get_nth_v_field(*row, vcol->v_pos);
-			dict_col_copy_type(
-				&vcol->m_col,
-				dfield_get_type(dfield));
-		} else {
-			col = dict_index_get_nth_col(index, field_no);
-			col_no = dict_col_get_no(col);
-			dfield = dtuple_get_nth_field(*row, col_no);
-			ut_ad(dfield->type.mtype == DATA_MISSING
-			      || dict_col_type_assert_equal(col,
-							    &dfield->type));
-			ut_ad(dfield->type.mtype == DATA_MISSING
-			      || dfield->len == len
-			      || (len != UNIV_SQL_NULL
-				  && len >= UNIV_EXTERN_STORAGE_FIELD));
-			dict_col_copy_type(
-				dict_table_get_nth_col(index->table, col_no),
-				dfield_get_type(dfield));
-		}
-
-		dfield_set_data(dfield, field, len);
-
-		if (len != UNIV_SQL_NULL
-		    && len >= UNIV_EXTERN_STORAGE_FIELD) {
-			spatial_status_t	spatial_status;
-
-			/* Decode spatial status. */
-			spatial_status = static_cast<spatial_status_t>(
-				(len & SPATIAL_STATUS_MASK)
-				>> SPATIAL_STATUS_SHIFT);
-			len &= ~SPATIAL_STATUS_MASK;
-
-			/* Keep compatible with 5.7.9 format. */
-			if (spatial_status == SPATIAL_UNKNOWN) {
-				spatial_status =
-					dict_col_get_spatial_status(col);
-			}
-
-			switch (spatial_status) {
-			case SPATIAL_ONLY:
-				ut_ad(len - UNIV_EXTERN_STORAGE_FIELD
-				      == DATA_MBR_LEN);
-				dfield_set_len(
-					dfield,
-					len - UNIV_EXTERN_STORAGE_FIELD);
-				break;
-
-			case SPATIAL_MIXED:
-				dfield_set_len(
-					dfield,
-					len - UNIV_EXTERN_STORAGE_FIELD
-					- DATA_MBR_LEN);
-				break;
-
-			case SPATIAL_NONE:
-				dfield_set_len(
-					dfield,
-					len - UNIV_EXTERN_STORAGE_FIELD);
-				break;
-
-			case SPATIAL_UNKNOWN:
-				ut_ad(0);
-				break;
-			}
-
-			dfield_set_ext(dfield);
-			dfield_set_spatial_status(dfield, spatial_status);
-
-			/* If the prefix of this column is indexed,
-			ensure that enough prefix is stored in the
-			undo log record. */
-			if (!ignore_prefix && col->ord_part
-			    && spatial_status != SPATIAL_ONLY) {
-				ut_a(dfield_get_len(dfield)
-				     >= BTR_EXTERN_FIELD_REF_SIZE);
-				ut_a(dict_table_has_atomic_blobs(index->table)
-				     || dfield_get_len(dfield)
-				     >= REC_ANTELOPE_MAX_INDEX_COL_LEN
-				     + BTR_EXTERN_FIELD_REF_SIZE);
-			}
-		}
-	}
-
-	return(const_cast<byte*>(ptr));
-}
-
 /** Erase the unused undo log page end.
 @param[in,out]	undo_page	undo log page
 @return whether the page contained something */
@@ -1867,9 +1691,9 @@ trx_undo_page_report_rename(trx_t* trx, const dict_table_t* table,
 	byte* start = block->frame + first_free;
 	size_t len = strlen(table->name.m_name);
 	const size_t fixed = 2 + 1 + 11 + 11 + 2;
-	ut_ad(len <= NAME_LEN * 2 + 1);
+	ut_ad(len <= NAME_CHAR_LEN * 5 * 2 + 1);
 	/* The -10 is used in trx_undo_left() */
-	compile_time_assert((NAME_LEN * 1) * 2 + fixed
+	compile_time_assert(NAME_CHAR_LEN * 5 * 2 + fixed
 			    + TRX_UNDO_PAGE_HDR + TRX_UNDO_PAGE_HDR_SIZE
 			    < UNIV_PAGE_SIZE_MIN - 10 - FIL_PAGE_DATA_END);
 

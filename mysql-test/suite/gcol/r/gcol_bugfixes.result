@@ -250,7 +250,7 @@ HAVING x > '2000-02-06'
 ORDER BY col_time_nokey, pk;
 x
 Warnings:
-Warning	1292	Truncated incorrect DOUBLE value: '2000-02-06'
+Warning	1292	Truncated incorrect DECIMAL value: '2000-02-06'
 DROP TABLE c;
 # Bug#21341044: Conditional jump at sort_param::make_sort_key
 CREATE TABLE t1 (
@@ -487,7 +487,7 @@ t1	CREATE TABLE `t1` (
   `a` char(1) DEFAULT NULL,
   `b` char(1) DEFAULT NULL,
   `c` char(2) GENERATED ALWAYS AS (`a` <> 0 or `b` <> 0) VIRTUAL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 INSERT INTO t1 (a,b) VALUES('1','1');
 SELECT * FROM t1;
 a	b	c
@@ -508,7 +508,7 @@ t1	CREATE TABLE `t1` (
   `a` char(1) DEFAULT NULL,
   `b` char(1) DEFAULT NULL,
   `c` char(2) GENERATED ALWAYS AS (concat(`a`,`b`)) VIRTUAL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 INSERT INTO t1 (a,b) VALUES('1','1');
 SELECT * FROM t1;
 a	b	c

@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2016, 2020, MariaDB Corporation.
+Copyright (c) 2016, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -1852,6 +1852,7 @@ dict_load_columns(
 			if (table->fts == NULL) {
 				table->fts = fts_create(table);
 				table->fts->cache = fts_cache_create(table);
+				DICT_TF2_FLAG_SET(table, DICT_TF2_FTS_AUX_HEX_NAME);
 				fts_optimize_add_table(table);
 			}
 
@@ -2589,8 +2590,11 @@ next_rec:
 	ut_ad(table->fts_doc_id_index == NULL);
 
 	if (table->fts != NULL) {
-		table->fts_doc_id_index = dict_table_get_index_on_name(
+		dict_index_t *idx = dict_table_get_index_on_name(
 			table, FTS_DOC_ID_INDEX_NAME);
+		if (idx && dict_index_is_unique(idx)) {
+			table->fts_doc_id_index = idx;
+		}
 	}
 
 	/* If the table contains FTS indexes, populate table->fts->indexes */
@@ -3647,11 +3651,14 @@ loop:
 
 	/* Copy the string because the page may be modified or evicted
 	after mtr_commit() below. */
-	char	fk_id[MAX_TABLE_NAME_LEN + 1];
-
-	ut_a(len <= MAX_TABLE_NAME_LEN);
-	memcpy(fk_id, field, len);
-	fk_id[len] = '\0';
+	char	fk_id[MAX_TABLE_NAME_LEN + NAME_LEN + 1];
+	err = DB_SUCCESS;
+	if (UNIV_LIKELY(len < sizeof fk_id)) {
+		memcpy(fk_id, field, len);
+		fk_id[len] = '\0';
+	} else {
+		err = DB_CORRUPTION;
+	}
 
 	btr_pcur_store_position(&pcur, &mtr);
 
@@ -3659,9 +3666,11 @@ loop:
 
 	/* Load the foreign constraint definition to the dictionary cache */
 
-	err = dict_load_foreign(fk_id, col_names,
-				check_recursive, check_charsets, ignore_err,
-				fk_tables);
+	if (err == DB_SUCCESS) {
+		err = dict_load_foreign(fk_id, col_names,
+					check_recursive, check_charsets,
+					ignore_err, fk_tables);
+	}
 
 	if (err != DB_SUCCESS) {
 		btr_pcur_close(&pcur);

@@ -84,10 +84,9 @@ DROP TABLE t1;
 --echo # MDEV-25663 Double free of transaction during TRUNCATE
 --echo #
 call mtr.add_suppression("InnoDB: \\(Too many concurrent transactions\\)");
-SET DEBUG_DBUG='-d,ib_create_table_fail_too_many_trx';
+SET @save_dbug= @@debug_dbug;
 
 CREATE TABLE t1 (b CHAR(12), FULLTEXT KEY(b)) engine=InnoDB;
-SET @save_dbug= @@debug_dbug;
 SET debug_dbug='+d,ib_create_table_fail_too_many_trx';
 --error ER_GET_ERRNO
 TRUNCATE t1;

@@ -18,7 +18,22 @@
 #include "sql_priv.h"
 #include "sql_class.h"
 #include "item.h"
+#include "sql_parse.h" // For check_stack_overrun
 
+/*
+  Allocating memory and *also* using it (reading and
+  writing from it) because some build instructions cause
+  compiler to optimize out stack_used_up. Since alloca()
+  here depends on stack_used_up, it doesnt get executed
+  correctly and causes json_debug_nonembedded to fail
+  ( --error ER_STACK_OVERRUN_NEED_MORE does not occur).
+*/
+#define ALLOCATE_MEM_ON_STACK(A) do \
+                              { \
+                                uchar *array= (uchar*)alloca(A); \
+                                bzero(array, A); \
+                                my_checksum(0, array, A); \
+                              } while(0)
 
 /*
   Compare ASCII string against the string with the specified
@@ -126,6 +141,115 @@ static int append_tab(String *js, int depth, int tab_size)
       return 1;
   }
   return 0;
+}
+
+int json_path_parts_compare(
+    const json_path_step_t *a, const json_path_step_t *a_end,
+    const json_path_step_t *b, const json_path_step_t *b_end,
+    enum json_value_types vt)
+{
+  int res, res2;
+
+  DBUG_EXECUTE_IF("json_check_min_stack_requirement",
+                  {
+                    long arbitrary_var;
+                    long stack_used_up= (available_stack_size(current_thd->thread_stack, &arbitrary_var));
+                    ALLOCATE_MEM_ON_STACK(my_thread_stack_size-stack_used_up-STACK_MIN_SIZE);
+                  });
+  if (check_stack_overrun(current_thd, STACK_MIN_SIZE , NULL))
+    return 1;
+
+  while (a <= a_end)
+  {
+    if (b > b_end)
+    {
+      while (vt != JSON_VALUE_ARRAY &&
+             (a->type & JSON_PATH_ARRAY_WILD) == JSON_PATH_ARRAY &&
+             a->n_item == 0)
+      {
+        if (++a > a_end)
+          return 0;
+      }
+      return -2;
+    }
+
+    DBUG_ASSERT((b->type & (JSON_PATH_WILD | JSON_PATH_DOUBLE_WILD)) == 0);
+
+
+    if (a->type & JSON_PATH_ARRAY)
+    {
+      if (b->type & JSON_PATH_ARRAY)
+      {
+        if ((a->type & JSON_PATH_WILD) || a->n_item == b->n_item)
+          goto step_fits;
+        goto step_failed;
+      }
+      if ((a->type & JSON_PATH_WILD) == 0 && a->n_item == 0)
+        goto step_fits_autowrap;
+      goto step_failed;
+    }
+    else /* JSON_PATH_KEY */
+    {
+      if (!(b->type & JSON_PATH_KEY))
+        goto step_failed;
+
+      if (!(a->type & JSON_PATH_WILD) &&
+          (a->key_end - a->key != b->key_end - b->key ||
+           memcmp(a->key, b->key, a->key_end - a->key) != 0))
+        goto step_failed;
+
+      goto step_fits;
+    }
+step_failed:
+    if (!(a->type & JSON_PATH_DOUBLE_WILD))
+      return -1;
+    b++;
+    continue;
+
+step_fits:
+    b++;
+    if (!(a->type & JSON_PATH_DOUBLE_WILD))
+    {
+      a++;
+      continue;
+    }
+
+    /* Double wild handling needs recursions. */
+    res= json_path_parts_compare(a+1, a_end, b, b_end, vt);
+    if (res == 0)
+      return 0;
+
+    res2= json_path_parts_compare(a, a_end, b, b_end, vt);
+
+    return (res2 >= 0) ? res2 : res;
+
+step_fits_autowrap:
+    if (!(a->type & JSON_PATH_DOUBLE_WILD))
+    {
+      a++;
+      continue;
+    }
+
+    /* Double wild handling needs recursions. */
+    res= json_path_parts_compare(a+1, a_end, b+1, b_end, vt);
+    if (res == 0)
+      return 0;
+
+    res2= json_path_parts_compare(a, a_end, b+1, b_end, vt);
+
+    return (res2 >= 0) ? res2 : res;
+
+  }
+
+  return b <= b_end;
+}
+
+
+int json_path_compare(const json_path_t *a, const json_path_t *b,
+                      enum json_value_types vt)
+{
+  return json_path_parts_compare(a->steps+1, a->last_step,
+                                 b->steps+1, b->last_step, vt);
 }
 
 
@@ -494,6 +618,12 @@ continue_search:
 
   if (json_read_value(&je))
     goto err_return;
+
+  if (je.value_type == JSON_VALUE_NULL)
+  {
+    null_value= 1;
+    return NULL;
+  }
 
   if (unlikely(check_and_get_value(&je, str, &error)))
   {
@@ -988,11 +1118,12 @@ my_decimal *Item_func_json_extract::val_decimal(my_decimal *to)
       case JSON_VALUE_ARRAY:
       case JSON_VALUE_FALSE:
       case JSON_VALUE_NULL:
-        break;
+        int2my_decimal(E_DEC_FATAL_ERROR, 0, false/*unsigned_flag*/, to);
+        return to;
     };
   }
-  int2my_decimal(E_DEC_FATAL_ERROR, 0, false/*unsigned_flag*/, to);
-  return to;
+  DBUG_ASSERT(null_value);
+  return 0;
 }
 
 
@@ -1030,6 +1161,14 @@ static int check_contains(json_engine_t *js, json_engine_t *value)
 {
   json_engine_t loc_js;
   bool set_js;
+  DBUG_EXECUTE_IF("json_check_min_stack_requirement",
+                  {
+                    long arbitrary_var;
+                    long stack_used_up= (available_stack_size(current_thd->thread_stack, &arbitrary_var));
+                    ALLOCATE_MEM_ON_STACK(my_thread_stack_size-stack_used_up-STACK_MIN_SIZE);
+                  });
+  if (check_stack_overrun(current_thd, STACK_MIN_SIZE , NULL))
+    return 1;
 
   switch (js->value_type)
   {
@@ -1919,6 +2058,16 @@ err_return:
 
 static int do_merge(String *str, json_engine_t *je1, json_engine_t *je2)
 {
+
+  DBUG_EXECUTE_IF("json_check_min_stack_requirement",
+                  {
+                    long arbitrary_var;
+                    long stack_used_up= (available_stack_size(current_thd->thread_stack, &arbitrary_var));
+                    ALLOCATE_MEM_ON_STACK(my_thread_stack_size-stack_used_up-STACK_MIN_SIZE);
+                  });
+  if (check_stack_overrun(current_thd, STACK_MIN_SIZE , NULL))
+    return 1;
+
   if (json_read_value(je1) || json_read_value(je2))
     return 1;
 
@@ -2251,6 +2400,15 @@ static int copy_value_patch(String *str, json_engine_t *je)
 static int do_merge_patch(String *str, json_engine_t *je1, json_engine_t *je2,
                           bool *empty_result)
 {
+  DBUG_EXECUTE_IF("json_check_min_stack_requirement",
+                  {
+                    long arbitrary_var;
+                    long stack_used_up= (available_stack_size(current_thd->thread_stack, &arbitrary_var));
+                    ALLOCATE_MEM_ON_STACK(my_thread_stack_size-stack_used_up-STACK_MIN_SIZE);
+                  });
+  if (check_stack_overrun(current_thd, STACK_MIN_SIZE , NULL))
+    return 1;
+
   if (json_read_value(je1) || json_read_value(je2))
     return 1;
 
@@ -2452,10 +2610,8 @@ String *Item_func_json_merge_patch::val_str(String *str)
       if (json_read_value(&je2))
         goto error_return;
       if (je2.value_type == JSON_VALUE_OBJECT)
-      {
-        merge_to_null= true;
         goto cont_point;
-      }
+
       merge_to_null= false;
       str->set(js2->ptr(), js2->length(), js2->charset());
       goto cont_point;

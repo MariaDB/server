@@ -15,11 +15,11 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) NOT NULL AUTO_INCREMENT,
-  `pseudo` varchar(35) CHARACTER SET latin2 NOT NULL DEFAULT '',
-  `email` varchar(60) CHARACTER SET latin2 NOT NULL DEFAULT '',
+  `pseudo` varchar(35) CHARACTER SET latin2 COLLATE latin2_general_ci NOT NULL DEFAULT '',
+  `email` varchar(60) CHARACTER SET latin2 COLLATE latin2_general_ci NOT NULL DEFAULT '',
   PRIMARY KEY (`a`),
   UNIQUE KEY `email` (`email`) USING BTREE
-) ENGINE=MEMORY DEFAULT CHARSET=latin1 ROW_FORMAT=DYNAMIC
+) ENGINE=MEMORY DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci ROW_FORMAT=DYNAMIC
 set @@sql_mode="ansi_quotes";
 show variables like 'sql_mode';
 Variable_name	Value
@@ -28,11 +28,11 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE "t1" (
   "a" int(11) NOT NULL AUTO_INCREMENT,
-  "pseudo" varchar(35) CHARACTER SET latin2 NOT NULL DEFAULT '',
-  "email" varchar(60) CHARACTER SET latin2 NOT NULL DEFAULT '',
+  "pseudo" varchar(35) CHARACTER SET latin2 COLLATE latin2_general_ci NOT NULL DEFAULT '',
+  "email" varchar(60) CHARACTER SET latin2 COLLATE latin2_general_ci NOT NULL DEFAULT '',
   PRIMARY KEY ("a"),
   UNIQUE KEY "email" ("email") USING BTREE
-) ENGINE=MEMORY DEFAULT CHARSET=latin1 ROW_FORMAT=DYNAMIC
+) ENGINE=MEMORY DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci ROW_FORMAT=DYNAMIC
 set @@sql_mode="no_table_options";
 show variables like 'sql_mode';
 Variable_name	Value
@@ -41,8 +41,8 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) NOT NULL AUTO_INCREMENT,
-  `pseudo` varchar(35) CHARACTER SET latin2 NOT NULL DEFAULT '',
-  `email` varchar(60) CHARACTER SET latin2 NOT NULL DEFAULT '',
+  `pseudo` varchar(35) CHARACTER SET latin2 COLLATE latin2_general_ci NOT NULL DEFAULT '',
+  `email` varchar(60) CHARACTER SET latin2 COLLATE latin2_general_ci NOT NULL DEFAULT '',
   PRIMARY KEY (`a`),
   UNIQUE KEY `email` (`email`) USING BTREE
 )
@@ -54,11 +54,11 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) NOT NULL AUTO_INCREMENT,
-  `pseudo` varchar(35) CHARACTER SET latin2 NOT NULL DEFAULT '',
-  `email` varchar(60) CHARACTER SET latin2 NOT NULL DEFAULT '',
+  `pseudo` varchar(35) CHARACTER SET latin2 COLLATE latin2_general_ci NOT NULL DEFAULT '',
+  `email` varchar(60) CHARACTER SET latin2 COLLATE latin2_general_ci NOT NULL DEFAULT '',
   PRIMARY KEY (`a`),
   UNIQUE KEY `email` (`email`)
-) ENGINE=MEMORY DEFAULT CHARSET=latin1 ROW_FORMAT=DYNAMIC
+) ENGINE=MEMORY DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci ROW_FORMAT=DYNAMIC
 set @@sql_mode="no_field_options,mysql323,mysql40";
 show variables like 'sql_mode';
 Variable_name	Value
@@ -80,8 +80,8 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE "t1" (
   "a" int(11) NOT NULL,
-  "pseudo" varchar(35) CHARACTER SET latin2 NOT NULL DEFAULT '',
-  "email" varchar(60) CHARACTER SET latin2 NOT NULL DEFAULT '',
+  "pseudo" varchar(35) CHARACTER SET latin2 COLLATE latin2_general_ci NOT NULL DEFAULT '',
+  "email" varchar(60) CHARACTER SET latin2 COLLATE latin2_general_ci NOT NULL DEFAULT '',
   PRIMARY KEY ("a"),
   UNIQUE KEY "email" ("email")
 )
@@ -98,7 +98,7 @@ t1	CREATE TABLE `t1` (
   `a` char(10) DEFAULT NULL,
   `b` char(10) CHARACTER SET latin1 COLLATE latin1_bin DEFAULT NULL,
   `c` binary(10) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 set @@sql_mode="mysql323";
 show create table t1;
 Table	Create Table
@@ -122,7 +122,7 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `min_num` decimal(6,6) DEFAULT 0.000001
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 drop table t1 ;
 set session sql_mode = 'IGNORE_SPACE';
 create table t1 ( min_num   dec(6,6)     default 0.000001);
@@ -130,14 +130,14 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `min_num` decimal(6,6) DEFAULT 0.000001
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 drop table t1 ;
 create table t1 ( min_num   dec(6,6)     default .000001);
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `min_num` decimal(6,6) DEFAULT 0.000001
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 drop table t1 ;
 set @@SQL_MODE=NULL;
 ERROR 42000: Variable 'sql_mode' can't be set to the value of 'NULL'
@@ -159,7 +159,7 @@ t1	CREATE TABLE `t1` (
   `f1` int(11) NOT NULL,
   `f2` timestamp NOT NULL DEFAULT current_timestamp(),
   PRIMARY KEY (`f1`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 drop table t1;
 SET @OLD_SQL_MODE=@@SQL_MODE, @@SQL_MODE='';
 show local variables like 'SQL_MODE';

@@ -1,3 +1,4 @@
+SET default_storage_engine= innodb;
 SET @saved_frequency = @@GLOBAL.innodb_purge_rseg_truncate_frequency;
 SET GLOBAL innodb_purge_rseg_truncate_frequency = 1;
 #
@@ -205,7 +206,7 @@ t1	CREATE TABLE `t1` (
   `col1` int(10) DEFAULT NULL,
   `col2` char(21) GENERATED ALWAYS AS (`col1` * `col1`) VIRTUAL,
   KEY `n` (`col2`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci
 DROP TABLE t1;
 #
 # Bug #27968952  INNODB CRASH/CORRUPTION WITH TEXT PREFIX INDEXES
@@ -248,12 +249,15 @@ ENGINE=InnoDB;
 INSERT IGNORE INTO t1 (a,b) VALUES(1,20190132);
 Warnings:
 Warning	1265	Data truncated for column 'vb' at row 1
+SELECT * FROM t1;
+a	b	vb
+1	20190132	0000-00-00
 BEGIN;
 DELETE FROM t1;
 INSERT INTO t1 (a,b) VALUES(1,20190123);
-ERROR 22007: Incorrect date value: '20190132' for column `test`.`t1`.`vb` at row 1
 SELECT * FROM t1;
 a	b	vb
+1	20190123	2019-01-23
 ROLLBACK;
 SELECT * FROM t1;
 a	b	vb
@@ -310,3 +314,62 @@ ALTER TABLE t1 ADD KEY (b), ALGORITHM=INPLACE;
 # Cleanup
 DROP TABLE t1;
 # End of 10.2 tests
+#
+# MDEV-29299 SELECT from table with vcol index reports warning
+#
+CREATE TABLE t(fld1 INT NOT NULL,
+fld2 INT AS (100/fld1) VIRTUAL,
+KEY(fld1), KEY(fld2));
+CREATE TABLE t_odd(id int);
+INSERT INTO t(fld1) VALUES(1), (2);
+connect stop_purge,localhost,root;
+START TRANSACTION WITH CONSISTENT SNAPSHOT;
+INSERT INTO t_odd VALUES(10000);
+connection default;
+UPDATE IGNORE t SET fld1= 3 WHERE fld1= 2;
+UPDATE IGNORE t SET fld1= 4 WHERE fld1= 3;
+UPDATE IGNORE t SET fld1= 0 WHERE fld1= 4;
+Warnings:
+Warning	1365	Division by 0
+SELECT fld2 FROM t FORCE INDEX(fld2);
+fld2
+NULL
+100
+SELECT fld2 FROM t FORCE INDEX(fld1);
+fld2
+100
+NULL
+Warnings:
+Warning	1365	Division by 0
+disconnect stop_purge;
+DROP TABLE t, t_odd;
+#
+# MDEV-29753 An error is wrongly reported during INSERT with vcol index
+# See also Bug #22990029
+#
+CREATE TABLE t(pk INT PRIMARY KEY,
+fld1 INT NOT NULL,
+fld2 INT AS (100/fld1) VIRTUAL,
+KEY(fld1), KEY(fld2));
+INSERT IGNORE t(pk, fld1) VALUES(1, 0);
+Warnings:
+Warning	1365	Division by 0
+SELECT * FROM t;
+pk	fld1	fld2
+1	0	NULL
+Warnings:
+Warning	1365	Division by 0
+BEGIN;
+DELETE FROM t;
+Warnings:
+Warning	1365	Division by 0
+Warning	1365	Division by 0
+Warning	1365	Division by 0
+INSERT INTO t (pk, fld1) VALUES(1,1);
+SELECT * FROM t;
+pk	fld1	fld2
+1	1	100
+# Cleanup
+ROLLBACK;
+DROP TABLE t;
+# End of 10.3 tests

@@ -1,4 +1,4 @@
-etc/mysql/conf.d/tokudb.cnf etc/mysql/mariadb.conf.d
+etc/mysql/conf.d/tokudb.cnf
 etc/systemd/system/mariadb.service.d/tokudb.conf
 usr/bin/tokuft_logprint
 usr/bin/tokuftdump

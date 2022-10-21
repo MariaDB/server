@@ -94,6 +94,7 @@ MYSQLDEF::MYSQLDEF(void)
   Isview = false;
   Bind = false;
   Delayed = false;
+  Ignored = false;
 //Xsrc = false;
   Huge = false;
   } // end of MYSQLDEF constructor
@@ -321,6 +322,9 @@ bool MYSQLDEF::DefineAM(PGLOBAL g, LPCSTR am, int)
 
   Desc = "MySQL Table";
 
+  Delayed = !!GetIntCatInfo("Delayed", 0);
+  Ignored = !!GetIntCatInfo("Ignored", 0);
+
   if (stricmp(am, "MYPRX")) {
     // Normal case of specific MYSQL table
     url = GetStringCatInfo(g, "Connect", NULL);
@@ -339,7 +343,6 @@ bool MYSQLDEF::DefineAM(PGLOBAL g, LPCSTR am, int)
       return true;
 
     Bind = !!GetIntCatInfo("Bind", 0);
-    Delayed = !!GetIntCatInfo("Delayed", 0);
   } else {
     // MYSQL access from a PROXY table 
 		TABLE_SHARE* s;
@@ -425,6 +428,7 @@ TDBMYSQL::TDBMYSQL(PMYDEF tdp) : TDBEXT(tdp)
     Isview = tdp->Isview;
     Prep = tdp->Bind;
     Delayed = tdp->Delayed;
+    Ignored = tdp->Ignored;
     Myc.m_Use = tdp->Huge;
   } else {
     Host = NULL;
@@ -440,6 +444,7 @@ TDBMYSQL::TDBMYSQL(PMYDEF tdp) : TDBEXT(tdp)
     Isview = false;
     Prep = false;
     Delayed = false;
+    Ignored = false;
   } // endif tdp
 
   Bind = NULL;
@@ -466,6 +471,7 @@ TDBMYSQL::TDBMYSQL(PTDBMY tdbp) : TDBEXT(tdbp)
   Isview = tdbp->Isview;
   Prep = tdbp->Prep;
   Delayed = tdbp->Delayed;
+  Ignored = tdbp->Ignored;
   Bind = NULL;
 //Query = tdbp->Query;
   Fetched = tdbp->Fetched;
@@ -623,11 +629,13 @@ bool TDBMYSQL::MakeInsert(PGLOBAL g)
   len += (strlen(TableName) + 40);
   Query = new(g) STRING(g, len);
 
+  Query->Set("INSERT ");
   if (Delayed)
-    Query->Set("INSERT DELAYED INTO ");
-  else
-    Query->Set("INSERT INTO ");
+    Query->Append("DELAYED ");
+  if (Ignored)
+    Query->Append("IGNORE ");
 
+  Query->Append("INTO ");
   Query->Append(tk);
   Query->Append(TableName);
   Query->Append("` (");
@@ -704,7 +712,7 @@ bool TDBMYSQL::MakeCommand(PGLOBAL g)
         strlwr(strcpy(qrystr, Query->GetStr()));
 
     } else {
-      sprintf(g->Message, "Cannot use this %s command",
+      snprintf(g->Message, sizeof(g->Message), "Cannot use this %s command",
                    (Mode == MODE_UPDATE) ? "UPDATE" : "DELETE");
       return true;
     } // endif p
@@ -914,7 +922,7 @@ bool TDBMYSQL::OpenDB(PGLOBAL g)
 
 #if 0
     if (!Myc.m_Res || !Myc.m_Fields) {
-      sprintf(g->Message, "%s result", (Myc.m_Res) ? "Void" : "No");
+      snprintf(g->Message, sizeof(g->Message), "%s result", (Myc.m_Res) ? "Void" : "No");
       Myc.Close();
       return true;
       } // endif m_Res
@@ -1003,7 +1011,7 @@ PCOL TDBMYSQL::MakeFieldColumn(PGLOBAL g, char *name)
     } // endfor n
 
   if (!colp)
-    sprintf(g->Message, "Column %s is not in view", name);
+    snprintf(g->Message, sizeof(g->Message), "Column %s is not in view", name);
 
   return colp;
   } // end of MakeFieldColumn
@@ -1040,7 +1048,7 @@ int TDBMYSQL::SendCommand(PGLOBAL g)
 
   if (Myc.ExecSQLcmd(g, Query->GetStr(), &w) == RC_NF) {
     AftRows = Myc.m_Afrw;
-    sprintf(g->Message, "%s: %d affected rows", TableName, AftRows);
+    snprintf(g->Message, sizeof(g->Message), "%s: %d affected rows", TableName, AftRows);
     PushWarning(g, this, 0);    // 0 means a Note
 
     if (trace(1))
@@ -1049,7 +1057,7 @@ int TDBMYSQL::SendCommand(PGLOBAL g)
     if (w && Myc.ExecSQL(g, "SHOW WARNINGS") == RC_OK) {
       // We got warnings from the remote server
       while (Myc.Fetch(g, -1) == RC_OK) {
-        sprintf(g->Message, "%s: (%s) %s", TableName,
+        snprintf(g->Message, sizeof(g->Message), "%s: (%s) %s", TableName,
                 Myc.GetCharField(1), Myc.GetCharField(2));
         PushWarning(g, this);
         } // endwhile Fetch
@@ -1302,7 +1310,7 @@ bool MYSQLCOL::FindRank(PGLOBAL g)
       return false;
       } // endif Name
 
-  sprintf(g->Message, "Column %s not in result set", Name);
+  snprintf(g->Message, sizeof(g->Message), "Column %s not in result set", Name);
   return true;
 } // end of FindRank
 
@@ -1312,7 +1320,7 @@ bool MYSQLCOL::FindRank(PGLOBAL g)
 bool MYSQLCOL::SetBuffer(PGLOBAL g, PVAL value, bool ok, bool check)
   {
   if (!(To_Val = value)) {
-    sprintf(g->Message, MSG(VALUE_ERROR), Name);
+    snprintf(g->Message, sizeof(g->Message), MSG(VALUE_ERROR), Name);
     return true;
   } else if (Buf_Type == value->GetType()) {
     // Values are of the (good) column type
@@ -1331,7 +1339,7 @@ bool MYSQLCOL::SetBuffer(PGLOBAL g, PVAL value, bool ok, bool check)
   } else {
     // Values are not of the (good) column type
     if (check) {
-      sprintf(g->Message, MSG(TYPE_VALUE_ERR), Name,
+      snprintf(g->Message, sizeof(g->Message), MSG(TYPE_VALUE_ERR), Name,
               GetTypeName(Buf_Type), GetTypeName(value->GetType()));
       return true;
       } // endif check
@@ -1393,7 +1401,7 @@ void MYSQLCOL::ReadColumn(PGLOBAL g)
   if (!tdbp->Fetched)
     if ((rc = tdbp->Myc.Fetch(g, tdbp->N)) != RC_OK) {
       if (rc == RC_EF)
-        sprintf(g->Message, MSG(INV_DEF_READ), rc);
+        snprintf(g->Message, sizeof(g->Message), MSG(INV_DEF_READ), rc);
 
 			throw 11;
 		} else
@@ -1411,7 +1419,7 @@ void MYSQLCOL::ReadColumn(PGLOBAL g)
       p = buf;
 
     if (Value->SetValue_char(p, strlen(p))) {
-      sprintf(g->Message, "Out of range value for column %s at row %d",
+      snprintf(g->Message, sizeof(g->Message), "Out of range value for column %s at row %d",
               Name, tdbp->RowNumber(g));
       PushWarning(g, tdbp);
       } // endif SetValue_char

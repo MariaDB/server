@@ -2667,7 +2667,7 @@ retry:
 	}
 	mutex_exit(&cache->doc_id_lock);
 
-	if (cmp_doc_id > *doc_id) {
+	if (cmp_doc_id && cmp_doc_id >= *doc_id) {
 		error = fts_update_sync_doc_id(
 			table, cache->synced_doc_id, trx);
 	}
@@ -3437,7 +3437,7 @@ fts_add_doc_by_id(
 
 	btr_pcur_open_with_no_init(
 		fts_id_index, tuple, PAGE_CUR_LE, BTR_SEARCH_LEAF,
-		&pcur, 0, &mtr);
+		&pcur, &mtr);
 
 	/* If we have a match, add the data to doc structure */
 	if (btr_pcur_get_low_match(&pcur) == 1) {
@@ -3475,7 +3475,7 @@ fts_add_doc_by_id(
 
 			btr_pcur_open_with_no_init(
 				clust_index, clust_ref, PAGE_CUR_LE,
-				BTR_SEARCH_LEAF, &clust_pcur, 0, &mtr);
+				BTR_SEARCH_LEAF, &clust_pcur, &mtr);
 
 			doc_pcur = &clust_pcur;
 			clust_rec = btr_pcur_get_rec(&clust_pcur);

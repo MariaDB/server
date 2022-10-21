@@ -470,3 +470,39 @@ SELECT * FROM t2;
 DROP TABLE t2;
 DROP TABLE t1;
 
+
+--echo #
+--echo # MDEV-27766 CONNECT Engine Support for INSERT IGNORE with Mysql Table type
+--echo #
+
+CREATE TABLE t1 (a INT PRIMARY KEY);
+INSERT INTO t1 VALUES (10),(20),(30);
+--replace_result $PORT PORT
+--eval CREATE TABLE t2 ENGINE=CONNECT TABLE_TYPE=MYSQL CONNECTION='mysql://root@localhost:$PORT/test/t1' OPTION_LIST="Delayed=1,Ignored=1"
+INSERT INTO t2 VALUES (10),(20),(30),(40);
+DROP TABLE t2;
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-28533 CONNECT engine does not quote columns involved in WHERE clause
+--echo #
+
+CREATE TABLE t1 (id int, `spaced col` varchar(10),`nospace` varchar(10));
+insert into t1 values (1,1,'x1'),(2,'C-003','x2');
+
+SELECT * from t1;
+
+--replace_result $PORT PORT
+--eval CREATE TABLE t2 (id int, `spaced col` varchar(10), `nospace` varchar(10)) ENGINE=CONNECT TABLE_TYPE=MYSQL DBNAME='test' TABNAME='t1' OPTION_LIST='host=localhost,user=root,port=$PORT'
+
+SELECT * from t2;
+SELECT `id` FROM t2 WHERE t2.`nospace` = 'x1';
+SELECT `id` FROM t2 WHERE t2.`spaced col` = 'C-003';
+
+
+DROP TABLE t1;
+DROP TABLE t2;
+
+--echo #
+--echo # End of 10.3 tests
+--echo #

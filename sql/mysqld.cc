@@ -4303,14 +4303,24 @@ static int init_common_variables()
   if (ignore_db_dirs_init())
     exit(1);
 
-#ifdef _WIN32
-  get_win_tzname(system_time_zone, sizeof(system_time_zone));
-#elif defined(HAVE_TZNAME)
   struct tm tm_tmp;
-  localtime_r(&server_start_time,&tm_tmp);
-  const char *tz_name=  tzname[tm_tmp.tm_isdst != 0 ? 1 : 0];
-  strmake_buf(system_time_zone, tz_name);
-#endif /* HAVE_TZNAME */
+  localtime_r(&server_start_time, &tm_tmp);
+
+#ifdef HAVE_TZNAME
+#ifdef _WIN32
+  /*
+   If env.variable TZ is set, derive timezone name from it.
+   Otherwise, use IANA tz name from get_win_tzname.
+  */
+  if (!getenv("TZ"))
+    get_win_tzname(system_time_zone, sizeof(system_time_zone));
+  else
+#endif
+  {
+    const char *tz_name= tzname[tm_tmp.tm_isdst != 0 ? 1 : 0];
+    strmake_buf(system_time_zone, tz_name);
+  }
+#endif
 
   /*
     We set SYSTEM time zone as reasonable default and
@@ -4748,15 +4758,15 @@ static int init_common_variables()
   /* check log options and issue warnings if needed */
   if (opt_log && opt_logname && *opt_logname &&
       !(log_output_options & (LOG_FILE | LOG_NONE)))
-    sql_print_warning("Although a path was specified for the "
-                      "--log option, log tables are used. "
+    sql_print_warning("Although a general log file was specified, "
+                      "log tables are used. "
                       "To enable logging to files use the --log-output option.");
 
   if (global_system_variables.sql_log_slow && opt_slow_logname &&
       *opt_slow_logname &&
       !(log_output_options & (LOG_FILE | LOG_NONE)))
-    sql_print_warning("Although a path was specified for the "
-                      "--log-slow-queries option, log tables are used. "
+    sql_print_warning("Although a slow query log file was specified, "
+                      "log tables are used. "
                       "To enable logging to files use the --log-output=file option.");
 
   if (!opt_logname || !*opt_logname)

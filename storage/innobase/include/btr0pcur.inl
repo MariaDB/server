@@ -438,11 +438,8 @@ btr_pcur_open_low(
 
 	ut_ad(!dict_index_is_spatial(index));
 
-	err = btr_cur_search_to_nth_level_func(
+	err = btr_cur_search_to_nth_level(
 		index, level, tuple, mode, latch_mode, btr_cursor,
-#ifdef BTR_CUR_HASH_ADAPT
-		NULL,
-#endif /* BTR_CUR_HASH_ADAPT */
 		file, line, mtr, autoinc);
 
 	if (UNIV_UNLIKELY(err != DB_SUCCESS)) {
@@ -462,34 +459,28 @@ btr_pcur_open_low(
 	return(err);
 }
 
-/**************************************************************//**
-Opens an persistent cursor to an index tree without initializing the
-cursor. */
+/** Opens an persistent cursor to an index tree without initializing the
+cursor.
+@param index      index
+@param tuple      tuple on which search done
+@param mode       PAGE_CUR_L, ...; NOTE that if the search is made using a
+                  unique prefix of a record, mode should be PAGE_CUR_LE, not
+                  PAGE_CUR_GE, as the latter may end up on the previous page of
+                  the record!
+@param latch_mode BTR_SEARCH_LEAF, ...; NOTE that if ahi_latch then we might
+                  not acquire a cursor page latch, but assume that the
+                  ahi_latch protects the record!
+@param cursor     memory buffer for persistent cursor
+@param file       file name
+@param line       line where called
+@param mtr        mtr
+@return DB_SUCCESS on success or error code otherwise. */
 UNIV_INLINE
-dberr_t
-btr_pcur_open_with_no_init_func(
-/*============================*/
-	dict_index_t*	index,	/*!< in: index */
-	const dtuple_t*	tuple,	/*!< in: tuple on which search done */
-	page_cur_mode_t	mode,	/*!< in: PAGE_CUR_L, ...;
-				NOTE that if the search is made using a unique
-				prefix of a record, mode should be
-				PAGE_CUR_LE, not PAGE_CUR_GE, as the latter
-				may end up on the previous page of the
-				record! */
-	ulint		latch_mode,/*!< in: BTR_SEARCH_LEAF, ...;
-				NOTE that if ahi_latch then we might not
-				acquire a cursor page latch, but assume
-				that the ahi_latch protects the record! */
-	btr_pcur_t*	cursor, /*!< in: memory buffer for persistent cursor */
-#ifdef BTR_CUR_HASH_ADAPT
-	rw_lock_t*	ahi_latch,
-				/*!< in: adaptive hash index latch held
-				by the caller, or NULL if none */
-#endif /* BTR_CUR_HASH_ADAPT */
-	const char*	file,	/*!< in: file name */
-	unsigned	line,	/*!< in: line where called */
-	mtr_t*		mtr)	/*!< in: mtr */
+dberr_t btr_pcur_open_with_no_init_func(dict_index_t *index,
+                                        const dtuple_t *tuple,
+                                        page_cur_mode_t mode, ulint latch_mode,
+                                        btr_pcur_t *cursor, const char *file,
+                                        unsigned line, mtr_t *mtr)
 {
 	btr_cur_t*	btr_cursor;
 	dberr_t		err = DB_SUCCESS;
@@ -501,11 +492,8 @@ btr_pcur_open_with_no_init_func(
 
 	btr_cursor = btr_pcur_get_btr_cur(cursor);
 
-	err = btr_cur_search_to_nth_level_func(
+	err = btr_cur_search_to_nth_level(
 		index, 0, tuple, mode, latch_mode, btr_cursor,
-#ifdef BTR_CUR_HASH_ADAPT
-		ahi_latch,
-#endif /* BTR_CUR_HASH_ADAPT */
 		file, line, mtr);
 
 	cursor->pos_state = BTR_PCUR_IS_POSITIONED;

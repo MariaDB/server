@@ -594,13 +594,7 @@ static bool fil_node_open_file(fil_node_t* node)
 		&& node == UT_LIST_GET_FIRST(space->chain)
 		&& srv_startup_is_before_trx_rollback_phase
 		&& !undo::Truncate::was_tablespace_truncated(space->id))) {
-		/* We do not know the size of the file yet. First we
-		open the file in the normal mode, no async I/O here,
-		for simplicity. Then do some checks, and close the
-		file again.  NOTE that we could not use the simple
-		file read function os_file_read() in Windows to read
-		from a file opened for async I/O! */
-
+		/* We do not know the size of the file yet. */
 retry:
 		node->handle = os_file_create(
 			innodb_data_file_key, node->name,
@@ -1750,15 +1744,13 @@ database server shutdown. This should be called at a server startup after the
 space objects for the log and the system tablespace have been created. The
 purpose of this operation is to make sure we never run out of file descriptors
 if we need to read from the insert buffer or to write to the log. */
-void
-fil_open_log_and_system_tablespace_files(void)
-/*==========================================*/
+dberr_t fil_open_log_and_system_tablespace_files()
 {
-	fil_space_t*	space;
+	dberr_t err = DB_SUCCESS;
 
 	mutex_enter(&fil_system.mutex);
 
-	for (space = UT_LIST_GET_FIRST(fil_system.space_list);
+	for (fil_space_t* space = UT_LIST_GET_FIRST(fil_system.space_list);
 	     space != NULL;
 	     space = UT_LIST_GET_NEXT(space_list, space)) {
 
@@ -1773,17 +1765,29 @@ fil_open_log_and_system_tablespace_files(void)
 		     node != NULL;
 		     node = UT_LIST_GET_NEXT(chain, node)) {
 
-			if (!node->is_open()) {
-				if (!fil_node_open_file(node)) {
-					/* This func is called during server's
-					startup. If some file of log or system
-					tablespace is missing, the server
-					can't start successfully. So we should
-					assert for it. */
-					ut_a(0);
-				}
+			if (node->is_open()) {
+				continue;
 			}
-
+			if (!fil_node_open_file(node)) {
+				err = DB_ERROR;
+#ifndef _WIN32
+			} else if (!space->id && my_disable_locking
+				   && !srv_read_only_mode
+				   && os_file_lock(node->handle, node->name)) {
+				/* Retry for 60 seconds. */
+				for (int i = 60; i--;) {
+					os_thread_sleep(1000000);
+					if (!os_file_lock(node->handle,
+							  node->name)) {
+						goto got_lock;
+					}
+				}
+				err = DB_ERROR;
+#endif
+			}
+#ifndef _WIN32
+got_lock:
+#endif
 			if (srv_max_n_open_files < 10 + fil_system.n_open) {
 
 				ib::warn() << "You must raise the value of"
@@ -1805,6 +1809,7 @@ fil_open_log_and_system_tablespace_files(void)
 	}
 
 	mutex_exit(&fil_system.mutex);
+	return err;
 }
 
 /*******************************************************************//**
@@ -2100,7 +2105,7 @@ fil_op_write_log(
 	case MLOG_FILE_RENAME2:
 		ut_ad(strchr(new_path, OS_PATH_SEPARATOR) != NULL);
 		len = strlen(new_path) + 1;
-		log_ptr = mlog_open(mtr, 2 + len);
+		log_ptr = mlog_open(mtr, 2);
 		ut_a(log_ptr);
 		mach_write_to_2(log_ptr, len);
 		log_ptr += 2;

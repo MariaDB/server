@@ -157,6 +157,10 @@ INSERT INTO global_suppressions VALUES
  ("InnoDB: Error: table `test`.`t[123]` .*does not exist in the InnoDB internal"),
  ("InnoDB: Warning: semaphore wait:"),
 
+ /* MDEV-28976: Tests that kill the server do not ensure that the
+ old process has terminated before starting a new one */
+ ("InnoDB: Unable to lock"),
+
  /*
    BUG#32080 - Excessive warnings on Solaris: setrlimit could not
    change the size of core files
@@ -170,7 +174,7 @@ INSERT INTO global_suppressions VALUES
 
  /* Added 2009-08-XX after fixing Bug #42408 */
 
- ("Although a path was specified for the .* option, log tables are used"),
+ ("Although a .* file was specified, log tables are used. To enable logging to files "),
  ("Backup: Operation aborted"),
  ("Restore: Operation aborted"),
  ("Restore: The grant .* was skipped because the user does not exist"),

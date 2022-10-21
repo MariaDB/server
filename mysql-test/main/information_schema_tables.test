@@ -37,7 +37,9 @@ SELECT v.* FROM v JOIN INFORMATION_SCHEMA.TABLES WHERE DATA_LENGTH = -1;
 --eval KILL $conid
 --disconnect con1
 --connection default
+--disable_warnings
 DROP VIEW IF EXISTS vv;
+--enable_warnings
 DROP VIEW v;
 DROP FUNCTION f;
 DROP TABLE t;

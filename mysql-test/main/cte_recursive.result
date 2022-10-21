@@ -4873,4 +4873,735 @@ a
 0
 NULL
 DROP TABLE t1;
+#
+# MDEV-12325 Unexpected data type and truncation when using CTE
+#
+CREATE TABLE t1
+(
+id INT, mid INT, name TEXT
+);
+INSERT INTO t1 VALUES (0,NULL,'Name'),(1,0,'Name1'),(2,0,'Name2'),(11,1,'Name11'),(12,1,'Name12');
+WITH RECURSIVE
+cteReports (level, id, mid, name) AS
+(
+SELECT 1, id, mid, name FROM t1 WHERE mid IS NULL
+UNION ALL
+SELECT r.level + 1, e.id, e.mid + 1000000000000, e.name FROM t1 e
+INNER JOIN cteReports r ON e.mid = r.id
+)
+SELECT
+level, id, mid, name,
+(SELECT name FROM t1 WHERE id= cteReports.mid) AS mname
+FROM cteReports ORDER BY level, mid;
+ERROR 22003: Out of range value for column 'mid' at row 2
+create table t2 as WITH RECURSIVE
+cteReports (level, id, mid, name) AS
+(
+SELECT 1, id, mid, name FROM t1 WHERE mid IS NULL
+UNION ALL
+SELECT r.level + 1, e.id, e.mid + 1000000000000, e.name FROM t1 e
+INNER JOIN cteReports r ON e.mid = r.id
+)
+SELECT
+level, id, mid, name,
+(SELECT name FROM t1 WHERE id= cteReports.mid) AS mname
+FROM cteReports ORDER BY level, mid;;
+ERROR 22003: Out of range value for column 'mid' at row 2
+create table t2 ignore as WITH RECURSIVE
+cteReports (level, id, mid, name) AS
+(
+SELECT 1, id, mid, name FROM t1 WHERE mid IS NULL
+UNION ALL
+SELECT r.level + 1, e.id, e.mid + 1000000000000, e.name FROM t1 e
+INNER JOIN cteReports r ON e.mid = r.id
+)
+SELECT
+level, id, mid, name,
+(SELECT name FROM t1 WHERE id= cteReports.mid) AS mname
+FROM cteReports ORDER BY level, mid;;
+Warnings:
+Warning	1264	Out of range value for column 'mid' at row 2
+Warning	1264	Out of range value for column 'mid' at row 3
+Warning	1264	Out of range value for column 'mid' at row 4
+Warning	1264	Out of range value for column 'mid' at row 5
+show create table t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `level` int(1) DEFAULT NULL,
+  `id` int(11) DEFAULT NULL,
+  `mid` int(11) DEFAULT NULL,
+  `name` text DEFAULT NULL,
+  `mname` text DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+insert into t2 WITH RECURSIVE
+cteReports (level, id, mid, name) AS
+(
+SELECT 1, id, mid, name FROM t1 WHERE mid IS NULL
+UNION ALL
+SELECT r.level + 1, e.id, e.mid + 1000000000000, e.name FROM t1 e
+INNER JOIN cteReports r ON e.mid = r.id
+)
+SELECT
+level, id, mid, name,
+(SELECT name FROM t1 WHERE id= cteReports.mid) AS mname
+FROM cteReports ORDER BY level, mid;;
+ERROR 22003: Out of range value for column 'mid' at row 2
+insert ignore into t2 WITH RECURSIVE
+cteReports (level, id, mid, name) AS
+(
+SELECT 1, id, mid, name FROM t1 WHERE mid IS NULL
+UNION ALL
+SELECT r.level + 1, e.id, e.mid + 1000000000000, e.name FROM t1 e
+INNER JOIN cteReports r ON e.mid = r.id
+)
+SELECT
+level, id, mid, name,
+(SELECT name FROM t1 WHERE id= cteReports.mid) AS mname
+FROM cteReports ORDER BY level, mid;;
+Warnings:
+Warning	1264	Out of range value for column 'mid' at row 2
+Warning	1264	Out of range value for column 'mid' at row 3
+Warning	1264	Out of range value for column 'mid' at row 4
+Warning	1264	Out of range value for column 'mid' at row 5
+drop table t2;
+set @@sql_mode="";
+WITH RECURSIVE
+cteReports (level, id, mid, name) AS
+(
+SELECT 1, id, mid, name FROM t1 WHERE mid IS NULL
+UNION ALL
+SELECT r.level + 1, e.id, e.mid + 1000000000000, e.name FROM t1 e
+INNER JOIN cteReports r ON e.mid = r.id
+)
+SELECT
+level, id, mid, name,
+(SELECT name FROM t1 WHERE id= cteReports.mid) AS mname
+FROM cteReports ORDER BY level, mid;
+level	id	mid	name	mname
+1	0	NULL	Name	NULL
+2	1	2147483647	Name1	NULL
+2	2	2147483647	Name2	NULL
+3	11	2147483647	Name11	NULL
+3	12	2147483647	Name12	NULL
+Warnings:
+Warning	1264	Out of range value for column 'mid' at row 2
+Warning	1264	Out of range value for column 'mid' at row 3
+Warning	1264	Out of range value for column 'mid' at row 4
+Warning	1264	Out of range value for column 'mid' at row 5
+create table t2 as WITH RECURSIVE
+cteReports (level, id, mid, name) AS
+(
+SELECT 1, id, mid, name FROM t1 WHERE mid IS NULL
+UNION ALL
+SELECT r.level + 1, e.id, e.mid + 1000000000000, e.name FROM t1 e
+INNER JOIN cteReports r ON e.mid = r.id
+)
+SELECT
+level, id, mid, name,
+(SELECT name FROM t1 WHERE id= cteReports.mid) AS mname
+FROM cteReports ORDER BY level, mid;;
+Warnings:
+Warning	1264	Out of range value for column 'mid' at row 2
+Warning	1264	Out of range value for column 'mid' at row 3
+Warning	1264	Out of range value for column 'mid' at row 4
+Warning	1264	Out of range value for column 'mid' at row 5
+show create table t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `level` int(1) DEFAULT NULL,
+  `id` int(11) DEFAULT NULL,
+  `mid` int(11) DEFAULT NULL,
+  `name` text DEFAULT NULL,
+  `mname` text DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+set @@sql_mode=default;
+drop table t1,t2;
+#
+# MDEV-29361: Embedded recursive / non-recursive CTE within
+#             the scope of another embedded CTE with the same name
+#
+create table t1 (a int);
+insert into t1 values (4), (5);
+create table t2 (a int);
+insert into t2 values (6), (8);
+create table t3 (a int);
+insert into t3 values (1), (9);
+with recursive
+x as
+(
+select a from t1 union select a+1 from x as r1 where a < 7
+)
+select * from x as s1;
+a
+4
+5
+6
+7
+with recursive
+x as
+(
+select a from t2
+union
+select a+2 from x as r2 where a < 10
+)
+select a from x as s2;
+a
+6
+8
+10
+with
+cte as
+(
+with recursive
+x as
+(
+select a from t1 union select a+1 from x as r1 where a < 7
+)
+select * from x as s1
+where s1.a in (
+with recursive
+x as
+(
+select a from t2
+union
+select a+2 from x as r2 where a < 10
+)
+select a from x as s2
+)
+)
+select * from cte;
+a
+6
+with
+cte as
+(
+with recursive
+x(a) as
+(
+select a from t1 union select a+1 from x as r1 where a < 7
+)
+select s1.a from x as s1, x
+where s1.a = x.a and
+x.a in (
+with recursive
+x(a) as
+(
+select a from t2
+union
+select a+2 from x as r2 where a < 10
+)
+select a from x as s2
+)
+)
+select * from cte;
+a
+6
+with
+cte as
+(
+with
+x as
+(
+select a from t1 union select a+1 from x as r1 where a < 7
+)
+select * from x as s1
+where s1.a in (
+with recursive
+x as
+(
+select a from t2
+union
+select a+2 from x as r2 where a < 10
+)
+select a from x as s2
+)
+)
+select * from cte;
+ERROR 42S02: Table 'test.x' doesn't exist
+with
+cte as
+(
+with recursive
+x as
+(
+select a from t1 union select a+1 from x as r1 where a < 7
+)
+select * from x as s1
+where s1.a in (
+with
+x as
+(
+select a from t2
+union
+select a+2 from x as r2 where a < 10
+)
+select a from x as s2
+)
+)
+select * from cte;
+a
+6
+7
+with
+cte as
+(
+with
+x as
+(
+select a from t1 union select a+1 from x as r1 where a < 7
+)
+select * from x as s1
+where s1.a in (
+with
+x as
+(
+select a from t2
+union
+select a+2 from x as r2 where a < 10
+)
+select a from x as s2
+)
+)
+select * from cte;
+ERROR 42S02: Table 'test.x' doesn't exist
+with
+cte as
+(
+with recursive
+y as
+(
+select a from t1 union select a+1 from y as r1 where a < 7
+)
+select * from y as s1
+where s1.a in (
+with
+x as
+(
+select a from t2
+union
+select a+2 from x as r2 where a < 10
+)
+select a from x as s2
+)
+)
+select * from cte;
+ERROR 42S02: Table 'test.x' doesn't exist
+with
+cte as
+(
+with
+y(a) as
+(
+select a+5 from t1
+)
+select * from y as s1
+where s1.a in (
+with
+x as
+(
+select a from t2
+union
+select a+2 from x as r2 where a < 10
+)
+select a from x as s2
+)
+)
+select * from cte;
+ERROR 42S02: Table 'test.x' doesn't exist
+with
+cte as
+(
+select (
+with
+x as
+(
+select a from x as r1
+)
+select * from x as s1
+where s1.a in (
+with recursive
+x as
+(
+select a from t2
+union
+select a+2 from x as r2 where a < 10
+)
+select a from x as s2
+)
+) as r
+from t3
+)
+select * from cte;
+ERROR 42S02: Table 'test.x' doesn't exist
+with
+cte as
+(
+select (
+with
+x as
+(
+select a from x as r1
+)
+select * from x as s1
+where s1.a < 5 and
+s1.a in (
+with
+x as
+(
+select a from t2
+union
+select a+2 from x as r2 where a < 10
+)
+select a from x as s2
+)
+) as r
+from t3
+)
+select * from cte;
+ERROR 42S02: Table 'test.x' doesn't exist
+with
+cte as
+(
+select (
+with recursive
+x(a) as
+(
+select a+3 from t1 union select a+1 from x as r1 where a < 7
+)
+select * from x as s1
+where s1.a < 8 and
+s1.a in (
+with recursive
+x(a) as
+(
+select a-2 from t2
+union
+select a+1 from x as r2 where a < 10
+)
+select a from x as s2
+)
+) as r
+from t3
+)
+select * from cte;
+r
+7
+7
+with
+cte as
+(
+select (
+with recursive
+x as
+(
+select a from t1 union select a+1 from x as r1 where a < 7
+)
+select * from x as s1
+where s1.a in (
+with recursive
+x as
+(
+select a from t2
+union
+select a+2 from x as r2 where a < 10
+)
+select a from x as s2
+)
+) as r
+from t3
+)
+select * from cte;
+r
+6
+6
+create table x (a int);
+insert into x values (3), (7), (1), (5), (6);
+with
+cte as
+(
+select (
+with
+x as
+(
+select ( select a from x as r1 ) as a from t1
+)
+select * from x as s1
+where s1.a in (
+with recursive
+x as
+(
+select a from t2
+union
+select a+2 from x as r2 where a < 10
+)
+select a from x s2
+)
+) as r
+from t3
+)
+select * from cte;
+ERROR 21000: Subquery returns more than 1 row
+with
+cte as
+(
+select (
+with
+x as
+(
+select ( select a from x ) as a from t1
+)
+select exists (
+with recursive
+x as
+(
+select a from t2
+union
+select a+2 from x as r2 where a < 10
+)
+select a from x
+)
+) as r
+from t3
+)
+select * from cte;
+r
+1
+1
+with
+cte_e as
+(
+with
+cte as
+(
+select (
+with
+x as
+(
+select ( select a from x ) from t1
+)
+select exists (
+with recursive
+x as
+(
+select a from t2
+union
+select a+2 from x as r2 where a < 10
+)
+select a from x
+)
+) as r
+from t3
+)
+select * from cte
+)
+select s1.*, s2.*  from cte_e as s1, cte_e as s2;
+r	r
+1	1
+1	1
+1	1
+1	1
+with
+x as
+(
+select a from t1 union select a+1 from x as r1 where a < 7
+)
+select * from x as s1;
+a
+4
+5
+2
+6
+7
+with
+x as
+(
+select a from t2
+union
+select a+2 from x as r2 where a < 10
+)
+select a from x as s2;
+a
+6
+8
+5
+9
+3
+7
+with recursive
+x as
+(
+select a from t1 union select a+1 from x as r1 where a < 7
+)
+select * from x as s1;
+a
+4
+5
+6
+7
+with recursive
+x as
+(
+select a from t2
+union
+select a+2 from x as r2 where a < 10
+)
+select a from x as s2;
+a
+6
+8
+10
+with
+cte as
+(
+with
+x as
+(
+select a from t1 union select a+1 from x as r1 where a < 7
+)
+select * from x as s1
+where s1.a in (
+with recursive
+x as
+(
+select a from t2
+union
+select a+2 from x as r2 where a < 10
+)
+select a from x as s2
+)
+)
+select * from cte;
+a
+6
+with
+cte as
+(
+with
+x as
+(
+select a from t1 union select a+1 from x as r1 where a < 7
+)
+select * from x as s1
+where s1.a in (
+with
+x as
+(
+select a from t2
+union
+select a+2 from x as r2 where a < 10
+)
+select a from x as s2
+)
+)
+select * from cte;
+a
+4
+6
+7
+with
+cte as
+(
+with recursive
+y as
+(
+select a from t1 union select a+1 from y as r1 where a < 7
+)
+select * from y as s1
+where s1.a in (
+with
+x as
+(
+select a from t2
+union
+select a+2 from x as r2 where a < 10
+)
+select a from x as s2
+)
+)
+select * from cte;
+a
+5
+6
+7
+with
+cte as
+(
+with
+y(a) as
+(
+select a+5 from t1
+)
+select * from y as s1
+where s1.a in (
+with
+x as
+(
+select a from t2
+union
+select a+2 from x as r2 where a < 10
+)
+select a from x as s2
+)
+)
+select * from cte;
+a
+9
+with
+cte as
+(
+select (
+with
+x as
+(
+select a from x as r1
+)
+select * from x as s1
+where s1.a in (
+with
+recursive x as
+(
+select a from t2
+union
+select a+2 from x as r2 where a < 10
+)
+select a from x as s2
+)
+) as r
+from t3
+)
+select * from cte;
+r
+6
+6
+with
+cte as
+(
+select (
+with
+x as
+(
+select a from x as r1
+)
+select * from x as s1
+where s1.a < 5 and
+s1.a in (
+with
+x as
+(
+select a from t2
+union
+select a+2 from x as r2 where a < 10
+)
+select a from x as s2
+)
+) as r
+from t3
+)
+select * from cte;
+r
+3
+3
+drop table t1,t2,t3,x;
+#
 # End of 10.3 tests
+#

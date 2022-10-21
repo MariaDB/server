@@ -170,56 +170,41 @@ btr_cur_optimistic_latch_leaves(
 	unsigned	line,
 	mtr_t*		mtr);
 
-/********************************************************************//**
-Searches an index tree and positions a tree cursor on a given level.
+/** Searches an index tree and positions a tree cursor on a given level.
 NOTE: n_fields_cmp in tuple must be set so that it cannot be compared
 to node pointer page number fields on the upper levels of the tree!
 Note that if mode is PAGE_CUR_LE, which is used in inserts, then
 cursor->up_match and cursor->low_match both will have sensible values.
-If mode is PAGE_CUR_GE, then up_match will a have a sensible value. */
-dberr_t
-btr_cur_search_to_nth_level_func(
-	dict_index_t*	index,	/*!< in: index */
-	ulint		level,	/*!< in: the tree level of search */
-	const dtuple_t*	tuple,	/*!< in: data tuple; NOTE: n_fields_cmp in
-				tuple must be set so that it cannot get
-				compared to the node ptr page number field! */
-	page_cur_mode_t	mode,	/*!< in: PAGE_CUR_L, ...;
-				NOTE that if the search is made using a unique
-				prefix of a record, mode should be PAGE_CUR_LE,
-				not PAGE_CUR_GE, as the latter may end up on
-				the previous page of the record! Inserts
-				should always be made using PAGE_CUR_LE to
-				search the position! */
-	ulint		latch_mode, /*!< in: BTR_SEARCH_LEAF, ..., ORed with
-				at most one of BTR_INSERT, BTR_DELETE_MARK,
-				BTR_DELETE, or BTR_ESTIMATE;
-				cursor->left_block is used to store a pointer
-				to the left neighbor page, in the cases
-				BTR_SEARCH_PREV and BTR_MODIFY_PREV;
-				NOTE that if ahi_latch, we might not have a
-				cursor page latch, we assume that ahi_latch
-				protects the record! */
-	btr_cur_t*	cursor, /*!< in/out: tree cursor; the cursor page is
-				s- or x-latched, but see also above! */
-#ifdef BTR_CUR_HASH_ADAPT
-	rw_lock_t*	ahi_latch,
-				/*!< in: currently held btr_search_latch
-				(in RW_S_LATCH mode), or NULL */
-#endif /* BTR_CUR_HASH_ADAPT */
-	const char*	file,	/*!< in: file name */
-	unsigned	line,	/*!< in: line where called */
-	mtr_t*		mtr,	/*!< in/out: mini-transaction */
-	ib_uint64_t	autoinc = 0);
-				/*!< in: PAGE_ROOT_AUTO_INC to be written
-				(0 if none) */
-#ifdef BTR_CUR_HASH_ADAPT
-# define btr_cur_search_to_nth_level(i,l,t,m,lm,c,a,fi,li,mtr) \
-	btr_cur_search_to_nth_level_func(i,l,t,m,lm,c,a,fi,li,mtr)
-#else /* BTR_CUR_HASH_ADAPT */
-# define btr_cur_search_to_nth_level(i,l,t,m,lm,c,a,fi,li,mtr) \
-	btr_cur_search_to_nth_level_func(i,l,t,m,lm,c,fi,li,mtr)
-#endif /* BTR_CUR_HASH_ADAPT */
+If mode is PAGE_CUR_GE, then up_match will a have a sensible value.
+@param index      index
+@param level      the tree level of search
+@param tuple      data tuple; NOTE: n_fields_cmp in tuple must be set so that
+                  it cannot get compared to the node ptr page number field!
+@param mode       PAGE_CUR_L, NOTE that if the search is made using a unique
+                  prefix of a record, mode should be PAGE_CUR_LE, not
+                  PAGE_CUR_GE, as the latter may end up on the previous page of
+                  the record! Inserts should always be made using PAGE_CUR_LE
+                  to search the position!
+@param latch_mode BTR_SEARCH_LEAF, ..., ORed with at most one of BTR_INSERT,
+                  BTR_DELETE_MARK, BTR_DELETE, or BTR_ESTIMATE;
+                  cursor->left_block is used to store a pointer to the left
+                  neighbor page, in the cases BTR_SEARCH_PREV and
+                  BTR_MODIFY_PREV; NOTE that if ahi_latch, we might not have a
+                  cursor page latch, we assume that ahi_latch protects the
+                  record!
+@param cursor     tree cursor; the cursor page is s- or x-latched, but see also
+                  above!
+@param file       file name
+@param line       line where called
+@param mtr        mini-transaction
+@param autoinc    PAGE_ROOT_AUTO_INC to be written (0 if none)
+@return DB_SUCCESS on success or error code otherwise */
+dberr_t btr_cur_search_to_nth_level(dict_index_t *index, ulint level,
+                                    const dtuple_t *tuple,
+                                    page_cur_mode_t mode, ulint latch_mode,
+                                    btr_cur_t *cursor, const char *file,
+                                    unsigned line, mtr_t *mtr,
+                                    ib_uint64_t autoinc= 0);
 
 /*****************************************************************//**
 Opens a cursor at either end of an index.

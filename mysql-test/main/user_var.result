@@ -219,7 +219,7 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `@first_var` longblob DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 drop table t1;
 set @first_var= cast(NULL as signed integer);
 create table t1 select @first_var;
@@ -227,7 +227,7 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `@first_var` bigint(20) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 drop table t1;
 set @first_var= NULL;
 create table t1 select @first_var;
@@ -235,7 +235,7 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `@first_var` bigint(20) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 drop table t1;
 set @first_var= concat(NULL);
 create table t1 select @first_var;
@@ -243,7 +243,7 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `@first_var` longblob DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 drop table t1;
 set @first_var=1;
 set @first_var= cast(NULL as CHAR);
@@ -252,7 +252,7 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `@first_var` longtext DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 drop table t1;
 set @a=18446744071710965857;
 select @a;
@@ -585,7 +585,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` bigint(11) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 SELECT * FROM t1;
 c1
 2233999999

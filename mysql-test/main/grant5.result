@@ -181,4 +181,119 @@ GRANT USAGE ON *.* TO `test-user`@`%`
 SET DEFAULT ROLE `r``o'l"e` FOR `test-user`@`%`
 DROP ROLE `r``o'l"e`;
 DROP USER 'test-user';
+#
+# MDEV-28548: ER_TABLEACCESS_DENIED_ERROR is missing information about DB
+#
+create database db1;
+create user foo@localhost;
+grant create on db1.* to foo@localhost;
+connect  con1,localhost,foo,,db1;
+create table t(t int);
+show columns in t;
+ERROR 42000: SELECT command denied to user 'foo'@'localhost' for table `db1`.`t`
+show columns in db1.t;
+ERROR 42000: SELECT command denied to user 'foo'@'localhost' for table `db1`.`t`
+create view t_v as select * from t;
+ERROR 42000: CREATE VIEW command denied to user 'foo'@'localhost' for table `db1`.`t_v`
+show create view t_v;
+ERROR 42000: SELECT command denied to user 'foo'@'localhost' for table `db1`.`t_v`
+create table t2(id int primary key, b int);
+create table t3(a int, b int,  CONSTRAINT `fk_db2_db1_t1`
+                                  FOREIGN KEY (a)
+REFERENCES `db1 `.t1 (a)
+ON DELETE CASCADE
+ON UPDATE RESTRICT);
+ERROR 42000: Incorrect database name 'db1 '
+create table t3(a int, b int,  CONSTRAINT `fk_db2_db3_t1`
+                                  FOREIGN KEY (a)
+REFERENCES db3.t1 (a)
+ON DELETE CASCADE
+ON UPDATE RESTRICT);
+ERROR 42000: REFERENCES command denied to user 'foo'@'localhost' for table `db3`.`t1`
+create table t1(a int, b int,  CONSTRAINT `fk_db2_db3_t1`
+                                  FOREIGN KEY (a)
+REFERENCES t2 (id)
+ON DELETE CASCADE
+ON UPDATE RESTRICT);
+ERROR 42000: REFERENCES command denied to user 'foo'@'localhost' for table `db1`.`t2`
+connection default;
+disconnect con1;
+grant create view, select on db1.* to foo@localhost;
+connect  con1,localhost,foo,,db1;
+create view t_v as select * from t;
+show grants;
+Grants for foo@localhost
+GRANT USAGE ON *.* TO `foo`@`localhost`
+GRANT SELECT, CREATE, CREATE VIEW ON `db1`.* TO `foo`@`localhost`
+show create view t_v;
+ERROR 42000: SHOW VIEW command denied to user 'foo'@'localhost' for table `db1`.`t_v`
+connection default;
+disconnect con1;
+grant show view on db1.* to foo@localhost;
+connect  con1,localhost,foo,,db1;
+show grants;
+Grants for foo@localhost
+GRANT USAGE ON *.* TO `foo`@`localhost`
+GRANT SELECT, CREATE, CREATE VIEW, SHOW VIEW ON `db1`.* TO `foo`@`localhost`
+show create view t_v;
+View	Create View	character_set_client	collation_connection
+t_v	CREATE ALGORITHM=UNDEFINED DEFINER=`foo`@`localhost` SQL SECURITY DEFINER VIEW `t_v` AS select `t`.`t` AS `t` from `t`	latin1	latin1_swedish_ci
+connection default;
+disconnect con1;
+drop database db1;
+drop user foo@localhost;
+#
+# MDEV-28455: CREATE TEMPORARY TABLES privilege
+#            is insufficient for SHOW COLUMNS
+#
+create database db;
+create user foo@localhost;
+create user bar@localhost;
+create user buz@localhost;
+grant create temporary tables on db.* to foo@localhost;
+grant create temporary tables on db.* to bar@localhost;
+connect  con1,localhost,foo,,db;
+create temporary table tmp (a int, key(a));
+show tables;
+Tables_in_db
+show full tables;
+Tables_in_db	Table_type
+show table status;
+Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
+show index in tmp;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+tmp	1	a	1	a	A	NULL	NULL	NULL	YES	BTREE		
+show columns in tmp;
+Field	Type	Null	Key	Default	Extra
+a	int(11)	YES	MUL	NULL	
+show full columns in tmp;
+Field	Type	Collation	Null	Key	Default	Extra	Privileges	Comment
+a	int(11)	NULL	YES	MUL	NULL		select,insert,update,references	
+# we don't expect to show temporary tables in information_schema.columns
+select * from information_schema.columns where table_schema='db';
+TABLE_CATALOG	TABLE_SCHEMA	TABLE_NAME	COLUMN_NAME	ORDINAL_POSITION	COLUMN_DEFAULT	IS_NULLABLE	DATA_TYPE	CHARACTER_MAXIMUM_LENGTH	CHARACTER_OCTET_LENGTH	NUMERIC_PRECISION	NUMERIC_SCALE	DATETIME_PRECISION	CHARACTER_SET_NAME	COLLATION_NAME	COLUMN_TYPE	COLUMN_KEY	EXTRA	PRIVILEGES	COLUMN_COMMENT	IS_GENERATED	GENERATION_EXPRESSION
+disconnect con1;
+connect  con1,localhost,bar,,db;
+show full columns in tmp;
+ERROR 42000: SELECT command denied to user 'bar'@'localhost' for table `db`.`tmp`
+disconnect con1;
+connection default;
+grant select on db.* to bar@localhost;
+connect  con1,localhost,bar,,db;
+show grants for current_user;
+Grants for bar@localhost
+GRANT USAGE ON *.* TO `bar`@`localhost`
+GRANT SELECT, CREATE TEMPORARY TABLES ON `db`.* TO `bar`@`localhost`
+show full columns in tmp;
+ERROR 42S02: Table 'db.tmp' doesn't exist
+disconnect con1;
+connect  con1,localhost,buz,,;
+show columns in db.tmp;
+ERROR 42000: SELECT command denied to user 'buz'@'localhost' for table `db`.`tmp`
+disconnect con1;
+connection default;
+drop database db;
+drop user foo@localhost;
+drop user bar@localhost;
+drop user buz@localhost;
 # End of 10.3 tests

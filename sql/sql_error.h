@@ -722,6 +722,13 @@ private:
   /** Reset the current row counter. Start counting from the first row. */
   void reset_current_row_for_warning() { m_current_row_for_warning= 1; }
 
+  ulong set_current_row_for_warning(ulong row)
+  {
+    ulong old_row= m_current_row_for_warning;
+    m_current_row_for_warning= row;
+    return old_row;
+  }
+
   /** Return the current counter value. */
   ulong current_row_for_warning() const { return m_current_row_for_warning; }
 
@@ -1098,6 +1105,9 @@ public:
 
   void opt_clear_warning_info(ulonglong query_id)
   { get_warning_info()->opt_clear(query_id); }
+
+  long set_current_row_for_warning(long row)
+  { return get_warning_info()->set_current_row_for_warning(row); }
 
   ulong current_row_for_warning() const
   { return get_warning_info()->current_row_for_warning(); }

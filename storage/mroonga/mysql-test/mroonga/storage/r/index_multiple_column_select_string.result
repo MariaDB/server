@@ -14,7 +14,7 @@ listing	CREATE TABLE `listing` (
   `first_name` char(30) NOT NULL,
   PRIMARY KEY (`id`),
   KEY `name` (`last_name`,`first_name`)
-) ENGINE=Mroonga DEFAULT CHARSET=utf8
+) ENGINE=Mroonga DEFAULT CHARSET=utf8 COLLATE=utf8_general_ci
 insert into listing (last_name, first_name) values("Taro", "Yamada");
 insert into listing (last_name, first_name) values("Taro", "Suzuki");
 insert into listing (last_name, first_name) values("Jiro", "Yamada");

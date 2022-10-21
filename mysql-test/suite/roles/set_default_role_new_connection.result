@@ -8,10 +8,10 @@ Grants for test_user@localhost
 GRANT `test_role` TO `test_user`@`localhost`
 GRANT USAGE ON *.* TO `test_user`@`localhost`
 select user, host, default_role from mysql.user where user = 'test_user';
-ERROR 42000: SELECT command denied to user 'test_user'@'localhost' for table 'user'
+ERROR 42000: SELECT command denied to user 'test_user'@'localhost' for table `mysql`.`user`
 set default role test_role;
 select user, host, default_role from mysql.user where user = 'test_user';
-ERROR 42000: SELECT command denied to user 'test_user'@'localhost' for table 'user'
+ERROR 42000: SELECT command denied to user 'test_user'@'localhost' for table `mysql`.`user`
 disconnect c1;
 connection default;
 select user, host, default_role from mysql.user where user = 'test_user';
@@ -39,7 +39,7 @@ Grants for test_user@localhost
 GRANT `test_role` TO `test_user`@`localhost`
 GRANT USAGE ON *.* TO `test_user`@`localhost`
 select user, host, default_role from mysql.user where user = 'test_user';
-ERROR 42000: SELECT command denied to user 'test_user'@'localhost' for table 'user'
+ERROR 42000: SELECT command denied to user 'test_user'@'localhost' for table `mysql`.`user`
 disconnect c1;
 connection default;
 select user, host, default_role from mysql.user where user = 'test_user';

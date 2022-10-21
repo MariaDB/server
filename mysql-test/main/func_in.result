@@ -498,21 +498,21 @@ f1
 a
 1
 Warnings:
-Warning	1292	Truncated incorrect DOUBLE value: 'b'
+Warning	1292	Truncated incorrect DECIMAL value: 'b'
 select f1, case f1 when 'a' then '+' when 1 then '-' end from t1;
 f1	case f1 when 'a' then '+' when 1 then '-' end
 a	+
 b	NULL
 1	-
 Warnings:
-Warning	1292	Truncated incorrect DOUBLE value: 'b'
+Warning	1292	Truncated incorrect DECIMAL value: 'b'
 create index t1f1_idx on t1(f1);
 select f1 from t1 where f1 in ('a',1);
 f1
 1
 a
 Warnings:
-Warning	1292	Truncated incorrect DOUBLE value: 'b'
+Warning	1292	Truncated incorrect DECIMAL value: 'b'
 explain select f1 from t1 where f1 in ('a',1);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	index	t1f1_idx	t1f1_idx	2	NULL	3	Using where; Using index
@@ -527,8 +527,8 @@ select f1 from t1 where f1 in (2,1);
 f1
 1
 Warnings:
-Warning	1292	Truncated incorrect DOUBLE value: 'a'
-Warning	1292	Truncated incorrect DOUBLE value: 'b'
+Warning	1292	Truncated incorrect DECIMAL value: 'a'
+Warning	1292	Truncated incorrect DECIMAL value: 'b'
 explain select f1 from t1 where f1 in (2,1);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	index	t1f1_idx	t1f1_idx	2	NULL	3	Using where; Using index
@@ -539,9 +539,9 @@ f2
 0
 2
 Warnings:
-Warning	1292	Truncated incorrect DOUBLE value: 'a'
-Warning	1292	Truncated incorrect DOUBLE value: 'a'
-Warning	1292	Truncated incorrect DOUBLE value: 'a'
+Warning	1292	Truncated incorrect DECIMAL value: 'a'
+Warning	1292	Truncated incorrect DECIMAL value: 'a'
+Warning	1292	Truncated incorrect DECIMAL value: 'a'
 explain select f2 from t2 where f2 in ('a',2);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t2	index	t2f2	t2f2	5	NULL	3	Using where; Using index
@@ -549,21 +549,21 @@ select f2 from t2 where f2 in ('a','b');
 f2
 0
 Warnings:
-Warning	1292	Truncated incorrect DOUBLE value: 'a'
-Warning	1292	Truncated incorrect DOUBLE value: 'b'
+Warning	1292	Truncated incorrect DECIMAL value: 'a'
+Warning	1292	Truncated incorrect DECIMAL value: 'b'
 explain select f2 from t2 where f2 in ('a','b');
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t2	index	t2f2	t2f2	5	NULL	3	Using where; Using index
 Warnings:
-Warning	1292	Truncated incorrect DOUBLE value: 'a'
-Warning	1292	Truncated incorrect DOUBLE value: 'b'
+Warning	1292	Truncated incorrect DECIMAL value: 'a'
+Warning	1292	Truncated incorrect DECIMAL value: 'b'
 select f2 from t2 where f2 in (1,'b');
 f2
 0
 1
 Warnings:
-Warning	1292	Truncated incorrect DOUBLE value: 'b'
-Warning	1292	Truncated incorrect DOUBLE value: 'b'
+Warning	1292	Truncated incorrect DECIMAL value: 'b'
+Warning	1292	Truncated incorrect DECIMAL value: 'b'
 explain select f2 from t2 where f2 in (1,'b');
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t2	index	t2f2	t2f2	5	NULL	3	Using where; Using index

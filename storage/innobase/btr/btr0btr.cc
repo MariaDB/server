@@ -721,8 +721,9 @@ void btr_page_free(dict_index_t* index, buf_block_t* block, mtr_t* mtr,
 		   bool blob)
 {
 	ut_ad(mtr_memo_contains(mtr, block, MTR_MEMO_PAGE_X_FIX));
-#ifdef BTR_CUR_HASH_ADAPT
-	if (block->index && !block->index->freed()) {
+#if defined BTR_CUR_HASH_ADAPT && defined UNIV_DEBUG
+	if (block->index
+	    && !btr_search_check_marked_free_index(block)) {
 		ut_ad(!blob);
 		ut_ad(page_is_leaf(block->frame));
 	}
@@ -875,7 +876,7 @@ btr_page_get_father_node_ptr_func(
 
 	err = btr_cur_search_to_nth_level(
 		index, level + 1, tuple,
-		PAGE_CUR_LE, latch_mode, cursor, 0,
+		PAGE_CUR_LE, latch_mode, cursor,
 		file, line, mtr);
 
 	if (err != DB_SUCCESS) {
@@ -2379,7 +2380,7 @@ btr_insert_on_non_leaf_level_func(
 		dberr_t err = btr_cur_search_to_nth_level(
 			index, level, tuple, PAGE_CUR_LE,
 			BTR_CONT_MODIFY_TREE,
-			&cursor, 0, file, line, mtr);
+			&cursor, file, line, mtr);
 
 		if (err != DB_SUCCESS) {
 			ib::warn() << " Error code: " << err
@@ -2400,7 +2401,7 @@ btr_insert_on_non_leaf_level_func(
 		btr_cur_search_to_nth_level(index, level, tuple,
 					    PAGE_CUR_RTREE_INSERT,
 					    BTR_CONT_MODIFY_TREE,
-					    &cursor, 0, file, line, mtr);
+					    &cursor, file, line, mtr);
 	}
 
 	ut_ad(cursor.flag == BTR_CUR_BINARY);
@@ -3330,6 +3331,7 @@ btr_lift_page_up(
 
 	ut_ad(!page_has_siblings(page));
 	ut_ad(mtr_memo_contains(mtr, block, MTR_MEMO_PAGE_X_FIX));
+	ut_ad(!page_is_empty(page));
 
 	page_level = btr_page_get_level(page);
 	root_page_no = dict_index_get_page(index);
@@ -3418,6 +3420,16 @@ btr_lift_page_up(
 	if (index->is_instant()
 	    && father_block->page.id.page_no() == root_page_no) {
 		ut_ad(!father_page_zip);
+		if (page_is_leaf(page)) {
+			ut_d(const rec_t* rec
+			     = page_rec_get_next(page_get_infimum_rec(page)));
+			ut_ad(rec_is_metadata(rec, index));
+			if (page_get_n_recs(page) == 1) {
+				index->remove_instant();
+				goto copied;
+			}
+		}
+
 		byte* page_type = father_block->frame + FIL_PAGE_TYPE;
 		ut_ad(mach_read_from_2(page_type) == FIL_PAGE_INDEX);
 		mlog_write_ulint(page_type, FIL_PAGE_TYPE_INSTANT,
@@ -3425,8 +3437,6 @@ btr_lift_page_up(
 		page_set_instant(father_block->frame,
 				 index->n_core_fields, mtr);
 	}
-
-	page_level++;
 
 	/* Copy the records to the father page one by one. */
 	if (0
@@ -3459,6 +3469,7 @@ btr_lift_page_up(
 		}
 	}
 
+copied:
 	if (!dict_table_is_locking_disabled(index->table)) {
 		/* Free predicate page locks on the block */
 		if (dict_index_is_spatial(index)) {
@@ -3469,6 +3480,8 @@ btr_lift_page_up(
 		}
 		lock_update_copy_and_discard(father_block, block);
 	}
+
+	page_level++;
 
 	/* Go upward to root page, decrementing levels by one. */
 	for (i = lift_father_up ? 1 : 0; i < n_blocks; i++, page_level++) {

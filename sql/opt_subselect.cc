@@ -179,7 +179,7 @@
   ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
    - optimize_semijoin_nests() does pre-optimization 
    - during join optimization, the join has one JOIN_TAB (or is it POSITION?) 
-     array, and suffix-based detection is used, see advance_sj_state()
+     array, and suffix-based detection is used, see optimize_semi_joins()
    - after join optimization is done, get_best_combination() switches 
      the data-structure to prefix-based, multiple JOIN_TAB ranges format.
 
@@ -2655,7 +2655,7 @@ bool find_eq_ref_candidate(TABLE *table, table_map sj_inner_tables)
   Do semi-join optimization step after we've added a new tab to join prefix
 
   SYNOPSIS
-    advance_sj_state()
+    optimize_semi_joins()
       join                        The join we're optimizing
       remaining_tables            Tables not in the join prefix
       new_join_tab                Join tab we've just added to the join prefix
@@ -2715,9 +2715,9 @@ bool is_multiple_semi_joins(JOIN *join, POSITION *prefix, uint idx, table_map in
 }
 
 
-void advance_sj_state(JOIN *join, table_map remaining_tables, uint idx, 
-                      double *current_record_count, double *current_read_time,
-                      POSITION *loose_scan_pos)
+void optimize_semi_joins(JOIN *join, table_map remaining_tables, uint idx,
+                         double *current_record_count,
+                         double *current_read_time, POSITION *loose_scan_pos)
 {
   POSITION *pos= join->positions + idx;
   const JOIN_TAB *new_join_tab= pos->table; 
@@ -2876,19 +2876,37 @@ void advance_sj_state(JOIN *join, table_map remaining_tables, uint idx,
     }
   }
 
-  if ((emb_sj_nest= new_join_tab->emb_sj_nest))
+  update_sj_state(join, new_join_tab, idx, remaining_tables);
+
+  pos->prefix_cost.convert_from_cost(*current_read_time);
+  pos->prefix_record_count= *current_record_count;
+  pos->dups_producing_tables= dups_producing_tables;
+}
+
+
+/*
+  Update JOIN's semi-join optimization state after the join tab new_tab
+  has been added into the join prefix.
+
+  @seealso restore_prev_sj_state() does the reverse actoion
+*/
+
+void update_sj_state(JOIN *join, const JOIN_TAB *new_tab,
+                     uint idx, table_map remaining_tables)
+{
+  DBUG_ASSERT(!join->emb_sjm_nest);
+  if (TABLE_LIST *emb_sj_nest= new_tab->emb_sj_nest)
   {
     join->cur_sj_inner_tables |= emb_sj_nest->sj_inner_tables;
 
     /* Remove the sj_nest if all of its SJ-inner tables are in cur_table_map */
     if (!(remaining_tables &
-          emb_sj_nest->sj_inner_tables & ~new_join_tab->table->map))
+          emb_sj_nest->sj_inner_tables & ~new_tab->table->map))
       join->cur_sj_inner_tables &= ~emb_sj_nest->sj_inner_tables;
   }
-
-  pos->prefix_cost.convert_from_cost(*current_read_time);
-  pos->prefix_record_count= *current_record_count;
-  pos->dups_producing_tables= dups_producing_tables;
+#ifndef DBUG_OFF
+  join->dbug_verify_sj_inner_tables(idx + 1);
+#endif
 }
 
 
@@ -3402,10 +3420,45 @@ bool Duplicate_weedout_picker::check_qep(JOIN *join,
   return FALSE;
 }
 
+#ifndef DBUG_OFF
+/*
+  Verify the value of JOIN::cur_sj_inner_tables by recomputing it
+*/
+void JOIN::dbug_verify_sj_inner_tables(uint prefix_size) const
+{
+  table_map cur_map= const_table_map;
+  table_map nests_entered= 0;
+  if (emb_sjm_nest)
+  {
+    DBUG_ASSERT(cur_sj_inner_tables == 0);
+    return;
+  }
+
+  for (uint i= const_tables; i < prefix_size; i++)
+  {
+    JOIN_TAB *tab= positions[i].table;
+    cur_map |= tab->table->map;
+    if (TABLE_LIST *sj_nest= tab->emb_sj_nest)
+    {
+      nests_entered |= sj_nest->sj_inner_tables;
+      if (!(sj_nest->sj_inner_tables & ~cur_map))
+      {
+        // all nest tables are in the prefix already
+        nests_entered &= ~sj_nest->sj_inner_tables;
+      }
+    }
+  }
+  DBUG_ASSERT(nests_entered == cur_sj_inner_tables);
+}
+#endif
 
 /*
   Remove the last join tab from from join->cur_sj_inner_tables bitmap
-  we assume remaining_tables doesnt contain @tab.
+
+  @note
+  remaining_tables contains @tab.
+
+  @seealso update_sj_state() does the reverse
 */
 
 void restore_prev_sj_state(const table_map remaining_tables, 
@@ -3419,15 +3472,30 @@ void restore_prev_sj_state(const table_map remaining_tables,
     tab->join->sjm_lookup_tables &= ~subq_tables;
   }
 
-  if ((emb_sj_nest= tab->emb_sj_nest))
+  if (!tab->join->emb_sjm_nest && (emb_sj_nest= tab->emb_sj_nest))
   {
+    table_map subq_tables= emb_sj_nest->sj_inner_tables &
+                           ~tab->join->const_table_map;
     /* If we're removing the last SJ-inner table, remove the sj-nest */
-    if ((remaining_tables & emb_sj_nest->sj_inner_tables) == 
-        (emb_sj_nest->sj_inner_tables & ~tab->table->map))
+    if ((remaining_tables & subq_tables) == subq_tables)
     {
+      // All non-const tables of the SJ nest are in the remaining_tables.
+      // we are not in the nest anymore.
       tab->join->cur_sj_inner_tables &= ~emb_sj_nest->sj_inner_tables;
     }
+    else
+    {
+      // Semi-join nest has:
+      // - a table being removed (not in the prefix)
+      // - some tables in the prefix.
+      tab->join->cur_sj_inner_tables |= emb_sj_nest->sj_inner_tables;
+    }
   }
+
+#ifndef DBUG_OFF
+  /* positions[idx] has been removed. Verify the state for [0...idx-1]  */
+  tab->join->dbug_verify_sj_inner_tables(idx);
+#endif
 }
 
 
@@ -3636,8 +3704,8 @@ void fix_semijoin_strategies_for_picked_join_order(JOIN *join)
       join->best_positions[first].sj_strategy= SJ_OPT_MATERIALIZE_SCAN;
       join->best_positions[first].n_sj_tables= sjm->tables;
       /* 
-        Do what advance_sj_state did: re-run best_access_path for every table
-        in the [last_inner_table + 1; pos..) range
+        Do what optimize_semi_joins did: re-run best_access_path for every
+        table in the [last_inner_table + 1; pos..) range
       */
       double prefix_rec_count;
       /* Get the prefix record count */
@@ -4842,7 +4910,7 @@ int setup_semijoin_loosescan(JOIN *join)
 
   
   The choice between the strategies is made by the join optimizer (see
-  advance_sj_state() and fix_semijoin_strategies_for_picked_join_order()).
+  optimize_semi_joins() and fix_semijoin_strategies_for_picked_join_order()).
   This function sets up all fields/structures/etc needed for execution except
   for setup/initialization of semi-join materialization which is done in 
   setup_sj_materialization() (todo: can't we move that to here also?)

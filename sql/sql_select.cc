@@ -605,7 +605,22 @@ void remove_redundant_subquery_clauses(st_select_lex *subq_select_lex)
         Here SUBQ cannot be removed.
       */
       if (!ord->in_field_list)
+      {
         (*ord->item)->walk(&Item::eliminate_subselect_processor, FALSE, NULL);
+        /*
+          Remove from the JOIN::all_fields list any reference to the elements
+          of the eliminated GROUP BY list unless it is 'in_field_list'.
+          This is needed in order not to confuse JOIN::make_aggr_tables_info()
+          when it constructs different structure for execution phase.
+	*/
+        List_iterator<Item> li(subq_select_lex->join->all_fields);
+	Item *item;
+        while ((item= li++))
+	{
+          if (item == *ord->item)
+	    li.remove();
+	}
+      }
     }
     subq_select_lex->join->group_list= NULL;
     subq_select_lex->group_list.empty();
@@ -1581,6 +1596,9 @@ JOIN::optimize_inner()
   DEBUG_SYNC(thd, "before_join_optimize");
 
   THD_STAGE_INFO(thd, stage_optimizing);
+#ifndef DBUG_OFF
+  dbug_join_tab_array_size= 0;
+#endif
 
   set_allowed_join_cache_types();
   need_distinct= TRUE;
@@ -1597,7 +1615,6 @@ JOIN::optimize_inner()
     /* Merge all mergeable derived tables/views in this SELECT. */
     if (select_lex->handle_derived(thd->lex, DT_MERGE))
       DBUG_RETURN(TRUE);  
-    table_count= select_lex->leaf_tables.elements;
   }
 
   if (select_lex->first_cond_optimization &&
@@ -1639,8 +1656,6 @@ JOIN::optimize_inner()
   }
   
   eval_select_list_used_tables();
-
-  table_count= select_lex->leaf_tables.elements;
 
   if (select_lex->options & OPTION_SCHEMA_TABLE &&
       optimize_schema_tables_memory_usage(select_lex->leaf_tables))
@@ -2728,6 +2743,9 @@ setup_subq_exit:
     {
       if (!(join_tab= (JOIN_TAB*) thd->alloc(sizeof(JOIN_TAB))))
         DBUG_RETURN(1);
+#ifndef DBUG_OFF
+      dbug_join_tab_array_size= 1;
+#endif
       need_tmp= 1;
     }
     if (make_aggr_tables_info())
@@ -3032,6 +3050,7 @@ bool JOIN::make_aggr_tables_info()
   {
     aggr_tables++;
     curr_tab= join_tab + exec_join_tab_cnt();
+    DBUG_ASSERT(curr_tab - join_tab < dbug_join_tab_array_size);
     bzero((void*)curr_tab, sizeof(JOIN_TAB));
     curr_tab->ref.key= -1;
     if (only_const_tables())
@@ -3160,6 +3179,7 @@ bool JOIN::make_aggr_tables_info()
 
       curr_tab++;
       aggr_tables++;
+      DBUG_ASSERT(curr_tab - join_tab < dbug_join_tab_array_size);
       bzero((void*)curr_tab, sizeof(JOIN_TAB));
       curr_tab->ref.key= -1;
 
@@ -7721,6 +7741,10 @@ choose_plan(JOIN *join, table_map join_tables)
   {
     choose_initial_table_order(join);
   }
+  /*
+    Note: constant tables are already in the join prefix. We don't
+    put them into the cur_sj_inner_tables, though.
+  */
   join->cur_sj_inner_tables= 0;
 
   if (straight_join)
@@ -8023,8 +8047,8 @@ optimize_straight_join(JOIN *join, table_map join_tables)
     read_time= COST_ADD(read_time,
                         COST_ADD(join->positions[idx].read_time,
                                  record_count / (double) TIME_FOR_COMPARE));
-    advance_sj_state(join, join_tables, idx, &record_count, &read_time,
-                     &loose_scan_pos);
+    optimize_semi_joins(join, join_tables, idx, &record_count, &read_time,
+                        &loose_scan_pos);
 
     join_tables&= ~(s->table->map);
     double pushdown_cond_selectivity= 1.0;
@@ -8201,6 +8225,13 @@ greedy_search(JOIN      *join,
     /* This has been already checked by best_extension_by_limited_search */
     DBUG_ASSERT(!is_interleave_error);
 
+    /*
+      Also, update the semi-join optimization state. Information about the
+      picked semi-join operation is in best_pos->...picker, but we need to
+      update the global state in the JOIN object, too.
+    */
+    if (!join->emb_sjm_nest)
+      update_sj_state(join, best_table, idx, remaining_tables);
 
     /* find the position of 'best_table' in 'join->best_ref' */
     best_idx= idx;
@@ -8983,8 +9014,8 @@ best_extension_by_limited_search(JOIN      *join,
                                           current_record_count /
                                           (double) TIME_FOR_COMPARE));
 
-      advance_sj_state(join, remaining_tables, idx, &current_record_count,
-                       &current_read_time, &loose_scan_pos);
+      optimize_semi_joins(join, remaining_tables, idx, &current_record_count,
+                          &current_read_time, &loose_scan_pos);
 
       /* Expand only partial plans with lower cost than the best QEP so far */
       if (current_read_time >= join->best_read)
@@ -9749,6 +9780,23 @@ bool JOIN::get_best_combination()
 
   if (aggr_tables > 2)
     aggr_tables= 2;
+
+#ifndef DBUG_OFF
+  dbug_join_tab_array_size= top_join_tab_count + aggr_tables;
+#endif
+  /*
+    NOTE: The above computation of aggr_tables can produce wrong result because some
+    of the variables it uses may change their values after we leave this function.
+    Known examples:
+     - Dangerous: using_outer_summary_function=false at this point. Added
+       DBUG_ASSERT below to demonstrate. Can this cause us to allocate less
+       space than we would need?
+     - Not dangerous: select_distinct can be true here but be assigned false
+       afterwards.
+  */
+  aggr_tables= 2;
+  DBUG_ASSERT(!tmp_table_param.using_outer_summary_function);
+
   if (!(join_tab= (JOIN_TAB*) thd->alloc(sizeof(JOIN_TAB)*
                                         (top_join_tab_count + aggr_tables))))
     DBUG_RETURN(TRUE);
@@ -13151,7 +13199,6 @@ void JOIN::cleanup(bool full)
     /* Free the original optimized join created for the group_by_handler */
     join_tab= original_join_tab;
     original_join_tab= 0;
-    table_count= original_table_count;
   }
 
   if (join_tab)

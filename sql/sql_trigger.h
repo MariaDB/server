@@ -115,7 +115,7 @@ public:
   GRANT_INFO subject_table_grants;
   sql_mode_t sql_mode;
   /* Store create time. Can't be mysql_time_t as this holds also sub seconds */
-  ulonglong create_time;
+  my_hrtime_t hr_create_time; // Create time timestamp in microseconds
   trg_event_type event;
   trg_action_time_type action_time;
   uint action_order;
@@ -198,7 +198,7 @@ public:
   */
   List<ulonglong> definition_modes_list;
   /** Create times for triggers */
-  List<ulonglong> create_times;
+  List<ulonglong> hr_create_times;
 
   List<LEX_CSTRING>  definers_list;
 

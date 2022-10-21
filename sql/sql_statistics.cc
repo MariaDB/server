@@ -1,5 +1,5 @@
 /* Copyright (C) 2009 MySQL AB
-   Copyright (c) 2019, 2020, MariaDB Corporation.
+   Copyright (c) 2019, 2022, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -2483,7 +2483,6 @@ int collect_statistics_for_index(THD *thd, TABLE *table, uint index)
 {
   int rc= 0;
   KEY *key_info= &table->key_info[index];
-  ha_rows rows= 0;
 
   DBUG_ENTER("collect_statistics_for_index");
 
@@ -2518,7 +2517,6 @@ int collect_statistics_for_index(THD *thd, TABLE *table, uint index)
 
     if (rc)
       break;
-    rows++;
     index_prefix_calc.add();
     rc= table->file->ha_index_next(table->record[0]);
   }

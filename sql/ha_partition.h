@@ -1361,7 +1361,7 @@ public:
   virtual void release_auto_increment();
 private:
   virtual int reset_auto_increment(ulonglong value);
-  void update_next_auto_inc_val();
+  int update_next_auto_inc_val();
   virtual void lock_auto_increment()
   {
     /* lock already taken */
@@ -1400,15 +1400,17 @@ private:
     unlock_auto_increment();
   }
 
-  void check_insert_autoincrement()
+  void check_insert_or_replace_autoincrement()
   {
     /*
-      If we INSERT into the table having the AUTO_INCREMENT column,
+      If we INSERT or REPLACE into the table having the AUTO_INCREMENT column,
       we have to read all partitions for the next autoincrement value
       unless we already did it.
     */
     if (!part_share->auto_inc_initialized &&
-        ha_thd()->lex->sql_command == SQLCOM_INSERT &&
+        (ha_thd()->lex->sql_command == SQLCOM_INSERT ||
+         ha_thd()->lex->sql_command == SQLCOM_INSERT_SELECT ||
+         ha_thd()->lex->sql_command == SQLCOM_REPLACE) &&
         table->found_next_number_field)
       bitmap_set_all(&m_part_info->read_partitions);
   }

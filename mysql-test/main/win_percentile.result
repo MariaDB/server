@@ -384,7 +384,7 @@ Table	Create Table
 t2	CREATE TABLE `t2` (
   `name` char(30) DEFAULT NULL,
   `pc` int(11) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t2, t1;
 # UNSIGNED INT variants
 CREATE OR REPLACE TABLE t1 (name CHAR(30), star_rating BIGINT UNSIGNED);
@@ -401,7 +401,7 @@ Table	Create Table
 t2	CREATE TABLE `t2` (
   `name` char(30) DEFAULT NULL,
   `pc` bigint(20) unsigned DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 SELECT name, pc, HEX(pc) FROM t2 ORDER BY name, pc;
 name	pc	HEX(pc)
 Lady of the Flies	9223372036854775810	8000000000000002
@@ -425,7 +425,7 @@ Table	Create Table
 t2	CREATE TABLE `t2` (
   `name` char(30) DEFAULT NULL,
   `pc` float DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t2, t1;
 # DECIMAL variants
 CREATE OR REPLACE TABLE t1 (name CHAR(30), star_rating DECIMAL(30,2));
@@ -442,7 +442,7 @@ Table	Create Table
 t2	CREATE TABLE `t2` (
   `name` char(30) DEFAULT NULL,
   `pc` decimal(30,2) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 SELECT * FROM t2 ORDER BY name, pc;
 name	pc
 Lady of the Flies	20000000000.00

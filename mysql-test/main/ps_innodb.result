@@ -7,15 +7,15 @@ set sql_mode='STRICT_TRANS_TABLES';
 CREATE TABLE t1 (id int, count int) engine=innodb;
 insert into t1 values (1,1),(0,2);
 update t1 set count = count + 1 where id = '1bad';
-ERROR 22007: Truncated incorrect DOUBLE value: '1bad'
+ERROR 22007: Truncated incorrect DECIMAL value: '1bad'
 prepare stmt from "update t1 set count = count + 1 where id = '1bad'";
 execute stmt;
-ERROR 22007: Truncated incorrect DOUBLE value: '1bad'
+ERROR 22007: Truncated incorrect DECIMAL value: '1bad'
 deallocate prepare stmt;
 prepare stmt from 'update t1 set count = count + 1 where id = ?';
 set @a = '1bad';
 execute stmt using @a;
-ERROR 22007: Truncated incorrect DOUBLE value: '1bad'
+ERROR 22007: Truncated incorrect DECIMAL value: '1bad'
 deallocate prepare stmt;
 drop table t1;
 CREATE TABLE t1 (id decimal(10,5), count int) engine=innodb;

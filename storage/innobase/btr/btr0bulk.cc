@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2014, 2019, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2021, MariaDB Corporation.
+Copyright (c) 2017, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -301,7 +301,6 @@ PageBulk::finish()
 #endif
 
 	ulint	count = 0;
-	ulint	n_recs = 0;
 	ulint	slot_index = 0;
 	rec_t*	insert_rec = page_rec_get_next(page_get_infimum_rec(m_page));
 	page_dir_slot_t* slot = NULL;
@@ -309,7 +308,6 @@ PageBulk::finish()
 	/* Set owner & dir. */
 	while (!page_rec_is_supremum(insert_rec)) {
 		count++;
-		n_recs++;
 
 		if (count == (PAGE_DIR_SLOT_MAX_N_OWNED + 1) / 2) {
 
@@ -599,6 +597,11 @@ bool
 PageBulk::isSpaceAvailable(
 	ulint		rec_size)
 {
+	if (m_rec_no >= 8190) {
+		ut_ad(srv_page_size == 65536);
+		return false;
+	}
+
 	ulint	slot_size;
 	ulint	required_space;
 

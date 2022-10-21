@@ -9804,6 +9804,8 @@ bool Item_trigger_field::set_value(THD *thd, sp_rcontext * /*ctx*/, Item **it)
 
   if (!item || fix_fields_if_needed(thd, NULL))
     return true;
+  if (field->vers_sys_field())
+    return false;
 
   // NOTE: field->table->copy_blobs should be false here, but let's
   // remember the value at runtime to avoid subtle bugs.

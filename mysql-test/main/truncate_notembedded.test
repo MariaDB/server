@@ -5,6 +5,7 @@
 --echo # is_bulk_op())' failed upon killed TRUNCATE
 --echo #
 
+--disable_service_connection
 CREATE TABLE t1 (a INT) ENGINE=MyISAM;
 LOCK TABLE t1 READ;
 
@@ -29,6 +30,7 @@ TRUNCATE TABLE t1;
 --disconnect con1
 --connection default
 DROP TABLE t1;
+--enable_service_connection
 
 --echo #
 --echo # End of 10.2 tests

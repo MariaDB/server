@@ -134,6 +134,8 @@ IF(UNIX)
   IF(NOT LIBRT)
     MY_SEARCH_LIBS(clock_gettime rt LIBRT)
   ENDIF()
+  MY_SEARCH_LIBS(backtrace_symbols_fd execinfo LIBEXECINFO)
+
   set(THREADS_PREFER_PTHREAD_FLAG ON)
   FIND_PACKAGE(Threads)
 

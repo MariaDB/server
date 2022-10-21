@@ -80,6 +80,7 @@ to_minuses()
 }
 
 WSREP_SST_OPT_BYPASS=0
+WSREP_SST_OPT_PROGRESS=0
 WSREP_SST_OPT_BINLOG=""
 WSREP_SST_OPT_BINLOG_INDEX=""
 WSREP_SST_OPT_LOG_BASENAME=""
@@ -103,6 +104,7 @@ WSREP_SST_OPT_HOST_UNESCAPED=""
 INNODB_DATA_HOME_DIR=$(trim_dir "${INNODB_DATA_HOME_DIR:-}")
 INNODB_LOG_GROUP_HOME=$(trim_dir "${INNODB_LOG_GROUP_HOME:-}")
 INNODB_UNDO_DIR=$(trim_dir "${INNODB_UNDO_DIR:-}")
+INNODB_BUFFER_POOL=""
 INNODB_FORCE_RECOVERY=""
 INNOEXTRA=""
 
@@ -187,6 +189,10 @@ case "$1" in
     '--bypass')
         readonly WSREP_SST_OPT_BYPASS=1
         ;;
+    '--progress')
+        readonly WSREP_SST_OPT_PROGRESS=$(( $2 ))
+        shift
+        ;;
     '--datadir')
         # Let's remove the trailing slash:
         readonly WSREP_SST_OPT_DATA=$(trim_dir "$2")
@@ -205,6 +211,10 @@ case "$1" in
     '--innodb-undo-directory')
         # Let's remove the trailing slash:
         readonly INNODB_UNDO_DIR=$(trim_dir "$2")
+        shift
+        ;;
+    '--innodb-buffer-pool-filename')
+        readonly INNODB_BUFFER_POOL=$(trim_string "$2")
         shift
         ;;
     '--defaults-file')
@@ -246,11 +256,11 @@ case "$1" in
         shift
         ;;
     '--local-port')
-        readonly WSREP_SST_OPT_LPORT="$2"
+        readonly WSREP_SST_OPT_LPORT=$(( $2 ))
         shift
         ;;
     '--parent')
-        readonly WSREP_SST_OPT_PARENT="$2"
+        readonly WSREP_SST_OPT_PARENT=$(( $2 ))
         shift
         ;;
     '--password')
@@ -258,7 +268,7 @@ case "$1" in
         shift
         ;;
     '--port')
-        readonly WSREP_SST_OPT_PORT="$2"
+        readonly WSREP_SST_OPT_PORT=$(( $2 ))
         shift
         ;;
     '--role')
@@ -466,6 +476,12 @@ case "$1" in
                        fi
                        skip_mysqld_arg=1
                        ;;
+                   '--innodb-buffer-pool-filename')
+                       if [ -z "$INNODB_BUFFER_POOL" ]; then
+                           MYSQLD_OPT_INNODB_BUFFER_POOL=$(trim_string "$value")
+                       fi
+                       skip_mysqld_arg=1
+                       ;;
                    '--innodb-force-recovery')
                        if [ -n "$value" -a "$value" != "0" ]; then
                            INNODB_FORCE_RECOVERY=$(trim_string "$value")
@@ -531,6 +547,8 @@ else
     readonly WSREP_SST_OPT_ROLE='donor'
 fi
 
+readonly WSREP_SST_OPT_PROGRESS
+
 # The same argument can be present on the command line several
 # times, in this case we must take its last value:
 if [ -n "${MYSQLD_OPT_INNODB_DATA_HOME_DIR:-}" -a \
@@ -544,6 +562,10 @@ fi
 if [ -n "${MYSQLD_OPT_INNODB_UNDO_DIR:-}" -a \
      -z "$INNODB_UNDO_DIR" ]; then
     readonly INNODB_UNDO_DIR="$MYSQLD_OPT_INNODB_UNDO_DIR"
+fi
+if [ -n "${MYSQLD_OPT_INNODB_BUFFER_POOL:-}" -a \
+     -z "$INNODB_BUFFER_POOL" ]; then
+    readonly INNODB_BUFFER_POOL="$MYSQLD_OPT_INNODB_BUFFER_POOL"
 fi
 if [ -n "${MYSQLD_OPT_LOG_BIN:-}" -a \
      -z "$WSREP_SST_OPT_BINLOG" ]; then
@@ -594,6 +616,9 @@ if [ -n "$INNODB_LOG_GROUP_HOME" ]; then
 fi
 if [ -n "$INNODB_UNDO_DIR" ]; then
     INNOEXTRA="$INNOEXTRA --innodb-undo-directory='$INNODB_UNDO_DIR'"
+fi
+if [ -n "$INNODB_BUFFER_POOL" ]; then
+    INNOEXTRA="$INNOEXTRA --innodb-buffer-pool-filename='$INNODB_BUFFER_POOL'"
 fi
 if [ -n "$WSREP_SST_OPT_BINLOG" ]; then
     INNOEXTRA="$INNOEXTRA --log-bin='$WSREP_SST_OPT_BINLOG'"
@@ -1180,28 +1205,27 @@ check_port()
 check_for_dhparams()
 {
     ssl_dhparams="$DATA/dhparams.pem"
-    if [ ! -r "$ssl_dhparams" ]; then
-        get_openssl
-        if [ -n "$OPENSSL_BINARY" ]; then
-            wsrep_log_info \
-                "Could not find dhparams file, creating $ssl_dhparams"
-            local bug=0
-            local errmsg
-            errmsg=$("$OPENSSL_BINARY" \
-                         dhparam -out "$ssl_dhparams" 2048 2>&1) || bug=1
-            if [ $bug -ne 0 ]; then
-                wsrep_log_info "run: \"$OPENSSL_BINARY\" dhparam -out \"$ssl_dhparams\" 2048"
-                wsrep_log_info "output: $errmsg"
-                wsrep_log_error "******** ERROR *****************************************"
-                wsrep_log_error "* Could not create the dhparams.pem file with OpenSSL. *"
-                wsrep_log_error "********************************************************"
-                ssl_dhparams=""
-            fi
-        else
-            # Rollback: if openssl is not installed, then use
-            # the default parameters:
+    get_openssl
+    if [ -n "$OPENSSL_BINARY" ]; then
+        wsrep_log_info \
+            "Could not find dhparams file, creating $ssl_dhparams"
+        local bug=0
+        local errmsg
+        errmsg=$("$OPENSSL_BINARY" \
+                 dhparam -out "$ssl_dhparams" -dsaparam 2048 2>&1) || bug=1
+        if [ $bug -ne 0 ]; then
+            wsrep_log_info "run: \"$OPENSSL_BINARY\" dhparam"\
+                           "-out \"$ssl_dhparams\" -dsaparam 2048"
+            wsrep_log_info "output: $errmsg"
+            wsrep_log_error "******** ERROR *****************************************"
+            wsrep_log_error "* Could not create the dhparams.pem file with OpenSSL. *"
+            wsrep_log_error "********************************************************"
             ssl_dhparams=""
         fi
+    else
+        # Rollback: if openssl is not installed, then use
+        # the default parameters:
+        ssl_dhparams=""
     fi
 }
 
@@ -1303,29 +1327,39 @@ verify_cert_matches_key()
 #
 check_for_version()
 {
-    y1="${1#*.}"
+    local y1="${1#*.}"
     [ "$y1" = "$1" ] && y1=""
-    z1=${y1#*.}
+    local z1="${y1#*.}"
     [ "$z1" = "$y1" ] && z1=""
-    x1="${1%%.*}"
+    local w1="${z1#*.}"
+    [ "$w1" = "$z1" ] && w1=""
+    local x1="${1%%.*}"
     y1="${y1%%.*}"
     z1="${z1%%.*}"
+    w1="${w1%%.*}"
     [ -z "$y1" ] && y1=0
     [ -z "$z1" ] && z1=0
-    y2="${2#*.}"
+    [ -z "$w1" ] && w1=0
+    local y2="${2#*.}"
     [ "$y2" = "$2" ] && y2=""
-    z2="${y2#*.}"
+    local z2="${y2#*.}"
     [ "$z2" = "$y2" ] && z2=""
-    x2="${2%%.*}"
+    local w2="${z2#*.}"
+    [ "$w2" = "$z2" ] && w2=""
+    local x2="${2%%.*}"
     y2="${y2%%.*}"
     z2="${z2%%.*}"
+    w2="${w2%%.*}"
     [ -z "$y2" ] && y2=0
     [ -z "$z2" ] && z2=0
+    [ -z "$w2" ] && w2=0
     [ $x1 -lt $x2 ] && return 1
     [ $x1 -gt $x2 ] && return 0
     [ $y1 -lt $y2 ] && return 1
     [ $y1 -gt $y2 ] && return 0
     [ $z1 -lt $z2 ] && return 1
+    [ $z1 -gt $z2 ] && return 0
+    [ $w1 -lt $w2 ] && return 1
     return 0
 }
 

@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2000, 2017, Oracle and/or its affiliates.
-   Copyright (c) 2008, 2021, MariaDB
+   Copyright (c) 2008, 2022, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -7280,7 +7280,7 @@ my_decimal *Field_string::val_decimal(my_decimal *decimal_value)
   THD *thd= get_thd();
   Converter_str2my_decimal_with_warn(thd,
                                      Warn_filter_string(thd, this),
-                                     E_DEC_FATAL_ERROR,
+                                     E_DEC_FATAL_ERROR & ~E_DEC_BAD_NUM,
                                      Field_string::charset(),
                                      (const char *) ptr,
                                      field_length, decimal_value);
@@ -7692,7 +7692,7 @@ my_decimal *Field_varstring::val_decimal(my_decimal *decimal_value)
   ASSERT_COLUMN_MARKED_FOR_READ;
   THD *thd= get_thd();
   Converter_str2my_decimal_with_warn(thd, Warn_filter(thd),
-                                     E_DEC_FATAL_ERROR,
+                                     E_DEC_FATAL_ERROR & ~E_DEC_BAD_NUM,
                                      Field_varstring::charset(),
                                      (const char *) get_data(),
                                      get_length(), decimal_value);
@@ -8524,7 +8524,7 @@ my_decimal *Field_blob::val_decimal(my_decimal *decimal_value)
 
   THD *thd= get_thd();
   Converter_str2my_decimal_with_warn(thd, Warn_filter(thd),
-                                     E_DEC_FATAL_ERROR,
+                                     E_DEC_FATAL_ERROR & ~E_DEC_BAD_NUM,
                                      Field_blob::charset(),
                                      blob, length, decimal_value);
   return decimal_value;
@@ -9990,7 +9990,7 @@ int Field_bit::cmp_prefix(const uchar *a, const uchar *b, size_t prefix_len)
 }
 
 
-int Field_bit::key_cmp(const uchar *str, uint length)
+int Field_bit::key_cmp(const uchar *str, uint)
 {
   if (bit_len)
   {
@@ -9999,7 +9999,6 @@ int Field_bit::key_cmp(const uchar *str, uint length)
     if ((flag= (int) (bits - *str)))
       return flag;
     str++;
-    length--;
   }
   return memcmp(ptr, str, bytes_in_rec);
 }

@@ -1618,6 +1618,7 @@ drop view v1;
 create view v2 as select bug11555_2();
 drop view v2;
 # But we should hide name of missing implicitly used table when we use view
+--disable_view_protocol
 create table t1 (i int);
 create view v1 as select bug11555_1();
 create view v2 as select bug11555_2();
@@ -1633,6 +1634,7 @@ select * from v3;
 # another form of view usage.
 create view v4 as select * from v1;
 drop view v1, v2, v3, v4;
+--enable_view_protocol
 # We also should hide details about broken triggers which are
 # invoked for view.
 drop function bug11555_1;

@@ -1886,6 +1886,7 @@ fseg_create(fil_space_t *space, ulint byte_offset, mtr_t *mtr,
 	fseg_header_t*	header	= 0; /* remove warning */
 	ulint		n_reserved;
 	ulint		i;
+	bool		reserved_extent = false;
 
 	DBUG_ENTER("fseg_create");
 
@@ -1909,17 +1910,34 @@ fseg_create(fil_space_t *space, ulint byte_offset, mtr_t *mtr,
 		fil_block_check_type(*block, type, mtr);
 	}
 
-	if (!has_done_reservation
-	    && !fsp_reserve_free_extents(&n_reserved, space, 2,
-					 FSP_NORMAL, mtr)) {
-		DBUG_RETURN(NULL);
-	}
-
 	space_header = fsp_get_space_header(space, page_size, mtr);
 
+inode_alloc:
 	inode = fsp_alloc_seg_inode(space, space_header, mtr);
 
 	if (inode == NULL) {
+reserve_extent:
+		if (!has_done_reservation && !reserved_extent) {
+
+			if (!fsp_reserve_free_extents(
+					&n_reserved, space, 2,
+					FSP_NORMAL, mtr)) {
+				DBUG_RETURN(NULL);
+			}
+
+			/* Extents reserved successfully. So
+			try allocating the page or inode */
+			reserved_extent = true;
+			if (inode) {
+				goto page_alloc;
+			}
+
+			goto inode_alloc;
+		}
+
+		if (inode) {
+			fsp_free_seg_inode(space, page_size, inode, mtr);
+		}
 		goto funct_exit;
 	}
 
@@ -1944,6 +1962,7 @@ fseg_create(fil_space_t *space, ulint byte_offset, mtr_t *mtr,
 	}
 
 	if (!block) {
+page_alloc:
 		block = fseg_alloc_free_page_low(space, page_size,
 						 inode, 0, FSP_UP,
 						 mtr, mtr
@@ -1957,10 +1976,7 @@ fseg_create(fil_space_t *space, ulint byte_offset, mtr_t *mtr,
 		ut_ad(!has_done_reservation || block != NULL);
 
 		if (block == NULL) {
-
-			fsp_free_seg_inode(space, page_size, inode, mtr);
-
-			goto funct_exit;
+			goto reserve_extent;
 		}
 
 		ut_ad(rw_lock_get_x_lock_count(&block->lock) == 1);
@@ -1980,7 +1996,7 @@ fseg_create(fil_space_t *space, ulint byte_offset, mtr_t *mtr,
 	mlog_write_ulint(header + FSEG_HDR_SPACE, space->id, MLOG_4BYTES, mtr);
 
 funct_exit:
-	if (!has_done_reservation) {
+	if (!has_done_reservation && reserved_extent) {
 		space->release_free_extents(n_reserved);
 	}
 

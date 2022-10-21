@@ -15,7 +15,7 @@ t1	CREATE TABLE `t1` (
   `b` char(8) DEFAULT NULL,
   `filler` char(100) DEFAULT NULL,
   PRIMARY KEY (`a`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 insert into t1 select 
 concat('a-', 1000 + A.a + B.a*10 + C.a*100, '=A'),
 concat('b-', 1000 + A.a + B.a*10 + C.a*100, '=B'),
