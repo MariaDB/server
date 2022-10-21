@@ -46,11 +46,6 @@ ifeq (32,$(DEB_HOST_ARCH_BITS))
     CMAKEFLAGS += -DPLUGIN_ROCKSDB=NO
 endif
 
-# ColumnStore can build only on amd64 and arm64
-ifneq (,$(filter $(DEB_HOST_ARCH_CPU),amd64 arm64))
-    CMAKEFLAGS += -DPLUGIN_COLUMNSTORE=NO
-endif
-
 # Cross building requires stack direction instruction
 ifneq ($(DEB_BUILD_ARCH),$(DEB_HOST_ARCH))
     ifneq (,$(filter $(DEB_HOST_ARCH_CPU),alpha amd64 arm arm64 i386 ia64 m68k mips64el mipsel powerpc ppc64 ppc64el riscv64 s390x sh4 sparc64))

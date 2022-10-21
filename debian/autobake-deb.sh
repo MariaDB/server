@@ -25,9 +25,9 @@ then
   sed '/Add support for verbose builds/,/^$/d' -i debian/rules
 elif [ -d storage/columnstore/columnstore/debian ]
 then
-  # ColumnStore is explicitly disabled in the native Debian build, so allow it
+  # ColumnStore is explicitly disabled in the native Debian build. Enable it
   # now when build is triggered by autobake-deb.sh (MariaDB.org) and when the
-  # build is not running on Travis or Gitlab-CI
+  # build is not running on Gitlab-CI.
   sed '/-DPLUGIN_COLUMNSTORE=NO/d' -i debian/rules
   # Take the files and part of control from MCS directory
   if [ ! -f debian/mariadb-plugin-columnstore.install ]
@@ -69,15 +69,34 @@ disable_pmem()
 
 architecture=$(dpkg-architecture -q DEB_BUILD_ARCH)
 
+# Parse release name and number from Linux standard base release
+# Example:
+#   $ lsb_release -a
+#   No LSB modules are available.
+#   Distributor ID:	Debian
+#   Description:	Debian GNU/Linux bookworm/sid
+#   Release:	n/a
+#   Codename:	n/a
 LSBID="$(lsb_release -si  | tr '[:upper:]' '[:lower:]')"
 LSBVERSION="$(lsb_release -sr | sed -e "s#\.##g")"
 LSBNAME="$(lsb_release -sc)"
 
+# If 'n/a', assume 'sid'
+if [ "${LSBVERSION}" == "n/a" ] || [ "${LSBNAME}" == "n/a" ]
+then
+  LSBVERSION="sid"
+  LSBNAME="sid"
+fi
+
+# If not known, use 'unknown' in .deb version identifier
 if [ -z "${LSBID}" ]
 then
     LSBID="unknown"
 fi
-case "${LSBNAME}" in
+
+case "${LSBNAME}"
+in
+  # Debian
   stretch)
     # MDEV-16525 libzstd-dev-1.1.3 minimum version
     sed -e '/libzstd-dev/d' \
@@ -105,10 +124,10 @@ case "${LSBNAME}" in
     fi
     ;&
   sid)
-    # should always be empty here.
-    # need to match here to avoid the default Error however
+    # The default packaging should always target Debian Sid, so in this case
+    # there is intentionally no customizations whatsoever.
     ;;
-    # UBUNTU
+  # Ubuntu
   bionic)
     remove_rocksdb_tools
     [ "$architecture" != amd64 ] && disable_pmem
@@ -134,7 +153,7 @@ case "${LSBNAME}" in
     fi
     ;;
   *)
-    echo "Error - unknown release codename $LSBNAME" >&2
+    echo "Error: Unknown release '$LSBNAME'" >&2
     exit 1
 esac
 
@@ -153,7 +172,7 @@ LOGSTRING="MariaDB build"
 EPOCH="1:"
 VERSION="${EPOCH}${UPSTREAM}${PATCHLEVEL}~${LSBID:0:3}${LSBVERSION}"
 
-dch -b -D ${LSBNAME} -v "${VERSION}" "Automatic build with ${LOGSTRING}." --controlmaint
+dch -b -D "${LSBNAME}" -v "${VERSION}" "Automatic build with ${LOGSTRING}." --controlmaint
 
 echo "Creating package version ${VERSION} ... "
 
