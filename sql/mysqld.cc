@@ -6307,7 +6307,7 @@ void handle_connections_sockets()
       sock = unix_sock;
 #endif // HAVE_POLL
 
-    for (uint retry=0; retry < MAX_ACCEPT_RETRY; retry++)
+    for (uint retry=0; retry < MAX_ACCEPT_RETRY && !abort_loop; retry++)
     {
       size_socket length= sizeof(struct sockaddr_storage);
       MYSQL_SOCKET new_sock;
@@ -8044,7 +8044,7 @@ mysqld_get_one_option(const struct my_option *opt, const char *argument,
       global_system_variables.log_warnings= atoi(argument);
     break;
   case 'T':
-    test_flags= argument ? (uint) atoi(argument) : 0;
+    test_flags= argument ? ((uint) atoi(argument) & ~TEST_BLOCKING) : 0;
     opt_endinfo=1;
     break;
   case OPT_THREAD_CONCURRENCY:
