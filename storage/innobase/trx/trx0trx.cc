@@ -785,7 +785,7 @@ corrupted:
 		ib::info() << "Trx id counter is " << trx_sys.get_max_trx_id();
 	}
 
-	purge_sys.clone_oldest_view();
+	purge_sys.clone_oldest_view<true>();
 	return DB_SUCCESS;
 }
 
@@ -2168,6 +2168,7 @@ trx_set_rw_mode(
 	ut_ad(trx->rsegs.m_redo.rseg != 0);
 
 	trx_sys.register_rw(trx);
+	ut_ad(trx->id);
 
 	/* So that we can see our own changes. */
 	if (trx->read_view.is_open()) {

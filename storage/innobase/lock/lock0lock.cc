@@ -44,6 +44,7 @@ Created 5/7/1996 Heikki Tuuri
 #include "row0vers.h"
 #include "pars0pars.h"
 #include "srv0mon.h"
+#include "que0que.h"
 
 #include <set>
 

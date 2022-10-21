@@ -44,40 +44,6 @@ Created 3/26/1996 Heikki Tuuri
 /** The transaction system */
 trx_sys_t		trx_sys;
 
-/** Check whether transaction id is valid.
-@param[in]	id              transaction id to check
-@param[in]      name            table name */
-void
-ReadViewBase::check_trx_id_sanity(
-	trx_id_t		id,
-	const table_name_t&	name)
-{
-	if (id >= trx_sys.get_max_trx_id()) {
-
-		ib::warn() << "A transaction id"
-			   << " in a record of table "
-			   << name
-			   << " is newer than the"
-			   << " system-wide maximum.";
-		ut_ad(0);
-		THD *thd = current_thd;
-		if (thd != NULL) {
-			char    table_name[MAX_FULL_NAME_LEN + 1];
-
-			innobase_format_name(
-				table_name, sizeof(table_name),
-				name.m_name);
-
-			push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
-					    ER_SIGNAL_WARN,
-					    "InnoDB: Transaction id"
-					    " in a record of table"
-					    " %s is newer than system-wide"
-					    " maximum.", table_name);
-		}
-	}
-}
-
 #ifdef UNIV_DEBUG
 /* Flag to control TRX_RSEG_N_SLOTS behavior debugging. */
 uint	trx_rseg_n_slots_debug = 0;

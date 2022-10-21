@@ -2124,8 +2124,14 @@ end_of_index:
 			ut_ad(trx->read_view.is_open());
 			ut_ad(rec_trx_id != trx->id);
 
-			if (!trx->read_view.changes_visible(
-				    rec_trx_id, old_table->name)) {
+			if (!trx->read_view.changes_visible(rec_trx_id)) {
+				if (rec_trx_id
+				    >= trx->read_view.low_limit_id()
+				    && rec_trx_id
+				    >= trx_sys.get_max_trx_id()) {
+					goto corrupted_rec;
+				}
+
 				rec_t*	old_vers;
 
 				row_vers_build_for_consistent_read(
@@ -4412,9 +4418,7 @@ row_merge_is_index_usable(
 	       && (index->table->is_temporary() || index->table->no_rollback()
 		   || index->trx_id == 0
 		   || !trx->read_view.is_open()
-		   || trx->read_view.changes_visible(
-			   index->trx_id,
-			   index->table->name)));
+		   || trx->read_view.changes_visible(index->trx_id)));
 }
 
 /** Build indexes on a table by reading a clustered index, creating a temporary
