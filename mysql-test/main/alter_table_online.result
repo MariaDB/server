@@ -80,3 +80,40 @@ XA END 'xid';
 XA COMMIT 'xid' ONE PHASE;
 DROP TABLE t;
 disconnect con1;
+connection default;
+#
+# MDEV-29068 Cascade foreign key updates do not apply in online alter
+#
+create table t1 (a int primary key) engine=InnoDB;
+insert into t1 values (1),(2),(3);
+create table t2 (b int, foreign key (b)
+references t1 (a)
+on update cascade) engine=InnoDB;
+insert into t2 values (1),(2),(3);
+alter table t2 add c int, algorithm=copy, lock=none;
+ERROR 0A000: LOCK=NONE is not supported. Reason: COPY algorithm requires a lock. Try LOCK=SHARED
+create or replace table t2 (b int, foreign key (b)
+references t1 (a)
+on delete set null) engine=InnoDB;
+alter table t2 add c int, algorithm=copy, lock=none;
+ERROR 0A000: LOCK=NONE is not supported. Reason: COPY algorithm requires a lock. Try LOCK=SHARED
+create or replace table t2 (b int, foreign key (b)
+references t1 (a)
+on delete no action) engine=InnoDB;
+insert into t2 values (1),(2),(3);
+alter table t2 add c int, algorithm=copy, lock=none;
+create or replace table t2 (b int, foreign key (b)
+references t1 (a)
+on update restrict) engine=InnoDB;
+insert into t2 values (1),(2),(3);
+alter table t2 add c int, algorithm=copy, lock=none;
+drop table t2, t1;
+create table t1 (a int primary key, b int unique) engine=InnoDB;
+insert into t1 values (1, 1),(2, 2),(3, 3);
+create table t2 (a int references t1 (a),
+b int references t1 (b) on update cascade) engine=InnoDB;
+insert into t2 values (1, 1),(2, 2);
+alter table t2 add c int, algorithm=copy, lock=none;
+ERROR 0A000: LOCK=NONE is not supported. Reason: COPY algorithm requires a lock. Try LOCK=SHARED
+alter table t2 add c int, algorithm=copy;
+drop table t2, t1;
