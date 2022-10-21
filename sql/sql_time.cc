@@ -93,34 +93,43 @@ int append_interval(String *str, interval_type int_type, const INTERVAL &interva
     len= my_snprintf(buf,sizeof(buf),"%u", interval.second_part);
     break;
   case INTERVAL_YEAR_MONTH:
-    len= my_snprintf(buf,sizeof(buf),"%u-%02u", interval.day, interval.month);
+    len= my_snprintf(buf,sizeof(buf),"'%u-%02u'",
+                     interval.year, interval.month);
     break;
   case INTERVAL_DAY_HOUR:
-    len= my_snprintf(buf,sizeof(buf),"%u %u", interval.day, interval.hour);
+    len= my_snprintf(buf,sizeof(buf),"'%u %u'", interval.day, interval.hour);
     break;
   case INTERVAL_DAY_MINUTE:
-    len= my_snprintf(buf,sizeof(buf),"%u %u:%02u", interval.day, interval.hour, interval.minute);
+    len= my_snprintf(buf,sizeof(buf),"'%u %u:%02u'",
+                     interval.day, interval.hour, interval.minute);
     break;
   case INTERVAL_DAY_SECOND:
-    len= my_snprintf(buf,sizeof(buf),"%u %u:%02u:%02u", interval.day, interval.hour, interval.minute, interval.second);
+    len= my_snprintf(buf,sizeof(buf),"'%u %u:%02u:%02u'",
+                     interval.day, interval.hour, interval.minute, interval.second);
     break;
   case INTERVAL_HOUR_MINUTE:
-    len= my_snprintf(buf,sizeof(buf),"%u:%02u", interval.hour, interval.minute);
+    len= my_snprintf(buf,sizeof(buf),"'%u:%02u'", interval.hour, interval.minute);
     break;
   case INTERVAL_HOUR_SECOND:
-    len= my_snprintf(buf,sizeof(buf),"%u:%02u:%02u", interval.hour, interval.minute, interval.second);
+    len= my_snprintf(buf,sizeof(buf),"'%u:%02u:%02u'",
+                     interval.hour, interval.minute, interval.second);
     break;
   case INTERVAL_MINUTE_SECOND:
-    len= my_snprintf(buf,sizeof(buf),"%u:%02u", interval.minute, interval.second);
+    len= my_snprintf(buf,sizeof(buf),"'%u:%02u'", interval.minute, interval.second);
     break;
   case INTERVAL_DAY_MICROSECOND:
-    len= my_snprintf(buf,sizeof(buf),"%u %u:%02u:%02u.%06u", interval.day, interval.hour, interval.minute, interval.second, interval.second_part);
+    len= my_snprintf(buf,sizeof(buf),"'%u %u:%02u:%02u.%06u'",
+                     interval.day, interval.hour, interval.minute,
+                     interval.second, interval.second_part);
     break;
   case INTERVAL_HOUR_MICROSECOND:
-    len= my_snprintf(buf,sizeof(buf),"%u:%02u:%02u.%06u", interval.hour, interval.minute, interval.second, interval.second_part);
+    len= my_snprintf(buf,sizeof(buf),"'%u:%02u:%02u.%06u'",
+                     interval.hour, interval.minute, interval.second,
+                     interval.second_part);
     break;
   case INTERVAL_MINUTE_MICROSECOND:
-    len= my_snprintf(buf,sizeof(buf),"%u:%02u.%06u", interval.minute, interval.second, interval.second_part);
+    len= my_snprintf(buf,sizeof(buf),"'%u:%02u.%06u'",
+                     interval.minute, interval.second, interval.second_part);
     break;
   case INTERVAL_SECOND_MICROSECOND:
     len= my_snprintf(buf,sizeof(buf),"%u.%06u", interval.second, interval.second_part);

@@ -27,6 +27,8 @@ select pk, first_value(pk) over (order by pk),
 from t1
 order by pk desc;
 
+#enable after fix MDEV-28535
+--disable_view_protocol
 select pk,
        first_value(pk) over (order by pk
                              RANGE BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING),
@@ -38,6 +40,7 @@ select pk,
                             RANGE BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING)
 from t1
 order by pk;
+--enable_view_protocol
 
 select pk,
        first_value(pk) over (order by pk desc),

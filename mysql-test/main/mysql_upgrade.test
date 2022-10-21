@@ -149,7 +149,7 @@ let $MYSQLD_DATADIR= `select @@datadir`;
 --echo # MDEV-4332 Increase username length from 16 characters
 --echo # MDEV-6068, MDEV-6178 mysql_upgrade breaks databases with long user names
 --echo #
-
+--disable_service_connection
 connection default;
 GRANT SELECT ON mysql.* TO very_long_user_name_number_1;
 GRANT SELECT ON mysql.* TO very_long_user_name_number_2;
@@ -172,7 +172,7 @@ SELECT definer FROM mysql.proc WHERE db = 'test' AND name = 'pr';
 SELECT grantor FROM mysql.tables_priv WHERE db = 'mysql' AND table_name = 'user';
 DROP USER very_long_user_name_number_1, very_long_user_name_number_2, even_longer_user_name_number_3_to_test_the_grantor_and_definer_field_length@localhost;
 DROP PROCEDURE test.pr;
-
+--enable_service_connection
 #
 # MDEV-13274 mysql_upgrade fails if dbname+tablename+partioname > 64 chars
 #

@@ -1,3 +1,5 @@
+#enable after fix MDEV-29290
+--disable_view_protocol
 select @@collation_connection;
 select hex(weight_string(cast(_latin1 0x80 as char)));
 select hex(weight_string(cast(_latin1 0x808080 as char)));
@@ -28,3 +30,4 @@ select hex(weight_string(cast(_latin1 0x808080 as char), 3, 4, 0xC0));
 select hex(weight_string(cast(_latin1 0x808080 as char), 4, 4, 0xC0));
 select hex(weight_string(cast(_latin1 0x808080 as char), 5, 4, 0xC0));
 select hex(weight_string(cast(_latin1 0x808080 as char),25, 4, 0xC0));
+--enable_view_protocol

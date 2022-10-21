@@ -2,6 +2,7 @@
 # test OPTIMIZE and a concurrent SELECT of a MyISAM table
 #
 source include/have_debug_sync.inc;
+--disable_service_connection
 
 call mtr.add_suppression(" marked as crashed and should be repaired");
 
@@ -63,3 +64,4 @@ UNLOCK TABLES;
 DROP TABLE t1;
 
 --echo # End of 10.0 tests
+--enable_service_connection

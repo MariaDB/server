@@ -8,6 +8,7 @@ DROP TABLE IF EXISTS t1;
 #
 # Test Unicode collations.
 #
+--disable_service_connection
 set names utf8; 
 
 #
@@ -72,6 +73,7 @@ select group_concat(c1 order by c1) from t1 group by c1 collate utf8_unicode_520
 select group_concat(c1 order by c1) from t1 group by c1 collate utf8_vietnamese_ci;
 select group_concat(c1 order by c1) from t1 group by c1 collate utf8_thai_520_w2;
 
+--disable_view_protocol
 ALTER TABLE t1 CONVERT TO CHARACTER SET ucs2 COLLATE ucs2_bin;
 SELECT GROUP_CONCAT(c1 ORDER BY c1) FROM t1 GROUP BY c1 COLLATE ucs2_unicode_ci;
 SELECT GROUP_CONCAT(c1 ORDER BY c1) FROM t1 GROUP BY c1 COLLATE ucs2_icelandic_ci;
@@ -96,7 +98,7 @@ SELECT GROUP_CONCAT(c1 ORDER BY c1) FROM t1 GROUP BY c1 COLLATE ucs2_croatian_ci
 SELECT GROUP_CONCAT(c1 ORDER BY c1) FROM t1 GROUP BY c1 COLLATE ucs2_german2_ci;
 SELECT GROUP_CONCAT(c1 ORDER BY c1) FROM t1 GROUP BY c1 COLLATE ucs2_unicode_520_ci;
 SELECT GROUP_CONCAT(c1 ORDER BY c1) FROM t1 GROUP BY c1 COLLATE ucs2_vietnamese_ci;
-
+--enable_view_protocol
 drop table t1;
 
 #
@@ -475,7 +477,7 @@ set collation_connection=ucs2_unicode_ci;
 -- source include/ctype_regex.inc
 -- source include/ctype_like_range_f1f2.inc
 set names utf8;
-
+--enable_service_connection
 -- echo End for 5.0 tests
 --echo End of 5.1 tests
 
@@ -491,7 +493,7 @@ SET collation_connection=utf8_czech_ci;
 SET collation_connection=ucs2_czech_ci;
 --source include/ctype_czech.inc
 --source include/ctype_like_ignorable.inc
-
+--disable_service_connection
 create table t1 (a int, c1 varchar(200) collate utf8_croatian_mysql561_ci, key (c1));
 insert into t1 values (1,'=> DZ'),(2,'=> Dz'),(3,'=> dz'),(4,'=> dZ');
 insert into t1 values (5,'=> DŽ'),(6,'=> Dž'),(7,'=> dž'),(8,'=> dŽ');
@@ -507,7 +509,6 @@ select * from t1 where concat(c1) like '=> dž%';
 select * from t1 where c1 = '=> dž';
 select * from t1 where concat(c1) = '=> dž';
 drop table t1;
-
 
 --echo #
 --echo # MDEV-7649 wrong result when comparing utf8 column with an invalid literal
@@ -551,7 +552,10 @@ set @@collation_connection=ucs2_czech_ci;
 --echo #
 --echo # Bug#33077 weight of supplementary characters is not 0xfffd
 --echo #
+#enable_after_fix MDEV-27871
+--disable_view_protocol
 select hex(weight_string(_utf8mb4 0xF0908080 /* U+10000 */ collate utf8mb4_unicode_ci));
+--enable_view_protocol
 
 --echo #
 --echo # Bug#53064 garbled data when using utf8_german2_ci collation
@@ -690,7 +694,7 @@ CREATE VIEW v1 AS SELECT group_concat('f') AS col1;
 SELECT col1 FROM v1 UNION SELECT col1 FROM t1;
 DROP VIEW v1;
 DROP TABLE t1;
-
+--enable_service_connection
 
 --echo #
 --echo # End of MariaDB-10.2 tests

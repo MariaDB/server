@@ -94,6 +94,8 @@ SET @@global.innodb_file_per_table = @old_innodb_file_per_table;
 #
 # Bug#32430 - show engine innodb status causes errors
 #
+#change to "disable_service_connection" after fix MDEV-29278 
+--disable_view_protocol
 SET NAMES utf8;
 CREATE TABLE `t``\""e` (a INT, PRIMARY KEY (a))
 ENGINE=InnoDB
@@ -151,3 +153,4 @@ ROLLBACK;
 disconnect con1;
 connection default;
 DROP TABLE `t``\""e`;
+--enable_view_protocol

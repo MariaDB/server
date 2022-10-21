@@ -329,7 +329,8 @@ row_sel_sec_rec_is_for_clust_rec(
 					&heap, NULL, NULL,
 					thr_get_trx(thr)->mysql_thd,
 					thr->prebuilt->m_mysql_table,
-					record, NULL, NULL);
+					record, NULL, NULL,
+					true);
 
 			if (vfield == NULL) {
 				innobase_report_computed_value_failed(row);

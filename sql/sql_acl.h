@@ -103,7 +103,7 @@
 */
 #define TMP_TABLE_ACLS \
 (SELECT_ACL | INSERT_ACL | UPDATE_ACL | DELETE_ACL | CREATE_ACL | DROP_ACL | \
- INDEX_ACL | ALTER_ACL)
+ INDEX_ACL | ALTER_ACL | REFERENCES_ACL)
 
 /*
   Defines to change the above bits to how things are stored in tables

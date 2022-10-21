@@ -336,7 +336,9 @@ select count(*) from t1 group by s1 having s1 is null;
 
 # prepared statements prints warnings too early
 --disable_ps_protocol
+--disable_view_protocol
 select s1*0 as s1 from t1 group by s1 having s1 <> 0;
+--enable_view_protocol
 --enable_ps_protocol
 
 # ANSI requires: 3 rows
@@ -379,6 +381,7 @@ drop table t1;
 # Bug #15917: unexpected complain for a name in having clause
 # when the server is run on Windows or with --lower-case-table-names=1
 #
+--disable_service_connection
 
 --disable_warnings
 DROP SCHEMA IF EXISTS HU;
@@ -420,6 +423,9 @@ SELECT EMPNUM, GRADE*1000
 
 DROP SCHEMA HU;
 USE test;
+
+--enable_service_connection
+
 #
 # Bug#18739: non-standard HAVING extension was allowed in strict ANSI sql mode.
 #
@@ -470,6 +476,9 @@ DROP TABLE t1;
 --echo #
 --echo # Bug#48916 Server incorrectly processing HAVING clauses with an ORDER BY clause
 --echo #
+
+--disable_view_protocol
+
 CREATE TABLE t1 (f1 INT PRIMARY KEY, f2 INT, f3 INT);
 INSERT INTO t1 VALUES (2,7,9), (4,7,9), (6,2,9), (17,0,9);
 
@@ -497,6 +506,8 @@ GROUP BY table1.f1, table2.f2
 HAVING (table2.f2 = 8);
 
 DROP TABLE t1;
+
+--enable_view_protocol
 
 --echo #
 --echo # Bug#52336 Segfault / crash in 5.1 copy_fields (param=0x9872980) at sql_select.cc:15355

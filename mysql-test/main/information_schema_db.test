@@ -34,6 +34,7 @@ show tables;
 # database-level privileges (e.g. had only table-level or had no
 # privileges at all).
 #
+--disable_view_protocol
 grant all privileges on `inf%`.* to 'mysqltest_1'@'localhost';
 grant all privileges on `mbase`.* to 'mysqltest_1'@'localhost';
 create table t1 (f1 int);
@@ -107,12 +108,14 @@ where table_schema='test' order by table_name;
 drop function f1;
 drop function f2;
 drop view v1, v2;
+--enable_view_protocol
 
 #
 # Bug#20543 select on information_schema strange warnings, view, different
 #           schemas/users
 #
 #
+--disable_service_connection
 create database testdb_1;
 create user testdb_1@localhost;
 grant all on testdb_1.* to testdb_1@localhost with grant option;
@@ -299,3 +302,4 @@ disconnect foo;
 drop view v1d, v1i, v2d, v2i, v3d, v3i, v4d, v4i, v5d, v5i;
 drop user foo@localhost;
 drop procedure rootonly;
+--enable_service_connection

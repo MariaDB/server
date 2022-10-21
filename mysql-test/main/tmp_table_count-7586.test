@@ -3,6 +3,10 @@
 --source include/have_perfschema.inc
 --source include/not_embedded.inc
 
+# Tests will be skipped for the view protocol because the view protocol creates 
+# an additional util connection and other statistics data
+-- source include/no_view_protocol.inc
+
 create table t2 (a int);
 insert into t2 values (1),(2),(3);
 create view v2 as select a from t2;

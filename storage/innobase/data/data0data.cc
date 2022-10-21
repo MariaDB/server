@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1994, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2020, MariaDB Corporation.
+Copyright (c) 2017, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -575,7 +575,6 @@ dtuple_convert_big_rec(
 	dfield_t*	dfield;
 	dict_field_t*	ifield;
 	ulint		size;
-	ulint		n_fields;
 	ulint		local_prefix_len;
 
 	if (!dict_index_is_clust(index)) {
@@ -604,7 +603,7 @@ dtuple_convert_big_rec(
 	a variable-length field that yields the biggest savings when
 	stored externally */
 
-	n_fields = 0;
+	ut_d(ulint n_fields = 0);
 
 	while (page_zip_rec_needs_ext(rec_get_converted_size(index, entry,
 							     *n_ext),
@@ -700,9 +699,8 @@ skip_field:
 		dfield_set_data(dfield, data, local_len);
 		dfield_set_ext(dfield);
 
-		n_fields++;
 		(*n_ext)++;
-		ut_ad(n_fields < dtuple_get_n_fields(entry));
+		ut_ad(++n_fields < dtuple_get_n_fields(entry));
 
 		if (upd && !upd->is_modified(longest_i)) {
 

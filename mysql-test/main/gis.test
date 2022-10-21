@@ -122,6 +122,8 @@ SELECT fid, AsText(GeometryN(g, 2)) from gis_geometrycollection;
 SELECT fid, AsText(GeometryN(g, 1)) from gis_geometrycollection;
 explain extended SELECT fid, AsText(GeometryN(g, 2)) from gis_multi_point;
 
+#query plan for view protocol doesn't contain database name
+--disable_view_protocol
 SELECT g1.fid as first, g2.fid as second,
 Within(g1.g, g2.g) as w, Contains(g1.g, g2.g) as c, Overlaps(g1.g, g2.g) as o,
 Equals(g1.g, g2.g) as e, Disjoint(g1.g, g2.g) as d, Touches(g1.g, g2.g) as t,
@@ -132,6 +134,7 @@ Within(g1.g, g2.g) as w, Contains(g1.g, g2.g) as c, Overlaps(g1.g, g2.g) as o,
 Equals(g1.g, g2.g) as e, Disjoint(g1.g, g2.g) as d, Touches(g1.g, g2.g) as t,
 Intersects(g1.g, g2.g) as i, Crosses(g1.g, g2.g) as r
 FROM gis_geometrycollection g1, gis_geometrycollection g2 ORDER BY first, second;
+--enable_view_protocol
 
 DROP TABLE gis_point, gis_line, gis_polygon, gis_multi_point, gis_multi_line, gis_multi_polygon, gis_geometrycollection, gis_geometry;
 
@@ -377,13 +380,18 @@ insert into t1 values (pointfromtext('point(1,1)'));
 
 drop table t1;
 
+#enable after fix MDEV-27871
+--disable_view_protocol
 select (asWKT(geomfromwkb((0x000000000140240000000000004024000000000000))));
 select (asWKT(geomfromwkb((0x010100000000000000000024400000000000002440))));
+--enable_view_protocol
 
 --enable_metadata
+--disable_view_protocol
 create table t1 (g GEOMETRY);
 select * from t1;
 select asbinary(g) from t1;
+--enable_view_protocol
 --disable_metadata
 drop table t1;
 
@@ -750,12 +758,15 @@ SET @a=POLYFROMWKB(@a);
 # Bug #57321    crashes and valgrind errors from spatial types
 #
 
+#The SELECT statement cannot contain a subquery in the FROM clause
+#fore  --view-protocol
+--disable_view_protocol
 create table t1(a geometry NOT NULL)engine=myisam;
 insert into t1 values (geomfromtext("point(0 1)"));
 insert into t1 values (geomfromtext("point(1 0)"));
 select * from (select polygon(t1.a) as p from t1 order by t1.a) d;
 drop table t1;
-
+--enable_view_protocol
 
 --echo #
 --echo # Test for bug #59888 "debug assertion when attempt to create spatial index
@@ -835,6 +846,8 @@ select astext(0x0100000000030000000100000000000010);
 select astext(st_centroid(0x0100000000030000000100000000000010));
 select astext(st_exteriorring(0x0100000000030000000100000000000010));
 select envelope(0x0100000000030000000100000000000010);
+#enable after fix MDEV-27871
+--disable_view_protocol
 select geometryn(0x0100000000070000000100000001030000000200000000000000ffff0000, 1);
 select geometryn(0x0100000000070000000100000001030000000200000000000000ffffff0f, 1);
 
@@ -856,6 +869,7 @@ select ST_AREA(ST_GEOMCOLLFROMTEXT(' GEOMETRYCOLLECTION(LINESTRING(100 100, 31 1
 #bug 855336 ST_LENGTH does not work on GEOMETRYCOLLECTIONs
 select ST_LENGTH(ST_GEOMCOLLFROMTEXT(' GEOMETRYCOLLECTION(LINESTRING(100 100, 100 30, 20 30), POINT(3 3), LINESTRING(20 20, 30 20))'));
 
+--enable_view_protocol
 
 # Conformance tests
 #
@@ -1164,6 +1178,9 @@ SELECT AsText(EndPoint(centerline))
 FROM road_segments 
 WHERE fid = 102; 
 
+#enable after fix MDEV-27871
+--disable_view_protocol
+
 SELECT IsClosed(LineFromWKB(AsBinary(Boundary(boundary)),SRID(boundary))) 
 FROM named_places 
 WHERE name = 'Goose Island'; 
@@ -1172,6 +1189,8 @@ WHERE name = 'Goose Island';
 SELECT IsRing(LineFromWKB(AsBinary(Boundary(boundary)),SRID(boundary))) 
 FROM named_places 
 WHERE name = 'Goose Island'; 
+
+--enable_view_protocol
 
 --echo # Conformance Item T21 
 SELECT GLength(centerline) 
@@ -1253,11 +1272,15 @@ SELECT Area(shores)
 FROM ponds 
 WHERE fid = 120; 
 
+#enable after fix MDEV-27871
+--disable_view_protocol
+
 --echo # Conformance Item T37 
 SELECT ST_Equals(boundary, 
 PolyFromText('POLYGON( ( 67 13, 67 18, 59 18, 59 13, 67 13) )',1)) 
 FROM named_places 
 WHERE name = 'Goose Island'; 
+--enable_view_protocol
 
 --echo # Conformance Item T38 
 SELECT ST_Disjoint(centerlines, boundary) 
@@ -1289,11 +1312,16 @@ FROM road_segments, divided_routes
 WHERE road_segments.fid = 102 
 AND divided_routes.name = 'Route 75'; 
 
+#enable after fix MDEV-27871
+--disable_view_protocol
+
 --echo # Conformance Item T43 
 SELECT ST_Intersects(road_segments.centerline, divided_routes.centerlines) 
 FROM road_segments, divided_routes 
 WHERE road_segments.fid = 102 
 AND divided_routes.name = 'Route 75'; 
+
+--enable_view_protocol
 
 --echo # Conformance Item T44 
 SELECT ST_Contains(forests.boundary, named_places.boundary) 
@@ -1354,6 +1382,8 @@ USE test;
 --echo # BUG #1043845 st_distance() results are incorrect depending on variable order
 --echo #
 
+#enable after fix MDEV-27871
+--disable_view_protocol
 select st_distance(geomfromtext('LINESTRING(-95.9673005697771 36.13509598461,
                                             -95.9673057475387 36.1344478941074,
                                             -95.9673063519371 36.134484524621,
@@ -1364,6 +1394,8 @@ select st_distance(geomfromtext('point(-95.96269500000000000000 36.1418183333333
                            -95.9673057475387 36.1344478941074,
                            -95.9673063519371 36.134484524621,
                            -95.9673049102515 36.1343976584193) ')) ;
+
+--enable_view_protocol
 
 --echo #
 --echo # MDEV-4310 geometry function equals hangs forever.
@@ -1425,6 +1457,8 @@ SELECT ASTEXT(0x0100000000030000000100000000000010);
 --echo #should not crash
 SELECT ENVELOPE(0x0100000000030000000100000000000010);
 
+#enable after fix MDEV-27871
+--disable_view_protocol
 --echo #should not crash
 SELECT
   GEOMETRYN(0x0100000000070000000100000001030000000200000000000000ffff0000, 1);
@@ -1432,6 +1466,7 @@ SELECT
 --echo #should not crash
 SELECT
   GEOMETRYN(0x0100000000070000000100000001030000000200000000000000ffffff0f, 1);
+--enable_view_protocol
 
 --echo #
 --echo # MDEV-3819 missing constraints for spatial column types
@@ -1445,7 +1480,10 @@ drop table t1;
 #
 # MDEV-7516 Assertion `!cur_p->event' failed in Gcalc_scan_iterator::arrange_event(int, int)
 #
+#enable after fix MDEV-27871
+--disable_view_protocol
 SELECT st_astext(ST_Buffer(ST_PolygonFromText('POLYGON((3 5, 2 4, 2 5, 3 5))'), -100));
+--enable_view_protocol
 
 #
 # MDEV-7779 View definition changes upon creation
@@ -1541,12 +1579,15 @@ drop table t1;
 --echo # MDEV-7510 GIS: IsRing returns false for a primitive triangle.
 --echo #
 select ST_IsRing(ST_LineFromText('LINESTRING(0 0,0 10,10 10,0 0)'));
+#enable after fix MDEV-27871
+--disable_view_protocol
 select ST_IsRing(ST_LineFromText('LINESTRING(0 0,0 10,10 10,-10 -10, 0 -10, 0 0)'));
 
 --echo #
 --echo # MDEV-7514 GIS: PointOnSurface returns NULL instead of the point.
 --echo #
 SELECT ST_GEOMETRYTYPE(ST_PointOnSurface(ST_PolyFromText('POLYGON((-70.916 42.1002,-70.9468 42.0946,-70.9754 42.0875,-70.9749 42.0879,-70.9759 42.0897,-70.916 42.1002))')));
+--enable_view_protocol
 
 --echo #
 --echo # MDEV-7529 GIS: ST_Relate returns unexpected results for POINT relations
@@ -2402,6 +2443,7 @@ DROP TABLE t1;
 
 --enable_metadata
 --disable_ps_protocol
+--disable_view_protocol
 SELECT
   ST_ISSIMPLE(POINT(1,1)),
   ST_ISRING(POINT(1,1)),
@@ -2411,6 +2453,7 @@ SELECT
   ST_NUMINTERIORRINGS(POINT(1,1)),
   ST_NUMPOINTS(POINT(1,1)),
   ST_SRID(POINT(1,1));
+  --enable_view_protocol
 --enable_ps_protocol
 --disable_metadata
 

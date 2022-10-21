@@ -153,12 +153,15 @@ DROP TABLE t1;
 --echo # Bug #59211: Select Returns Different Value for min(year) Function
 --echo #
 
+#enable after fix MDEV-28673
+--disable_view_protocol
 CREATE TABLE t1(c1 YEAR(4));
 INSERT INTO t1 VALUES (1901),(2155),(0000);
 SELECT * FROM t1;
 SELECT COUNT(*) AS total_rows, MIN(c1) AS min_value, MAX(c1) FROM t1;
 SELECT COUNT(*) AS total_rows, MIN(c1+0) AS min_value, MAX(c1+0) FROM t1;
 DROP TABLE t1;
+--enable_view_protocol
 
 --echo #
 --echo # WL#6219: Deprecate and remove YEAR(2) type

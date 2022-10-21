@@ -32,10 +32,13 @@ select position(binary 'll' in 'hello'),position('a' in binary 'hello');
 #
 select left('hello',null), right('hello',null);
 select left('hello',2),right('hello',2),substring('hello',2,2),mid('hello',1,5) ;
+#enable after fix MDEV-27871
+--disable_view_protocol
 select concat('',left(right(concat('what ',concat('is ','happening')),9),4),'',substring('monty',5,1)) ;
 select substring_index('www.tcx.se','.',-2),substring_index('www.tcx.se','.',1);
 select substring_index('www.tcx.se','tcx',1),substring_index('www.tcx.se','tcx',-1);
 select substring_index('.tcx.se','.',-2),substring_index('.tcx.se','.tcx',-1);
+--enable_view_protocol
 select substring_index('aaaaaaaaa1','a',1);
 select substring_index('aaaaaaaaa1','aa',1);
 select substring_index('aaaaaaaaa1','aa',2);
@@ -77,22 +80,28 @@ select substring_index('the king of the the hill','the',2);
 select substring_index('the king of the the hill','the',3);
 
 select concat(':',ltrim('  left  '),':',rtrim('  right  '),':');
+#enable after fix MDEV-27871
+--disable_view_protocol
 select concat(':',trim(leading from '  left  '),':',trim(trailing from '  right  '),':');
 select concat(':',trim(LEADING FROM ' left'),':',trim(TRAILING FROM ' right '),':');
 select concat(':',trim(' m '),':',trim(BOTH FROM ' y '),':',trim('*' FROM '*s*'),':');
 select concat(':',trim(BOTH 'ab' FROM 'ababmyabab'),':',trim(BOTH '*' FROM '***sql'),':');
 select concat(':',trim(LEADING '.*' FROM '.*my'),':',trim(TRAILING '.*' FROM 'sql.*.*'),':');
 select TRIM("foo" FROM "foo"), TRIM("foo" FROM "foook"), TRIM("foo" FROM "okfoo");
+--enable_view_protocol
 
 select concat_ws(', ','monty','was here','again');
 select concat_ws(NULL,'a'),concat_ws(',',NULL,'');
 select concat_ws(',','',NULL,'a');
+#enable after fix MDEV-27871
+--disable_view_protocol
 SELECT CONCAT('"',CONCAT_WS('";"',repeat('a',60),repeat('b',60),repeat('c',60),repeat('d',100)), '"');
 
 select insert('txs',2,1,'hi'),insert('is ',4,0,'a'),insert('txxxxt',2,4,'es');
 select replace('aaaa','a','b'),replace('aaaa','aa','b'),replace('aaaa','a','bb'),replace('aaaa','','b'),replace('bbbb','a','c');
 select replace(concat(lcase(concat('THIS',' ','IS',' ','A',' ')),ucase('false'),' ','test'),'FALSE','REAL') ;
 select soundex(''),soundex('he'),soundex('hello all folks'),soundex('#3556 in bugdb');
+--enable_view_protocol
 select 'mood' sounds like 'mud';
 select 'Glazgo' sounds like 'Liverpool';
 select null sounds like 'null';
@@ -125,15 +134,21 @@ select rpad('abcd',7),lpad('abcd',7);
 select LEAST(NULL,'HARRY','HARRIOT',NULL,'HAROLD'),GREATEST(NULL,'HARRY','HARRIOT',NULL,'HAROLD');
 select least(1,2,3) | greatest(16,32,8), least(5,4)*1,greatest(-1.0,1.0)*1,least(3,2,1)*1.0,greatest(1,1.1,1.0),least("10",9),greatest("A","B","0");
 
+#enable after fix MDEV-27871
+--disable_view_protocol
 select decode(encode(repeat("a",100000),"monty"),"monty")=repeat("a",100000);
+--enable_view_protocol
 select decode(encode("abcdef","monty"),"monty")="abcdef";
 
 select quote('\'\"\\test');
 select quote(concat('abc\'', '\\cba'));
 select quote(1/0), quote('\0\Z');
 select length(quote(concat(char(0),"test")));
+#enable after fix MDEV-27871
+--disable_view_protocol
 select hex(quote(concat(char(224),char(227),char(230),char(231),char(232),char(234),char(235))));
 select unhex(hex("foobar")), hex(unhex("1234567890ABCDEF")), unhex("345678"), unhex(NULL);
+--enable_view_protocol
 select hex(unhex("1")), hex(unhex("12")), hex(unhex("123")), hex(unhex("1234")), hex(unhex("12345")), hex(unhex("123456"));
 select length(unhex(md5("abrakadabra")));
 
@@ -141,7 +156,10 @@ select length(unhex(md5("abrakadabra")));
 # Bug #6564: QUOTE(NULL
 #
 
+#enable after fix MDEV-28651
+--disable_view_protocol
 select concat('a', quote(NULL));
+--enable_view_protocol
 
 #
 # Wrong usage of functions
@@ -158,7 +176,10 @@ select length(repeat("a",100000000)),length(repeat("a",1000*64));
 select position("0" in "baaa" in (1)),position("0" in "1" in (1,2,3)),position("sql" in ("mysql"));
 select position(("1" in (1,2,3)) in "01");
 select length(repeat("a",65500)),length(concat(repeat("a",32000),repeat("a",32000))),length(replace("aaaaa","a",concat(repeat("a",10000)))),length(insert(repeat("a",40000),1,30000,repeat("b",50000)));
+#enable after fix MDEV-28535
+--disable_view_protocol
 select length(repeat("a",1000000)),length(concat(repeat("a",32000),repeat("a",32000),repeat("a",32000))),length(replace("aaaaa","a",concat(repeat("a",32000)))),length(insert(repeat("a",48000),1,1000,repeat("a",48000)));
+--enable_view_protocol
 
 #
 # Problem med concat
@@ -187,11 +208,14 @@ CREATE TABLE t1 (
   submitter int(10) unsigned default NULL
 ) ENGINE=MyISAM;
 
+#enable after fix MDEV-27871
+--disable_view_protocol
 INSERT INTO t1 VALUES (1,'Link',1,1,1,'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa','2001-02-28 08:40:16',20010228084016,0,4);
 SELECT CONCAT('"',CONCAT_WS('";"',title,prio,category,program,bugdesc,created,modified+0,bugstatus,submitter), '"') FROM t1;
 SELECT CONCAT('"',CONCAT_WS('";"',title,prio,category,program,bugstatus,submitter), '"') FROM t1;
 SELECT CONCAT_WS('";"',title,prio,category,program,bugdesc,created,modified+0,bugstatus,submitter) FROM t1;
 SELECT bugdesc, REPLACE(bugdesc, 'xxxxxxxxxxxxxxxxxxxx', 'bbbbbbbbbbbbbbbbbbbb') from t1 group by bugdesc;
+--enable_view_protocol
 drop table t1;
 
 #
@@ -733,8 +757,10 @@ select hex(29223372036854775809), hex(-29223372036854775809);
 create table t1 (i int);
 insert into t1 values (1000000000),(1);
 --enable_metadata
+--disable_view_protocol
 select lpad(i, 7, ' ') as t from t1;
 select rpad(i, 7, ' ') as t from t1;
+--enable_view_protocol
 --disable_metadata
 drop table t1;
 
@@ -884,18 +910,23 @@ select format(NULL, NULL);
 select format(pi(), NULL);
 select format(NULL, 2);
 
+#enable after fix MDEV-28585
+--disable_view_protocol
 select benchmark(NULL, NULL);
 select benchmark(0, NULL);
 select benchmark(100, NULL);
 select benchmark(NULL, 1+1);
+--enable_view_protocol
 
 #
 # Bug #20752: BENCHMARK with many iterations returns too quickly
 #
 
 # not a string, but belongs with the above Bug#22684
+#enable after fix MDEV-28585
+--disable_view_protocol
 select benchmark(-1, 1);
-
+--enable_view_protocol
 #
 # Please note:
 # 1) The collation of the password is irrelevant, the encryption uses
@@ -966,12 +997,15 @@ select left('hello', -4294967296);
 select left('hello', 4294967296);
 select left('hello', -4294967297);
 select left('hello', 4294967297);
+#view protocol generates additional warning
+--disable_view_protocol
 select left('hello', -18446744073709551615);
 select left('hello', 18446744073709551615);
 select left('hello', -18446744073709551616);
 select left('hello', 18446744073709551616);
 select left('hello', -18446744073709551617);
 select left('hello', 18446744073709551617);
+--enable_view_protocol
 
 select right('hello', 10);
 select right('hello', 0);
@@ -982,12 +1016,15 @@ select right('hello', -4294967296);
 select right('hello', 4294967296);
 select right('hello', -4294967297);
 select right('hello', 4294967297);
+#view protocol generates additional warning
+--disable_view_protocol
 select right('hello', -18446744073709551615);
 select right('hello', 18446744073709551615);
 select right('hello', -18446744073709551616);
 select right('hello', 18446744073709551616);
 select right('hello', -18446744073709551617);
 select right('hello', 18446744073709551617);
+--enable_view_protocol
 
 select substring('hello', 2, -1);
 
@@ -999,12 +1036,17 @@ select substring('hello', -4294967296, 1);
 select substring('hello', 4294967296, 1);
 select substring('hello', -4294967297, 1);
 select substring('hello', 4294967297, 1);
+#view protocol generates additional warning
+--disable_view_protocol
 select substring('hello', -18446744073709551615, 1);
 select substring('hello', 18446744073709551615, 1);
 select substring('hello', -18446744073709551616, 1);
 select substring('hello', 18446744073709551616, 1);
 select substring('hello', -18446744073709551617, 1);
 select substring('hello', 18446744073709551617, 1);
+--enable_view_protocol
+#enable after fix MDEV-28652
+--disable_view_protocol
 select substring('hello', 1, -1);
 select substring('hello', 1, -4294967295);
 select substring('hello', 1, 4294967295);
@@ -1012,12 +1054,16 @@ select substring('hello', 1, -4294967296);
 select substring('hello', 1, 4294967296);
 select substring('hello', 1, -4294967297);
 select substring('hello', 1, 4294967297);
+--enable_view_protocol
+#view protocol generates additional warning
+--disable_view_protocol
 select substring('hello', 1, -18446744073709551615);
 select substring('hello', 1, 18446744073709551615);
 select substring('hello', 1, -18446744073709551616);
 select substring('hello', 1, 18446744073709551616);
 select substring('hello', 1, -18446744073709551617);
 select substring('hello', 1, 18446744073709551617);
+--enable_view_protocol
 select substring('hello', -1, -1);
 select substring('hello', -4294967295, -4294967295);
 select substring('hello', 4294967295, 4294967295);
@@ -1025,12 +1071,15 @@ select substring('hello', -4294967296, -4294967296);
 select substring('hello', 4294967296, 4294967296);
 select substring('hello', -4294967297, -4294967297);
 select substring('hello', 4294967297, 4294967297);
+#view protocol generates additional warning
+--disable_view_protocol
 select substring('hello', -18446744073709551615, -18446744073709551615);
 select substring('hello', 18446744073709551615, 18446744073709551615);
 select substring('hello', -18446744073709551616, -18446744073709551616);
 select substring('hello', 18446744073709551616, 18446744073709551616);
 select substring('hello', -18446744073709551617, -18446744073709551617);
 select substring('hello', 18446744073709551617, 18446744073709551617);
+--enable_view_protocol
 
 select insert('hello', -1, 1, 'hi');
 select insert('hello', -4294967295, 1, 'hi');
@@ -1065,12 +1114,15 @@ select insert('hello', -4294967296, -4294967296, 'hi');
 select insert('hello', 4294967296, 4294967296, 'hi');
 select insert('hello', -4294967297, -4294967297, 'hi');
 select insert('hello', 4294967297, 4294967297, 'hi');
+#enable after fix MDEV-27871
+--disable_view_protocol
 select insert('hello', -18446744073709551615, -18446744073709551615, 'hi');
 select insert('hello', 18446744073709551615, 18446744073709551615, 'hi');
 select insert('hello', -18446744073709551616, -18446744073709551616, 'hi');
 select insert('hello', 18446744073709551616, 18446744073709551616, 'hi');
 select insert('hello', -18446744073709551617, -18446744073709551617, 'hi');
 select insert('hello', 18446744073709551617, 18446744073709551617, 'hi');
+--enable_view_protocol
 
 select repeat('hello', -1);
 select repeat('hello', -4294967295);
@@ -1079,12 +1131,15 @@ select repeat('hello', -4294967296);
 select repeat('hello', 4294967296);
 select repeat('hello', -4294967297);
 select repeat('hello', 4294967297);
+#view protocol generates additional warning
+--disable_view_protocol
 select repeat('hello', -18446744073709551615);
 select repeat('hello', 18446744073709551615);
 select repeat('hello', -18446744073709551616);
 select repeat('hello', 18446744073709551616);
 select repeat('hello', -18446744073709551617);
 select repeat('hello', 18446744073709551617);
+--enable_view_protocol
 
 select space(-1);
 select space(-4294967295);
@@ -1093,12 +1148,15 @@ select space(-4294967296);
 select space(4294967296);
 select space(-4294967297);
 select space(4294967297);
+#view protocol generates additional warning
+--disable_view_protocol
 select space(-18446744073709551615);
 select space(18446744073709551615);
 select space(-18446744073709551616);
 select space(18446744073709551616);
 select space(-18446744073709551617);
 select space(18446744073709551617);
+--enable_view_protocol
 
 select rpad('hello', -1, '1');
 select rpad('hello', -4294967295, '1');
@@ -1107,12 +1165,15 @@ select rpad('hello', -4294967296, '1');
 select rpad('hello', 4294967296, '1');
 select rpad('hello', -4294967297, '1');
 select rpad('hello', 4294967297, '1');
+#view protocol generates additional warning
+--disable_view_protocol
 select rpad('hello', -18446744073709551615, '1');
 select rpad('hello', 18446744073709551615, '1');
 select rpad('hello', -18446744073709551616, '1');
 select rpad('hello', 18446744073709551616, '1');
 select rpad('hello', -18446744073709551617, '1');
 select rpad('hello', 18446744073709551617, '1');
+--enable_view_protocol
 select rpad('hello', -1);
 select rpad('hello', -4294967295);
 select rpad('hello', 4294967295);
@@ -1120,12 +1181,15 @@ select rpad('hello', -4294967296);
 select rpad('hello', 4294967296);
 select rpad('hello', -4294967297);
 select rpad('hello', 4294967297);
+#view protocol generates additional warning
+--disable_view_protocol
 select rpad('hello', -18446744073709551615);
 select rpad('hello', 18446744073709551615);
 select rpad('hello', -18446744073709551616);
 select rpad('hello', 18446744073709551616);
 select rpad('hello', -18446744073709551617);
 select rpad('hello', 18446744073709551617);
+--enable_view_protocol
 select rpad('hello', 0, 'x');
 select rpad('hello', 0);
 
@@ -1136,12 +1200,15 @@ select lpad('hello', -4294967296, '1');
 select lpad('hello', 4294967296, '1');
 select lpad('hello', -4294967297, '1');
 select lpad('hello', 4294967297, '1');
+#view protocol generates additional warning
+--disable_view_protocol
 select lpad('hello', -18446744073709551615, '1');
 select lpad('hello', 18446744073709551615, '1');
 select lpad('hello', -18446744073709551616, '1');
 select lpad('hello', 18446744073709551616, '1');
 select lpad('hello', -18446744073709551617, '1');
 select lpad('hello', 18446744073709551617, '1');
+--enable_view_protocol
 select lpad('hello', -1);
 select lpad('hello', -4294967295);
 select lpad('hello', 4294967295);
@@ -1149,12 +1216,15 @@ select lpad('hello', -4294967296);
 select lpad('hello', 4294967296);
 select lpad('hello', -4294967297);
 select lpad('hello', 4294967297);
+#view protocol generates additional warning
+--disable_view_protocol
 select lpad('hello', -18446744073709551615);
 select lpad('hello', 18446744073709551615);
 select lpad('hello', -18446744073709551616);
 select lpad('hello', 18446744073709551616);
 select lpad('hello', -18446744073709551617);
 select lpad('hello', 18446744073709551617);
+--enable_view_protocol
 select lpad('hello', 0, 'x');
 select lpad('hello', 0);
 
@@ -1326,7 +1396,9 @@ DROP VIEW v1;
 create table t1(a float);
 insert into t1 values (1.33);
 --enable_metadata
+--disable_view_protocol
 select format(a, 2) from t1;
+--enable_view_protocol
 --disable_metadata
 drop table t1;
 
@@ -1395,6 +1467,8 @@ CREATE TABLE t2 (a VARCHAR(20), b INT);
 INSERT INTO t1 VALUES ('ABC', 1);
 INSERT INTO t2 VALUES ('ABC', 1);
 
+#enable after fix MDEV-27871
+--disable_view_protocol
 SELECT DECODE((SELECT ENCODE('secret', t1.a) FROM t1,t2 WHERE t1.a = t2.a GROUP BY t1.b), t2.a)
   FROM t1,t2 WHERE t1.b = t1.b > 0 GROUP BY t2.b;
 
@@ -1403,6 +1477,7 @@ SELECT DECODE((SELECT ENCODE('secret', 'ABC') FROM t1,t2 WHERE t1.a = t2.a GROUP
 
 SELECT DECODE((SELECT ENCODE('secret', t1.a) FROM t1,t2 WHERE t1.a = t2.a GROUP BY t1.b), 'ABC')
   FROM t1,t2 WHERE t1.b = t1.b > 0 GROUP BY t2.b;
+--enable_view_protocol
 
 TRUNCATE TABLE t1;
 TRUNCATE TABLE t2;
@@ -1410,8 +1485,11 @@ TRUNCATE TABLE t2;
 INSERT INTO t1 VALUES ('EDF', 3), ('BCD', 2), ('ABC', 1);
 INSERT INTO t2 VALUES ('EDF', 3), ('BCD', 2), ('ABC', 1);
 
+#enable after fix MDEV-27871
+--disable_view_protocol
 SELECT DECODE((SELECT ENCODE('secret', t1.a) FROM t1,t2 WHERE t1.a = t2.a GROUP BY t1.b LIMIT 1), t2.a)
   FROM t2 WHERE t2.b = 1 GROUP BY t2.b;
+--enable_view_protocol
 
 DROP TABLE t1, t2;
 
@@ -1429,7 +1507,10 @@ DROP TABLE t1;
 --echo # Bug#57810 case/when/then : Assertion failed: length || !scale
 --echo #
 SELECT '1' IN ('1', SUBSTRING(-9223372036854775809, 1));
+#view protocol generates additional warning
+--disable_view_protocol
 SELECT CONVERT(('' IN (REVERSE(CAST(('') AS DECIMAL)), '')), CHAR(3));
+--enable_view_protocol
 
 --echo # 
 --echo # Bug#58165: "my_empty_string" gets modified and causes LOAD DATA to fail
@@ -1511,7 +1592,10 @@ DROP TABLE t;
 # WL#4584 Internationalized number format
 #
 SELECT format(12345678901234567890.123, 3);
+#view protocol generates additional warning
+--disable_view_protocol
 SELECT format(12345678901234567890.123, 3, NULL);
+--disable_view_protocol
 SELECT format(12345678901234567890.123, 3, 'ar_AE');
 SELECT format(12345678901234567890.123, 3, 'ar_SA');
 SELECT format(12345678901234567890.123, 3, 'be_BY');
@@ -1568,17 +1652,23 @@ SELECT CONV(1,-2147483648,-2147483648);
 --echo # Bug#12985030 SIMPLE QUERY WITH DECIMAL NUMBERS LEAKS MEMORY
 --echo #
 
+#enable after fix MDEV-27871
+--disable_view_protocol
 SELECT (rpad(1.0,2048,1)) IS NOT FALSE;
 SELECT ((+0) IN
 ((0b111111111111111111111111111111111111111111111111111),(rpad(1.0,2048,1)),
 (32767.1)));
 SELECT ((rpad(1.0,2048,1)) = ('4(') ^ (0.1));
+--enable_view_protocol
 
 --error 1690
 SELECT
 pow((rpad(10.0,2048,1)),(b'1111111111111111111111111111111111111111111'));
 SELECT ((rpad(1.0,2048,1)) + (0) ^ ('../'));
+#enable after fix MDEV-28585
+--disable_view_protocol
 SELECT stddev_samp(rpad(1.0,2048,1));
+--enable_view_protocol
 SELECT ((127.1) not in ((rpad(1.0,2048,1)),(''),(-1.1)));
 SELECT ((0xf3) * (rpad(1.0,2048,1)) << (0xcc));
 
@@ -1976,11 +2066,13 @@ DROP TABLE t1;
 --echo # MDEV-19359 ASAN heap-use-after-free in copy_if_not_alloced / make_sortkey
 --echo #
 
+#check and enable after fix MDEV-28536
+--disable_view_protocol
 CREATE TABLE t1 (a INT, b TIME, c TIME);
 INSERT INTO t1 VALUES (NULL,'22:56:45','22:56:45'),(4,'12:51:42','12:51:42');
 SELECT REPLACE( BINARY c, a, b ) f FROM t1 GROUP BY f WITH ROLLUP;
 DROP TABLE t1;
-
+--enable_view_protocol
 
 --echo #
 --echo # End of 10.1 tests
@@ -1995,7 +2087,10 @@ DROP TABLE t1;
 --echo # MDEV-24742 Server crashes in Charset::numchars / String::numchars
 --echo #
 
+#enable after fix MDEV-27871
+--disable_view_protocol
 SELECT NULL IN (RIGHT(AES_ENCRYPT('foo','bar'), LAST_INSERT_ID()), 'qux');
+--enable_view_protocol
 
 --echo #
 --echo # Bug#31374305 - FORMAT() NOT DISPLAYING WHOLE NUMBER SIDE CORRECTLY
@@ -2046,6 +2141,7 @@ DROP TABLE locale_format;
 --echo #
 --echo # MDEV-12685 Oracle-compatible function CHR()
 --echo #
+--disable_service_connection
 select chr(65);
 create database mysqltest1 CHARACTER SET = 'utf8' COLLATE = 'utf8_bin';
 use mysqltest1;
@@ -2053,6 +2149,7 @@ select charset(chr(65)), length(chr(65)),char_length(chr(65));
 select charset(chr(14844588)), length(chr(14844588)),char_length(chr(14844588));
 drop database mysqltest1;
 use test;
+--enable_service_connection
 
 --echo #
 --echo # MDEV-12592 Illegal mix of collations with the HEX function

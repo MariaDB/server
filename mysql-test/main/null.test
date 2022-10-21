@@ -7,6 +7,9 @@ drop table if exists t1, t2;
 # Testing of NULL in a lot of different places
 #
 
+#enable view protocol after fix MDEV-28535
+--disable_view_protocol
+
 select null,\N,isnull(null),isnull(1/0),isnull(1/0 = null),ifnull(null,1),ifnull(null,"TRUE"),ifnull("TRUE","ERROR"),1/0 is null,1 is not null;
 explain extended select null,\N,isnull(null),isnull(1/0),isnull(1/0 = null),ifnull(null,1),ifnull(null,"TRUE"),ifnull("TRUE","ERROR"),1/0 is null,1 is not null;
 select 1 | NULL,1 & NULL,1+NULL,1-NULL;
@@ -23,6 +26,8 @@ select NULL AND 0, 0 and NULL;
 select inet_ntoa(null),inet_aton(null),inet_aton("122.256"),inet_aton("122.226."),inet_aton("");
 explain extended select inet_ntoa(null),inet_aton(null),inet_aton("122.256"),inet_aton("122.226."),inet_aton("");
 select not null is true, not null or true, not null and false, not null <=> null;
+
+--enable_view_protocol
 
 create table t1 (x int);
 insert into t1 values (null);
@@ -1059,7 +1064,14 @@ SELECT NULLIF(COUNT(c1),0) FROM t1;
 SELECT CASE WHEN COUNT(c1)=0 THEN NULL ELSE COUNT(c1) END  FROM t1;
 SELECT NULLIF(COUNT(c1)+0,0) AS c1,NULLIF(CAST(COUNT(c1) AS SIGNED),0) AS c2,NULLIF(CONCAT(COUNT(c1)),0) AS c3 FROM t1;
 SELECT NULLIF(COUNT(DISTINCT c1),0) FROM t1;
+
+#enable view protocol after fix MDEV-27871
+--disable_view_protocol
+
 SELECT CASE WHEN COUNT(DISTINCT c1)=0 THEN NULL ELSE COUNT(DISTINCT c1) END  FROM t1;
+
+--enable_view_protocol
+
 DROP TABLE t1;
 
 CREATE TABLE  t1 (
@@ -1122,12 +1134,17 @@ drop table t1;
 #
 # MDEV-9641 Assertion `args[0] == args[2] || _current_thd()->lex->context_analysis_only' failed in Item_func_nullif::print(String*, enum_query_type)
 #
+
+#it is necessary that the view protocol uses the same connection,
+# not util connection
+--disable_service_connection
 set names utf8;
 create table t1 (f1 varchar(10));
 insert into t1 values ('2015-12-31');
 --error ER_DATA_OUT_OF_RANGE
 select power( timestamp( nullif( '2002-09-08', f1 ) ), 24 ) from t1;
 drop table t1;
+--enable_service_connection
 
 #
 # MDEV-9682 Assertion `0' failed in Item_cache_row::illegal_method_call on 2nd execution of PS with NULLIF
