@@ -3132,9 +3132,8 @@ sub mysql_install_db {
       # Append sys schema
       mtr_appendfile_to_file("$gis_sp_path/mysql_sys_schema.sql",
            $bootstrap_sql_file);
-      # Create test database
-      mtr_appendfile_to_file("$sql_dir/mysql_test_db.sql",
-                            $bootstrap_sql_file);
+
+      mtr_tofile($bootstrap_sql_file, "CREATE DATABASE IF NOT EXISTS test CHARACTER SET latin1 COLLATE latin1_swedish_ci;\n");
 
       # mysql.gtid_slave_pos was created in InnoDB, but many tests
       # run without InnoDB. Alter it to Aria now
