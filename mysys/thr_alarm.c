@@ -114,7 +114,6 @@ void init_thr_alarm(uint max_alarms)
     pthread_attr_init(&thr_attr);
     pthread_attr_setscope(&thr_attr,PTHREAD_SCOPE_PROCESS);
     pthread_attr_setdetachstate(&thr_attr,PTHREAD_CREATE_DETACHED);
-    pthread_attr_setstacksize(&thr_attr,8196);
     mysql_thread_create(key_thread_alarm,
                         &alarm_thread, &thr_attr, alarm_handler, NULL);
     pthread_attr_destroy(&thr_attr);
