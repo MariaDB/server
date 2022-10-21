@@ -3,7 +3,7 @@ Table	Create Table
 const_table	CREATE TABLE `const_table` (
   `new` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL
-) ENGINE=ENGINE DEFAULT CHARSET=latin1
+) ENGINE=ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 insert into const_table values (1, 1), (2, 2);
 flush tables;
 # QUERY: CREATE OR REPLACE TABLE t1 (new int)
@@ -14,7 +14,7 @@ t1.ibd
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `old` int(11) DEFAULT NULL
-) ENGINE=ENGINE DEFAULT CHARSET=latin1
+) ENGINE=ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 Trigger	Event	Table	Statement	Timing	Created	sql_mode	Definer	character_set_client	collation_connection	Database Collation
 a	INSERT	t1	set @s= 1	BEFORE						
 # CRASH POINT: ddl_log_create_after_log_drop_backup
@@ -24,7 +24,7 @@ t1.ibd
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `old` int(11) DEFAULT NULL
-) ENGINE=ENGINE DEFAULT CHARSET=latin1
+) ENGINE=ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 Trigger	Event	Table	Statement	Timing	Created	sql_mode	Definer	character_set_client	collation_connection	Database Collation
 a	INSERT	t1	set @s= 1	BEFORE						
 # CRASH POINT: ddl_log_create_after_log_rename_backup
@@ -34,7 +34,7 @@ t1.ibd
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `old` int(11) DEFAULT NULL
-) ENGINE=ENGINE DEFAULT CHARSET=latin1
+) ENGINE=ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 Trigger	Event	Table	Statement	Timing	Created	sql_mode	Definer	character_set_client	collation_connection	Database Collation
 a	INSERT	t1	set @s= 1	BEFORE						
 # CRASH POINT: ddl_log_create_before_create_frm
@@ -44,7 +44,7 @@ t1.ibd
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `old` int(11) DEFAULT NULL
-) ENGINE=ENGINE DEFAULT CHARSET=latin1
+) ENGINE=ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 Trigger	Event	Table	Statement	Timing	Created	sql_mode	Definer	character_set_client	collation_connection	Database Collation
 a	INSERT	t1	set @s= 1	BEFORE						
 # CRASH POINT: ddl_log_create_before_create_table
@@ -54,7 +54,7 @@ t1.ibd
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `old` int(11) DEFAULT NULL
-) ENGINE=ENGINE DEFAULT CHARSET=latin1
+) ENGINE=ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 Trigger	Event	Table	Statement	Timing	Created	sql_mode	Definer	character_set_client	collation_connection	Database Collation
 a	INSERT	t1	set @s= 1	BEFORE						
 # CRASH POINT: ddl_log_create_after_create_table
@@ -64,7 +64,7 @@ t1.ibd
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `old` int(11) DEFAULT NULL
-) ENGINE=ENGINE DEFAULT CHARSET=latin1
+) ENGINE=ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 Trigger	Event	Table	Statement	Timing	Created	sql_mode	Definer	character_set_client	collation_connection	Database Collation
 a	INSERT	t1	set @s= 1	BEFORE						
 # CRASH POINT: ddl_log_create_after_drop
@@ -75,7 +75,7 @@ master-bin.000001	#	Query	#	#	use `test`; CREATE OR REPLACE TABLE t1 (new int)
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `new` int(11) DEFAULT NULL
-) ENGINE=ENGINE DEFAULT CHARSET=latin1
+) ENGINE=ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 Trigger	Event	Table	Statement	Timing	Created	sql_mode	Definer	character_set_client	collation_connection	Database Collation
 # CRASH POINT: ddl_log_create_after_send_data
 # No crash!
@@ -85,7 +85,7 @@ master-bin.000001	#	Query	#	#	use `test`; CREATE OR REPLACE TABLE t1 (new int)
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `new` int(11) DEFAULT NULL
-) ENGINE=ENGINE DEFAULT CHARSET=latin1
+) ENGINE=ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 Trigger	Event	Table	Statement	Timing	Created	sql_mode	Definer	character_set_client	collation_connection	Database Collation
 # CRASH POINT: ddl_log_create_after_save_backup
 t1.TRG
@@ -94,7 +94,7 @@ t1.ibd
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `old` int(11) DEFAULT NULL
-) ENGINE=ENGINE DEFAULT CHARSET=latin1
+) ENGINE=ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 Trigger	Event	Table	Statement	Timing	Created	sql_mode	Definer	character_set_client	collation_connection	Database Collation
 a	INSERT	t1	set @s= 1	BEFORE						
 # CRASH POINT: ddl_log_create_after_install_new
@@ -104,7 +104,7 @@ t1.ibd
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `old` int(11) DEFAULT NULL
-) ENGINE=ENGINE DEFAULT CHARSET=latin1
+) ENGINE=ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 Trigger	Event	Table	Statement	Timing	Created	sql_mode	Definer	character_set_client	collation_connection	Database Collation
 a	INSERT	t1	set @s= 1	BEFORE						
 # CRASH POINT: ddl_log_create_before_binlog
@@ -114,7 +114,7 @@ t1.ibd
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `old` int(11) DEFAULT NULL
-) ENGINE=ENGINE DEFAULT CHARSET=latin1
+) ENGINE=ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 Trigger	Event	Table	Statement	Timing	Created	sql_mode	Definer	character_set_client	collation_connection	Database Collation
 a	INSERT	t1	set @s= 1	BEFORE						
 # CRASH POINT: ddl_log_create_after_prepare_eof
@@ -125,7 +125,7 @@ master-bin.000001	#	Query	#	#	use `test`; CREATE OR REPLACE TABLE t1 (new int)
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `new` int(11) DEFAULT NULL
-) ENGINE=ENGINE DEFAULT CHARSET=latin1
+) ENGINE=ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 Trigger	Event	Table	Statement	Timing	Created	sql_mode	Definer	character_set_client	collation_connection	Database Collation
 # CRASH POINT: ddl_log_create_after_binlog
 t1.frm
@@ -134,7 +134,7 @@ master-bin.000001	#	Query	#	#	use `test`; CREATE OR REPLACE TABLE t1 (new int)
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `new` int(11) DEFAULT NULL
-) ENGINE=ENGINE DEFAULT CHARSET=latin1
+) ENGINE=ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 Trigger	Event	Table	Statement	Timing	Created	sql_mode	Definer	character_set_client	collation_connection	Database Collation
 # CRASH POINT: ddl_log_create_fk_fail
 t1.TRG
@@ -147,7 +147,7 @@ t1	CREATE TABLE `t1` (
   `old` int(11) NOT NULL,
   `y` int(11) DEFAULT NULL,
   PRIMARY KEY (`old`)
-) ENGINE=ENGINE DEFAULT CHARSET=latin1
+) ENGINE=ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 Trigger	Event	Table	Statement	Timing	Created	sql_mode	Definer	character_set_client	collation_connection	Database Collation
 a	INSERT	t1	set @s= 1	BEFORE						
 # CRASH POINT: ddl_log_create_fk_fail2
@@ -161,7 +161,7 @@ t1	CREATE TABLE `t1` (
   `old` int(11) NOT NULL,
   `y` int(11) DEFAULT NULL,
   PRIMARY KEY (`old`)
-) ENGINE=ENGINE DEFAULT CHARSET=latin1
+) ENGINE=ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 Trigger	Event	Table	Statement	Timing	Created	sql_mode	Definer	character_set_client	collation_connection	Database Collation
 a	INSERT	t1	set @s= 1	BEFORE						
 # CRASH POINT: ddl_log_create_fk_fail3
@@ -175,7 +175,7 @@ t1	CREATE TABLE `t1` (
   `old` int(11) NOT NULL,
   `y` int(11) DEFAULT NULL,
   PRIMARY KEY (`old`)
-) ENGINE=ENGINE DEFAULT CHARSET=latin1
+) ENGINE=ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 Trigger	Event	Table	Statement	Timing	Created	sql_mode	Definer	character_set_client	collation_connection	Database Collation
 a	INSERT	t1	set @s= 1	BEFORE						
 # CRASH POINT: ddl_log_create_log_complete
@@ -185,7 +185,7 @@ master-bin.000001	#	Query	#	#	use `test`; CREATE OR REPLACE TABLE t1 (new int)
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `new` int(11) DEFAULT NULL
-) ENGINE=ENGINE DEFAULT CHARSET=latin1
+) ENGINE=ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 Trigger	Event	Table	Statement	Timing	Created	sql_mode	Definer	character_set_client	collation_connection	Database Collation
 # CRASH POINT: ddl_log_create_log_complete2
 t1.frm
@@ -194,7 +194,7 @@ master-bin.000001	#	Query	#	#	use `test`; CREATE OR REPLACE TABLE t1 (new int)
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `new` int(11) DEFAULT NULL
-) ENGINE=ENGINE DEFAULT CHARSET=latin1
+) ENGINE=ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 Trigger	Event	Table	Statement	Timing	Created	sql_mode	Definer	character_set_client	collation_connection	Database Collation
 # CRASH POINT: ddl_log_create_log_complete3
 t1.frm
@@ -203,7 +203,7 @@ master-bin.000001	#	Query	#	#	use `test`; CREATE OR REPLACE TABLE t1 (new int)
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `new` int(11) DEFAULT NULL
-) ENGINE=ENGINE DEFAULT CHARSET=latin1
+) ENGINE=ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 Trigger	Event	Table	Statement	Timing	Created	sql_mode	Definer	character_set_client	collation_connection	Database Collation
 # QUERY: CREATE OR REPLACE TABLE t1 LIKE const_table
 # CRASH POINT: ddl_log_create_before_install_new
@@ -213,7 +213,7 @@ t1.ibd
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `old` int(11) DEFAULT NULL
-) ENGINE=ENGINE DEFAULT CHARSET=latin1
+) ENGINE=ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 Trigger	Event	Table	Statement	Timing	Created	sql_mode	Definer	character_set_client	collation_connection	Database Collation
 a	INSERT	t1	set @s= 1	BEFORE						
 # CRASH POINT: ddl_log_create_after_log_drop_backup
@@ -223,7 +223,7 @@ t1.ibd
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `old` int(11) DEFAULT NULL
-) ENGINE=ENGINE DEFAULT CHARSET=latin1
+) ENGINE=ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 Trigger	Event	Table	Statement	Timing	Created	sql_mode	Definer	character_set_client	collation_connection	Database Collation
 a	INSERT	t1	set @s= 1	BEFORE						
 # CRASH POINT: ddl_log_create_after_log_rename_backup
@@ -233,7 +233,7 @@ t1.ibd
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `old` int(11) DEFAULT NULL
-) ENGINE=ENGINE DEFAULT CHARSET=latin1
+) ENGINE=ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 Trigger	Event	Table	Statement	Timing	Created	sql_mode	Definer	character_set_client	collation_connection	Database Collation
 a	INSERT	t1	set @s= 1	BEFORE						
 # CRASH POINT: ddl_log_create_before_create_frm
@@ -243,7 +243,7 @@ t1.ibd
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `old` int(11) DEFAULT NULL
-) ENGINE=ENGINE DEFAULT CHARSET=latin1
+) ENGINE=ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 Trigger	Event	Table	Statement	Timing	Created	sql_mode	Definer	character_set_client	collation_connection	Database Collation
 a	INSERT	t1	set @s= 1	BEFORE						
 # CRASH POINT: ddl_log_create_before_create_table
@@ -253,7 +253,7 @@ t1.ibd
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `old` int(11) DEFAULT NULL
-) ENGINE=ENGINE DEFAULT CHARSET=latin1
+) ENGINE=ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 Trigger	Event	Table	Statement	Timing	Created	sql_mode	Definer	character_set_client	collation_connection	Database Collation
 a	INSERT	t1	set @s= 1	BEFORE						
 # CRASH POINT: ddl_log_create_after_create_table
@@ -263,7 +263,7 @@ t1.ibd
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `old` int(11) DEFAULT NULL
-) ENGINE=ENGINE DEFAULT CHARSET=latin1
+) ENGINE=ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 Trigger	Event	Table	Statement	Timing	Created	sql_mode	Definer	character_set_client	collation_connection	Database Collation
 a	INSERT	t1	set @s= 1	BEFORE						
 # CRASH POINT: ddl_log_create_after_drop
@@ -275,7 +275,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `new` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL
-) ENGINE=ENGINE DEFAULT CHARSET=latin1
+) ENGINE=ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 Trigger	Event	Table	Statement	Timing	Created	sql_mode	Definer	character_set_client	collation_connection	Database Collation
 # CRASH POINT: ddl_log_create_after_send_data
 # No crash!
@@ -286,7 +286,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `new` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL
-) ENGINE=ENGINE DEFAULT CHARSET=latin1
+) ENGINE=ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 Trigger	Event	Table	Statement	Timing	Created	sql_mode	Definer	character_set_client	collation_connection	Database Collation
 # CRASH POINT: ddl_log_create_after_save_backup
 t1.TRG
@@ -295,7 +295,7 @@ t1.ibd
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `old` int(11) DEFAULT NULL
-) ENGINE=ENGINE DEFAULT CHARSET=latin1
+) ENGINE=ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 Trigger	Event	Table	Statement	Timing	Created	sql_mode	Definer	character_set_client	collation_connection	Database Collation
 a	INSERT	t1	set @s= 1	BEFORE						
 # CRASH POINT: ddl_log_create_after_install_new
@@ -305,7 +305,7 @@ t1.ibd
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `old` int(11) DEFAULT NULL
-) ENGINE=ENGINE DEFAULT CHARSET=latin1
+) ENGINE=ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 Trigger	Event	Table	Statement	Timing	Created	sql_mode	Definer	character_set_client	collation_connection	Database Collation
 a	INSERT	t1	set @s= 1	BEFORE						
 # CRASH POINT: ddl_log_create_before_binlog
@@ -315,7 +315,7 @@ t1.ibd
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `old` int(11) DEFAULT NULL
-) ENGINE=ENGINE DEFAULT CHARSET=latin1
+) ENGINE=ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 Trigger	Event	Table	Statement	Timing	Created	sql_mode	Definer	character_set_client	collation_connection	Database Collation
 a	INSERT	t1	set @s= 1	BEFORE						
 # CRASH POINT: ddl_log_create_after_prepare_eof
@@ -327,7 +327,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `new` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL
-) ENGINE=ENGINE DEFAULT CHARSET=latin1
+) ENGINE=ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 Trigger	Event	Table	Statement	Timing	Created	sql_mode	Definer	character_set_client	collation_connection	Database Collation
 # CRASH POINT: ddl_log_create_after_binlog
 t1.frm
@@ -337,7 +337,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `new` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL
-) ENGINE=ENGINE DEFAULT CHARSET=latin1
+) ENGINE=ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 Trigger	Event	Table	Statement	Timing	Created	sql_mode	Definer	character_set_client	collation_connection	Database Collation
 # CRASH POINT: ddl_log_create_fk_fail
 t1.TRG
@@ -350,7 +350,7 @@ t1	CREATE TABLE `t1` (
   `old` int(11) NOT NULL,
   `y` int(11) DEFAULT NULL,
   PRIMARY KEY (`old`)
-) ENGINE=ENGINE DEFAULT CHARSET=latin1
+) ENGINE=ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 Trigger	Event	Table	Statement	Timing	Created	sql_mode	Definer	character_set_client	collation_connection	Database Collation
 a	INSERT	t1	set @s= 1	BEFORE						
 # CRASH POINT: ddl_log_create_fk_fail2
@@ -364,7 +364,7 @@ t1	CREATE TABLE `t1` (
   `old` int(11) NOT NULL,
   `y` int(11) DEFAULT NULL,
   PRIMARY KEY (`old`)
-) ENGINE=ENGINE DEFAULT CHARSET=latin1
+) ENGINE=ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 Trigger	Event	Table	Statement	Timing	Created	sql_mode	Definer	character_set_client	collation_connection	Database Collation
 a	INSERT	t1	set @s= 1	BEFORE						
 # CRASH POINT: ddl_log_create_fk_fail3
@@ -378,7 +378,7 @@ t1	CREATE TABLE `t1` (
   `old` int(11) NOT NULL,
   `y` int(11) DEFAULT NULL,
   PRIMARY KEY (`old`)
-) ENGINE=ENGINE DEFAULT CHARSET=latin1
+) ENGINE=ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 Trigger	Event	Table	Statement	Timing	Created	sql_mode	Definer	character_set_client	collation_connection	Database Collation
 a	INSERT	t1	set @s= 1	BEFORE						
 # CRASH POINT: ddl_log_create_log_complete
@@ -389,7 +389,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `new` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL
-) ENGINE=ENGINE DEFAULT CHARSET=latin1
+) ENGINE=ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 Trigger	Event	Table	Statement	Timing	Created	sql_mode	Definer	character_set_client	collation_connection	Database Collation
 # CRASH POINT: ddl_log_create_log_complete2
 t1.frm
@@ -399,7 +399,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `new` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL
-) ENGINE=ENGINE DEFAULT CHARSET=latin1
+) ENGINE=ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 Trigger	Event	Table	Statement	Timing	Created	sql_mode	Definer	character_set_client	collation_connection	Database Collation
 # CRASH POINT: ddl_log_create_log_complete3
 t1.frm
@@ -409,7 +409,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `new` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL
-) ENGINE=ENGINE DEFAULT CHARSET=latin1
+) ENGINE=ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 Trigger	Event	Table	Statement	Timing	Created	sql_mode	Definer	character_set_client	collation_connection	Database Collation
 # QUERY: CREATE OR REPLACE TABLE t1 SELECT * from const_table
 # CRASH POINT: ddl_log_create_before_install_new
@@ -419,7 +419,7 @@ t1.ibd
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `old` int(11) DEFAULT NULL
-) ENGINE=ENGINE DEFAULT CHARSET=latin1
+) ENGINE=ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 old
 Trigger	Event	Table	Statement	Timing	Created	sql_mode	Definer	character_set_client	collation_connection	Database Collation
 a	INSERT	t1	set @s= 1	BEFORE						
@@ -430,7 +430,7 @@ t1.ibd
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `old` int(11) DEFAULT NULL
-) ENGINE=ENGINE DEFAULT CHARSET=latin1
+) ENGINE=ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 old
 Trigger	Event	Table	Statement	Timing	Created	sql_mode	Definer	character_set_client	collation_connection	Database Collation
 a	INSERT	t1	set @s= 1	BEFORE						
@@ -441,7 +441,7 @@ t1.ibd
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `old` int(11) DEFAULT NULL
-) ENGINE=ENGINE DEFAULT CHARSET=latin1
+) ENGINE=ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 old
 Trigger	Event	Table	Statement	Timing	Created	sql_mode	Definer	character_set_client	collation_connection	Database Collation
 a	INSERT	t1	set @s= 1	BEFORE						
@@ -452,7 +452,7 @@ t1.ibd
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `old` int(11) DEFAULT NULL
-) ENGINE=ENGINE DEFAULT CHARSET=latin1
+) ENGINE=ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 old
 Trigger	Event	Table	Statement	Timing	Created	sql_mode	Definer	character_set_client	collation_connection	Database Collation
 a	INSERT	t1	set @s= 1	BEFORE						
@@ -463,7 +463,7 @@ t1.ibd
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `old` int(11) DEFAULT NULL
-) ENGINE=ENGINE DEFAULT CHARSET=latin1
+) ENGINE=ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 old
 Trigger	Event	Table	Statement	Timing	Created	sql_mode	Definer	character_set_client	collation_connection	Database Collation
 a	INSERT	t1	set @s= 1	BEFORE						
@@ -474,7 +474,7 @@ t1.ibd
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `old` int(11) DEFAULT NULL
-) ENGINE=ENGINE DEFAULT CHARSET=latin1
+) ENGINE=ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 old
 Trigger	Event	Table	Statement	Timing	Created	sql_mode	Definer	character_set_client	collation_connection	Database Collation
 a	INSERT	t1	set @s= 1	BEFORE						
@@ -487,7 +487,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `new` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL
-) ENGINE=ENGINE DEFAULT CHARSET=latin1
+) ENGINE=ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 new	b
 1	1
 2	2
@@ -499,7 +499,7 @@ t1.ibd
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `old` int(11) DEFAULT NULL
-) ENGINE=ENGINE DEFAULT CHARSET=latin1
+) ENGINE=ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 old
 Trigger	Event	Table	Statement	Timing	Created	sql_mode	Definer	character_set_client	collation_connection	Database Collation
 a	INSERT	t1	set @s= 1	BEFORE						
@@ -510,7 +510,7 @@ t1.ibd
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `old` int(11) DEFAULT NULL
-) ENGINE=ENGINE DEFAULT CHARSET=latin1
+) ENGINE=ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 old
 Trigger	Event	Table	Statement	Timing	Created	sql_mode	Definer	character_set_client	collation_connection	Database Collation
 a	INSERT	t1	set @s= 1	BEFORE						
@@ -521,7 +521,7 @@ t1.ibd
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `old` int(11) DEFAULT NULL
-) ENGINE=ENGINE DEFAULT CHARSET=latin1
+) ENGINE=ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 old
 Trigger	Event	Table	Statement	Timing	Created	sql_mode	Definer	character_set_client	collation_connection	Database Collation
 a	INSERT	t1	set @s= 1	BEFORE						
@@ -532,7 +532,7 @@ t1.ibd
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `old` int(11) DEFAULT NULL
-) ENGINE=ENGINE DEFAULT CHARSET=latin1
+) ENGINE=ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 old
 Trigger	Event	Table	Statement	Timing	Created	sql_mode	Definer	character_set_client	collation_connection	Database Collation
 a	INSERT	t1	set @s= 1	BEFORE						
@@ -543,7 +543,7 @@ t1.ibd
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `old` int(11) DEFAULT NULL
-) ENGINE=ENGINE DEFAULT CHARSET=latin1
+) ENGINE=ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 old
 Trigger	Event	Table	Statement	Timing	Created	sql_mode	Definer	character_set_client	collation_connection	Database Collation
 a	INSERT	t1	set @s= 1	BEFORE						
@@ -555,7 +555,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `new` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL
-) ENGINE=ENGINE DEFAULT CHARSET=latin1
+) ENGINE=ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 new	b
 1	1
 2	2
@@ -571,7 +571,7 @@ t1	CREATE TABLE `t1` (
   `old` int(11) NOT NULL,
   `y` int(11) DEFAULT NULL,
   PRIMARY KEY (`old`)
-) ENGINE=ENGINE DEFAULT CHARSET=latin1
+) ENGINE=ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 old	y
 Trigger	Event	Table	Statement	Timing	Created	sql_mode	Definer	character_set_client	collation_connection	Database Collation
 a	INSERT	t1	set @s= 1	BEFORE						
@@ -586,7 +586,7 @@ t1	CREATE TABLE `t1` (
   `old` int(11) NOT NULL,
   `y` int(11) DEFAULT NULL,
   PRIMARY KEY (`old`)
-) ENGINE=ENGINE DEFAULT CHARSET=latin1
+) ENGINE=ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 old	y
 Trigger	Event	Table	Statement	Timing	Created	sql_mode	Definer	character_set_client	collation_connection	Database Collation
 a	INSERT	t1	set @s= 1	BEFORE						
@@ -601,7 +601,7 @@ t1	CREATE TABLE `t1` (
   `old` int(11) NOT NULL,
   `y` int(11) DEFAULT NULL,
   PRIMARY KEY (`old`)
-) ENGINE=ENGINE DEFAULT CHARSET=latin1
+) ENGINE=ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 old	y
 Trigger	Event	Table	Statement	Timing	Created	sql_mode	Definer	character_set_client	collation_connection	Database Collation
 a	INSERT	t1	set @s= 1	BEFORE						
@@ -613,7 +613,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `new` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL
-) ENGINE=ENGINE DEFAULT CHARSET=latin1
+) ENGINE=ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 new	b
 1	1
 2	2
@@ -626,7 +626,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `new` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL
-) ENGINE=ENGINE DEFAULT CHARSET=latin1
+) ENGINE=ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 new	b
 1	1
 2	2
@@ -639,7 +639,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `new` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL
-) ENGINE=ENGINE DEFAULT CHARSET=latin1
+) ENGINE=ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 new	b
 1	1
 2	2

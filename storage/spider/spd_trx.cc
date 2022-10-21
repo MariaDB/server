@@ -90,7 +90,6 @@ int spider_free_trx_conn(SPIDER_TRX *trx, bool trx_free)
   HASH *conn_hash= &trx->trx_conn_hash;
 
   DBUG_ENTER("spider_free_trx_conn");
-  DBUG_ASSERT(!trx_free || !trx->locked_connections);
 
   /* Clear the connection queues in any case. */
   while ((conn= (SPIDER_CONN *) my_hash_element(conn_hash, loop_count)))
@@ -101,11 +100,16 @@ int spider_free_trx_conn(SPIDER_TRX *trx, bool trx_free)
 
   if (trx_free || spider_param_conn_recycle_mode(trx->thd) != 2)
   {
-    /* Free connections only when no connection is locked. */
-    if (!trx->locked_connections)
+    loop_count= 0;
+    while ((conn= (SPIDER_CONN *) my_hash_element(&trx->trx_conn_hash,
+                                                  loop_count)))
     {
-      loop_count= 0;
-      while ((conn= (SPIDER_CONN *) my_hash_element(conn_hash, loop_count)))
+      if (conn->table_lock)
+      {
+        DBUG_ASSERT(!trx_free);
+        loop_count++;
+      }
+      else
       {
         spider_free_conn_from_trx(trx, conn, FALSE, trx_free, &loop_count);
       }

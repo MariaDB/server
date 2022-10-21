@@ -8883,7 +8883,7 @@ int TABLE::update_virtual_fields(handler *h, enum_vcol_update_mode update_mode)
     {
       /* Compute the actual value of the virtual fields */
       DBUG_FIX_WRITE_SET(vf);
-# ifndef DBUG_OFF
+# ifdef DBUG_TRACE
       int field_error=
 # endif
       vcol_info->expr->save_in_field(vf, 0);
@@ -8914,12 +8914,28 @@ int TABLE::update_virtual_fields(handler *h, enum_vcol_update_mode update_mode)
   DBUG_RETURN(in_use->is_error());
 }
 
-int TABLE::update_virtual_field(Field *vf)
+/*
+  Calculate the virtual field value for a specified field.
+  @param vf                     A field to calculate
+  @param ignore_warnings        Ignore the warnings and also make the
+                                calculations permissive. This usually means
+                                that a calculation is internal and is not
+                                expected to fail.
+*/
+int TABLE::update_virtual_field(Field *vf, bool ignore_warnings)
 {
   DBUG_ENTER("TABLE::update_virtual_field");
   Query_arena backup_arena;
   Counting_error_handler count_errors;
+  Suppress_warnings_error_handler warning_handler;
   in_use->push_internal_handler(&count_errors);
+  bool abort_on_warning;
+  if (ignore_warnings)
+  {
+    abort_on_warning= in_use->abort_on_warning;
+    in_use->abort_on_warning= false;
+    in_use->push_internal_handler(&warning_handler);
+  }
   /*
     TODO: this may impose memory leak until table flush.
           See comment in
@@ -8933,6 +8949,13 @@ int TABLE::update_virtual_field(Field *vf)
   DBUG_RESTORE_WRITE_SET(vf);
   in_use->restore_active_arena(expr_arena, &backup_arena);
   in_use->pop_internal_handler();
+  if (ignore_warnings)
+  {
+    in_use->abort_on_warning= abort_on_warning;
+    in_use->pop_internal_handler();
+    // This is an internal calculation, we expect it to always succeed
+    DBUG_ASSERT(count_errors.errors == 0);
+  }
   DBUG_RETURN(count_errors.errors);
 }
 
@@ -9790,6 +9813,73 @@ bool TABLE_LIST::is_with_table()
 {
   return derived && derived->with_element;
 }
+
+
+/**
+  Check if the definition are the same.
+
+  If versions do not match it check definitions (with checking and setting
+  trigger definition versions (times)
+
+  @param[in]  view                TABLE_LIST of the view
+  @param[in]  share               Share object of view
+
+  @return false on error or different definitions.
+
+  @sa check_and_update_table_version()
+*/
+
+bool TABLE_LIST::is_the_same_definition(THD* thd, TABLE_SHARE *s)
+{
+  enum enum_table_ref_type tp= s->get_table_ref_type();
+  if (m_table_ref_type == tp)
+  {
+    /*
+      Cache have not changed which means that definition was not changed
+      including triggers
+    */
+    if (m_table_ref_version == s->get_table_ref_version())
+      return TRUE;
+
+    /*
+      If cache changed then check content version
+    */
+    if ((tabledef_version.length &&
+         tabledef_version.length == s->tabledef_version.length &&
+         memcmp(tabledef_version.str, s->tabledef_version.str,
+                tabledef_version.length) == 0))
+    {
+      // Definition have not changed, let's check if triggers changed.
+      if (table && table->triggers)
+      {
+
+        my_hrtime_t hr_stmt_prepare= thd->hr_prepare_time;
+        if (hr_stmt_prepare.val)
+          for(uint i= 0; i < TRG_EVENT_MAX; i++)
+            for (uint j= 0; j < TRG_ACTION_MAX; j++)
+            {
+              Trigger *tr=
+                table->triggers->get_trigger((trg_event_type)i,
+                                             (trg_action_time_type)j);
+              if (tr)
+                if (hr_stmt_prepare.val <= tr->hr_create_time.val)
+                {
+                  set_tabledef_version(s);
+                  return FALSE;
+                }
+            }
+      }
+      set_table_id(s);
+      return TRUE;
+    }
+    else
+      tabledef_version.length= 0;
+  }
+  else
+    set_tabledef_version(s);
+  return FALSE;
+}
+
 
 uint TABLE_SHARE::actual_n_key_parts(THD *thd)
 {

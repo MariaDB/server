@@ -129,8 +129,6 @@ Examples
 
 ALTER SERVER s OPTIONS (USER 'sally');
 
-
-
 URL: mariadb.com/kb/en/alter-server/	
 # Test case 11: Check that the statements CREATE/ALTER/DROP PROCEDURE
 # are supported by prepared statements

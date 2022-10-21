@@ -548,8 +548,10 @@ void trx_disconnect_prepared(trx_t *trx)
   ut_ad(trx->mysql_thd);
   ut_ad(!trx->mysql_log_file_name);
   trx->read_view.close();
+  trx_sys.trx_list.freeze();
   trx->is_recovered= true;
   trx->mysql_thd= NULL;
+  trx_sys.trx_list.unfreeze();
   /* todo/fixme: suggest to do it at innodb prepare */
   trx->will_lock= false;
   trx_sys.rw_trx_hash.put_pins(trx);
@@ -1379,6 +1381,10 @@ void trx_t::commit_cleanup()
   ut_ad(!dict_operation);
   ut_ad(!was_dict_operation);
 
+  if (is_bulk_insert())
+    for (auto &t : mod_tables)
+      delete t.second.bulk_store;
+
   mutex.wr_lock();
   state= TRX_STATE_NOT_STARTED;
   mod_tables.clear();
@@ -1420,7 +1426,8 @@ TRANSACTIONAL_TARGET void trx_t::commit_low(mtr_t *mtr)
 
   if (mtr)
   {
-    apply_log();
+    if (UNIV_UNLIKELY(apply_online_log))
+      apply_log();
     trx_write_serialisation_history(this, mtr);
 
     /* The following call commits the mini-transaction, making the
@@ -1469,8 +1476,11 @@ void trx_t::commit()
   ut_d(was_dict_operation= dict_operation);
   dict_operation= false;
   commit_persist();
+#ifdef UNIV_DEBUG
+  if (!was_dict_operation)
+    for (const auto &p : mod_tables) ut_ad(!p.second.is_dropped());
+#endif /* UNIV_DEBUG */
   ut_d(was_dict_operation= false);
-  ut_d(for (const auto &p : mod_tables) ut_ad(!p.second.is_dropped()));
   commit_cleanup();
 }
 

@@ -22,6 +22,4 @@ push @::global_suppressions,
      qr|WSREP: access file\(.*gvwstate.dat\) failed\(No such file or directory\)|,
    );
 
-sub is_default { 1 }
-
 bless { };

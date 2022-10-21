@@ -1965,12 +1965,7 @@ int Query_log_event::do_apply_event(rpl_group_info *rgi,
       thd->slave_expected_error= expected_error;
       if (flags2_inited)
       {
-        /*
-          all bits of thd->variables.option_bits which are 1 in
-          OPTIONS_WRITTEN_TO_BIN_LOG must take their value from
-          flags2.
-        */
-        ulonglong mask= rli->relay_log.description_event_for_exec->options_written_to_bin_log;
+        ulonglong mask= flags2_inited;
         thd->variables.option_bits= (flags2 & mask) |
                                     (thd->variables.option_bits & ~mask);
       }

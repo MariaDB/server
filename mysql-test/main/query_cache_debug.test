@@ -2,6 +2,7 @@
 --source include/have_query_cache.inc
 --source include/have_debug_sync.inc
 --source include/long_test.inc
+--source include/no_valgrind_without_big.inc
 
 set global query_cache_type= ON;
 set @save_query_cache_size=@@global.query_cache_size;
@@ -55,6 +56,7 @@ drop table t1;
 #
 # Bug#41098: Query Cache returns wrong result with concurrent insert
 #
+--disable_view_protocol
 
 --disable_warnings
 DROP TABLE IF EXISTS t1, t2;
@@ -106,7 +108,7 @@ DROP TABLE t1,t2;
 SET GLOBAL concurrent_insert= DEFAULT;
 SET GLOBAL query_cache_size= DEFAULT;
 SET GLOBAL query_cache_type= DEFAULT;
-
+--enable_view_protocol
 
 --echo #
 --echo # Bug43758 Query cache can lock up threads in 'freeing items' state

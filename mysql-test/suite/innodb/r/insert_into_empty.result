@@ -293,7 +293,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c` int(11) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 CREATE TABLE t2(d INT)ENGINE=InnoDB;
 DROP TABLE t2, t1;
 #
@@ -303,4 +303,14 @@ SET SESSION foreign_key_checks=0;
 CREATE TABLE t1 (a INT) ENGINE=InnoDB PARTITION BY HASH(a) PARTITIONS 2;
 INSERT INTO t1 VALUES (1),(2);
 ALTER TABLE t1 REBUILD PARTITION p0;
+DROP TABLE t1;
+#
+#  MDEV-29570  InnoDB fails to clean bulk buffer when server
+#			does rollback operation
+#
+CREATE TABLE t1 (pk INT PRIMARY KEY) ENGINE=InnoDB
+PARTITION BY RANGE (pk) (
+PARTITION pn VALUES LESS THAN (20));
+INSERT INTO t1 VALUES (1),(21);
+ERROR HY000: Table has no partition for value 21
 DROP TABLE t1;

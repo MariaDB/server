@@ -483,19 +483,20 @@ void wsrep_recover_sr_from_storage(THD *orig_thd)
     if (!wsrep_schema)
     {
       WSREP_ERROR("Wsrep schema not initialized when trying to recover "
-                  "streaming transactions");
-      unireg_abort(1);
+                  "streaming transactions: wsrep_on %d", WSREP_ON);
+      trans_commit(orig_thd);
     }
     if (wsrep_schema->recover_sr_transactions(orig_thd))
     {
-      WSREP_ERROR("Failed to recover SR transactions from schema");
-      unireg_abort(1);
+      WSREP_ERROR("Failed to recover SR transactions from schema: wsrep_on : %d", WSREP_ON);
+      trans_commit(orig_thd);
     }
     break;
   default:
     /* */
-    WSREP_ERROR("Unsupported wsrep SR store type: %lu", wsrep_SR_store_type);
-    unireg_abort(1);
+    WSREP_ERROR("Unsupported wsrep SR store type: %lu wsrep_on: %d",
+                wsrep_SR_store_type, WSREP_ON);
+    trans_commit(orig_thd);
     break;
   }
 }
@@ -721,11 +722,14 @@ static std::string wsrep_server_incoming_address()
     /*
       In case port is not specified in wsrep_node_incoming_address, we use
       mysqld_port.
+      Note that we might get here before we execute set_ports().
     */
-    int port= (addr.get_port() > 0) ? addr.get_port() : (int) mysqld_port;
+    int local_port= (addr.get_port() > 0) ? addr.get_port() : (int) mysqld_port;
+    if (!local_port)
+      local_port= MYSQL_PORT;
     const char *fmt= (addr.is_ipv6()) ? "[%s]:%u" : "%s:%u";
 
-    snprintf(inc_addr, inc_addr_max, fmt, addr.get_address(), port);
+    snprintf(inc_addr, inc_addr_max, fmt, addr.get_address(), local_port);
   }
 
  done:
@@ -2738,7 +2742,7 @@ static int wsrep_TOI_begin(THD *thd, const char *db, const char *table,
                  ret,
                  (thd->db.str ? thd->db.str : "(null)"),
                  wsrep_thd_query(thd));
-      my_error(ER_ERROR_DURING_COMMIT, MYF(0), WSREP_SIZE_EXCEEDED);
+      my_error(ER_UNKNOWN_ERROR, MYF(0), "Maximum writeset size exceeded");
       break;
     case wsrep::e_deadlock_error:
       WSREP_WARN("TO isolation failed for: %d, schema: %s, sql: %s. "
@@ -3757,19 +3761,28 @@ bool wsrep_consistency_check(THD *thd)
 void wsrep_commit_empty(THD* thd, bool all)
 {
   DBUG_ENTER("wsrep_commit_empty");
-  WSREP_DEBUG("wsrep_commit_empty(%llu)", thd->thread_id);
+  WSREP_DEBUG("wsrep_commit_empty for %llu client_state %s client_mode"
+              " %s trans_state %s sql %s",
+              thd_get_thread_id(thd),
+              wsrep::to_c_string(thd->wsrep_cs().state()),
+              wsrep::to_c_string(thd->wsrep_cs().mode()),
+              wsrep::to_c_string(thd->wsrep_cs().transaction().state()),
+              wsrep_thd_query(thd));
+
   if (wsrep_is_real(thd, all) &&
       wsrep_thd_is_local(thd) &&
       thd->wsrep_trx().active() &&
       !thd->internal_transaction() &&
       thd->wsrep_trx().state() != wsrep::transaction::s_committed)
   {
-    /* @todo CTAS with STATEMENT binlog format and empty result set
-       seems to be committing empty. Figure out why and try to fix
-       elsewhere. */
+    /* Here transaction is either empty (i.e. no changes) or
+       it was CREATE TABLE with no row binlog format or
+       we have already aborted transaction e.g. because max writeset size
+       has been reached. */
     DBUG_ASSERT(!wsrep_has_changes(thd) ||
                 (thd->lex->sql_command == SQLCOM_CREATE_TABLE &&
-                 !thd->is_current_stmt_binlog_format_row()));
+                 !thd->is_current_stmt_binlog_format_row()) ||
+                thd->wsrep_cs().transaction().state() == wsrep::transaction::s_aborted);
     bool have_error= wsrep_current_error(thd);
     int ret= wsrep_before_rollback(thd, all) ||
       wsrep_after_rollback(thd, all) ||

@@ -2,6 +2,7 @@
 -- source include/have_working_dns.inc
 -- source include/have_innodb.inc
 -- source include/have_partition.inc
+-- source include/no_valgrind_without_big.inc
 
 set sql_mode="";
 
@@ -56,7 +57,7 @@ DROP USER mysqltest1@'%';
 
 --echo Run mysql_upgrade with a non existing server socket
 --replace_result $MYSQLTEST_VARDIR var
---replace_regex /.*mysqlcheck.*: Got/mysqlcheck: Got/ /\([0-9|-]*\)/(errno)/
+--replace_regex /.*mariadb-check.*: Got/mariadb-check: Got/ /\([0-9|-]*\)/(errno)/
 --error 1
 # NC: Added --skip-version-check, as the version check would fail when
 # mysql_upgrade tries to get the server version.
@@ -140,7 +141,7 @@ let $MYSQLD_DATADIR= `select @@datadir`;
 --echo Run mysql_upgrade with unauthorized access
 --error 1
 --exec $MYSQL_UPGRADE --skip-verbose --user=root --password=wrong_password 2>&1
---replace_regex /.*mysqlcheck.*: Got/mysqlcheck: Got/ /\([0-9|-]*\)/(errno)/
+--replace_regex /.*mariadb-check.*: Got/mariadb-check: Got/ /\([0-9|-]*\)/(errno)/
 --error 1
 --exec $MYSQL_UPGRADE --skip-verbose --skip-version-check --user=root --password=wrong_password 2>&1
 
@@ -148,7 +149,7 @@ let $MYSQLD_DATADIR= `select @@datadir`;
 --echo # MDEV-4332 Increase username length from 16 characters
 --echo # MDEV-6068, MDEV-6178 mysql_upgrade breaks databases with long user names
 --echo #
-
+--disable_service_connection
 connection default;
 GRANT SELECT ON mysql.* TO very_long_user_name_number_1;
 GRANT SELECT ON mysql.* TO very_long_user_name_number_2;
@@ -171,7 +172,7 @@ SELECT definer FROM mysql.proc WHERE db = 'test' AND name = 'pr';
 SELECT grantor FROM mysql.tables_priv WHERE db = 'mysql' AND table_name = 'user';
 DROP USER very_long_user_name_number_1, very_long_user_name_number_2, even_longer_user_name_number_3_to_test_the_grantor_and_definer_field_length@localhost;
 DROP PROCEDURE test.pr;
-
+--enable_service_connection
 #
 # MDEV-13274 mysql_upgrade fails if dbname+tablename+partioname > 64 chars
 #
@@ -291,7 +292,7 @@ FLUSH PRIVILEGES;
 --replace_regex /\d\d\.\d*\.\d*[^ .\n]*/MariaDB /
 --error 1
 --exec $MYSQL_UPGRADE --check-if-upgrade-is-needed
---replace_regex /\d\d\.\d*\.\d*[^ .\n]*/MariaDB / /'mysql.* as:[^\n]*/'mysql' as: mysql/
+--replace_regex /\d\d\.\d*\.\d*[^ .\n]*/MariaDB / /'mariadb.* as:[^\n]*/'mariadb' as: mariadb/
 --error 1
 --exec $MYSQL_UPGRADE --check-if-upgrade-is-needed --verbose
 
@@ -303,7 +304,7 @@ FLUSH PRIVILEGES;
 --replace_regex /[^ ]*mysql_upgrade_info/...mysql_upgrade_info/
 --exec $MYSQL_UPGRADE --check-if-upgrade-is-needed
 
---replace_regex /'mysql.* as:[^\n]*/'mysql' as: mysql/ /open .* Assuming/open XXX. Assuming/ /[^ ]*mysql_upgrade_info/...mysql_upgrade_info/
+--replace_regex /'mariadb.* as:[^\n]*/'mariadb' as: mariadb/ /open .* Assuming/open XXX. Assuming/ /[^ ]*mysql_upgrade_info/...mysql_upgrade_info/
 --exec $MYSQL_UPGRADE --check-if-upgrade-is-needed --verbose
 
 --echo #
@@ -325,7 +326,7 @@ EOF
 
 --error 1
 --exec $MYSQL_UPGRADE --check-if-upgrade-is-needed --silent
---replace_regex /\d\d\.\d*\.\d*[^ .\n]*/MariaDB / /'mysql.* as:[^\n]*/'mysql' as: mysql/
+--replace_regex /\d\d\.\d*\.\d*[^ .\n]*/MariaDB / /'mariadb.* as:[^\n]*/'mariadb' as: mariadb/
 --error 1
 --exec $MYSQL_UPGRADE --check-if-upgrade-is-needed --verbose
 --replace_regex /\d\d\.\d*\.\d*[^ .\n]*/MariaDB /
@@ -352,7 +353,7 @@ EOF
 --exec $MYSQL_UPGRADE --check-if-upgrade-is-needed --silent
 --replace_regex /\d\d\.\d*\.\d*[^ .\n]*/MariaDB /
 --exec $MYSQL_UPGRADE --check-if-upgrade-is-needed
---replace_regex /\d\d\.\d*\.\d*[^ .\n]*/MariaDB / /'mysql.* as:[^\n]*/'mysql' as: mysql/
+--replace_regex /\d\d\.\d*\.\d*[^ .\n]*/MariaDB / /'mariadb.* as:[^\n]*/'mysql' as: mysql/
 --exec $MYSQL_UPGRADE --check-if-upgrade-is-needed --verbose
 --remove_file $MYSQLD_DATADIR/mysql_upgrade_info
 drop table mysql.global_priv;

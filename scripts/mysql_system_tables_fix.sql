@@ -295,8 +295,8 @@ ALTER TABLE general_log
   MODIFY thread_id BIGINT(21) UNSIGNED NOT NULL;
 SET GLOBAL general_log = @old_log_state;
 
-SET @old_log_state = @@global.slow_query_log;
-SET GLOBAL slow_query_log = 'OFF';
+SET @old_log_state = @@global.log_slow_query;
+SET GLOBAL log_slow_query = 'OFF';
 ALTER TABLE slow_log
   ADD COLUMN thread_id BIGINT(21) UNSIGNED NOT NULL AFTER sql_text;
 ALTER TABLE slow_log
@@ -314,7 +314,7 @@ ALTER TABLE slow_log
   MODIFY server_id INTEGER UNSIGNED NOT NULL,
   MODIFY sql_text MEDIUMTEXT NOT NULL,
   MODIFY thread_id BIGINT(21) UNSIGNED NOT NULL;
-SET GLOBAL slow_query_log = @old_log_state;
+SET GLOBAL log_slow_query = @old_log_state;
 
 ALTER TABLE plugin
   MODIFY name varchar(64) COLLATE utf8_general_ci NOT NULL DEFAULT '',
@@ -515,10 +515,10 @@ UPDATE proc SET character_set_client = @@character_set_client
                      WHERE character_set_client IS NULL;
 
 ALTER TABLE proc ADD collation_connection
-                     char(32) collate utf8_bin DEFAULT NULL
+                     char(64) collate utf8_bin DEFAULT NULL
                      AFTER character_set_client;
 ALTER TABLE proc MODIFY collation_connection
-                        char(32) collate utf8_bin DEFAULT NULL;
+                        char(64) collate utf8_bin DEFAULT NULL;
 
 SELECT CASE WHEN COUNT(*) > 0 THEN 
 CONCAT ("WARNING: NULL values of the 'collation_connection' column ('mysql.proc' table) have been updated with a default value (", @@collation_connection, "). Please verify if necessary.")
@@ -530,10 +530,10 @@ UPDATE proc SET collation_connection = @@collation_connection
                      WHERE collation_connection IS NULL;
 
 ALTER TABLE proc ADD db_collation
-                     char(32) collate utf8_bin DEFAULT NULL
+                     char(64) collate utf8_bin DEFAULT NULL
                      AFTER collation_connection;
 ALTER TABLE proc MODIFY db_collation
-                        char(32) collate utf8_bin DEFAULT NULL;
+                        char(64) collate utf8_bin DEFAULT NULL;
 
 SELECT CASE WHEN COUNT(*) > 0 THEN 
 CONCAT ("WARNING: NULL values of the 'db_collation' column ('mysql.proc' table) have been updated with default values. Please verify if necessary.")
@@ -639,16 +639,16 @@ ALTER TABLE event MODIFY character_set_client
                          char(32) collate utf8_bin DEFAULT NULL;
 
 ALTER TABLE event ADD collation_connection
-                      char(32) collate utf8_bin DEFAULT NULL
+                      char(64) collate utf8_bin DEFAULT NULL
                       AFTER character_set_client;
 ALTER TABLE event MODIFY collation_connection
-                         char(32) collate utf8_bin DEFAULT NULL;
+                         char(64) collate utf8_bin DEFAULT NULL;
 
 ALTER TABLE event ADD db_collation
-                      char(32) collate utf8_bin DEFAULT NULL
+                      char(64) collate utf8_bin DEFAULT NULL
                       AFTER collation_connection;
 ALTER TABLE event MODIFY db_collation
-                         char(32) collate utf8_bin DEFAULT NULL;
+                         char(64) collate utf8_bin DEFAULT NULL;
 
 ALTER TABLE event ADD body_utf8 longblob DEFAULT NULL
                       AFTER db_collation;

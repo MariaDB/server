@@ -243,13 +243,13 @@ return (select * from db37908.t1 limit 1)|
 connect  user1,localhost,mysqltest_1,,test;
 connection user1;
 select * from db37908.t1;
-ERROR 42000: SELECT command denied to user 'mysqltest_1'@'localhost' for table 't1'
+ERROR 42000: SELECT command denied to user 'mysqltest_1'@'localhost' for table `db37908`.`t1`
 show status where variable_name ='uptime' and 2 in (select * from db37908.t1);
-ERROR 42000: SELECT command denied to user 'mysqltest_1'@'localhost' for table 't1'
+ERROR 42000: SELECT command denied to user 'mysqltest_1'@'localhost' for table `db37908`.`t1`
 show procedure status where name ='proc37908' and 1 in (select f1 from db37908.t1);
-ERROR 42000: SELECT command denied to user 'mysqltest_1'@'localhost' for table 't1'
+ERROR 42000: SELECT command denied to user 'mysqltest_1'@'localhost' for table `db37908`.`t1`
 show function status where name ='func37908' and 1 in (select func37908());
-ERROR 42000: SELECT command denied to user 'mysqltest_1'@'localhost' for table 't1'
+ERROR 42000: SELECT command denied to user 'mysqltest_1'@'localhost' for table `db37908`.`t1`
 connection default;
 disconnect user1;
 disconnect root;

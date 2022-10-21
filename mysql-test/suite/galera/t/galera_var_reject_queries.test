@@ -5,6 +5,10 @@
 --source include/galera_cluster.inc
 --source include/have_innodb.inc
 
+if (`select version() not like '10.10.3-%'`) {
+  skip disabled until new C/C;
+}
+
 CREATE TABLE t1 (f1 INTEGER NOT NULL PRIMARY KEY) engine=innodb;
 
 --connect node_1a, 127.0.0.1, root, , test, $NODE_MYPORT_1

@@ -75,7 +75,7 @@ COLUMNS	CREATE TEMPORARY TABLE `COLUMNS` (
   `COLUMN_COMMENT` varchar(1024) NOT NULL,
   `IS_GENERATED` varchar(6) NOT NULL,
   `GENERATION_EXPRESSION` longtext
-)  DEFAULT CHARSET=utf8mb3
+)  DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_general_ci
 SHOW COLUMNS FROM information_schema.COLUMNS;
 Field	Type	Null	Key	Default	Extra
 TABLE_CATALOG	varchar(512)	NO		NULL	
@@ -170,7 +170,7 @@ Field	Type	Null	Key	Default	Extra
 f1	char(10)	YES	MUL	NULL	
 f2	text	YES		NULL	
 SHOW COLUMNS FROM db_datadict.t2;
-ERROR 42000: SELECT command denied to user 'testuser1'@'localhost' for table 't2'
+ERROR 42000: SELECT command denied to user 'testuser1'@'localhost' for table `db_datadict`.`t2`
 SHOW COLUMNS FROM db_datadict.v1;
 Field	Type	Null	Key	Default	Extra
 f2	int(1)	NO		0	
@@ -182,13 +182,13 @@ TABLE_CATALOG	TABLE_SCHEMA	TABLE_NAME	COLUMN_NAME	ORDINAL_POSITION	COLUMN_DEFAUL
 def	db_datadict	t2	f1	1	NULL	NO	char	10	10	NULL	NULL	NULL	latin1	latin1_swedish_ci	char(10)	PRI		insert		NEVER	NULL
 def	db_datadict	t2	f2	2	NULL	YES	text	65535	65535	NULL	NULL	NULL	latin1	latin1_swedish_ci	text			insert		NEVER	NULL
 SHOW COLUMNS FROM db_datadict.t1;
-ERROR 42000: SELECT command denied to user 'testuser2'@'localhost' for table 't1'
+ERROR 42000: SELECT command denied to user 'testuser2'@'localhost' for table `db_datadict`.`t1`
 SHOW COLUMNS FROM db_datadict.t2;
 Field	Type	Null	Key	Default	Extra
 f1	char(10)	NO	PRI	NULL	
 f2	text	YES		NULL	
 SHOW COLUMNS FROM db_datadict.v1;
-ERROR 42000: SELECT command denied to user 'testuser2'@'localhost' for table 'v1'
+ERROR 42000: SELECT command denied to user 'testuser2'@'localhost' for table `db_datadict`.`v1`
 connection default;
 disconnect testuser1;
 disconnect testuser2;

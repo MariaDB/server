@@ -753,7 +753,7 @@ btr_page_get_father_node_ptr_func(
 								  user_rec, 0,
 								  heap, level),
 					PAGE_CUR_LE, latch_mode,
-					cursor, 0, mtr) != DB_SUCCESS) {
+					cursor, mtr) != DB_SUCCESS) {
 		return nullptr;
 	}
 
@@ -1410,7 +1410,10 @@ static dberr_t btr_page_reorganize_low(page_cur_t *cursor, dict_index_t *index,
                 block->page.frame + PAGE_MAX_TRX_ID + PAGE_HEADER,
                 PAGE_DATA - (PAGE_MAX_TRX_ID + PAGE_HEADER)));
 
-  if (index->has_locking())
+  if (!index->has_locking());
+  else if (index->page == FIL_NULL)
+    ut_ad(index->is_dummy);
+  else
     lock_move_reorganize_page(block, old);
 
   /* Write log for the changes, if needed. */
@@ -2380,7 +2383,7 @@ btr_insert_on_non_leaf_level(
 
 	dberr_t err = btr_cur_search_to_nth_level(index, level, tuple, mode,
 						  BTR_CONT_MODIFY_TREE,
-						  &cursor, 0, mtr);
+						  &cursor, mtr);
 	ut_ad(cursor.flag == BTR_CUR_BINARY);
 
 	if (UNIV_LIKELY(err == DB_SUCCESS)) {
@@ -3343,6 +3346,7 @@ btr_lift_page_up(
 
 	ut_ad(!page_has_siblings(page));
 	ut_ad(mtr->memo_contains_flagged(block, MTR_MEMO_PAGE_X_FIX));
+	ut_ad(!page_is_empty(page));
 
 	page_level = btr_page_get_level(page);
 	root_page_no = dict_index_get_page(index);
@@ -3429,10 +3433,20 @@ btr_lift_page_up(
 	if (index->is_instant()
 	    && father_block->page.id().page_no() == root_page_no) {
 		ut_ad(!father_page_zip);
+
+		if (page_is_leaf(page)) {
+			const rec_t* rec = page_rec_get_next(
+				page_get_infimum_rec(page));
+			ut_ad(rec_is_metadata(rec, *index));
+			if (rec_is_add_metadata(rec, *index)
+			    && page_get_n_recs(page) == 1) {
+				index->clear_instant_add();
+				goto copied;
+			}
+		}
+
 		btr_set_instant(father_block, *index, mtr);
 	}
-
-	page_level++;
 
 	/* Copy the records to the father page one by one. */
 	if (0
@@ -3477,6 +3491,7 @@ btr_lift_page_up(
 		}
 	}
 
+copied:
 	if (index->has_locking()) {
 		const page_id_t id{block->page.id()};
 		/* Free predicate page locks on the block */
@@ -3486,6 +3501,8 @@ btr_lift_page_up(
 			lock_update_copy_and_discard(*father_block, id);
 		}
 	}
+
+	page_level++;
 
 	/* Go upward to root page, decrementing levels by one. */
 	for (i = lift_father_up ? 1 : 0; i < n_blocks; i++, page_level++) {

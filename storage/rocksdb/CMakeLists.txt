@@ -4,6 +4,8 @@ SET(CPACK_RPM_rocksdb-engine_PACKAGE_SUMMARY "RocksDB storage engine for MariaDB
 SET(CPACK_RPM_rocksdb-engine_PACKAGE_DESCRIPTION "The RocksDB storage engine is a high performance storage engine, aimed
 at maximising storage efficiency while maintaining InnoDB-like performance." PARENT_SCOPE)
 
+MY_CHECK_AND_SET_COMPILER_FLAG(-Wno-range-loop-construct)
+
 MACRO(SKIP_ROCKSDB_PLUGIN msg)
   MESSAGE_ONCE(SKIP_ROCKSDB_PLUGIN "Can't build rocksdb engine - ${msg}")
   ADD_FEATURE_INFO(ROCKSDB "OFF" "Storage Engine")

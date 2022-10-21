@@ -23,12 +23,12 @@ galera_parallel_simple : MDEV-20318 galera.galera_parallel_simple fails
 galera_pc_recovery : MDEV-25199 cluster fails to start up
 galera_shutdown_nonprim : MDEV-21493 galera.galera_shutdown_nonprim
 galera_sst_mysqldump : MDEV-26501 : galera.galera_sst_mysqldump MTR failed: galera SST with mysqldump failed
-galera_trigger : MDEV-24048 galera.galera_trigger MTR fails: Result content mismatch
 galera_unicode_identifiers : MDEV-26500 : galera.galera_unicode_identifiers MTR failed: InnoDB: innodb_fatal_semaphore_wait_threshold was exceeded for dict_sys.mutex
 galera_var_dirty_reads : MDEV-25615 Galera test failure on galera_var_dirty_reads
 galera_var_ignore_apply_errors : MDEV-26770 galera_var_ignore_apply_errors fails Server did not transition to READY state
 galera_var_node_address : MDEV-20485 Galera test failure
 galera_var_notify_cmd : MDEV-21905 Galera test galera_var_notify_cmd causes hang
+galera_var_notify_ssl_ipv6 : hangs after the merge of MDEV-27682
 galera_var_retry_autocommit: MDEV-18181 Galera test failure on galera.galera_var_retry_autocommit
 galera_wsrep_provider_unset_set: wsrep_provider is read-only for security reasons
 partition : MDEV-19958 Galera test failure on galera.partition
@@ -36,4 +36,5 @@ pxc-421: wsrep_provider is read-only for security reasons
 query_cache: MDEV-15805 Test failure on galera.query_cache
 versioning_trx_id: MDEV-18590: galera.versioning_trx_id: Test failure: mysqltest: Result content mismatch
 galera_bf_abort_at_after_statement : Unstable
+galera_bf_abort_shutdown : MDEV-29773 Assertion failure on sql/wsrep_mysqld.cc:2893 in wsrep_bf_abort_shutdown
 

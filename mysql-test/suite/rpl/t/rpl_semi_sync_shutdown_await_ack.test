@@ -1,3 +1,5 @@
+--source include/no_valgrind_without_big.inc
+
 #
 # Purpose:
 #   This test validates that data is consistent between a primary and replica

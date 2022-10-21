@@ -10,7 +10,7 @@ t1	CREATE TABLE `t1` (
   `v` varchar(2000) DEFAULT NULL,
   `b` blob DEFAULT NULL,
   PRIMARY KEY (`id`)
-) ENGINE=Aria DEFAULT CHARSET=latin1 MAX_ROWS=2 PAGE_CHECKSUM=1 ROW_FORMAT=PAGE
+) ENGINE=Aria DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci MAX_ROWS=2 PAGE_CHECKSUM=1 ROW_FORMAT=PAGE
 show create table t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
@@ -19,7 +19,7 @@ t2	CREATE TABLE `t2` (
   `b` blob DEFAULT NULL,
   PRIMARY KEY (`id`),
   KEY `v` (`v`)
-) ENGINE=Aria DEFAULT CHARSET=latin1 MAX_ROWS=20000000 PAGE_CHECKSUM=1 ROW_FORMAT=PAGE
+) ENGINE=Aria DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci MAX_ROWS=20000000 PAGE_CHECKSUM=1 ROW_FORMAT=PAGE
 lock tables t1 write,t2 write;
 show table status like "t_";
 Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
@@ -79,7 +79,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` int(10) unsigned DEFAULT NULL,
   `c2` char(80) DEFAULT NULL
-) ENGINE=Aria DEFAULT CHARSET=latin1 MIN_ROWS=1000000 PAGE_CHECKSUM=1 ROW_FORMAT=FIXED
+) ENGINE=Aria DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci MIN_ROWS=1000000 PAGE_CHECKSUM=1 ROW_FORMAT=FIXED
 insert into t1 select seq,seq from seq_1_to_100000;
 create or replace table t1 (
 c1 int unsigned,
@@ -90,7 +90,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` int(10) unsigned DEFAULT NULL,
   `c2` char(80) DEFAULT NULL
-) ENGINE=Aria DEFAULT CHARSET=latin1 PAGE_CHECKSUM=1 ROW_FORMAT=FIXED
+) ENGINE=Aria DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1 ROW_FORMAT=FIXED
 insert into t1 select seq,seq from seq_1_to_100000;
 create or replace table t1 (
 c1 int unsigned,
@@ -101,7 +101,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` int(10) unsigned DEFAULT NULL,
   `c2` char(80) DEFAULT NULL
-) ENGINE=Aria DEFAULT CHARSET=latin1 PAGE_CHECKSUM=1 ROW_FORMAT=PAGE TRANSACTIONAL=0
+) ENGINE=Aria DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1 ROW_FORMAT=PAGE TRANSACTIONAL=0
 insert into t1 select seq,seq from seq_1_to_100000;
 create or replace table t1 (
 c1 int unsigned,
@@ -112,7 +112,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` int(10) unsigned DEFAULT NULL,
   `c2` char(80) DEFAULT NULL
-) ENGINE=Aria DEFAULT CHARSET=latin1 MAX_ROWS=10 PAGE_CHECKSUM=1 ROW_FORMAT=FIXED
+) ENGINE=Aria DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci MAX_ROWS=10 PAGE_CHECKSUM=1 ROW_FORMAT=FIXED
 insert into t1 select seq,seq from seq_1_to_100000;
 ERROR HY000: The table 't1' is full
 select count(*) from t1;
@@ -127,7 +127,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` int(10) unsigned DEFAULT NULL,
   `c2` char(80) DEFAULT NULL
-) ENGINE=Aria DEFAULT CHARSET=latin1 MAX_ROWS=10 PAGE_CHECKSUM=1 ROW_FORMAT=DYNAMIC
+) ENGINE=Aria DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci MAX_ROWS=10 PAGE_CHECKSUM=1 ROW_FORMAT=DYNAMIC
 insert into t1 select seq,seq from seq_1_to_100000;
 ERROR HY000: The table 't1' is full
 select count(*) from t1;
@@ -146,7 +146,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` int(10) unsigned DEFAULT NULL,
   `c2` char(80) DEFAULT NULL
-) ENGINE=Aria DEFAULT CHARSET=latin1 MAX_ROWS=10 PAGE_CHECKSUM=1 ROW_FORMAT=PAGE
+) ENGINE=Aria DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci MAX_ROWS=10 PAGE_CHECKSUM=1 ROW_FORMAT=PAGE
 insert into t1 select seq,seq from seq_1_to_100000;
 select count(*) from t1;
 count(*)
@@ -164,7 +164,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` int(10) unsigned DEFAULT NULL,
   `c2` char(80) DEFAULT NULL
-) ENGINE=Aria DEFAULT CHARSET=latin1 MAX_ROWS=10 PAGE_CHECKSUM=1 ROW_FORMAT=PAGE
+) ENGINE=Aria DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci MAX_ROWS=10 PAGE_CHECKSUM=1 ROW_FORMAT=PAGE
 insert into t1 select seq,seq from seq_1_to_10000000;
 ERROR HY000: The table 't1' is full
 select count(*) from t1;

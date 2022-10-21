@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2000, 2018, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2021, MariaDB
+   Copyright (c) 2009, 2022, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -1359,7 +1359,7 @@ static void copy_str_and_move(const char **src, Log_event::Byte **dst,
 }
 
 
-#ifndef DBUG_OFF
+#ifdef DBUG_TRACE
 static char const *
 code_name(int code)
 {
@@ -1514,7 +1514,7 @@ Query_log_event::Query_log_event(const uchar *buf, uint event_len,
     switch (*pos++) {
     case Q_FLAGS2_CODE:
       CHECK_SPACE(pos, end, 4);
-      flags2_inited= 1;
+      flags2_inited= description_event->options_written_to_bin_log;
       flags2= uint4korr(pos);
       DBUG_PRINT("info",("In Query_log_event, read flags2: %lu", (ulong) flags2));
       pos+= 4;

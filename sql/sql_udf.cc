@@ -620,7 +620,7 @@ int mysql_create_function(THD *thd,udf_func *udf)
 
   /* Allow creation of functions even if we can't open func table */
   if (unlikely(!table))
-    goto err;
+    goto err_open_func_table;
   table->use_all_columns();
   restore_record(table, s->default_values);	// Default values for fields
   table->field[0]->store(u_d->name.str, u_d->name.length, system_charset_info);
@@ -634,7 +634,7 @@ int mysql_create_function(THD *thd,udf_func *udf)
   {
     my_error(ER_ERROR_ON_WRITE, MYF(0), "mysql.func", error);
     del_udf(u_d);
-    goto err;
+    goto err_open_func_table;
   }
 
 done:
@@ -649,6 +649,7 @@ done:
 err:
   if (new_dl)
     dlclose(dl);
+err_open_func_table:
   mysql_rwlock_unlock(&THR_LOCK_udf);
   DBUG_RETURN(1);
 }

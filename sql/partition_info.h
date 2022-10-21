@@ -90,6 +90,10 @@ struct Vers_part_info : public Sql_alloc
   partition_element *hist_part;
 };
 
+/*
+  See generate_partition_syntax() for details of how the data is used
+  in partition expression.
+*/
 class partition_info : public DDL_LOG_STATE, public Sql_alloc
 {
 public:
@@ -99,6 +103,10 @@ public:
   List<partition_element> partitions;
   List<partition_element> temp_partitions;
 
+  /*
+    These are mutually exclusive with part_expr/subpart_expr depending on
+    what is specified in partitioning filter: expression or column list.
+  */
   List<const char> part_field_list;
   List<const char> subpart_field_list;
   

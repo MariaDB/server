@@ -39,7 +39,7 @@ commit;
 FLUSH LOGS;
 ==== Output of mysqlbinlog with --short-form --skip-empty-trans, --database and --skip-gtids options ====
 /*!50530 SET @@SESSION.PSEUDO_SLAVE_MODE=1*/;
-/*!40019 SET @@session.max_insert_delayed_threads=0*/;
+/*!40019 SET @@session.max_delayed_threads=0*/;
 /*!50003 SET @OLD_COMPLETION_TYPE=@@COMPLETION_TYPE,COMPLETION_TYPE=0*/;
 DELIMITER /*!*/;
 ROLLBACK/*!*/;
@@ -90,7 +90,7 @@ FLUSH LOGS;
 ==== Output of mysqlbinlog with --short-form --skip-empty-trans, --database and --skip-gtids options ====
 ==== DB changed in the middle of the transaction, which belongs to the selected database
 /*!50530 SET @@SESSION.PSEUDO_SLAVE_MODE=1*/;
-/*!40019 SET @@session.max_insert_delayed_threads=0*/;
+/*!40019 SET @@session.max_delayed_threads=0*/;
 /*!50003 SET @OLD_COMPLETION_TYPE=@@COMPLETION_TYPE,COMPLETION_TYPE=0*/;
 DELIMITER /*!*/;
 SET TIMESTAMP=1000000000/*!*/;
@@ -121,7 +121,7 @@ FLUSH LOGS;
 ==== Output of mysqlbinlog with --short-form --skip-empty-trans, --database and --skip-gtids options ====
 ==== DB changed in the middle of the transaction, which belongs to the non-selected database
 /*!50530 SET @@SESSION.PSEUDO_SLAVE_MODE=1*/;
-/*!40019 SET @@session.max_insert_delayed_threads=0*/;
+/*!40019 SET @@session.max_delayed_threads=0*/;
 /*!50003 SET @OLD_COMPLETION_TYPE=@@COMPLETION_TYPE,COMPLETION_TYPE=0*/;
 DELIMITER /*!*/;
 DELIMITER ;

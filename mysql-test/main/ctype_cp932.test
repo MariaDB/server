@@ -4,6 +4,9 @@
 --echo #               USED.
 --echo #
 
+#remove this include in 10.6 version
+--source include/no_view_protocol.inc
+
 SET @old_character_set_client= @@character_set_client;
 SET @old_character_set_connection= @@character_set_connection;
 SET @old_character_set_results= @@character_set_results;

@@ -7,7 +7,6 @@ set @DEFAULT_HIST_TYPE='double_prec_hb';
 set @SINGLE_PREC_TYPE='JSON_HB';
 set @DOUBLE_PREC_TYPE='JSON_HB';
 set @DEFAULT_HIST_TYPE='JSON_HB';
-drop table if exists t1,t2;
 set @save_use_stat_tables=@@use_stat_tables;
 set @save_histogram_size=@@global.histogram_size;
 set @@global.histogram_size=0,@@local.histogram_size=0;
@@ -778,7 +777,7 @@ t1	CREATE TABLE `t1` (
   KEY `idx2` (`c`,`d`),
   KEY `idx3` (`d`),
   KEY `idx4` (`y`,`x`,`d`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 SELECT * FROM mysql.column_stats;
 db_name	table_name	column_name	min_value	max_value	nulls_ratio	avg_length	avg_frequency	hist_size	hist_type	histogram
 test	t1	a	0	49	0.0000	4.0000	1.0000	0	NULL	NULL
@@ -803,7 +802,7 @@ t1	CREATE TABLE `t1` (
   KEY `idx2` (`c`,`d`),
   KEY `idx3` (`d`),
   KEY `idx4` (`e`,`b`,`d`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 SELECT * FROM mysql.column_stats;
 db_name	table_name	column_name	min_value	max_value	nulls_ratio	avg_length	avg_frequency	hist_size	hist_type	histogram
 test	t1	a	0	49	0.0000	4.0000	1.0000	0	NULL	NULL
@@ -827,7 +826,7 @@ s1	CREATE TABLE `s1` (
   KEY `idx2` (`c`,`d`),
   KEY `idx3` (`d`),
   KEY `idx4` (`e`,`x`,`d`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 SELECT * FROM mysql.table_stats;
 db_name	table_name	cardinality
 test	s1	40
@@ -865,7 +864,7 @@ t1	CREATE TABLE `t1` (
   KEY `idx2` (`c`,`d`),
   KEY `idx3` (`d`),
   KEY `idx4` (`e`,`b`,`d`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 SELECT * FROM mysql.table_stats;
 db_name	table_name	cardinality
 test	t1	40
@@ -903,7 +902,7 @@ t1	CREATE TABLE `t1` (
   KEY `idx2` (`c`,`d`),
   KEY `idx3` (`d`),
   KEY `idx4` (`e`,`x`,`d`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 SELECT * FROM mysql.column_stats;
 db_name	table_name	column_name	min_value	max_value	nulls_ratio	avg_length	avg_frequency	hist_size	hist_type	histogram
 test	t1	a	0	49	0.0000	4.0000	1.0000	0	NULL	NULL
@@ -932,7 +931,7 @@ t1	CREATE TABLE `t1` (
   KEY `idx2` (`c`,`d`),
   KEY `idx3` (`d`),
   KEY `idx4` (`e`,`b`,`d`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 SELECT * FROM mysql.column_stats;
 db_name	table_name	column_name	min_value	max_value	nulls_ratio	avg_length	avg_frequency	hist_size	hist_type	histogram
 test	t1	a	0	49	0.0000	4.0000	1.0000	0	NULL	NULL
@@ -990,7 +989,7 @@ t1	CREATE TABLE `t1` (
   KEY `idx2` (`c`,`d`),
   KEY `idx3` (`d`),
   KEY `idx4` (`e`,`x`,`d`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 SELECT * FROM mysql.column_stats;
 db_name	table_name	column_name	min_value	max_value	nulls_ratio	avg_length	avg_frequency	hist_size	hist_type	histogram
 test	t1	a	0	49	0.0000	4.0000	1.0000	0	NULL	NULL
@@ -1019,7 +1018,7 @@ t1	CREATE TABLE `t1` (
   KEY `idx2` (`c`,`d`),
   KEY `idx3` (`d`),
   KEY `idx4` (`e`,`b`,`d`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 SELECT * FROM mysql.column_stats;
 db_name	table_name	column_name	min_value	max_value	nulls_ratio	avg_length	avg_frequency	hist_size	hist_type	histogram
 test	t1	a	0	49	0.0000	4.0000	1.0000	0	NULL	NULL
@@ -1072,7 +1071,7 @@ t1	CREATE TABLE `t1` (
   KEY `idx2` (`c`,`d`),
   KEY `idx3` (`d`),
   KEY `idx4` (`e`,`d`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 SELECT * FROM mysql.column_stats;
 db_name	table_name	column_name	min_value	max_value	nulls_ratio	avg_length	avg_frequency	hist_size	hist_type	histogram
 test	t1	a	0	49	0.0000	4.0000	1.0000	0	NULL	NULL
@@ -1099,7 +1098,7 @@ t1	CREATE TABLE `t1` (
   KEY `idx1` (`e`),
   KEY `idx3` (`d`),
   KEY `idx4` (`e`,`d`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 SELECT * FROM mysql.index_stats;
 db_name	table_name	index_name	prefix_arity	avg_frequency
 test	t1	PRIMARY	1	1.0000
@@ -1116,7 +1115,7 @@ t1	CREATE TABLE `t1` (
   `f` bit(3) DEFAULT NULL,
   PRIMARY KEY (`a`),
   KEY `idx3` (`d`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 ALTER TABLE t1 ADD COLUMN b varchar(32);
 CREATE INDEX idx1 ON t1(b, e);
 CREATE INDEX idx2 ON t1(c, d);
@@ -1135,7 +1134,7 @@ t1	CREATE TABLE `t1` (
   KEY `idx1` (`b`,`e`),
   KEY `idx2` (`c`,`d`),
   KEY `idx4` (`e`,`b`,`d`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 SELECT * FROM mysql.column_stats;
 db_name	table_name	column_name	min_value	max_value	nulls_ratio	avg_length	avg_frequency	hist_size	hist_type	histogram
 test	t1	a	0	49	0.0000	4.0000	1.0000	0	NULL	NULL
@@ -1206,7 +1205,7 @@ t1	CREATE TABLE `t1` (
   `f` bit(3) DEFAULT NULL,
   PRIMARY KEY (`a`),
   KEY `idx3` (`d`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 SELECT * FROM mysql.column_stats;
 db_name	table_name	column_name	min_value	max_value	nulls_ratio	avg_length	avg_frequency	hist_size	hist_type	histogram
 test	t1	a	0	49	0.0000	4.0000	1.0000	0	NULL	NULL
@@ -1236,7 +1235,7 @@ t1	CREATE TABLE `t1` (
   KEY `idx1` (`b`,`e`),
   KEY `idx2` (`c`,`d`),
   KEY `idx4` (`e`,`b`,`d`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 SELECT * FROM mysql.column_stats;
 db_name	table_name	column_name	min_value	max_value	nulls_ratio	avg_length	avg_frequency	hist_size	hist_type	histogram
 test	t1	a	0	49	0.0000	4.0000	1.0000	0	NULL	NULL

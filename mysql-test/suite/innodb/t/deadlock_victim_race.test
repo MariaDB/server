@@ -2,6 +2,17 @@
 --source include/have_debug_sync.inc
 --source include/count_sessions.inc
 
+--connect(cancel_purge,localhost,root,,)
+# Purge can cause deadlock in the test, requesting page's RW_X_LATCH for trx
+# ids reseting, after trx 2 acqured RW_S_LATCH and suspended in debug sync point
+# lock_trx_handle_wait_enter, waiting for upd_cont signal, which must be
+# emitted after the last SELECT in this test. The last SELECT will hang waiting
+# for purge RW_X_LATCH releasing, and trx 2 will be rolled back by timeout.
+# The last SELECT will then be successfully executed instead of finishing by
+# lock wait timeout.
+START TRANSACTION WITH CONSISTENT SNAPSHOT;
+
+--connection default
 CREATE TABLE t (a int PRIMARY KEY, b int) engine = InnoDB;
 CREATE TABLE t2 (a int PRIMARY KEY) engine = InnoDB;
 
@@ -60,7 +71,6 @@ SET DEBUG_SYNC='now WAIT_FOR sel_locked';
 ROLLBACK;
 SET DEBUG_SYNC='now SIGNAL upd_cont';
 
-SET innodb_lock_wait_timeout=1;
 SET DEBUG_SYNC="now WAIT_FOR upd_locked";
 # Locking queue:
 # (10,10)             (20,20)                  (30,30)
@@ -72,11 +82,12 @@ SET DEBUG_SYNC="now WAIT_FOR upd_locked";
 # sequential read (with rr_sequential() read record function), and requested
 # lock on (30,30). But the deadlock has not been determined yet.
 
-SET DEBUG_SYNC="lock_wait_end SIGNAL upd_cont";
+SET SESSION innodb_lock_wait_timeout=1;
 --error ER_LOCK_WAIT_TIMEOUT
 # The deadlock will be determined in lock_wait() after lock wait timeout
 # expired.
 SELECT * FROM t WHERE a = 10 FOR UPDATE;
+SET DEBUG_SYNC="now SIGNAL upd_cont";
 
 --connection con_3
 --reap
@@ -98,5 +109,5 @@ SELECT * FROM t WHERE a = 10 FOR UPDATE;
 SET DEBUG_SYNC = 'RESET';
 DROP TABLE t;
 DROP TABLE t2;
-
+--disconnect cancel_purge
 --source include/wait_until_count_sessions.inc

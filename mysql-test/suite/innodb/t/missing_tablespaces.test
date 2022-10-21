@@ -4,6 +4,7 @@
 --source include/not_embedded.inc
 #Windows has trouble creating files/directories with long names
 --source include/not_windows.inc
+--source include/no_valgrind_without_big.inc
 
 --echo #
 --echo # Bug#19419026 WHEN A TABLESPACE IS NOT FOUND, DO NOT REPORT "TABLE NOT FOUND"

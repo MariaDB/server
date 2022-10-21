@@ -1,6 +1,10 @@
+--source include/no_valgrind_without_big.inc
 #
 # Tests with the utf8 character set
 #
+
+# Enable after fix MDEV-27904
+-- source include/no_view_protocol.inc
 
 let $MYSQLD_DATADIR= `select @@datadir`;
 

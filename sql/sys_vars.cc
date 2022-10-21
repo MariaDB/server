@@ -1544,6 +1544,7 @@ static bool update_cached_long_query_time(sys_var *self, THD *thd,
 
 static Sys_var_double Sys_long_query_time(
        "long_query_time",
+       "Alias for log_slow_query_time. "
        "Log all queries that have taken more than long_query_time seconds "
        "to execute to the slow query log file. The argument will be treated "
        "as a decimal value with microsecond precision",
@@ -1552,6 +1553,15 @@ static Sys_var_double Sys_long_query_time(
        NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(0),
        ON_UPDATE(update_cached_long_query_time));
 
+static Sys_var_double Sys_log_slow_query_time(
+       "log_slow_query_time",
+       "Log all queries that have taken more than log_slow_query_time seconds "
+       "to execute to the slow query log file. The argument will be treated "
+       "as a decimal value with microsecond precision",
+       SESSION_VAR(long_query_time_double),
+       CMD_LINE(REQUIRED_ARG), VALID_RANGE(0, LONG_TIMEOUT), DEFAULT(10),
+       NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(0),
+       ON_UPDATE(update_cached_long_query_time));
 
 static bool update_cached_max_statement_time(sys_var *self, THD *thd,
                                          enum_var_type type)
@@ -1769,9 +1779,9 @@ static bool check_max_delayed_threads(sys_var *self, THD *thd, set_var *var)
                            global_system_variables.max_insert_delayed_threads;
 }
 
-// Alias for max_delayed_threads
 static Sys_var_ulong Sys_max_insert_delayed_threads(
        "max_insert_delayed_threads",
+       "Alias for max_delayed_threads. "
        "Don't start more than this number of threads to handle INSERT "
        "DELAYED statements. If set to zero INSERT DELAYED will be not used",
        SESSION_VAR(max_insert_delayed_threads),
@@ -2600,6 +2610,14 @@ static Sys_var_ulong Sys_max_write_lock_count(
 
 static Sys_var_ulong Sys_min_examined_row_limit(
        "min_examined_row_limit",
+       "Alias for log_slow_min_examined_row_limit. "
+       "Don't write queries to slow log that examine fewer rows "
+       "than that",
+       SESSION_VAR(min_examined_row_limit), CMD_LINE(REQUIRED_ARG),
+       VALID_RANGE(0, UINT_MAX), DEFAULT(0), BLOCK_SIZE(1));
+
+static Sys_var_ulong Sys_log_slow_min_examined_row_limit(
+       "log_slow_min_examined_row_limit",
        "Don't write queries to slow log that examine fewer rows "
        "than that",
        SESSION_VAR(min_examined_row_limit), CMD_LINE(REQUIRED_ARG),
@@ -3030,7 +3048,8 @@ static Sys_var_on_access_global<Sys_var_mybool,
 Sys_readonly(
        "read_only",
        "Make all non-temporary tables read-only, with the exception for "
-       "replication (slave) threads and users with the SUPER privilege",
+       "replication (slave) threads and users with the 'READ ONLY ADMIN' "
+       "privilege",
        GLOBAL_VAR(read_only), CMD_LINE(OPT_ARG), DEFAULT(FALSE),
        NO_MUTEX_GUARD, NOT_IN_BINLOG,
        ON_CHECK(check_read_only), ON_UPDATE(fix_read_only));
@@ -5139,8 +5158,19 @@ static bool fix_slow_log_file(sys_var *self, THD *thd, enum_var_type type)
   return fix_log(&opt_slow_logname, opt_log_basename, "-slow.log",
                  global_system_variables.sql_log_slow, reopen_slow_log);
 }
+
 static Sys_var_charptr_fscs Sys_slow_log_path(
-       "slow_query_log_file", "Log slow queries to given log file. "
+       "slow_query_log_file",
+       "Alias for log_slow_query_file. "
+       "Log slow queries to given log file. "
+       "Defaults logging to 'hostname'-slow.log. Must be enabled to activate "
+       "other slow log options",
+       PREALLOCATED GLOBAL_VAR(opt_slow_logname), CMD_LINE(REQUIRED_ARG),
+       DEFAULT(0), NO_MUTEX_GUARD, NOT_IN_BINLOG,
+       ON_CHECK(check_log_path), ON_UPDATE(fix_slow_log_file));
+
+static Sys_var_charptr_fscs Sys_log_slow_query_file_name(
+       "log_slow_query_file", "Log slow queries to given log file. "
        "Defaults logging to 'hostname'-slow.log. Must be enabled to activate "
        "other slow log options",
        PREALLOCATED GLOBAL_VAR(opt_slow_logname), CMD_LINE(REQUIRED_ARG),
@@ -5241,6 +5271,16 @@ static Sys_var_mybool Sys_general_log(
 
 static Sys_var_mybool Sys_slow_query_log(
        "slow_query_log",
+       "Alias for log_slow_query. "
+       "Log slow queries to a table or log file. Defaults logging to a file "
+       "'hostname'-slow.log or a table mysql.slow_log if --log-output=TABLE is "
+       "used. Must be enabled to activate other slow log options.",
+       SESSION_VAR(sql_log_slow), CMD_LINE(OPT_ARG),
+       DEFAULT(FALSE), NO_MUTEX_GUARD, NOT_IN_BINLOG,
+       ON_CHECK(0), ON_UPDATE(fix_log_state));
+
+static Sys_var_mybool Sys_log_slow_query(
+       "log_slow_query",
        "Log slow queries to a table or log file. Defaults logging to a file "
        "'hostname'-slow.log or a table mysql.slow_log if --log-output=TABLE is "
        "used. Must be enabled to activate other slow log options.",
@@ -5265,7 +5305,7 @@ static bool fix_log_state(sys_var *self, THD *thd, enum_var_type type)
   }
   else
   {
-    DBUG_ASSERT(self == &Sys_slow_query_log);
+    DBUG_ASSERT(self == &Sys_slow_query_log || self == &Sys_log_slow_query);
     newvalptr= &global_system_variables.sql_log_slow;
     oldval=    logger.get_slow_log_file_handler()->is_open();
     log_type=  QUERY_LOG_SLOW;
@@ -5465,7 +5505,6 @@ Sys_var_rpl_filter::global_value_ptr(THD *thd,
   }
 
   rpl_filter= mi->rpl_filter;
-  tmp.length(0);
 
   mysql_mutex_lock(&LOCK_active_mi);
   switch (opt_id) {

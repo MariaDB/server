@@ -78,55 +78,55 @@ Table	Create Table
 ÇsÇP	CREATE TABLE `ÇsÇP` (
   `ÇbÇP` enum('±','≤','≥') DEFAULT NULL,
   KEY `ÇbÇP` (`ÇbÇP`)
-) ENGINE=InnoDB DEFAULT CHARSET=sjis
+) ENGINE=InnoDB DEFAULT CHARSET=sjis COLLATE=sjis_japanese_ci
 SHOW CREATE TABLE `ÇsÇQ`;
 Table	Create Table
 ÇsÇQ	CREATE TABLE `ÇsÇQ` (
   `ÇbÇP` enum('Ç†','Ç¢','Ç§') DEFAULT NULL,
   KEY `ÇbÇP` (`ÇbÇP`)
-) ENGINE=InnoDB DEFAULT CHARSET=sjis
+) ENGINE=InnoDB DEFAULT CHARSET=sjis COLLATE=sjis_japanese_ci
 SHOW CREATE TABLE `ÇsÇR`;
 Table	Create Table
 ÇsÇR	CREATE TABLE `ÇsÇR` (
   `ÇbÇP` enum('É\','è\','ï\') DEFAULT NULL,
   KEY `ÇbÇP` (`ÇbÇP`)
-) ENGINE=InnoDB DEFAULT CHARSET=sjis
+) ENGINE=InnoDB DEFAULT CHARSET=sjis COLLATE=sjis_japanese_ci
 SHOW CREATE TABLE `ÇsÇS`;
 Table	Create Table
 ÇsÇS	CREATE TABLE `ÇsÇS` (
   `ÇbÇP` enum('±','≤','≥') DEFAULT NULL,
   KEY `ÇbÇP` (`ÇbÇP`)
-) ENGINE=MyISAM DEFAULT CHARSET=sjis
+) ENGINE=MyISAM DEFAULT CHARSET=sjis COLLATE=sjis_japanese_ci
 SHOW CREATE TABLE `ÇsÇT`;
 Table	Create Table
 ÇsÇT	CREATE TABLE `ÇsÇT` (
   `ÇbÇP` enum('Ç†','Ç¢','Ç§') DEFAULT NULL,
   KEY `ÇbÇP` (`ÇbÇP`)
-) ENGINE=MyISAM DEFAULT CHARSET=sjis
+) ENGINE=MyISAM DEFAULT CHARSET=sjis COLLATE=sjis_japanese_ci
 SHOW CREATE TABLE `ÇsÇU`;
 Table	Create Table
 ÇsÇU	CREATE TABLE `ÇsÇU` (
   `ÇbÇP` enum('É\','è\','ï\') DEFAULT NULL,
   KEY `ÇbÇP` (`ÇbÇP`)
-) ENGINE=MyISAM DEFAULT CHARSET=sjis
+) ENGINE=MyISAM DEFAULT CHARSET=sjis COLLATE=sjis_japanese_ci
 SHOW CREATE TABLE `ÇsÇV`;
 Table	Create Table
 ÇsÇV	CREATE TABLE `ÇsÇV` (
   `ÇbÇP` enum('±','≤','≥') DEFAULT NULL,
   KEY `ÇbÇP` (`ÇbÇP`)
-) ENGINE=MEMORY DEFAULT CHARSET=sjis
+) ENGINE=MEMORY DEFAULT CHARSET=sjis COLLATE=sjis_japanese_ci
 SHOW CREATE TABLE `ÇsÇW`;
 Table	Create Table
 ÇsÇW	CREATE TABLE `ÇsÇW` (
   `ÇbÇP` enum('Ç†','Ç¢','Ç§') DEFAULT NULL,
   KEY `ÇbÇP` (`ÇbÇP`)
-) ENGINE=MEMORY DEFAULT CHARSET=sjis
+) ENGINE=MEMORY DEFAULT CHARSET=sjis COLLATE=sjis_japanese_ci
 SHOW CREATE TABLE `ÇsÇX`;
 Table	Create Table
 ÇsÇX	CREATE TABLE `ÇsÇX` (
   `ÇbÇP` enum('É\','è\','ï\') DEFAULT NULL,
   KEY `ÇbÇP` (`ÇbÇP`)
-) ENGINE=MEMORY DEFAULT CHARSET=sjis
+) ENGINE=MEMORY DEFAULT CHARSET=sjis COLLATE=sjis_japanese_ci
 DESC `ÇsÇP`;
 Field	Type	Null	Key	Default	Extra
 ÇbÇP	enum('±','≤','≥')	YES	MUL	NULL	
@@ -169,63 +169,63 @@ Table	Create Table
   `ÇbÇQ` char(1) NOT NULL,
   `ÇbÇP` enum('±','≤','≥') DEFAULT NULL,
   KEY `ÇbÇP` (`ÇbÇP`)
-) ENGINE=InnoDB DEFAULT CHARSET=sjis
+) ENGINE=InnoDB DEFAULT CHARSET=sjis COLLATE=sjis_japanese_ci
 SHOW CREATE TABLE `ÇsÇQ`;
 Table	Create Table
 ÇsÇQ	CREATE TABLE `ÇsÇQ` (
   `ÇbÇQ` char(1) NOT NULL,
   `ÇbÇP` enum('Ç†','Ç¢','Ç§') DEFAULT NULL,
   KEY `ÇbÇP` (`ÇbÇP`)
-) ENGINE=InnoDB DEFAULT CHARSET=sjis
+) ENGINE=InnoDB DEFAULT CHARSET=sjis COLLATE=sjis_japanese_ci
 SHOW CREATE TABLE `ÇsÇR`;
 Table	Create Table
 ÇsÇR	CREATE TABLE `ÇsÇR` (
   `ÇbÇQ` char(1) NOT NULL,
   `ÇbÇP` enum('É\','è\','ï\') DEFAULT NULL,
   KEY `ÇbÇP` (`ÇbÇP`)
-) ENGINE=InnoDB DEFAULT CHARSET=sjis
+) ENGINE=InnoDB DEFAULT CHARSET=sjis COLLATE=sjis_japanese_ci
 SHOW CREATE TABLE `ÇsÇS`;
 Table	Create Table
 ÇsÇS	CREATE TABLE `ÇsÇS` (
   `ÇbÇQ` char(1) NOT NULL,
   `ÇbÇP` enum('±','≤','≥') DEFAULT NULL,
   KEY `ÇbÇP` (`ÇbÇP`)
-) ENGINE=MyISAM DEFAULT CHARSET=sjis
+) ENGINE=MyISAM DEFAULT CHARSET=sjis COLLATE=sjis_japanese_ci
 SHOW CREATE TABLE `ÇsÇT`;
 Table	Create Table
 ÇsÇT	CREATE TABLE `ÇsÇT` (
   `ÇbÇQ` char(1) NOT NULL,
   `ÇbÇP` enum('Ç†','Ç¢','Ç§') DEFAULT NULL,
   KEY `ÇbÇP` (`ÇbÇP`)
-) ENGINE=MyISAM DEFAULT CHARSET=sjis
+) ENGINE=MyISAM DEFAULT CHARSET=sjis COLLATE=sjis_japanese_ci
 SHOW CREATE TABLE `ÇsÇU`;
 Table	Create Table
 ÇsÇU	CREATE TABLE `ÇsÇU` (
   `ÇbÇQ` char(1) NOT NULL,
   `ÇbÇP` enum('É\','è\','ï\') DEFAULT NULL,
   KEY `ÇbÇP` (`ÇbÇP`)
-) ENGINE=MyISAM DEFAULT CHARSET=sjis
+) ENGINE=MyISAM DEFAULT CHARSET=sjis COLLATE=sjis_japanese_ci
 SHOW CREATE TABLE `ÇsÇV`;
 Table	Create Table
 ÇsÇV	CREATE TABLE `ÇsÇV` (
   `ÇbÇQ` char(1) NOT NULL,
   `ÇbÇP` enum('±','≤','≥') DEFAULT NULL,
   KEY `ÇbÇP` (`ÇbÇP`)
-) ENGINE=MEMORY DEFAULT CHARSET=sjis
+) ENGINE=MEMORY DEFAULT CHARSET=sjis COLLATE=sjis_japanese_ci
 SHOW CREATE TABLE `ÇsÇW`;
 Table	Create Table
 ÇsÇW	CREATE TABLE `ÇsÇW` (
   `ÇbÇQ` char(1) NOT NULL,
   `ÇbÇP` enum('Ç†','Ç¢','Ç§') DEFAULT NULL,
   KEY `ÇbÇP` (`ÇbÇP`)
-) ENGINE=MEMORY DEFAULT CHARSET=sjis
+) ENGINE=MEMORY DEFAULT CHARSET=sjis COLLATE=sjis_japanese_ci
 SHOW CREATE TABLE `ÇsÇX`;
 Table	Create Table
 ÇsÇX	CREATE TABLE `ÇsÇX` (
   `ÇbÇQ` char(1) NOT NULL,
   `ÇbÇP` enum('É\','è\','ï\') DEFAULT NULL,
   KEY `ÇbÇP` (`ÇbÇP`)
-) ENGINE=MEMORY DEFAULT CHARSET=sjis
+) ENGINE=MEMORY DEFAULT CHARSET=sjis COLLATE=sjis_japanese_ci
 CREATE TABLE t1(c1 enum('ìS','ìs')) default character set = sjis;
 INSERT INTO t1 VALUES('ìS'),('ìs');
 SELECT * FROM t1 WHERE c1 LIKE 'ìS';

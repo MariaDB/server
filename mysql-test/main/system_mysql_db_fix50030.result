@@ -76,29 +76,29 @@ user
 show create table db;
 Table	Create Table
 db	CREATE TABLE `db` (
-  `Host` char(255) COLLATE utf8mb3_bin NOT NULL DEFAULT '',
-  `Db` char(64) COLLATE utf8mb3_bin NOT NULL DEFAULT '',
-  `User` char(128) COLLATE utf8mb3_bin NOT NULL DEFAULT '',
-  `Select_priv` enum('N','Y') CHARACTER SET utf8mb3 NOT NULL DEFAULT 'N',
-  `Insert_priv` enum('N','Y') CHARACTER SET utf8mb3 NOT NULL DEFAULT 'N',
-  `Update_priv` enum('N','Y') CHARACTER SET utf8mb3 NOT NULL DEFAULT 'N',
-  `Delete_priv` enum('N','Y') CHARACTER SET utf8mb3 NOT NULL DEFAULT 'N',
-  `Create_priv` enum('N','Y') CHARACTER SET utf8mb3 NOT NULL DEFAULT 'N',
-  `Drop_priv` enum('N','Y') CHARACTER SET utf8mb3 NOT NULL DEFAULT 'N',
-  `Grant_priv` enum('N','Y') CHARACTER SET utf8mb3 NOT NULL DEFAULT 'N',
-  `References_priv` enum('N','Y') CHARACTER SET utf8mb3 NOT NULL DEFAULT 'N',
-  `Index_priv` enum('N','Y') CHARACTER SET utf8mb3 NOT NULL DEFAULT 'N',
-  `Alter_priv` enum('N','Y') CHARACTER SET utf8mb3 NOT NULL DEFAULT 'N',
-  `Create_tmp_table_priv` enum('N','Y') CHARACTER SET utf8mb3 NOT NULL DEFAULT 'N',
-  `Lock_tables_priv` enum('N','Y') CHARACTER SET utf8mb3 NOT NULL DEFAULT 'N',
-  `Create_view_priv` enum('N','Y') CHARACTER SET utf8mb3 NOT NULL DEFAULT 'N',
-  `Show_view_priv` enum('N','Y') CHARACTER SET utf8mb3 NOT NULL DEFAULT 'N',
-  `Create_routine_priv` enum('N','Y') CHARACTER SET utf8mb3 NOT NULL DEFAULT 'N',
-  `Alter_routine_priv` enum('N','Y') CHARACTER SET utf8mb3 NOT NULL DEFAULT 'N',
-  `Execute_priv` enum('N','Y') CHARACTER SET utf8mb3 NOT NULL DEFAULT 'N',
-  `Event_priv` enum('N','Y') CHARACTER SET utf8mb3 NOT NULL DEFAULT 'N',
-  `Trigger_priv` enum('N','Y') CHARACTER SET utf8mb3 NOT NULL DEFAULT 'N',
-  `Delete_history_priv` enum('N','Y') CHARACTER SET utf8mb3 NOT NULL DEFAULT 'N',
+  `Host` char(255) NOT NULL DEFAULT '',
+  `Db` char(64) NOT NULL DEFAULT '',
+  `User` char(128) NOT NULL DEFAULT '',
+  `Select_priv` enum('N','Y') CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci NOT NULL DEFAULT 'N',
+  `Insert_priv` enum('N','Y') CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci NOT NULL DEFAULT 'N',
+  `Update_priv` enum('N','Y') CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci NOT NULL DEFAULT 'N',
+  `Delete_priv` enum('N','Y') CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci NOT NULL DEFAULT 'N',
+  `Create_priv` enum('N','Y') CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci NOT NULL DEFAULT 'N',
+  `Drop_priv` enum('N','Y') CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci NOT NULL DEFAULT 'N',
+  `Grant_priv` enum('N','Y') CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci NOT NULL DEFAULT 'N',
+  `References_priv` enum('N','Y') CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci NOT NULL DEFAULT 'N',
+  `Index_priv` enum('N','Y') CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci NOT NULL DEFAULT 'N',
+  `Alter_priv` enum('N','Y') CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci NOT NULL DEFAULT 'N',
+  `Create_tmp_table_priv` enum('N','Y') CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci NOT NULL DEFAULT 'N',
+  `Lock_tables_priv` enum('N','Y') CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci NOT NULL DEFAULT 'N',
+  `Create_view_priv` enum('N','Y') CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci NOT NULL DEFAULT 'N',
+  `Show_view_priv` enum('N','Y') CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci NOT NULL DEFAULT 'N',
+  `Create_routine_priv` enum('N','Y') CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci NOT NULL DEFAULT 'N',
+  `Alter_routine_priv` enum('N','Y') CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci NOT NULL DEFAULT 'N',
+  `Execute_priv` enum('N','Y') CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci NOT NULL DEFAULT 'N',
+  `Event_priv` enum('N','Y') CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci NOT NULL DEFAULT 'N',
+  `Trigger_priv` enum('N','Y') CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci NOT NULL DEFAULT 'N',
+  `Delete_history_priv` enum('N','Y') CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci NOT NULL DEFAULT 'N',
   PRIMARY KEY (`Host`,`Db`,`User`),
   KEY `User` (`User`)
 ) ENGINE=Aria DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_bin PAGE_CHECKSUM=1 TRANSACTIONAL=1 COMMENT='Database privileges'
@@ -108,56 +108,56 @@ user	CREATE ALGORITHM=UNDEFINED DEFINER=`mariadb.sys`@`localhost` SQL SECURITY D
 show create table func;
 Table	Create Table
 func	CREATE TABLE `func` (
-  `name` char(64) COLLATE utf8mb3_bin NOT NULL DEFAULT '',
+  `name` char(64) NOT NULL DEFAULT '',
   `ret` tinyint(1) NOT NULL DEFAULT 0,
-  `dl` char(128) COLLATE utf8mb3_bin NOT NULL DEFAULT '',
-  `type` enum('function','aggregate') CHARACTER SET utf8mb3 NOT NULL,
+  `dl` char(128) NOT NULL DEFAULT '',
+  `type` enum('function','aggregate') CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci NOT NULL,
   PRIMARY KEY (`name`)
 ) ENGINE=Aria DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_bin PAGE_CHECKSUM=1 TRANSACTIONAL=1 COMMENT='User defined functions'
 show create table global_priv;
 Table	Create Table
 global_priv	CREATE TABLE `global_priv` (
-  `Host` char(255) COLLATE utf8mb3_bin NOT NULL DEFAULT '',
-  `User` char(128) COLLATE utf8mb3_bin NOT NULL DEFAULT '',
+  `Host` char(255) NOT NULL DEFAULT '',
+  `User` char(128) NOT NULL DEFAULT '',
   `Priv` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL DEFAULT '{}' CHECK (json_valid(`Priv`)),
   PRIMARY KEY (`Host`,`User`)
 ) ENGINE=Aria DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_bin PAGE_CHECKSUM=1 TRANSACTIONAL=1 COMMENT='Users and global privileges'
 show create table tables_priv;
 Table	Create Table
 tables_priv	CREATE TABLE `tables_priv` (
-  `Host` char(255) COLLATE utf8mb3_bin NOT NULL DEFAULT '',
-  `Db` char(64) COLLATE utf8mb3_bin NOT NULL DEFAULT '',
-  `User` char(128) COLLATE utf8mb3_bin NOT NULL DEFAULT '',
-  `Table_name` char(64) COLLATE utf8mb3_bin NOT NULL DEFAULT '',
-  `Grantor` varchar(384) COLLATE utf8mb3_bin NOT NULL DEFAULT '',
+  `Host` char(255) NOT NULL DEFAULT '',
+  `Db` char(64) NOT NULL DEFAULT '',
+  `User` char(128) NOT NULL DEFAULT '',
+  `Table_name` char(64) NOT NULL DEFAULT '',
+  `Grantor` varchar(384) NOT NULL DEFAULT '',
   `Timestamp` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
-  `Table_priv` set('Select','Insert','Update','Delete','Create','Drop','Grant','References','Index','Alter','Create View','Show view','Trigger','Delete versioning rows') CHARACTER SET utf8mb3 NOT NULL DEFAULT '',
-  `Column_priv` set('Select','Insert','Update','References') CHARACTER SET utf8mb3 NOT NULL DEFAULT '',
+  `Table_priv` set('Select','Insert','Update','Delete','Create','Drop','Grant','References','Index','Alter','Create View','Show view','Trigger','Delete versioning rows') CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci NOT NULL DEFAULT '',
+  `Column_priv` set('Select','Insert','Update','References') CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci NOT NULL DEFAULT '',
   PRIMARY KEY (`Host`,`Db`,`User`,`Table_name`),
   KEY `Grantor` (`Grantor`)
 ) ENGINE=Aria DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_bin PAGE_CHECKSUM=1 TRANSACTIONAL=1 COMMENT='Table privileges'
 show create table columns_priv;
 Table	Create Table
 columns_priv	CREATE TABLE `columns_priv` (
-  `Host` char(255) COLLATE utf8mb3_bin NOT NULL DEFAULT '',
-  `Db` char(64) COLLATE utf8mb3_bin NOT NULL DEFAULT '',
-  `User` char(128) COLLATE utf8mb3_bin NOT NULL DEFAULT '',
-  `Table_name` char(64) COLLATE utf8mb3_bin NOT NULL DEFAULT '',
-  `Column_name` char(64) COLLATE utf8mb3_bin NOT NULL DEFAULT '',
+  `Host` char(255) NOT NULL DEFAULT '',
+  `Db` char(64) NOT NULL DEFAULT '',
+  `User` char(128) NOT NULL DEFAULT '',
+  `Table_name` char(64) NOT NULL DEFAULT '',
+  `Column_name` char(64) NOT NULL DEFAULT '',
   `Timestamp` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
-  `Column_priv` set('Select','Insert','Update','References') CHARACTER SET utf8mb3 NOT NULL DEFAULT '',
+  `Column_priv` set('Select','Insert','Update','References') CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci NOT NULL DEFAULT '',
   PRIMARY KEY (`Host`,`Db`,`User`,`Table_name`,`Column_name`)
 ) ENGINE=Aria DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_bin PAGE_CHECKSUM=1 TRANSACTIONAL=1 COMMENT='Column privileges'
 show create table procs_priv;
 Table	Create Table
 procs_priv	CREATE TABLE `procs_priv` (
-  `Host` char(60) COLLATE utf8mb3_bin NOT NULL DEFAULT '',
-  `Db` char(64) COLLATE utf8mb3_bin NOT NULL DEFAULT '',
-  `User` char(128) COLLATE utf8mb3_bin NOT NULL DEFAULT '',
-  `Routine_name` char(64) CHARACTER SET utf8mb3 NOT NULL DEFAULT '',
-  `Routine_type` enum('FUNCTION','PROCEDURE','PACKAGE','PACKAGE BODY') COLLATE utf8mb3_bin NOT NULL,
-  `Grantor` varchar(384) COLLATE utf8mb3_bin NOT NULL DEFAULT '',
-  `Proc_priv` set('Execute','Alter Routine','Grant') CHARACTER SET utf8mb3 NOT NULL DEFAULT '',
+  `Host` char(60) NOT NULL DEFAULT '',
+  `Db` char(64) NOT NULL DEFAULT '',
+  `User` char(128) NOT NULL DEFAULT '',
+  `Routine_name` char(64) CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci NOT NULL DEFAULT '',
+  `Routine_type` enum('FUNCTION','PROCEDURE','PACKAGE','PACKAGE BODY') NOT NULL,
+  `Grantor` varchar(384) NOT NULL DEFAULT '',
+  `Proc_priv` set('Execute','Alter Routine','Grant') CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci NOT NULL DEFAULT '',
   `Timestamp` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
   PRIMARY KEY (`Host`,`Db`,`User`,`Routine_name`,`Routine_type`),
   KEY `Grantor` (`Grantor`)
@@ -175,7 +175,7 @@ servers	CREATE TABLE `servers` (
   `Wrapper` char(64) NOT NULL DEFAULT '',
   `Owner` char(64) NOT NULL DEFAULT '',
   PRIMARY KEY (`Server_name`)
-) ENGINE=Aria DEFAULT CHARSET=utf8mb3 PAGE_CHECKSUM=1 TRANSACTIONAL=1 COMMENT='MySQL Foreign Servers table'
+) ENGINE=Aria DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_general_ci PAGE_CHECKSUM=1 TRANSACTIONAL=1 COMMENT='MySQL Foreign Servers table'
 show create table proc;
 Table	Create Table
 proc	CREATE TABLE `proc` (
@@ -196,12 +196,12 @@ proc	CREATE TABLE `proc` (
   `sql_mode` set('REAL_AS_FLOAT','PIPES_AS_CONCAT','ANSI_QUOTES','IGNORE_SPACE','IGNORE_BAD_TABLE_OPTIONS','ONLY_FULL_GROUP_BY','NO_UNSIGNED_SUBTRACTION','NO_DIR_IN_CREATE','POSTGRESQL','ORACLE','MSSQL','DB2','MAXDB','NO_KEY_OPTIONS','NO_TABLE_OPTIONS','NO_FIELD_OPTIONS','MYSQL323','MYSQL40','ANSI','NO_AUTO_VALUE_ON_ZERO','NO_BACKSLASH_ESCAPES','STRICT_TRANS_TABLES','STRICT_ALL_TABLES','NO_ZERO_IN_DATE','NO_ZERO_DATE','INVALID_DATES','ERROR_FOR_DIVISION_BY_ZERO','TRADITIONAL','NO_AUTO_CREATE_USER','HIGH_NOT_PRECEDENCE','NO_ENGINE_SUBSTITUTION','PAD_CHAR_TO_FULL_LENGTH','EMPTY_STRING_IS_NULL','SIMULTANEOUS_ASSIGNMENT','TIME_ROUND_FRACTIONAL') NOT NULL DEFAULT '',
   `comment` text CHARACTER SET utf8mb3 COLLATE utf8mb3_bin NOT NULL,
   `character_set_client` char(32) CHARACTER SET utf8mb3 COLLATE utf8mb3_bin DEFAULT NULL,
-  `collation_connection` char(32) CHARACTER SET utf8mb3 COLLATE utf8mb3_bin DEFAULT NULL,
-  `db_collation` char(32) CHARACTER SET utf8mb3 COLLATE utf8mb3_bin DEFAULT NULL,
+  `collation_connection` char(64) CHARACTER SET utf8mb3 COLLATE utf8mb3_bin DEFAULT NULL,
+  `db_collation` char(64) CHARACTER SET utf8mb3 COLLATE utf8mb3_bin DEFAULT NULL,
   `body_utf8` longblob DEFAULT NULL,
   `aggregate` enum('NONE','GROUP') NOT NULL DEFAULT 'NONE',
   PRIMARY KEY (`db`,`name`,`type`)
-) ENGINE=Aria DEFAULT CHARSET=utf8mb3 PAGE_CHECKSUM=1 TRANSACTIONAL=1 COMMENT='Stored Procedures'
+) ENGINE=Aria DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_general_ci PAGE_CHECKSUM=1 TRANSACTIONAL=1 COMMENT='Stored Procedures'
 show create table event;
 Table	Create Table
 event	CREATE TABLE `event` (
@@ -222,13 +222,13 @@ event	CREATE TABLE `event` (
   `sql_mode` set('REAL_AS_FLOAT','PIPES_AS_CONCAT','ANSI_QUOTES','IGNORE_SPACE','IGNORE_BAD_TABLE_OPTIONS','ONLY_FULL_GROUP_BY','NO_UNSIGNED_SUBTRACTION','NO_DIR_IN_CREATE','POSTGRESQL','ORACLE','MSSQL','DB2','MAXDB','NO_KEY_OPTIONS','NO_TABLE_OPTIONS','NO_FIELD_OPTIONS','MYSQL323','MYSQL40','ANSI','NO_AUTO_VALUE_ON_ZERO','NO_BACKSLASH_ESCAPES','STRICT_TRANS_TABLES','STRICT_ALL_TABLES','NO_ZERO_IN_DATE','NO_ZERO_DATE','INVALID_DATES','ERROR_FOR_DIVISION_BY_ZERO','TRADITIONAL','NO_AUTO_CREATE_USER','HIGH_NOT_PRECEDENCE','NO_ENGINE_SUBSTITUTION','PAD_CHAR_TO_FULL_LENGTH','EMPTY_STRING_IS_NULL','SIMULTANEOUS_ASSIGNMENT','TIME_ROUND_FRACTIONAL') NOT NULL DEFAULT '',
   `comment` char(64) CHARACTER SET utf8mb3 COLLATE utf8mb3_bin NOT NULL DEFAULT '',
   `originator` int(10) unsigned NOT NULL,
-  `time_zone` char(64) CHARACTER SET latin1 NOT NULL DEFAULT 'SYSTEM',
+  `time_zone` char(64) CHARACTER SET latin1 COLLATE latin1_swedish_ci NOT NULL DEFAULT 'SYSTEM',
   `character_set_client` char(32) CHARACTER SET utf8mb3 COLLATE utf8mb3_bin DEFAULT NULL,
-  `collation_connection` char(32) CHARACTER SET utf8mb3 COLLATE utf8mb3_bin DEFAULT NULL,
-  `db_collation` char(32) CHARACTER SET utf8mb3 COLLATE utf8mb3_bin DEFAULT NULL,
+  `collation_connection` char(64) CHARACTER SET utf8mb3 COLLATE utf8mb3_bin DEFAULT NULL,
+  `db_collation` char(64) CHARACTER SET utf8mb3 COLLATE utf8mb3_bin DEFAULT NULL,
   `body_utf8` longblob DEFAULT NULL,
   PRIMARY KEY (`db`,`name`)
-) ENGINE=Aria DEFAULT CHARSET=utf8mb3 PAGE_CHECKSUM=1 TRANSACTIONAL=1 COMMENT='Events'
+) ENGINE=Aria DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_general_ci PAGE_CHECKSUM=1 TRANSACTIONAL=1 COMMENT='Events'
 show create table general_log;
 Table	Create Table
 general_log	CREATE TABLE `general_log` (
@@ -238,7 +238,7 @@ general_log	CREATE TABLE `general_log` (
   `server_id` int(10) unsigned NOT NULL,
   `command_type` varchar(64) NOT NULL,
   `argument` mediumtext NOT NULL
-) ENGINE=CSV DEFAULT CHARSET=utf8mb3 COMMENT='General log'
+) ENGINE=CSV DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_general_ci COMMENT='General log'
 show create table slow_log;
 Table	Create Table
 slow_log	CREATE TABLE `slow_log` (
@@ -255,37 +255,37 @@ slow_log	CREATE TABLE `slow_log` (
   `sql_text` mediumtext NOT NULL,
   `thread_id` bigint(21) unsigned NOT NULL,
   `rows_affected` int(11) NOT NULL
-) ENGINE=CSV DEFAULT CHARSET=utf8mb3 COMMENT='Slow log'
+) ENGINE=CSV DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_general_ci COMMENT='Slow log'
 show create table table_stats;
 Table	Create Table
 table_stats	CREATE TABLE `table_stats` (
-  `db_name` varchar(64) COLLATE utf8mb3_bin NOT NULL,
-  `table_name` varchar(64) COLLATE utf8mb3_bin NOT NULL,
+  `db_name` varchar(64) NOT NULL,
+  `table_name` varchar(64) NOT NULL,
   `cardinality` bigint(21) unsigned DEFAULT NULL,
   PRIMARY KEY (`db_name`,`table_name`)
 ) ENGINE=Aria DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_bin PAGE_CHECKSUM=1 TRANSACTIONAL=0 COMMENT='Statistics on Tables'
 show create table column_stats;
 Table	Create Table
 column_stats	CREATE TABLE `column_stats` (
-  `db_name` varchar(64) COLLATE utf8mb3_bin NOT NULL,
-  `table_name` varchar(64) COLLATE utf8mb3_bin NOT NULL,
-  `column_name` varchar(64) COLLATE utf8mb3_bin NOT NULL,
+  `db_name` varchar(64) NOT NULL,
+  `table_name` varchar(64) NOT NULL,
+  `column_name` varchar(64) NOT NULL,
   `min_value` varbinary(255) DEFAULT NULL,
   `max_value` varbinary(255) DEFAULT NULL,
   `nulls_ratio` decimal(12,4) DEFAULT NULL,
   `avg_length` decimal(12,4) DEFAULT NULL,
   `avg_frequency` decimal(12,4) DEFAULT NULL,
   `hist_size` tinyint(3) unsigned DEFAULT NULL,
-  `hist_type` enum('SINGLE_PREC_HB','DOUBLE_PREC_HB','JSON_HB') COLLATE utf8mb3_bin DEFAULT NULL,
+  `hist_type` enum('SINGLE_PREC_HB','DOUBLE_PREC_HB','JSON_HB') DEFAULT NULL,
   `histogram` longblob DEFAULT NULL,
   PRIMARY KEY (`db_name`,`table_name`,`column_name`)
 ) ENGINE=Aria DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_bin PAGE_CHECKSUM=1 TRANSACTIONAL=0 COMMENT='Statistics on Columns'
 show create table index_stats;
 Table	Create Table
 index_stats	CREATE TABLE `index_stats` (
-  `db_name` varchar(64) COLLATE utf8mb3_bin NOT NULL,
-  `table_name` varchar(64) COLLATE utf8mb3_bin NOT NULL,
-  `index_name` varchar(64) COLLATE utf8mb3_bin NOT NULL,
+  `db_name` varchar(64) NOT NULL,
+  `table_name` varchar(64) NOT NULL,
+  `index_name` varchar(64) NOT NULL,
   `prefix_arity` int(11) unsigned NOT NULL,
   `avg_frequency` decimal(12,4) DEFAULT NULL,
   PRIMARY KEY (`db_name`,`table_name`,`index_name`,`prefix_arity`)

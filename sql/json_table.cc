@@ -984,7 +984,7 @@ int Json_table_column::print(THD *thd, Field **f, String *str)
         ((*f)->has_charset() && m_explicit_cs &&
          (str->append(STRING_WITH_LEN(" CHARSET ")) ||
           str->append(&m_explicit_cs->cs_name) ||
-          (!(m_explicit_cs->state & MY_CS_PRIMARY) &&
+          (Charset(m_explicit_cs).can_have_collate_clause() &&
            (str->append(STRING_WITH_LEN(" COLLATE ")) ||
             str->append(&m_explicit_cs->coll_name))))) ||
         str->append(m_column_type == PATH ? &path : &exists_path) ||
@@ -1186,7 +1186,7 @@ bool Table_function_json_table::setup(THD *thd, TABLE_LIST *sql_table,
   // fields in non_agg_field_used:
   const bool saved_non_agg_field_used= s_lex->non_agg_field_used();
 
-  bool res= m_json->fix_fields_if_needed(thd, &m_json);
+  bool res= m_json->fix_fields_if_needed_for_scalar(thd, &m_json);
 
   s_lex->is_item_list_lookup= save_is_item_list_lookup;
   s_lex->set_non_agg_field_used(saved_non_agg_field_used);

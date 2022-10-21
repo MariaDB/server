@@ -16,7 +16,7 @@ CREATE TABLE t1 (a VARCHAR(10) PRIMARY KEY) COLLATE 'utf8_unicode_nopad_ci';
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` varchar(10) COLLATE utf8mb3_unicode_nopad_ci NOT NULL,
+  `a` varchar(10) NOT NULL,
   PRIMARY KEY (`a`)
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_unicode_nopad_ci
 INSERT INTO t1 VALUES ('abc'),('abc  '),(' a'),(' a '),('a   ');
@@ -154,7 +154,7 @@ CREATE TABLE t1 (a VARCHAR(10) PRIMARY KEY) COLLATE 'utf8_unicode_nopad_ci';
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` varchar(10) COLLATE utf8mb3_unicode_nopad_ci NOT NULL,
+  `a` varchar(10) NOT NULL,
   PRIMARY KEY (`a`)
 ) ENGINE=MEMORY DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_unicode_nopad_ci
 INSERT INTO t1 VALUES ('abc'),('abc  '),(' a'),(' a '),('a   ');
@@ -293,7 +293,7 @@ CREATE TABLE t1 (a VARCHAR(10) PRIMARY KEY) COLLATE 'utf8_unicode_520_nopad_ci';
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` varchar(10) COLLATE utf8mb3_unicode_520_nopad_ci NOT NULL,
+  `a` varchar(10) NOT NULL,
   PRIMARY KEY (`a`)
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_unicode_520_nopad_ci
 INSERT INTO t1 VALUES ('abc'),('abc  '),(' a'),(' a '),('a   ');
@@ -431,7 +431,7 @@ CREATE TABLE t1 (a VARCHAR(10) PRIMARY KEY) COLLATE 'utf8_unicode_520_nopad_ci';
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` varchar(10) COLLATE utf8mb3_unicode_520_nopad_ci NOT NULL,
+  `a` varchar(10) NOT NULL,
   PRIMARY KEY (`a`)
 ) ENGINE=MEMORY DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_unicode_520_nopad_ci
 INSERT INTO t1 VALUES ('abc'),('abc  '),(' a'),(' a '),('a   ');
@@ -572,7 +572,7 @@ t1	CREATE TABLE `t1` (
   `b` varchar(50) CHARACTER SET utf8mb3 COLLATE utf8mb3_unicode_nopad_ci DEFAULT NULL,
   KEY `a` (`a`),
   KEY `b` (`b`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 INSERT INTO t1 VALUES ('111', '111');
 INSERT INTO t1 VALUES ('222', '222');
 INSERT INTO t1 VALUES ('333', '333');
@@ -588,7 +588,7 @@ DROP TABLE t1;
 # End of 10.2 tests
 #
 #
-# Start of 10.9 tests
+# Start of 10.10 tests
 #
 #
 # MDEV-27009 Add UCA-14.0.0 collations
@@ -1343,5 +1343,19 @@ def				COLLATION_NAME	rec.COLLATION_NAME	253	192	28	Y	0	0	576
 rec.COLLATION_NAME
 uca1400_croatian_nopad_as_cs
 #
-# End of 10.9 tests
+# MDEV-29776 collation_connection and db_collation are too short in mysql.proc and mysql.event
+#
+SET NAMES 'utf8mb3' COLLATE 'utf8mb3_uca1400_swedish_nopad_ai_ci';
+CREATE FUNCTION f1() RETURNS INT RETURN 1;
+SELECT length(collation_connection), collation_connection
+FROM mysql.proc WHERE db='test' AND name='f1';
+length(collation_connection)	collation_connection
+35	utf8mb3_uca1400_swedish_nopad_ai_ci
+SELECT f1();
+f1()
+1
+DROP FUNCTION f1;
+SET NAMES utf8mb3;
+#
+# End of 10.10 tests
 #

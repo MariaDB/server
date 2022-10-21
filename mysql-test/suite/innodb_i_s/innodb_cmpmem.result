@@ -7,4 +7,4 @@ INNODB_CMPMEM	CREATE TEMPORARY TABLE `INNODB_CMPMEM` (
   `pages_free` int(11) NOT NULL,
   `relocation_ops` bigint(21) NOT NULL,
   `relocation_time` int(11) NOT NULL
-) ENGINE=MEMORY DEFAULT CHARSET=utf8mb3
+) ENGINE=MEMORY DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_general_ci

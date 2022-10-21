@@ -1,3 +1,9 @@
 '#--------------------FN_DYNVARS_018_01-------------------------#'
 ## Checking if my_slow_test.log exists in servers datadir ##
 ## This case should pass because we have set this filename in opt file ##
+set @oldval= @@global.slow_query_log_file;
+set global log_slow_query_file='$MYSQLTEST_VARDIR/tmp/slow-7567.log';
+select @@global.log_slow_query_file;
+@@global.log_slow_query_file
+MYSQLTEST_VARDIR/tmp/slow-7567.log
+set @@global.log_slow_query_file=@oldval;

@@ -20,7 +20,7 @@ id	name
 CREATE user sameea;
 CONNECT  connn,localhost,sameea,,;
 SET Global read_ONLY=ON;
-ERROR 42000: Access denied; you need (at least one of) the SUPER, READ_ONLY ADMIN privilege(s) for this operation
+ERROR 42000: Access denied; you need (at least one of) the READ_ONLY ADMIN privilege(s) for this operation
 CREATE TABLE t2
 (
 id INT NOT NULL auto_increment,

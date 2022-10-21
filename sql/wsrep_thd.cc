@@ -1,4 +1,4 @@
-/* Copyright (C) 2013 Codership Oy <info@codership.com>
+/* Copyright (C) 2013-2022 Codership Oy <info@codership.com>
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -346,6 +346,7 @@ bool wsrep_bf_abort(THD* bf_thd, THD* victim_thd)
   WSREP_LOG_THD(bf_thd, "BF aborter before");
   WSREP_LOG_THD(victim_thd, "victim before");
 
+#ifdef ENABLED_DEBUG_SYNC
   DBUG_EXECUTE_IF("sync.wsrep_bf_abort",
                   {
                     const char act[]=
@@ -355,6 +356,7 @@ bool wsrep_bf_abort(THD* bf_thd, THD* victim_thd)
                     DBUG_ASSERT(!debug_sync_set_action(bf_thd,
                                                        STRING_WITH_LEN(act)));
                   };);
+#endif
 
   if (WSREP(victim_thd) && !victim_thd->wsrep_trx().active())
   {

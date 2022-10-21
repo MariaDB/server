@@ -89,8 +89,6 @@ dict_load_foreigns(
 	const char*		table_name,	/*!< in: table name */
 	const char**		col_names,	/*!< in: column names, or NULL
 						to use table->col_names */
-	bool			uncommitted,	/*!< in: use READ UNCOMMITTED
-						transaction isolation level */
 	trx_id_t		trx_id,		/*!< in: DDL transaction id,
 						or 0 to check
 						recursive load of tables

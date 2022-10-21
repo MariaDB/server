@@ -18,6 +18,9 @@ default-character-set=latin1
 [mysql_upgrade]
 default-character-set=latin1
 
+[mysqlslap]
+loose-skip-ssl
+
 [mysqltest]
 loose-ssl-ca=@ENV.MYSQL_TEST_DIR/std_data/cacert.pem
 loose-ssl-cert=@ENV.MYSQL_TEST_DIR/std_data/client-cert.pem

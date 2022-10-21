@@ -899,15 +899,14 @@ void ha_close_connection(THD* thd)
 {
   for (auto i= 0; i < MAX_HA; i++)
   {
-    if (thd->ha_data[i].lock)
+    if (plugin_ref plugin= thd->ha_data[i].lock)
     {
-      handlerton *hton= plugin_hton(thd->ha_data[i].lock);
+      thd->ha_data[i].lock= NULL;
+      handlerton *hton= plugin_hton(plugin);
       if (hton->close_connection)
         hton->close_connection(hton, thd);
-      /* make sure SE didn't reset ha_data in close_connection() */
-      DBUG_ASSERT(thd->ha_data[i].lock);
-      /* make sure ha_data is reset and ha_data_lock is released */
       thd_set_ha_data(thd, hton, 0);
+      plugin_unlock(NULL, plugin);
     }
     DBUG_ASSERT(!thd->ha_data[i].ha_ptr);
   }
@@ -5030,6 +5029,11 @@ int handler::ha_end_bulk_insert()
   DBUG_ENTER("handler::ha_end_bulk_insert");
   DBUG_EXECUTE_IF("crash_end_bulk_insert",
                   { extra(HA_EXTRA_FLUSH) ; DBUG_SUICIDE();});
+  if (DBUG_IF("ha_end_bulk_insert_fail"))
+  {
+    my_error(ER_OUT_OF_RESOURCES, MYF(0));
+    DBUG_RETURN(HA_ERR_OUT_OF_MEM);
+  }
   estimation_rows_to_insert= 0;
   DBUG_RETURN(end_bulk_insert());
 }

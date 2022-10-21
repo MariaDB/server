@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2002, 2018, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2020, MariaDB
+   Copyright (c) 2009, 2022, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -217,12 +217,12 @@ TABLE_FIELD_TYPE proc_table_fields[MYSQL_PROC_FIELD_COUNT] =
   },
   {
     { STRING_WITH_LEN("collation_connection") },
-    { STRING_WITH_LEN("char(32)") },
+    { STRING_WITH_LEN("char(") },
     { STRING_WITH_LEN("utf8mb3") }
   },
   {
     { STRING_WITH_LEN("db_collation") },
-    { STRING_WITH_LEN("char(32)") },
+    { STRING_WITH_LEN("char(") },
     { STRING_WITH_LEN("utf8mb3") }
   },
   {
@@ -1076,7 +1076,7 @@ sp_returns_type(THD *thd, String &result, const sp_head *sp)
   {
     result.append(STRING_WITH_LEN(" CHARSET "));
     result.append(field->charset()->cs_name);
-    if (!(field->charset()->state & MY_CS_PRIMARY))
+    if (Charset(field->charset()).can_have_collate_clause())
     {
       result.append(STRING_WITH_LEN(" COLLATE "));
       result.append(field->charset()->coll_name);

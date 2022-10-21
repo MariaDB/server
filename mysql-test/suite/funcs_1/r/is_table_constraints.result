@@ -43,7 +43,7 @@ TABLE_CONSTRAINTS	CREATE TEMPORARY TABLE `TABLE_CONSTRAINTS` (
   `TABLE_SCHEMA` varchar(64) NOT NULL,
   `TABLE_NAME` varchar(64) NOT NULL,
   `CONSTRAINT_TYPE` varchar(64) NOT NULL
-) ENGINE=MEMORY DEFAULT CHARSET=utf8mb3
+) ENGINE=MEMORY DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_general_ci
 SHOW COLUMNS FROM information_schema.TABLE_CONSTRAINTS;
 Field	Type	Null	Key	Default	Extra
 CONSTRAINT_CATALOG	varchar(512)	NO		NULL	
@@ -151,7 +151,7 @@ t1	0	my_idx1	1	f6	###	###	###	###	###	###	###		NO
 t1	0	my_idx1	2	f1	###	###	###	###	###	###	###		NO
 t1	0	my_idx2	1	f3	###	###	###	###	###	###	###		NO
 SHOW INDEXES FROM db_datadict.t2;
-ERROR 42000: SELECT command denied to user 'testuser1'@'localhost' for table 't2'
+ERROR 42000: SELECT command denied to user 'testuser1'@'localhost' for table `db_datadict`.`t2`
 connection default;
 disconnect testuser1;
 DROP USER 'testuser1'@'localhost';

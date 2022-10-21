@@ -269,7 +269,10 @@ public:
   /** A wrapper around ReadView::low_limit_no(). */
   trx_id_t low_limit_no() const
   {
-    /* MDEV-22718 FIXME: We are not holding latch here! */
+    /* Other callers than purge_coordinator_callback() must be holding
+    purge_sys.latch here. The purge coordinator task may call this
+    without holding any latch, because it is the only thread that may
+    modify purge_sys.view. */
     return view.low_limit_no();
   }
   /** A wrapper around trx_sys_t::clone_oldest_view(). */

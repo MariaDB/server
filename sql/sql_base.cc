@@ -2077,15 +2077,16 @@ retry_share:
                table_list->alias.str);
       goto err_lock;
     }
+
+    /* Open view */
+    if (mysql_make_view(thd, share, table_list, false))
+      goto err_lock;
+
     /*
       This table is a view. Validate its metadata version: in particular,
       that it was a view when the statement was prepared.
     */
     if (check_and_update_table_version(thd, table_list, share))
-      goto err_lock;
-
-    /* Open view */
-    if (mysql_make_view(thd, share, table_list, false))
       goto err_lock;
 
     /* TODO: Don't free this */
@@ -2994,7 +2995,7 @@ static bool inject_reprepare(THD *thd)
 
   @sa Execute_observer
   @sa check_prepared_statement() to see cases when an observer is installed
-  @sa TABLE_LIST::is_table_ref_id_equal()
+  @sa TABLE_LIST::is_the_same_definition()
   @sa TABLE_SHARE::get_table_ref_id()
 
   @param[in]      thd         used to report errors
@@ -3017,7 +3018,7 @@ check_and_update_table_version(THD *thd,
     created with TABLE_LIST::init_one_table() have a short life time and
     aren't linked anywhere.
   */
-  if (tables->prev_global && !tables->is_table_ref_id_equal(table_share))
+  if (tables->prev_global && !tables->is_the_same_definition(thd, table_share))
   {
     if (thd->m_reprepare_observer &&
         thd->m_reprepare_observer->report_error(thd))
@@ -3123,7 +3124,9 @@ bool tdc_open_view(THD *thd, TABLE_LIST *table_list, uint flags)
 
   DBUG_ASSERT(share->is_view);
 
-  if (flags & CHECK_METADATA_VERSION)
+  err= mysql_make_view(thd, share, table_list, (flags & OPEN_VIEW_NO_PARSE));
+
+  if (!err && (flags & CHECK_METADATA_VERSION))
   {
     /*
       Check TABLE_SHARE-version of view only if we have been instructed to do
@@ -3138,7 +3141,6 @@ bool tdc_open_view(THD *thd, TABLE_LIST *table_list, uint flags)
       goto ret;
   }
 
-  err= mysql_make_view(thd, share, table_list, (flags & OPEN_VIEW_NO_PARSE));
 ret:
   tdc_release_share(share);
 
@@ -7836,10 +7838,12 @@ int setup_wild(THD *thd, TABLE_LIST *tables, List<Item> &fields,
   Item *item;
   List_iterator<Item> it(fields);
   Query_arena *arena, backup;
+  uint *with_wild= returning_field ? &(thd->lex->returning()->with_wild) :
+                                     &(select_lex->with_wild);
   DBUG_ENTER("setup_wild");
 
-  if (!select_lex->with_wild)
-    DBUG_RETURN(0);
+  if (!(*with_wild))
+     DBUG_RETURN(0);
 
   /*
     Don't use arena if we are not in prepared statements or stored procedures
@@ -7848,7 +7852,7 @@ int setup_wild(THD *thd, TABLE_LIST *tables, List<Item> &fields,
   arena= thd->activate_stmt_arena_if_needed(&backup);
 
   thd->lex->current_select->cur_pos_in_select_list= 0;
-  while (select_lex->with_wild && (item= it++))
+  while (*with_wild && (item= it++))
   {
     if (item->type() == Item::FIELD_ITEM &&
         ((Item_field*) item)->field_name.str == star_clex_str.str &&
@@ -7886,12 +7890,12 @@ int setup_wild(THD *thd, TABLE_LIST *tables, List<Item> &fields,
 	*/
 	sum_func_list->elements+= fields.elements - elem;
       }
-      select_lex->with_wild--;
+      (*with_wild)--;
     }
     else
       thd->lex->current_select->cur_pos_in_select_list++;
   }
-  DBUG_ASSERT(!select_lex->with_wild);
+  DBUG_ASSERT(!(*with_wild));
   thd->lex->current_select->cur_pos_in_select_list= UNDEF_POS;
   if (arena)
     thd->restore_active_arena(arena, &backup);
@@ -8562,19 +8566,20 @@ insert_fields(THD *thd, Name_resolution_context *context, const char *db_name,
                     tables->is_natural_join);
         DBUG_ASSERT(item->type() == Item::FIELD_ITEM);
         Item_field *fld= (Item_field*) item;
+        const char *field_db_name= field_iterator.get_db_name();
         const char *field_table_name= field_iterator.get_table_name();
 
         if (!tables->schema_table && 
             !(fld->have_privileges=
               (get_column_grant(thd, field_iterator.grant(),
-                                field_iterator.get_db_name(),
+                                field_db_name,
                                 field_table_name, fld->field_name.str) &
                VIEW_ANY_ACL)))
         {
           my_error(ER_TABLEACCESS_DENIED_ERROR, MYF(0), "ANY",
                    thd->security_ctx->priv_user,
                    thd->security_ctx->host_or_ip,
-                   field_table_name);
+                   field_db_name, field_table_name);
           DBUG_RETURN(TRUE);
         }
       }

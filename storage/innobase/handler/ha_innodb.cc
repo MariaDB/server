@@ -130,7 +130,6 @@ void thd_clear_error(MYSQL_THD thd);
 TABLE *find_fk_open_table(THD *thd, const char *db, size_t db_len,
 			  const char *table, size_t table_len);
 MYSQL_THD create_background_thd();
-void destroy_background_thd(MYSQL_THD thd);
 void reset_thd(MYSQL_THD thd);
 TABLE *get_purge_table(THD *thd);
 TABLE *open_purge_table(THD *thd, const char *db, size_t dblen,
@@ -1763,20 +1762,6 @@ THD *innodb_thd_increment_pending_ops(THD *thd)
     return nullptr;
   thd_increment_pending_ops(thd);
   return thd;
-}
-
-/** Destroy a background purge thread THD.
-@param[in]	thd	MYSQL_THD to destroy */
-void
-innobase_destroy_background_thd(
-/*============================*/
-	MYSQL_THD thd)
-{
-	/* need to close the connection explicitly, the server won't do it
-	if innodb is in the PLUGIN_IS_DYING state */
-	innobase_close_connection(innodb_hton_ptr, thd);
-	thd_set_ha_data(thd, innodb_hton_ptr, NULL);
-	destroy_background_thd(thd);
 }
 
 /** Close opened tables, free memory, delete items for a MYSQL_THD.
@@ -4947,6 +4932,7 @@ static int innobase_close_connection(handlerton *hton, THD *thd)
   DBUG_ASSERT(hton == innodb_hton_ptr);
   if (auto trx= thd_to_trx(thd))
   {
+    thd_set_ha_data(thd, innodb_hton_ptr, NULL);
     if (trx->state == TRX_STATE_PREPARED && trx->has_logged_persistent())
     {
       trx_disconnect_prepared(trx);
@@ -4954,6 +4940,7 @@ static int innobase_close_connection(handlerton *hton, THD *thd)
     }
     innobase_rollback_trx(trx);
     trx->free();
+    DEBUG_SYNC(thd, "innobase_connection_closed");
   }
   return 0;
 }
@@ -12828,7 +12815,7 @@ int create_table_info_t::create_table(bool create_fk)
 	if (err == DB_SUCCESS) {
 		/* Check that also referencing constraints are ok */
 		dict_names_t	fk_tables;
-		err = dict_load_foreigns(m_table_name, nullptr, false,
+		err = dict_load_foreigns(m_table_name, nullptr,
 					 m_trx->id, true,
 					 DICT_ERR_IGNORE_NONE, fk_tables);
 		while (err == DB_SUCCESS && !fk_tables.empty()) {
@@ -16172,6 +16159,7 @@ ha_innobase::external_lock(
 
 	/* MySQL is releasing a table lock */
 
+	ut_ad(trx->n_mysql_tables_in_use);
 	trx->n_mysql_tables_in_use--;
 	m_mysql_has_locked = false;
 
@@ -18751,7 +18739,10 @@ wsrep_abort_transaction(
 	ut_ad(bf_thd);
 	ut_ad(victim_thd);
 
+	wsrep_thd_kill_LOCK(victim_thd);
+	wsrep_thd_LOCK(victim_thd);
 	trx_t* victim_trx= thd_to_trx(victim_thd);
+	wsrep_thd_UNLOCK(victim_thd);
 
 	WSREP_DEBUG("abort transaction: BF: %s victim: %s victim conf: %s",
 			wsrep_thd_query(bf_thd),
@@ -18761,7 +18752,6 @@ wsrep_abort_transaction(
 	if (victim_trx) {
 		victim_trx->lock.set_wsrep_victim();
 
-		wsrep_thd_kill_LOCK(victim_thd);
 		wsrep_thd_LOCK(victim_thd);
 		bool aborting= !wsrep_thd_set_wsrep_aborter(bf_thd, victim_thd);
 		wsrep_thd_UNLOCK(victim_thd);
@@ -18778,8 +18768,6 @@ wsrep_abort_transaction(
 					 };);
 			wsrep_thd_bf_abort(bf_thd, victim_thd, signal);
 		}
-		wsrep_thd_kill_UNLOCK(victim_thd);
-		DBUG_VOID_RETURN;
 	} else {
 		DBUG_EXECUTE_IF("sync.before_wsrep_thd_abort",
 				 {
@@ -18790,11 +18778,10 @@ wsrep_abort_transaction(
 				   DBUG_ASSERT(!debug_sync_set_action(bf_thd,
 								      STRING_WITH_LEN(act)));
 				 };);
-		wsrep_thd_kill_LOCK(victim_thd);
 		wsrep_thd_bf_abort(bf_thd, victim_thd, signal);
-		wsrep_thd_kill_UNLOCK(victim_thd);
 	}
 
+	wsrep_thd_kill_UNLOCK(victim_thd);
 	DBUG_VOID_RETURN;
 }
 
@@ -20234,7 +20221,7 @@ innobase_rename_vc_templ(
 		for purge thread.
 */
 
-bool innobase_allocate_row_for_vcol(THD *thd, dict_index_t *index,
+bool innobase_allocate_row_for_vcol(THD *thd, const dict_index_t *index,
                                     mem_heap_t **heap, TABLE **table,
                                     VCOL_STORAGE *storage)
 {
@@ -20318,7 +20305,8 @@ innobase_get_computed_value(
 	TABLE*			mysql_table,
 	byte*			mysql_rec,
 	const dict_table_t*	old_table,
-	const upd_t*		update)
+	const upd_t*		update,
+	bool			ignore_warnings)
 {
 	byte		rec_buf2[REC_VERSION_56_MAX_INDEX_COL_LEN];
 	byte*		buf;
@@ -20425,7 +20413,9 @@ innobase_get_computed_value(
 
 	MY_BITMAP *old_write_set = dbug_tmp_use_all_columns(mysql_table, &mysql_table->write_set);
 	MY_BITMAP *old_read_set = dbug_tmp_use_all_columns(mysql_table, &mysql_table->read_set);
-	ret = mysql_table->update_virtual_field(mysql_table->field[col->m_col.ind]);
+	ret = mysql_table->update_virtual_field(
+		mysql_table->field[col->m_col.ind],
+		ignore_warnings);
 	dbug_tmp_restore_column_map(&mysql_table->read_set, old_read_set);
 	dbug_tmp_restore_column_map(&mysql_table->write_set, old_write_set);
 

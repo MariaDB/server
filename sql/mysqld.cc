@@ -1572,8 +1572,11 @@ static my_bool kill_thread_phase_1(THD *thd, int *n_threads_awaiting_ack)
        ++(*n_threads_awaiting_ack)))
     return 0;
 
-  if (DBUG_IF("only_kill_system_threads") ? !thd->system_thread : 0)
+  if (DBUG_IF("only_kill_system_threads") && !thd->system_thread)
     return 0;
+  if (DBUG_IF("only_kill_system_threads_no_loop") && !thd->system_thread)
+    return 0;
+
   thd->awake(KILL_SERVER_HARD);
   return 0;
 }
@@ -1708,6 +1711,7 @@ void kill_mysql(THD *thd)
   shutdown_thread_id= thd->thread_id;
   DBUG_EXECUTE_IF("mysql_admin_shutdown_wait_for_slaves",
                   thd->lex->is_shutdown_wait_for_slaves= true;);
+#ifdef ENABLED_DEBUG_SYNC
   DBUG_EXECUTE_IF("simulate_delay_at_shutdown",
                   {
                     DBUG_ASSERT(binlog_dump_thread_count == 3);
@@ -1717,6 +1721,7 @@ void kill_mysql(THD *thd)
                     DBUG_ASSERT(!debug_sync_set_action(thd,
                                                        STRING_WITH_LEN(act)));
                   };);
+#endif
 
   if (thd->lex->is_shutdown_wait_for_slaves)
     shutdown_wait_for_slaves= true;
@@ -1783,7 +1788,6 @@ static void close_connections(void)
 
   Events::deinit();
   slave_prepare_for_shutdown();
-  mysql_bin_log.stop_background_thread();
   ack_receiver.stop();
 
   /*
@@ -1804,7 +1808,11 @@ static void close_connections(void)
 
   for (int i= 0; THD_count::connection_thd_count() - n_threads_awaiting_ack
                  && i < 1000; i++)
+  {
+    if (DBUG_IF("only_kill_system_threads_no_loop"))
+      break;
     my_sleep(20000);
+  }
 
   if (global_system_variables.log_warnings)
     server_threads.iterate(warn_threads_active_after_phase_1);
@@ -1821,7 +1829,11 @@ static void close_connections(void)
                   THD_count::connection_thd_count() - n_threads_awaiting_ack));
 
   while (THD_count::connection_thd_count() - n_threads_awaiting_ack)
+  {
+    if (DBUG_IF("only_kill_system_threads_no_loop"))
+      break;
     my_sleep(1000);
+  }
 
   /* Kill phase 2 */
   server_threads.iterate(kill_thread_phase_2);
@@ -3895,14 +3907,24 @@ static int init_common_variables()
   if (ignore_db_dirs_init())
     exit(1);
 
-#ifdef _WIN32
-  get_win_tzname(system_time_zone, sizeof(system_time_zone));
-#elif defined(HAVE_TZNAME)
   struct tm tm_tmp;
-  localtime_r(&server_start_time,&tm_tmp);
-  const char *tz_name=  tzname[tm_tmp.tm_isdst != 0 ? 1 : 0];
-  strmake_buf(system_time_zone, tz_name);
-#endif /* HAVE_TZNAME */
+  localtime_r(&server_start_time, &tm_tmp);
+
+#ifdef HAVE_TZNAME
+#ifdef _WIN32
+  /*
+   If env.variable TZ is set, derive timezone name from it.
+   Otherwise, use IANA tz name from get_win_tzname.
+  */
+  if (!getenv("TZ"))
+    get_win_tzname(system_time_zone, sizeof(system_time_zone));
+  else
+#endif
+  {
+    const char *tz_name= tzname[tm_tmp.tm_isdst != 0 ? 1 : 0];
+    strmake_buf(system_time_zone, tz_name);
+  }
+#endif
 
   /*
     We set SYSTEM time zone as reasonable default and
@@ -6541,7 +6563,7 @@ struct my_option my_long_options[]=
    "names at once (in 'datadir') and is normally the only option you need "
    "for specifying log files. Sets names for --log-bin, --log-bin-index, "
    "--relay-log, --relay-log-index, --general-log-file, "
-   "--log-slow-query-log-file, --log-error-file, and --pid-file",
+   "--log-slow-query-file, --log-error-file, and --pid-file",
    &opt_log_basename, &opt_log_basename, 0, GET_STR, REQUIRED_ARG,
    0, 0, 0, 0, 0, 0},
   {"log-bin", OPT_BIN_LOG,

@@ -1085,7 +1085,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL
-) ENGINE=MEMORY DEFAULT CHARSET=latin1
+) ENGINE=MEMORY DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 select @@default_storage_engine;
 @@default_storage_engine
 MyISAM
@@ -1095,7 +1095,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 drop table t1;
 SET @@default_storage_engine=@save_dfs;
 SET STATEMENT keycache1.key_buffer_size=1024 FOR SELECT 1;
@@ -1147,6 +1147,16 @@ sql_text
 select sleep(0.1)
 set statement long_query_time=0.01 for select sleep(0.1)
 #---
+#should be written
+set statement log_slow_query_time=0.01 for select sleep(0.1);
+sleep(0.1)
+0
+select sql_text from mysql.slow_log where sql_text not like 'set @@long_query_time%';
+sql_text
+select sleep(0.1)
+set statement long_query_time=0.01 for select sleep(0.1)
+set statement log_slow_query_time=0.01 for select sleep(0.1)
+#---
 set @@long_query_time=0.01;
 #should NOT be written
 set statement slow_query_log=0 for select sleep(0.1);
@@ -1157,6 +1167,7 @@ select sql_text from mysql.slow_log where sql_text not like 'set @@long_query_ti
 sql_text
 select sleep(0.1)
 set statement long_query_time=0.01 for select sleep(0.1)
+set statement log_slow_query_time=0.01 for select sleep(0.1)
 #---
 #should NOT be written
 set statement long_query_time=0.01,log_slow_filter='full_scan' for select sleep(0.1);
@@ -1166,6 +1177,7 @@ select sql_text from mysql.slow_log where sql_text not like 'set @@long_query_ti
 sql_text
 select sleep(0.1)
 set statement long_query_time=0.01 for select sleep(0.1)
+set statement log_slow_query_time=0.01 for select sleep(0.1)
 #---
 #should NOT be written
 set statement long_query_time=0.01,log_slow_rate_limit=9999 for select sleep(0.1);
@@ -1175,6 +1187,7 @@ select sql_text from mysql.slow_log where sql_text not like 'set @@long_query_ti
 sql_text
 select sleep(0.1)
 set statement long_query_time=0.01 for select sleep(0.1)
+set statement log_slow_query_time=0.01 for select sleep(0.1)
 #---
 #should NOT be written
 set statement long_query_time=0.01,min_examined_row_limit=50 for select sleep(0.1);
@@ -1184,6 +1197,17 @@ select sql_text from mysql.slow_log where sql_text not like 'set @@long_query_ti
 sql_text
 select sleep(0.1)
 set statement long_query_time=0.01 for select sleep(0.1)
+set statement log_slow_query_time=0.01 for select sleep(0.1)
+#---
+#should NOT be written
+set statement long_query_time=0.01,log_slow_min_examined_row_limit=50 for select sleep(0.1);
+sleep(0.1)
+0
+select sql_text from mysql.slow_log where sql_text not like 'set @@long_query_time%';
+sql_text
+select sleep(0.1)
+set statement long_query_time=0.01 for select sleep(0.1)
+set statement log_slow_query_time=0.01 for select sleep(0.1)
 #---
 set global log_output= @save_log_output;
 set @@slow_query_log= @save_slow_query_log;
@@ -1303,7 +1327,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` varchar(3) NOT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t1;
 # Create the table t1 with the same definition as it used before
 # using regular statement execution mode.
@@ -1314,7 +1338,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` varchar(3) NOT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t1;
 #
 # MDEV-29074 GET_BIT variables crash in SET STATEMENT

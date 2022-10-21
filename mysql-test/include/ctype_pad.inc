@@ -52,13 +52,14 @@ DROP TABLE t1;
 --echo #
 --echo # IF, CASE, LEAST
 --echo #
-
+#enable after fix MDEV-27871
+--disable_view_protocol
 eval SELECT IF('abc' COLLATE $coll = 'abc ', 'pad', 'nopad');
 eval SELECT CASE 'abc' COLLATE $coll WHEN 'abc ' THEN 'pad' ELSE 'nopad' END;
 eval SELECT CASE WHEN 'abc' COLLATE $coll = 'abc ' THEN 'pad' ELSE 'nopad' END;
 eval SELECT HEX(LEAST('abc ' COLLATE $coll, 'abc  '));
 eval SELECT HEX(GREATEST('abc ' COLLATE $coll, 'abc  '));
-
+--enable_view_protocol
 --echo #
 --echo # Collation mix
 --echo #

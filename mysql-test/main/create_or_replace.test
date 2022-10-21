@@ -43,7 +43,7 @@ DROP TEMPORARY TABLE t1;
 --echo #
 --echo # Testing with temporary tables
 --echo #
-
+--disable_view_protocol
 CREATE OR REPLACE TABLE t1 (a int);
 CREATE OR REPLACE TEMPORARY TABLE t1 (a int);
 CREATE OR REPLACE TEMPORARY TABLE t1 (a int, b int);
@@ -103,6 +103,7 @@ create or replace table t1 as select a from (select a from t1) as t3;
 --error ER_UPDATE_TABLE_USED
 create or replace table t1 as select a from t2 where t2.a in (select a from t1);
 drop table t1;
+--enable_view_protocol
 
 --echo #
 --echo # Testing with normal tables
@@ -125,6 +126,7 @@ CREATE OR REPLACE TABLE t1 AS SELECT 1;
 SHOW CREATE TABLE t1;
 DROP TABLE t1;
 
+--disable_service_connection
 # Using lock tables with CREATE OR REPLACE
 CREATE OR REPLACE TABLE t1 (a int);
 LOCK TABLES t1 write,t2 write;
@@ -206,6 +208,7 @@ drop table t1,t3,t4;
 --echo # Test the meta data locks are freed properly
 --echo #
 
+--disable_view_protocol
 create database mysqltest2;
 
 drop table if exists test.t1,mysqltest2.t2;
@@ -303,7 +306,7 @@ select * from information_schema.metadata_lock_info
 where table_schema!='mysql' or table_name not like 'innodb_%_stats';
 create table t1 (i int);
 drop table t1;
-
+--enable_view_protocol
 
 --echo #
 --echo # Testing CREATE .. LIKE
@@ -525,6 +528,23 @@ CREATE OR REPLACE TEMPORARY TABLE t2(c INT DEFAULT '');
 SELECT * FROM t3;
 UNLOCK TABLES;
 DROP TABLE t3;
+--enable_service_connection
+
+--echo #
+--echo # MDEV-29697 Assertion failure in Diagnostics_area::set_ok_status
+--echo #            upon CREATE OR REPLACE causing ER_UPDATE_TABLE_USED
+--echo #
+CREATE TABLE t (a INT) ENGINE=MyISAM;
+CREATE TABLE tm (a INT) ENGINE=MERGE UNION(t);
+--error ER_UPDATE_TABLE_USED
+CREATE OR REPLACE TABLE t LIKE tm;
+
+# Cleanup
+DROP TABLE IF EXISTS tm, t;
+
+--echo #
+--echo # End of 10.3 tests
+--echo #
 
 --echo # End of 10.4 tests
 
@@ -644,6 +664,7 @@ drop tables t2, t1;
 --echo #
 --echo # Atomic CREATE OR REPLACE part:
 --echo #
+--disable_service_connection
 create table t1 (pk int primary key) engine=innodb;
 create or replace table t2 (a int primary key references t1 (pk)) engine=innodb;
 
@@ -655,6 +676,7 @@ select * from t2;
 unlock tables;
 
 drop tables t2, t1;
+--enable_service_connection
 
 --echo #
 --echo # MDEV-28933 CREATE OR REPLACE fails to recreate same constraint name
@@ -677,3 +699,29 @@ select * from information_schema.innodb_sys_foreign_cols;
 drop tables u, t;
 select * from information_schema.innodb_sys_foreign;
 select * from information_schema.innodb_sys_foreign_cols;
+
+--echo #
+--echo # MDEV-29544 SIGSEGV in HA_CREATE_INFO::finalize_locked_tables
+--echo #
+call mtr.add_suppression("mysql.innodb_index_stats");
+set sql_mode= '';
+create table t (x int) engine innodb;
+insert into t values (77);
+alter table mysql.innodb_index_stats modify stat_description char(10);
+lock table t write;
+--replace_regex /#sql-backup-.+-.+-/#sql-backup-/
+--replace_result $MYSQLD_DATADIR ./
+--error ER_ERROR_ON_RENAME
+create or replace table t (y int);
+# cleanup
+unlock tables;
+alter table mysql.innodb_index_stats modify stat_description varchar(1024) not null;
+select * from t;
+drop table t;
+set sql_mode= default;
+
+--echo #
+--echo # MDEV-29620 Assertion `next_insert_id == 0' failed in handler::ha_external_lock
+--echo #
+create or replace table t1 (i serial) as select * from (values(1), (2)) dt;
+drop table t1;

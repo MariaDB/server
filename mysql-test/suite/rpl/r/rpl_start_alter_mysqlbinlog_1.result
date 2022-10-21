@@ -26,7 +26,7 @@ t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
   `c` int(11) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 # Failed Alter
 insert into t1 values(1,1, NULL);
 alter table t1 change a a int unique;
@@ -41,7 +41,7 @@ t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
   `c` int(11) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 connection master_node;
 drop table t1;
 # innodb
@@ -57,7 +57,7 @@ t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
   `c` int(11) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 # Failed Alter
 insert into t1 values(1,1, NULL);
 alter table t1 change a a int unique;
@@ -72,7 +72,7 @@ t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
   `c` int(11) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 connection master_node;
 drop table t1;
 # aria
@@ -88,7 +88,7 @@ t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
   `c` int(11) DEFAULT NULL
-) ENGINE=Aria DEFAULT CHARSET=latin1 PAGE_CHECKSUM=1
+) ENGINE=Aria DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1
 # Failed Alter
 insert into t1 values(1,1, NULL);
 alter table t1 change a a int unique;
@@ -103,7 +103,7 @@ t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
   `c` int(11) DEFAULT NULL
-) ENGINE=Aria DEFAULT CHARSET=latin1 PAGE_CHECKSUM=1
+) ENGINE=Aria DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1
 connection master_node;
 drop table t1;
 # concurrent alter Myisam

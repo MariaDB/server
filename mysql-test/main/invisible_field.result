@@ -13,7 +13,7 @@ t1	CREATE TABLE `t1` (
   `abc` int(11) NOT NULL,
   `xyz` int(11) INVISIBLE DEFAULT NULL,
   PRIMARY KEY (`abc`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 select TABLE_CATALOG,TABLE_SCHEMA,TABLE_NAME,COLUMN_NAME,EXTRA from INFORMATION_SCHEMA.COLUMNS where TABLE_SCHEMA='test' and TABLE_NAME='t1';
 TABLE_CATALOG	TABLE_SCHEMA	TABLE_NAME	COLUMN_NAME	EXTRA
 def	test	t1	abc	
@@ -150,7 +150,7 @@ t1	CREATE TABLE `t1` (
   `abc` int(11) NOT NULL INVISIBLE AUTO_INCREMENT,
   `a` int(11) DEFAULT NULL,
   PRIMARY KEY (`abc`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 insert into t1 values(1);
 insert into t1 values(2);
 insert into t1 values(3);
@@ -423,7 +423,7 @@ t1	CREATE TABLE `t1` (
   `c` int(11) INVISIBLE DEFAULT NULL,
   PRIMARY KEY (`a`),
   UNIQUE KEY `c` (`c`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 desc t1;
 Field	Type	Null	Key	Default	Extra
 a	int(11)	NO	PRI	NULL	

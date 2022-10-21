@@ -10,7 +10,7 @@ about:text	CREATE TABLE `about:text` (
   `_id` int(11) NOT NULL AUTO_INCREMENT,
   `about:text` varchar(255) NOT NULL DEFAULT '',
   PRIMARY KEY (`_id`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 drop table `about:text`;
 use test;
 drop table if exists t1;
@@ -53,15 +53,15 @@ show create table tttttttttttttttttttttttt❎❎❎❎❎❎❎❎❎❎❎❎�
 Table	Create Table
 tttttttttttttttttttttttt❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎	CREATE TABLE `tttttttttttttttttttttttt❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎` (
   `y` int(11) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 set @@debug_dbug="+d,ddl_log_create_after_save_backup", @debug_crash_counter=1;
 create or replace table tttttttttttttttttttttttt❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎ (z int);
 ERROR HY000: Lost connection to server during query
-#sql-backup-PID-TID-tttttttttttttttttttttttt@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e.MYD
-#sql-backup-PID-TID-tttttttttttttttttttttttt@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e.MYI
-#sql-backup-PID-TID-tttttttttttttttttttttttt@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e.frm
-#sql-create-PID-TID-tttttttttttttttttttttttt@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e.MYD
-#sql-create-PID-TID-tttttttttttttttttttttttt@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e.MYI
-#sql-create-PID-TID-tttttttttttttttttttttttt@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e.frm
+#sql-backup-PID-TID-tttttttttttttttttttttttt@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e.MYD
+#sql-backup-PID-TID-tttttttttttttttttttttttt@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e.MYI
+#sql-backup-PID-TID-tttttttttttttttttttttttt@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e.frm
+#sql-create-PID-TID-tttttttttttttttttttttttt@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e.MYD
+#sql-create-PID-TID-tttttttttttttttttttttttt@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e.MYI
+#sql-create-PID-TID-tttttttttttttttttttttttt@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e.frm
 drop table tttttttttttttttttttttttt❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎;
 set @@debug_dbug="";

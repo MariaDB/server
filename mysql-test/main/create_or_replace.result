@@ -31,13 +31,13 @@ Table	Create Table
 t1	CREATE TEMPORARY TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TEMPORARY TABLE t1;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t1;
 create temporary table t1 (i int) engine=InnoDB;
 create or replace temporary table t1 (a int, b int) engine=InnoDB;
@@ -46,7 +46,7 @@ show create table t1;
 Table	Create Table
 t1	CREATE TEMPORARY TABLE `t1` (
   `j` int(11) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 drop table t1;
 CREATE OR REPLACE TABLE t1 (a int);
 LOCK TABLES t1 write;
@@ -60,13 +60,13 @@ Table	Create Table
 t1	CREATE TEMPORARY TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TEMPORARY TABLE t1;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 CREATE OR REPLACE TABLE t2 (a int);
 ERROR HY000: Table 't2' was not locked with LOCK TABLES
 DROP TABLE t1;
@@ -88,7 +88,7 @@ Table	Create Table
 t1	CREATE TEMPORARY TABLE `t1` (
   `b` int(11) DEFAULT NULL,
   `a` int(11) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t1;
 CREATE TEMPORARY TABLE t1 AS SELECT a FROM t2;
 CREATE TEMPORARY TABLE IF NOT EXISTS t1(a int, b int) SELECT 1,2 FROM t2;
@@ -101,7 +101,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `1` int(1) NOT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t1;
 create table t1 (a int);
 create or replace table t1 as select * from t1;
@@ -121,7 +121,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t1;
 CREATE TABLE t1 (a int) SELECT * from t2;
 SELECT * FROM t1;
@@ -142,7 +142,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `1` int(1) NOT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t1;
 CREATE OR REPLACE TABLE t1 (a int);
 LOCK TABLES t1 write,t2 write;
@@ -218,7 +218,7 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `j` int(11) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 drop table t1;
 create table t1 (i int) engine=InnoDB;
 lock table t1 write, t2 write;
@@ -400,7 +400,7 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 drop table t1;
 create table t1 (b int);
 lock tables t1 write, t2 read;
@@ -415,7 +415,7 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 drop table t1;
 create or replace table t1 like t2;
 create or replace table t1 like t1;
@@ -600,6 +600,18 @@ SELECT * FROM t3;
 ERROR HY000: Table 't3' was not locked with LOCK TABLES
 UNLOCK TABLES;
 DROP TABLE t3;
+#
+# MDEV-29697 Assertion failure in Diagnostics_area::set_ok_status
+#            upon CREATE OR REPLACE causing ER_UPDATE_TABLE_USED
+#
+CREATE TABLE t (a INT) ENGINE=MyISAM;
+CREATE TABLE tm (a INT) ENGINE=MERGE UNION(t);
+CREATE OR REPLACE TABLE t LIKE tm;
+ERROR HY000: Table 'tm' is specified twice, both as a target for 'CREATE' and as a separate source for data
+DROP TABLE IF EXISTS tm, t;
+#
+# End of 10.3 tests
+#
 # End of 10.4 tests
 #
 # MDEV-25292 Atomic CREATE OR REPLACE TABLE
@@ -613,21 +625,21 @@ show create table t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `c` int(11) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 create or replace table t2 (a int, b int, key k (a), key k (b)) as select a, a as b from t1;
 ERROR 42000: Duplicate key name 'k'
 show create table t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `c` int(11) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 create or replace table t2 (a int primary key) as select * from t1;
 ERROR 23000: Duplicate entry '1' for key 'PRIMARY'
 show create table t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `c` int(11) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 set @old_mode= @@sql_mode;
 set @@sql_mode='ALLOW_INVALID_DATES';
 create table t3 (dt datetime default '2008-02-31 00:00:00');
@@ -638,7 +650,7 @@ show create table t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `c` int(11) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 # LOCK TABLES
 lock tables t2 write, t1 write;
 flush tables;
@@ -828,7 +840,7 @@ t1	CREATE TABLE `t1` (
   `x` int(11) NOT NULL,
   `y` int(11) DEFAULT NULL,
   PRIMARY KEY (`x`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 drop tables t3, t2, t1;
 # UNIQUE
 create table t1 (pk int auto_increment primary key, a varchar(2300), unique (a)) engine aria;
@@ -845,7 +857,7 @@ Table	Create Table
 t2	CREATE TABLE `t2` (
   `pk` int(11) NOT NULL DEFAULT 0,
   `a` varchar(2300) DEFAULT NULL
-) ENGINE=Aria DEFAULT CHARSET=latin1 PAGE_CHECKSUM=1
+) ENGINE=Aria DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1
 drop tables t2, t1;
 #
 # MDEV-28956 Locking is broken if CREATE OR REPLACE fails under LOCK TABLES
@@ -891,3 +903,29 @@ select * from information_schema.innodb_sys_foreign;
 ID	FOR_NAME	REF_NAME	N_COLS	TYPE
 select * from information_schema.innodb_sys_foreign_cols;
 ID	FOR_COL_NAME	REF_COL_NAME	POS
+#
+# MDEV-29544 SIGSEGV in HA_CREATE_INFO::finalize_locked_tables
+#
+call mtr.add_suppression("mysql.innodb_index_stats");
+set sql_mode= '';
+create table t (x int) engine innodb;
+insert into t values (77);
+alter table mysql.innodb_index_stats modify stat_description char(10);
+Warnings:
+Warning	1265	Data truncated for column 'stat_description' at row 2
+Warning	1265	Data truncated for column 'stat_description' at row 3
+lock table t write;
+create or replace table t (y int);
+ERROR HY000: Error on rename of './test/t' to './test/#sql-backup-t' (errno: 168 "Unknown (generic) error from engine")
+unlock tables;
+alter table mysql.innodb_index_stats modify stat_description varchar(1024) not null;
+select * from t;
+x
+77
+drop table t;
+set sql_mode= default;
+#
+# MDEV-29620 Assertion `next_insert_id == 0' failed in handler::ha_external_lock
+#
+create or replace table t1 (i serial) as select * from (values(1), (2)) dt;
+drop table t1;

@@ -287,12 +287,12 @@ static dberr_t srv_undo_tablespace_create(const char* name)
 
 	if (!ret) {
 		if (os_file_get_last_error(false) != OS_FILE_ALREADY_EXISTS
-#ifdef UNIV_AIX
+#ifdef _AIX
 			/* AIX 5.1 after security patch ML7 may have
 			errno set to 0 here, which causes our function
 			to return 100; work around that AIX problem */
 		    && os_file_get_last_error(false) != 100
-#endif /* UNIV_AIX */
+#endif
 		) {
 			ib::error() << "Can't create UNDO tablespace "
 				<< name;
@@ -728,6 +728,21 @@ static void srv_shutdown_threads()
 	if (srv_n_fil_crypt_threads) {
 		fil_crypt_set_thread_cnt(0);
 	}
+}
+
+
+/** Shut down background threads that can generate undo log. */
+static void srv_shutdown_bg_undo_sources()
+{
+  srv_shutdown_state= SRV_SHUTDOWN_INITIATED;
+
+  if (srv_undo_sources)
+  {
+    ut_ad(!srv_read_only_mode);
+    fts_optimize_shutdown();
+    dict_stats_shutdown();
+    srv_undo_sources= false;
+  }
 }
 
 #ifdef UNIV_DEBUG
@@ -1629,19 +1644,6 @@ skip_monitors:
 	}
 
 	return(DB_SUCCESS);
-}
-
-/** Shut down background threads that can generate undo log. */
-void srv_shutdown_bg_undo_sources()
-{
-	srv_shutdown_state = SRV_SHUTDOWN_INITIATED;
-
-	if (srv_undo_sources) {
-		ut_ad(!srv_read_only_mode);
-		fts_optimize_shutdown();
-		dict_stats_shutdown();
-		srv_undo_sources = false;
-	}
 }
 
 /**

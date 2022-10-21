@@ -862,7 +862,7 @@ show create table t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `a` binary(0) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 drop table t1, t2;
 End of 5.5 tests
 #

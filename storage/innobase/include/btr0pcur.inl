@@ -338,63 +338,37 @@ btr_pcur_open_low(
   cursor->search_mode= mode;
   cursor->pos_state= BTR_PCUR_IS_POSITIONED;
   cursor->trx_if_known= nullptr;
-  return btr_cur_search_to_nth_level_func(index, level, tuple, mode, latch_mode,
-                                          btr_pcur_get_btr_cur(cursor),
-#ifdef BTR_CUR_HASH_ADAPT
-                                          nullptr,
-#endif
-                                          mtr, autoinc);
+  return btr_cur_search_to_nth_level(index, level, tuple, mode, latch_mode,
+                                     btr_pcur_get_btr_cur(cursor),
+                                     mtr, autoinc);
 }
 
-/**************************************************************//**
-Opens an persistent cursor to an index tree without initializing the
-cursor. */
-UNIV_INLINE
-dberr_t
-btr_pcur_open_with_no_init_func(
-/*============================*/
-	dict_index_t*	index,	/*!< in: index */
-	const dtuple_t*	tuple,	/*!< in: tuple on which search done */
-	page_cur_mode_t	mode,	/*!< in: PAGE_CUR_L, ...;
-				NOTE that if the search is made using a unique
-				prefix of a record, mode should be
-				PAGE_CUR_LE, not PAGE_CUR_GE, as the latter
-				may end up on the previous page of the
-				record! */
-	ulint		latch_mode,/*!< in: BTR_SEARCH_LEAF, ...;
-				NOTE that if ahi_latch then we might not
-				acquire a cursor page latch, but assume
-				that the ahi_latch protects the record! */
-	btr_pcur_t*	cursor, /*!< in: memory buffer for persistent cursor */
-#ifdef BTR_CUR_HASH_ADAPT
-	srw_spin_lock*	ahi_latch,
-				/*!< in: currently held AHI rdlock, or NULL */
-#endif /* BTR_CUR_HASH_ADAPT */
-	mtr_t*		mtr)	/*!< in: mtr */
+/** Opens an persistent cursor to an index tree without initializing the
+cursor.
+@param index      index
+@param tuple      tuple on which search done
+@param mode       PAGE_CUR_L, ...; NOTE that if the search is made using a
+                  unique prefix of a record, mode should be PAGE_CUR_LE, not
+                  PAGE_CUR_GE, as the latter may end up on the previous page of
+                  the record!
+@param latch_mode BTR_SEARCH_LEAF, ...
+@param cursor     memory buffer for persistent cursor
+@param mtr        mini-transaction
+@return DB_SUCCESS on success or error code otherwise. */
+inline
+dberr_t btr_pcur_open_with_no_init(dict_index_t *index, const dtuple_t *tuple,
+                                   page_cur_mode_t mode, ulint latch_mode,
+                                   btr_pcur_t *cursor, mtr_t *mtr)
 {
-	btr_cur_t*	btr_cursor;
-	dberr_t		err = DB_SUCCESS;
+  cursor->latch_mode= BTR_LATCH_MODE_WITHOUT_INTENTION(latch_mode);
+  cursor->search_mode= mode;
+  cursor->pos_state= BTR_PCUR_IS_POSITIONED;
+  cursor->old_stored= false;
+  cursor->trx_if_known= nullptr;
 
-	cursor->latch_mode = BTR_LATCH_MODE_WITHOUT_INTENTION(latch_mode);
-	cursor->search_mode = mode;
-
-	/* Search with the tree cursor */
-
-	btr_cursor = btr_pcur_get_btr_cur(cursor);
-
-	err = btr_cur_search_to_nth_level_func(
-		index, 0, tuple, mode, latch_mode, btr_cursor,
-#ifdef BTR_CUR_HASH_ADAPT
-		ahi_latch,
-#endif /* BTR_CUR_HASH_ADAPT */
-		mtr);
-
-	cursor->pos_state = BTR_PCUR_IS_POSITIONED;
-
-	cursor->old_stored = false;
-
-	cursor->trx_if_known = NULL;
-	return err;
+  /* Search with the tree cursor */
+  return btr_cur_search_to_nth_level(index, 0, tuple, mode, latch_mode,
+                                     btr_pcur_get_btr_cur(cursor), mtr);
 }
 
 /*****************************************************************//**

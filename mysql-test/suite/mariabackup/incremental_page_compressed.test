@@ -1,0 +1,38 @@
+--echo #
+--echo # MDEV-26794 MariaBackup does not recognize added providers upon prepare of incremental backup
+--echo #
+
+if (!$PROVIDER_SNAPPY_SO) {
+  skip "Needs provider_snappy plugin";
+}
+
+--source include/have_innodb.inc
+
+--let $targetdir=$MYSQLTEST_VARDIR/tmp/backup
+--let $incdir=$MYSQLTEST_VARDIR/tmp/inc
+
+CREATE TABLE t (a INT) ENGINE=InnoDB;
+INSERT INTO t VALUES (1),(2);
+
+--exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf --backup --target-dir=$targetdir
+
+INSTALL SONAME 'provider_snappy';
+
+SET GLOBAL innodb_compression_algorithm= snappy;
+
+CREATE TABLE t_snappy (a INT) ENGINE=InnoDB page_compressed=1;
+INSERT INTO t_snappy VALUES (3),(4);
+
+# disable buffer pool load to avoid MDEV-26794 warnings
+--let $restart_parameters= --innodb_buffer_pool_load_at_startup=0
+--source include/restart_mysqld.inc
+
+--exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf --backup --incremental-basedir=$targetdir --target-dir=$incdir
+
+--echo # Prepare initial backup
+--exec $XTRABACKUP --prepare --target-dir=$targetdir
+
+--echo # Prepare incremental backup
+--exec $XTRABACKUP --prepare --target-dir=$targetdir --incremental-dir=$incdir > $MYSQLTEST_VARDIR/prepare.log 2>&1
+
+DROP TABLE t;

@@ -390,10 +390,10 @@ constexpr privilege_t PRIV_SET_SYSTEM_GLOBAL_VAR_SYNC_BINLOG=
 
 /* Privileges related to --read-only */
 // Was super prior to 10.5.2
-constexpr privilege_t PRIV_IGNORE_READ_ONLY= READ_ONLY_ADMIN_ACL | SUPER_ACL;
+constexpr privilege_t PRIV_IGNORE_READ_ONLY= READ_ONLY_ADMIN_ACL;
 // Was super prior to 10.5.2
 constexpr privilege_t PRIV_SET_SYSTEM_GLOBAL_VAR_READ_ONLY=
-  READ_ONLY_ADMIN_ACL | SUPER_ACL;
+  READ_ONLY_ADMIN_ACL;
 
 /*
   Privileges related to connection handling.

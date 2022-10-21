@@ -1,6 +1,12 @@
+--source include/no_valgrind_without_big.inc
 #
 # Testing ORDER BY
 #
+
+# Tests will be skipped for the view protocol because the view protocol creates 
+# an additional util connection and other statistics data
+# Check after fix MDEV-27871, possible this include can be removed
+--source include/no_view_protocol.inc
 
 call mtr.add_suppression("Sort aborted.*");
 call mtr.add_suppression("Out of sort memory; increase server sort buffer size");

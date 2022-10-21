@@ -1,0 +1,19 @@
+connection node_2;
+connection node_1;
+connection node_1;
+connection node_2;
+connection node_2;
+CREATE TABLE t3 (c1 INTEGER NOT NULL PRIMARY KEY, c2 FLOAT(3,2));
+SET GLOBAL wsrep_provider_options = 'repl.max_ws_size=512';
+SET @@autocommit=0;
+INSERT INTO t3 VALUES (1000,0.00),(1001,0.25),(1002,0.50),(1003,0.75),(1008,1.00),(1009,1.25),(1010,1.50),(1011,1.75);
+CREATE TABLE t1 ( pk int primary key) ENGINE=INNODB;
+ERROR HY000: Maximum writeset size exceeded
+SHOW WARNINGS;
+Level	Code	Message
+Error	1105	Maximum writeset size exceeded
+connection node_2;
+SET SESSION wsrep_sync_wait = 0;
+Killing server ...
+connection node_1;
+DROP TABLE t3;

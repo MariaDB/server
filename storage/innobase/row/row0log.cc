@@ -1922,6 +1922,7 @@ func_exit:
 		mtr.commit();
 func_exit_committed:
 		ut_ad(mtr.has_committed());
+		ut_free(pcur.old_rec_buf);
 
 		if (error != DB_SUCCESS) {
 			/* Report the erroneous row using the new
@@ -1978,7 +1979,7 @@ func_exit_committed:
 		row, NULL, index, heap, ROW_BUILD_NORMAL);
 	upd_t*		update	= row_upd_build_difference_binary(
 		index, entry, btr_pcur_get_rec(&pcur), cur_offsets,
-		false, NULL, heap, dup->table, &error);
+		false, false, NULL, heap, dup->table, &error);
 	if (error != DB_SUCCESS || !update->n_fields) {
 		goto func_exit;
 	}
@@ -2082,7 +2083,8 @@ func_exit_committed:
 		entry = row_build_index_entry(old_row, old_ext, index, heap);
 		if (!entry) {
 			ut_ad(0);
-			return(DB_CORRUPTION);
+			error = DB_CORRUPTION;
+			goto func_exit_committed;
 		}
 
 		mtr.start();
@@ -3079,7 +3081,7 @@ row_log_apply_op_low(
 					     has_index_lock
 					     ? BTR_MODIFY_TREE
 					     : BTR_MODIFY_LEAF,
-					     &cursor, 0, &mtr);
+					     &cursor, &mtr);
 	if (UNIV_UNLIKELY(*error != DB_SUCCESS)) {
 		goto func_exit;
 	}
@@ -3131,7 +3133,7 @@ row_log_apply_op_low(
 				index->set_modified(mtr);
 				*error = btr_cur_search_to_nth_level(
 					index, 0, entry, PAGE_CUR_LE,
-					BTR_MODIFY_TREE, &cursor, 0, &mtr);
+					BTR_MODIFY_TREE, &cursor, &mtr);
 				if (UNIV_UNLIKELY(*error != DB_SUCCESS)) {
 					goto func_exit;
 				}
@@ -3235,7 +3237,7 @@ insert_the_rec:
 				index->set_modified(mtr);
 				*error = btr_cur_search_to_nth_level(
 					index, 0, entry, PAGE_CUR_LE,
-					BTR_MODIFY_TREE, &cursor, 0, &mtr);
+					BTR_MODIFY_TREE, &cursor, &mtr);
 				if (*error != DB_SUCCESS) {
 					break;
 				}

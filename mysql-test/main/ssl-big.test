@@ -6,6 +6,7 @@
 -- source include/have_64bit.inc
 # No point in running with valgrind as it takes 1.5 hours
 -- source include/not_valgrind.inc
+# This test often times out with MemorySanitizer.
 -- source include/not_msan.inc
 
 # Save the initial number of concurrent sessions

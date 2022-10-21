@@ -4,6 +4,10 @@
 #     $engine_type       -- storage engine to be tested
 # have to be set before sourcing this script.
 
+# Tests will be skipped for the view protocol because the view protocol creates 
+# an additional util connection and other statistics data
+-- source include/no_view_protocol.inc
+
 SET global query_cache_type=ON;
 SET local query_cache_type=ON;
 eval SET SESSION DEFAULT_STORAGE_ENGINE = $engine_type;

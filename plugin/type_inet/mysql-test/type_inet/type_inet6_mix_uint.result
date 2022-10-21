@@ -29,7 +29,7 @@ t2	CREATE TABLE `t2` (
   `target` inet6 DEFAULT '::',
   `source` int(10) unsigned DEFAULT 0,
   PRIMARY KEY (`id`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 CREATE TABLE t3 LIKE t2;
 INSERT INTO t3 VALUES
 (1,
@@ -201,7 +201,7 @@ t2	CREATE TABLE `t2` (
   `target` int(10) unsigned DEFAULT 0,
   `source` inet6 DEFAULT '::',
   PRIMARY KEY (`id`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 CREATE TABLE t3 LIKE t2;
 INSERT INTO t3 VALUES
 (1,

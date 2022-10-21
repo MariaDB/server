@@ -1816,6 +1816,8 @@ group_by_handler *spider_create_group_by_handler(
         {
           for (order = query->order_by; order; order = order->next)
           {
+            if ((*order->item)->type() == Item::SUM_FUNC_ITEM)
+              continue;
             if (spider_db_print_item_type((*order->item), NULL, spider, NULL, NULL, 0,
               roop_count, TRUE, fields_arg))
             {

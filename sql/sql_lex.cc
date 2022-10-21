@@ -3048,23 +3048,9 @@ void st_select_lex_node::include_down(st_select_lex_node *upper)
 }
 
 
-void st_select_lex_node::add_slave(st_select_lex_node *slave_arg)
+void st_select_lex_node::attach_single(st_select_lex_node *slave_arg)
 {
-  for (; slave; slave= slave->next)
-    if (slave == slave_arg)
-      return;
-
-  if (slave)
-  {
-    st_select_lex_node *slave_arg_slave= slave_arg->slave;
-    /* Insert in the front of list of slaves if any. */
-    slave_arg->include_neighbour(slave);
-    /* include_neighbour() sets slave_arg->slave=0, restore it. */
-    slave_arg->slave= slave_arg_slave;
-    /* Count on include_neighbour() setting the master. */
-    DBUG_ASSERT(slave_arg->master == this);
-  }
-  else
+  DBUG_ASSERT(slave == 0);
   {
     slave= slave_arg;
     slave_arg->master= this;
@@ -9647,7 +9633,8 @@ Item *LEX::create_item_qualified_asterisk(THD *thd,
                                              null_clex_str, *name,
                                              star_clex_str)))
     return NULL;
-  current_select->with_wild++;
+  current_select->parsing_place == IN_RETURNING ?
+              thd->lex->returning()->with_wild++ : current_select->with_wild++;
   return item;
 }
 
@@ -9662,7 +9649,8 @@ Item *LEX::create_item_qualified_asterisk(THD *thd,
   if (!(item= new (thd->mem_root) Item_field(thd, current_context(),
                                              schema, *b, star_clex_str)))
    return NULL;
-  current_select->with_wild++;
+  current_select->parsing_place == IN_RETURNING ?
+            thd->lex->returning()->with_wild++ : current_select->with_wild++;
   return item;
 }
 

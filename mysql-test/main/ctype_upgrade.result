@@ -19,7 +19,7 @@ SHOW CREATE TABLE maria050313_utf8_croatian_ci;
 Table	Create Table
 maria050313_utf8_croatian_ci	CREATE TABLE `maria050313_utf8_croatian_ci` (
   `a` varchar(10) CHARACTER SET utf8mb3 COLLATE utf8mb3_croatian_ci DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 SELECT count(*) FROM maria050313_utf8_croatian_ci;
 count(*)
 4
@@ -30,7 +30,7 @@ SHOW CREATE TABLE maria050313_utf8_croatian_ci;
 Table	Create Table
 maria050313_utf8_croatian_ci	CREATE TABLE `maria050313_utf8_croatian_ci` (
   `a` varchar(10) CHARACTER SET utf8mb3 COLLATE utf8mb3_croatian_ci DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 SELECT GROUP_CONCAT(a ORDER BY BINARY a) FROM maria050313_utf8_croatian_ci GROUP BY a;
 GROUP_CONCAT(a ORDER BY BINARY a)
 nJ
@@ -96,7 +96,7 @@ maria050533_xxx_croatian_ci	CREATE TABLE `maria050533_xxx_croatian_ci` (
   `c` varchar(10) CHARACTER SET ucs2 COLLATE ucs2_croatian_ci DEFAULT NULL,
   `d` varchar(10) CHARACTER SET utf16 COLLATE utf16_croatian_ci DEFAULT NULL,
   `e` varchar(10) CHARACTER SET utf32 COLLATE utf32_croatian_ci DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 SELECT count(*) FROM maria050533_xxx_croatian_ci;
 count(*)
 4
@@ -111,7 +111,7 @@ maria050533_xxx_croatian_ci	CREATE TABLE `maria050533_xxx_croatian_ci` (
   `c` varchar(10) CHARACTER SET ucs2 COLLATE ucs2_croatian_ci DEFAULT NULL,
   `d` varchar(10) CHARACTER SET utf16 COLLATE utf16_croatian_ci DEFAULT NULL,
   `e` varchar(10) CHARACTER SET utf32 COLLATE utf32_croatian_ci DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 SELECT GROUP_CONCAT(a ORDER BY BINARY a) FROM maria050533_xxx_croatian_ci GROUP BY a;
 GROUP_CONCAT(a ORDER BY BINARY a)
 nJ
@@ -150,7 +150,7 @@ test.maria100004_xxx_croatian_ci	repair	status	OK
 SHOW CREATE TABLE maria100004_xxx_croatian_ci;
 Table	Create Table
 maria100004_xxx_croatian_ci	CREATE TABLE `maria100004_xxx_croatian_ci` (
-  `a` varchar(10) COLLATE utf8mb3_croatian_ci DEFAULT NULL,
+  `a` varchar(10) DEFAULT NULL,
   `b` varchar(10) CHARACTER SET utf8mb4 COLLATE utf8mb4_croatian_ci DEFAULT NULL,
   `c` varchar(10) CHARACTER SET ucs2 COLLATE ucs2_croatian_ci DEFAULT NULL,
   `d` varchar(10) CHARACTER SET utf16 COLLATE utf16_croatian_ci DEFAULT NULL,
@@ -162,7 +162,7 @@ ALTER TABLE maria100004_xxx_croatian_ci FORCE;
 SHOW CREATE TABLE maria100004_xxx_croatian_ci;
 Table	Create Table
 maria100004_xxx_croatian_ci	CREATE TABLE `maria100004_xxx_croatian_ci` (
-  `a` varchar(10) COLLATE utf8mb3_croatian_ci DEFAULT NULL,
+  `a` varchar(10) DEFAULT NULL,
   `b` varchar(10) CHARACTER SET utf8mb4 COLLATE utf8mb4_croatian_ci DEFAULT NULL,
   `c` varchar(10) CHARACTER SET ucs2 COLLATE ucs2_croatian_ci DEFAULT NULL,
   `d` varchar(10) CHARACTER SET utf16 COLLATE utf16_croatian_ci DEFAULT NULL,
@@ -201,7 +201,7 @@ test.mysql050614_xxx_croatian_ci	check	status	OK
 SHOW CREATE TABLE mysql050614_xxx_croatian_ci;
 Table	Create Table
 mysql050614_xxx_croatian_ci	CREATE TABLE `mysql050614_xxx_croatian_ci` (
-  `a` varchar(10) COLLATE utf8mb3_croatian_mysql561_ci DEFAULT NULL,
+  `a` varchar(10) DEFAULT NULL,
   `b` varchar(10) CHARACTER SET utf8mb4 COLLATE utf8mb4_croatian_mysql561_ci DEFAULT NULL,
   `c` varchar(10) CHARACTER SET ucs2 COLLATE ucs2_croatian_mysql561_ci DEFAULT NULL,
   `d` varchar(10) CHARACTER SET utf16 COLLATE utf16_croatian_mysql561_ci DEFAULT NULL,
@@ -555,7 +555,7 @@ SHOW CREATE TABLE maria050313_utf8_croatian_ci;
 Table	Create Table
 maria050313_utf8_croatian_ci	CREATE TABLE `maria050313_utf8_croatian_ci` (
   `a` varchar(10) CHARACTER SET utf8mb3 COLLATE utf8mb3_croatian_ci DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 SELECT GROUP_CONCAT(a ORDER BY BINARY a) FROM maria050313_utf8_croatian_ci GROUP BY a;
 GROUP_CONCAT(a ORDER BY BINARY a)
 nJ
@@ -568,7 +568,7 @@ maria050533_xxx_croatian_ci	CREATE TABLE `maria050533_xxx_croatian_ci` (
   `c` varchar(10) CHARACTER SET ucs2 COLLATE ucs2_croatian_ci DEFAULT NULL,
   `d` varchar(10) CHARACTER SET utf16 COLLATE utf16_croatian_ci DEFAULT NULL,
   `e` varchar(10) CHARACTER SET utf32 COLLATE utf32_croatian_ci DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 SELECT GROUP_CONCAT(a ORDER BY BINARY a) FROM maria050533_xxx_croatian_ci GROUP BY a;
 GROUP_CONCAT(a ORDER BY BINARY a)
 nJ
@@ -576,7 +576,7 @@ NJ,Nj,nj
 SHOW CREATE TABLE maria100004_xxx_croatian_ci;
 Table	Create Table
 maria100004_xxx_croatian_ci	CREATE TABLE `maria100004_xxx_croatian_ci` (
-  `a` varchar(10) COLLATE utf8mb3_croatian_ci DEFAULT NULL,
+  `a` varchar(10) DEFAULT NULL,
   `b` varchar(10) CHARACTER SET utf8mb4 COLLATE utf8mb4_croatian_ci DEFAULT NULL,
   `c` varchar(10) CHARACTER SET ucs2 COLLATE ucs2_croatian_ci DEFAULT NULL,
   `d` varchar(10) CHARACTER SET utf16 COLLATE utf16_croatian_ci DEFAULT NULL,
@@ -589,7 +589,7 @@ NJ,Nj,nj
 SHOW CREATE TABLE mysql050614_xxx_croatian_ci;
 Table	Create Table
 mysql050614_xxx_croatian_ci	CREATE TABLE `mysql050614_xxx_croatian_ci` (
-  `a` varchar(10) COLLATE utf8mb3_croatian_mysql561_ci DEFAULT NULL,
+  `a` varchar(10) DEFAULT NULL,
   `b` varchar(10) CHARACTER SET utf8mb4 COLLATE utf8mb4_croatian_mysql561_ci DEFAULT NULL,
   `c` varchar(10) CHARACTER SET ucs2 COLLATE ucs2_croatian_mysql561_ci DEFAULT NULL,
   `d` varchar(10) CHARACTER SET utf16 COLLATE utf16_croatian_mysql561_ci DEFAULT NULL,

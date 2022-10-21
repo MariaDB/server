@@ -46,6 +46,8 @@ INSERT INTO t1 VALUES (_latin1 0x9C), (_latin1 0x8C);
 #
 # Check order
 #
+#enable after fix MDEV-29290
+--disable_view_protocol
 select s1, hex(s1) from t1 order by s1, binary s1;
 select group_concat(s1 order by binary s1) from t1 group by s1;
 
@@ -53,7 +55,7 @@ SELECT s1, hex(s1), hex(weight_string(s1)) FROM t1 ORDER BY s1, BINARY(s1);
 SELECT s1, hex(s1) FROM t1 WHERE s1='ae' ORDER BY s1, BINARY(s1);
 
 drop table t1;
-
+--enable_view_protocol
 
 #
 # Check filesort for 'S' and "U+00DF SHARP S",

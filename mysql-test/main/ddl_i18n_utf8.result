@@ -720,7 +720,7 @@ utf8mb3_general_ci	utf8mb3_general_ci
 
 ---> Dump of mysqltest1
 
-CREATE DATABASE /*!32312 IF NOT EXISTS*/ `mysqltest1` /*!40100 DEFAULT CHARACTER SET cp866 */;
+CREATE DATABASE /*!32312 IF NOT EXISTS*/ `mysqltest1` /*!40100 DEFAULT CHARACTER SET cp866 COLLATE cp866_general_ci */;
 
 USE `mysqltest1`;
 /*!50003 SET @saved_sql_mode       = @@sql_mode */ ;
@@ -796,7 +796,7 @@ ALTER DATABASE `mysqltest1` CHARACTER SET cp866 COLLATE cp866_general_ci ;
 
 ---> Dump of mysqltest2
 
-CREATE DATABASE /*!32312 IF NOT EXISTS*/ `mysqltest2` /*!40100 DEFAULT CHARACTER SET cp866 */;
+CREATE DATABASE /*!32312 IF NOT EXISTS*/ `mysqltest2` /*!40100 DEFAULT CHARACTER SET cp866 COLLATE cp866_general_ci */;
 
 USE `mysqltest2`;
 /*!50003 SET @saved_sql_mode       = @@sql_mode */ ;
@@ -1724,13 +1724,13 @@ DELETE FROM mysqltest2.log|
 
 ---> Dump of mysqltest1
 
-CREATE DATABASE /*!32312 IF NOT EXISTS*/ `mysqltest1` /*!40100 DEFAULT CHARACTER SET cp866 */;
+CREATE DATABASE /*!32312 IF NOT EXISTS*/ `mysqltest1` /*!40100 DEFAULT CHARACTER SET cp866 COLLATE cp866_general_ci */;
 
 USE `mysqltest1`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `log` (
-  `msg` varchar(255) COLLATE utf8mb3_unicode_ci DEFAULT NULL
+  `msg` varchar(255) DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
@@ -1806,13 +1806,13 @@ ALTER DATABASE `mysqltest1` CHARACTER SET cp866 COLLATE cp866_general_ci ;
 
 ---> Dump of mysqltest2
 
-CREATE DATABASE /*!32312 IF NOT EXISTS*/ `mysqltest2` /*!40100 DEFAULT CHARACTER SET cp866 */;
+CREATE DATABASE /*!32312 IF NOT EXISTS*/ `mysqltest2` /*!40100 DEFAULT CHARACTER SET cp866 COLLATE cp866_general_ci */;
 
 USE `mysqltest2`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `log` (
-  `msg` varchar(255) COLLATE utf8mb3_unicode_ci DEFAULT NULL
+  `msg` varchar(255) DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
@@ -2492,7 +2492,7 @@ END	ONE TIME	1970-01-02 00:00:00	NULL	NULL		NULL	NULL	DISABLED	PRESERVE	CREATED	
 
 ---> Dump of mysqltest1
 
-CREATE DATABASE /*!32312 IF NOT EXISTS*/ `mysqltest1` /*!40100 DEFAULT CHARACTER SET cp866 */;
+CREATE DATABASE /*!32312 IF NOT EXISTS*/ `mysqltest1` /*!40100 DEFAULT CHARACTER SET cp866 COLLATE cp866_general_ci */;
 
 USE `mysqltest1`;
 /*!50106 SET @save_time_zone= @@TIME_ZONE */ ;
@@ -2559,7 +2559,7 @@ DELIMITER ;
 
 ---> Dump of mysqltest2
 
-CREATE DATABASE /*!32312 IF NOT EXISTS*/ `mysqltest2` /*!40100 DEFAULT CHARACTER SET cp866 */;
+CREATE DATABASE /*!32312 IF NOT EXISTS*/ `mysqltest2` /*!40100 DEFAULT CHARACTER SET cp866 COLLATE cp866_general_ci */;
 
 USE `mysqltest2`;
 /*!50106 SET @save_time_zone= @@TIME_ZONE */ ;
@@ -2787,26 +2787,26 @@ END|
 CALL p1()|
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `col1` varchar(10) COLLATE utf8mb3_unicode_ci DEFAULT NULL
+  `col1` varchar(10) DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_unicode_ci
 
 SHOW CREATE TABLE t1|
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `col1` varchar(10) COLLATE utf8mb3_unicode_ci DEFAULT NULL
+  `col1` varchar(10) DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_unicode_ci
 
 
 CALL mysqltest2.p2()|
 Table	Create Table
 t2	CREATE TABLE `t2` (
-  `col1` varchar(10) COLLATE utf8mb3_unicode_ci DEFAULT NULL
+  `col1` varchar(10) DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_unicode_ci
 
 SHOW CREATE TABLE mysqltest2.t2|
 Table	Create Table
 t2	CREATE TABLE `t2` (
-  `col1` varchar(10) COLLATE utf8mb3_unicode_ci DEFAULT NULL
+  `col1` varchar(10) DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_unicode_ci
 
 ALTER DATABASE mysqltest1 COLLATE cp1251_general_cs|
@@ -2817,26 +2817,26 @@ DROP TABLE mysqltest2.t2|
 CALL p1()|
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `col1` varchar(10) COLLATE cp1251_general_cs DEFAULT NULL
+  `col1` varchar(10) DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=cp1251 COLLATE=cp1251_general_cs
 
 SHOW CREATE TABLE t1|
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `col1` varchar(10) COLLATE cp1251_general_cs DEFAULT NULL
+  `col1` varchar(10) DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=cp1251 COLLATE=cp1251_general_cs
 
 
 CALL mysqltest2.p2()|
 Table	Create Table
 t2	CREATE TABLE `t2` (
-  `col1` varchar(10) COLLATE cp1251_general_cs DEFAULT NULL
+  `col1` varchar(10) DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=cp1251 COLLATE=cp1251_general_cs
 
 SHOW CREATE TABLE mysqltest2.t2|
 Table	Create Table
 t2	CREATE TABLE `t2` (
-  `col1` varchar(10) COLLATE cp1251_general_cs DEFAULT NULL
+  `col1` varchar(10) DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=cp1251 COLLATE=cp1251_general_cs
 connection con2;
 disconnect con2;

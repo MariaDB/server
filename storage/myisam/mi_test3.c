@@ -401,7 +401,7 @@ int test_write(MI_INFO *file,int id,int lock_type)
 
 int test_update(MI_INFO *file,int id,int lock_type)
 {
-  uint i,lock,found,next,prev,update;
+  uint i,lock,update;
   uint32 tmp;
   char find[4];
   struct record new_record;
@@ -424,24 +424,20 @@ int test_update(MI_INFO *file,int id,int lock_type)
   bzero((char*) &new_record,sizeof(new_record));
   strmov((char*) new_record.text,"Updated");
 
-  found=next=prev=update=0;
+  update=0;
   for (i=0 ; i < 100 ; i++)
   {
     tmp=rnd(100000);
     int4store(find,tmp);
-    if (!mi_rkey(file,record.id,1,(uchar*) find, HA_WHOLE_KEY,
-                 HA_READ_KEY_EXACT))
-      found++;
-    else
+    if (mi_rkey(file,record.id,1,(uchar*) find, HA_WHOLE_KEY,
+                HA_READ_KEY_EXACT))
     {
       if (my_errno != HA_ERR_KEY_NOT_FOUND)
       {
 	fprintf(stderr,"%2d: Got error %d from read in update\n",id,my_errno);
 	return 1;
       }
-      else if (!mi_rnext(file,record.id,1))
-	next++;
-      else
+      else if (mi_rnext(file,record.id,1))
       {
 	if (my_errno != HA_ERR_END_OF_FILE)
 	{
@@ -449,9 +445,7 @@ int test_update(MI_INFO *file,int id,int lock_type)
 		  id,my_errno);
 	  return 1;
 	}
-	else if (!mi_rprev(file,record.id,1))
-	  prev++;
-	else
+	else if (mi_rprev(file,record.id,1))
 	{
 	  if (my_errno != HA_ERR_END_OF_FILE)
 	  {

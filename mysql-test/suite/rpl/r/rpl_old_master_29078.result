@@ -9,7 +9,7 @@ connection master;
 flush binary logs;
 create table t2 (a timestamp);
 /*!50530 SET @@SESSION.PSEUDO_SLAVE_MODE=1*/;
-/*!40019 SET @@session.max_insert_delayed_threads=0*/;
+/*!40019 SET @@session.max_delayed_threads=0*/;
 /*!50003 SET @OLD_COMPLETION_TYPE=@@COMPLETION_TYPE,COMPLETION_TYPE=0*/;
 DELIMITER /*!*/;
 ROLLBACK/*!*/;
@@ -55,12 +55,12 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `f1` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
   `f2` timestamp NOT NULL DEFAULT '0000-00-00 00:00:00'
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 show create table t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `a` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp()
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 set time_zone='+2:00';
 select * from t1;
 f1	f2
@@ -78,12 +78,12 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `f1` timestamp NULL DEFAULT NULL,
   `f2` timestamp NULL DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 show create table t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `a` timestamp NULL DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 select * from t1;
 f1	f2
 NULL	NULL

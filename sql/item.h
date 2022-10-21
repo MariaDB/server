@@ -1143,6 +1143,11 @@ public:
   {
     return fixed() ? false : fix_fields(thd, ref);
   }
+
+  /*
+   fix_fields_if_needed_for_scalar() is used where we need to filter items
+   that can't be scalars and want to return error for it.
+  */
   bool fix_fields_if_needed_for_scalar(THD *thd, Item **ref)
   {
     return fix_fields_if_needed(thd, ref) || check_cols(1);
@@ -2173,7 +2178,6 @@ public:
   virtual bool enumerate_field_refs_processor(void *arg) { return 0; }
   virtual bool mark_as_eliminated_processor(void *arg) { return 0; }
   virtual bool eliminate_subselect_processor(void *arg) { return 0; }
-  virtual bool set_fake_select_as_master_processor(void *arg) { return 0; }
   virtual bool view_used_tables_processor(void *arg) { return 0; }
   virtual bool eval_not_null_tables(void *arg) { return 0; }
   virtual bool is_subquery_processor(void *arg) { return 0; }

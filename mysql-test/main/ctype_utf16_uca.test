@@ -9,6 +9,7 @@ DROP TABLE IF EXISTS t1;
 --echo # Start of 5.5 tests
 --echo #
 
+--disable_service_connection
 set names utf8;
 set collation_connection=utf16_unicode_ci;
 select hex('a'), hex('a ');
@@ -269,6 +270,7 @@ DROP TABLE t1;
 
 SET NAMES utf8;
 
+--enable_service_connection
 --echo #
 --echo # End of 10.2 tests
 --echo #

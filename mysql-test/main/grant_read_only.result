@@ -46,7 +46,7 @@ SET @@GLOBAL.read_only=0;
 DROP USER user1@localhost;
 DROP TABLE t1;
 #
-# Test that @@read_only is ignored with SUPER
+# Test that @@read_only is not ignored with SUPER
 #
 CREATE TABLE t1 (a INT);
 CREATE USER user1@localhost IDENTIFIED BY '';
@@ -61,7 +61,13 @@ SELECT @@read_only;
 @@read_only
 1
 UPDATE t1 SET a=11 WHERE a=10;
+ERROR HY000: The MariaDB server is running with the --read-only option so it cannot execute this statement
 DELETE FROM t1 WHERE a=11;
+ERROR HY000: The MariaDB server is running with the --read-only option so it cannot execute this statement
+connection default;
+grant read only admin on *.* to user1@localhost;
+disconnect con1;
+connect  con1,localhost,user1,,;
 INSERT INTO t1 VALUES (20);
 disconnect con1;
 connection default;

@@ -301,7 +301,7 @@ select * from t2;
 a
 connection con1;
 create trigger trg before insert on t1 for each row set new.a= 10;
-ERROR 42000: TRIGGER command denied to user 'zedjzlcsjhd'@'localhost' for table 't1'
+ERROR 42000: TRIGGER command denied to user 'zedjzlcsjhd'@'localhost' for table `mysqltest1`.`t1`
 connection master;
 delete from t1;
 create trigger trg before insert on t1 for each row set new.a= 10;
@@ -765,7 +765,7 @@ test	mysqltestbug36570_f1	FUNCTION	root@localhost	t	t	DEFINER		latin1	latin1_swe
 connection master;
 flush logs;
 /*!50530 SET @@SESSION.PSEUDO_SLAVE_MODE=1*/;
-/*!40019 SET @@session.max_insert_delayed_threads=0*/;
+/*!40019 SET @@session.max_delayed_threads=0*/;
 /*!50003 SET @OLD_COMPLETION_TYPE=@@COMPLETION_TYPE,COMPLETION_TYPE=0*/;
 DELIMITER /*!*/;
 ROLLBACK/*!*/;

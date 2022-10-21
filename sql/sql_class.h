@@ -121,8 +121,8 @@ enum enum_slave_type_conversions { SLAVE_TYPE_CONVERSIONS_ALL_LOSSY,
                                    SLAVE_TYPE_CONVERSIONS_ALL_NON_LOSSY};
 
 /*
-  MARK_COLUMNS_READ:  A column is goind to be read.
-  MARK_COLUMNS_WRITE: A column is going to be written to.
+  COLUMNS_READ:       A column is goind to be read.
+  COLUMNS_WRITE:      A column is going to be written to.
   MARK_COLUMNS_READ:  A column is goind to be read.
                       A bit in read set is set to inform handler that the field
                       is to be read. If field list contains duplicates, then
@@ -1315,6 +1315,7 @@ public:
 
   LEX_CSTRING name; /* name for named prepared statements */
   LEX *lex;                                     // parse tree descriptor
+  my_hrtime_t hr_prepare_time; // time of preparation in microseconds
   /*
     Points to the query associated with this statement. It's const, but
     we need to declare it char * because all table handlers are written
@@ -2041,6 +2042,21 @@ public:
     return(0);
   }
 };
+
+
+struct Suppress_warnings_error_handler : public Internal_error_handler
+{
+  bool handle_condition(THD *thd,
+                        uint sql_errno,
+                        const char *sqlstate,
+                        Sql_condition::enum_warning_level *level,
+                        const char *msg,
+                        Sql_condition **cond_hdl)
+  {
+    return *level == Sql_condition::WARN_LEVEL_WARN;
+  }
+};
+
 
 
 /**
@@ -7324,7 +7340,12 @@ public:
 
 inline bool add_item_to_list(THD *thd, Item *item)
 {
-  bool res= thd->lex->current_select->add_item_to_list(thd, item);
+  bool res;
+  LEX *lex= thd->lex;
+  if (lex->current_select->parsing_place == IN_RETURNING)
+    res= lex->returning()->add_item_to_list(thd, item);
+  else
+    res= lex->current_select->add_item_to_list(thd, item);
   return res;
 }
 

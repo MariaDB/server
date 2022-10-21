@@ -63,7 +63,7 @@
 #include "rpl_mi.h"
 #include "rpl_rli.h"
 #include "log.h"
-
+#include "sql_debug.h"
 
 #ifdef _WIN32
 #include <io.h>
@@ -1251,13 +1251,19 @@ bool make_tmp_name(THD *thd, const char *prefix, const Table_name *orig,
   char res_name[NAME_LEN + 1];
   char file_name[NAME_LEN + 1];
   LEX_CSTRING table_name;
+  /*
+    Filename trimming should not depend on prefix length with variable PID and
+    thread ID. This makes tests happier.
+  */
+  constexpr int MIN_PREFIX= 30;
 
   size_t len= my_snprintf(res_name, sizeof(res_name) - 1,
                           tmp_file_prefix "-%s-%lx-%llx-", prefix,
                           current_pid, thd->thread_id);
 
+  const size_t pfx_len= len < MIN_PREFIX ? MIN_PREFIX : len;
   uint len2= tablename_to_filename(orig->table_name.str, file_name,
-                                   sizeof(res_name) - len - 1);
+                                   sizeof(res_name) - pfx_len - 1);
 
   DBUG_ASSERT(len + len2 < sizeof(res_name) - 1);
   memcpy(res_name + len, file_name, len2 + 1);
@@ -3911,6 +3917,13 @@ without_overlaps_err:
                           thd->mem_root))
       DBUG_RETURN(TRUE);
 
+#ifndef DBUG_OFF
+  DBUG_EXECUTE_IF("key",
+    Debug_key::print_keys(thd, "prep_create_table: ",
+                          *key_info_buffer, *key_count);
+  );
+#endif
+
   DBUG_RETURN(FALSE);
 }
 
@@ -4398,6 +4411,7 @@ bool HA_CREATE_INFO::finalize_atomic_replace(THD *thd, TABLE_LIST *orig_table)
   LEX_CSTRING cpath;
   char path[FN_REFLEN + 1];
   cpath.str= path;
+  bool locked_tables_decremented= false;
 
   DBUG_ASSERT(is_atomic_replace());
 
@@ -4435,11 +4449,15 @@ bool HA_CREATE_INFO::finalize_atomic_replace(THD *thd, TABLE_LIST *orig_table)
       DBUG_ASSERT(thd->mdl_context.is_lock_owner(MDL_key::TABLE, db.str,
                                                  table_name.str,
                                                  MDL_EXCLUSIVE));
-
+      /*
+        HA_EXTRA_PREPARE_FOR_DROP: after CREATE OR REPLACE table
+        must be not locked, removing it from thd->locked_tables_list.
+      */
       close_all_tables_for_name(thd, table->s,
                                 HA_EXTRA_PREPARE_FOR_DROP, NULL);
       table= NULL;
       orig_table->table= NULL;
+      locked_tables_decremented= true;
     }
 
     param.rename_flags= FN_TO_IS_TMP;
@@ -4450,7 +4468,11 @@ bool HA_CREATE_INFO::finalize_atomic_replace(THD *thd, TABLE_LIST *orig_table)
     param.new_alias= backup_name.table_name;
     if (rename_table_and_triggers(thd, &param, NULL, orig_table,
                                   &backup_name.db, false, &dummy))
+    {
+      if (locked_tables_decremented)
+        thd->locked_tables_list.add_back_last_deleted_lock(pos_in_locked_tables);
       return true;
+    }
     debug_crash_here("ddl_log_create_after_save_backup");
   }
 
@@ -4465,7 +4487,11 @@ bool HA_CREATE_INFO::finalize_atomic_replace(THD *thd, TABLE_LIST *orig_table)
                            &cpath, &db, &table_name, false) ||
       rename_table_and_triggers(thd, &param, NULL, &tmp_name, &db, false,
                                 &dummy))
+  {
+    if (locked_tables_decremented)
+      thd->locked_tables_list.add_back_last_deleted_lock(pos_in_locked_tables);
     return true;
+  }
   debug_crash_here("ddl_log_create_after_install_new");
   return false;
 }
@@ -5654,6 +5680,7 @@ bool mysql_create_like_table(THD* thd, TABLE_LIST* table,
     if ((duplicate= unique_table(thd, table, src_table, 0)))
     {
       update_non_unique_table_error(src_table, "CREATE", duplicate);
+      res= 1;
       goto err;
     }
   }
@@ -8350,6 +8377,20 @@ void append_drop_column(THD *thd, String *str, Field *field)
 }
 
 
+static inline
+void rename_field_in_list(Create_field *field, List<const char> *field_list)
+{
+  DBUG_ASSERT(field->change.str);
+  List_iterator<const char> it(*field_list);
+  while (const char *name= it++)
+  {
+    if (my_strcasecmp(system_charset_info, name, field->change.str))
+      continue;
+    it.replace(field->field_name.str);
+  }
+}
+
+
 /**
   Prepare column and key definitions for CREATE TABLE in ALTER TABLE.
 
@@ -8720,6 +8761,34 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
         field->default_value->expr->walk(&Item::rename_fields_processor, 1,
                                         &column_rename_param);
     }
+#ifdef WITH_PARTITION_STORAGE_ENGINE
+    if (thd->work_part_info)
+    {
+      partition_info *part_info= thd->work_part_info;
+      List_iterator<Create_field> def_it(column_rename_param.fields);
+      const bool part_field_list= !part_info->part_field_list.is_empty();
+      const bool subpart_field_list= !part_info->subpart_field_list.is_empty();
+      if (part_info->part_expr)
+        part_info->part_expr->walk(&Item::rename_fields_processor, 1,
+                                  &column_rename_param);
+      if (part_info->subpart_expr)
+        part_info->subpart_expr->walk(&Item::rename_fields_processor, 1,
+                                      &column_rename_param);
+      if (part_field_list || subpart_field_list)
+      {
+        while (Create_field *def= def_it++)
+        {
+          if (def->change.str)
+          {
+            if (part_field_list)
+              rename_field_in_list(def, &part_info->part_field_list);
+            if (subpart_field_list)
+              rename_field_in_list(def, &part_info->subpart_field_list);
+          } /* if (def->change.str) */
+        } /* while (def) */
+      } /* if (part_field_list || subpart_field_list) */
+    } /* if (part_info) */
+#endif
     // Force reopen because new column name is on thd->mem_root
     table->mark_table_for_reopen();
   }
@@ -10423,7 +10492,7 @@ bool mysql_alter_table(THD *thd, const LEX_CSTRING *new_db,
 
   DEBUG_SYNC(thd, "alter_opened_table");
 
-#ifdef WITH_WSREP
+#if defined WITH_WSREP && defined ENABLED_DEBUG_SYNC
   DBUG_EXECUTE_IF("sync.alter_opened_table",
                   {
                     const char act[]=
@@ -10791,6 +10860,9 @@ do_continue:;
 
 #ifdef WITH_PARTITION_STORAGE_ENGINE
   {
+    /*
+      Partitioning: part_info is prepared and returned via thd->work_part_info
+    */
     if (prep_alter_part_table(thd, table, alter_info, create_info,
                               &partition_changed, &fast_alter_partition))
     {
@@ -11005,6 +11077,8 @@ do_continue:;
 
     No ddl logging needed as ddl_log_alter_query will take care of failed
     table creations.
+
+    Partitioning: part_info is passed via thd->work_part_info
   */
   error= create_table_impl(thd, alter_ctx.db, alter_ctx.table_name,
                            alter_ctx.new_db, alter_ctx.tmp_name,

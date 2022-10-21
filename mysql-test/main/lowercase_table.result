@@ -95,7 +95,7 @@ show create table İ;
 Table	Create Table
 İ	CREATE TABLE `i` (
   `s1` int(11) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 show tables;
 Tables_in_test
 i
@@ -105,7 +105,7 @@ show create table İİ;
 Table	Create Table
 İİ	CREATE TABLE `ii` (
   `s1` int(11) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 show tables;
 Tables_in_test
 ii
@@ -121,12 +121,12 @@ create database mysql_TEST character set latin2;
 create table mysql_TEST.T1 (a int);
 show create database mysql_TEST;
 Database	Create Database
-mysql_TEST	CREATE DATABASE `mysql_test` /*!40100 DEFAULT CHARACTER SET latin2 */
+mysql_TEST	CREATE DATABASE `mysql_test` /*!40100 DEFAULT CHARACTER SET latin2 COLLATE latin2_general_ci */
 show create table mysql_TEST.T1;
 Table	Create Table
 T1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin2
+) ENGINE=MyISAM DEFAULT CHARSET=latin2 COLLATE=latin2_general_ci
 show databases like "mysql%";
 Database (mysql%)
 mysql

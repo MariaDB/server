@@ -17,9 +17,119 @@
 
 # This is the CMakeLists for InnoDB
 
+INCLUDE(CheckFunctionExists)
+INCLUDE(CheckCSourceCompiles)
+INCLUDE(CheckCSourceRuns)
+INCLUDE(numa)
+INCLUDE(TestBigEndian)
+
+MYSQL_CHECK_NUMA()
+
+INCLUDE(${MYSQL_CMAKE_SCRIPT_DIR}/compile_flags.cmake)
+
+IF(CMAKE_CROSSCOMPILING)
+  # Use CHECK_C_SOURCE_COMPILES instead of CHECK_C_SOURCE_RUNS when
+  # cross-compiling. Not as precise, but usually good enough.
+  # This only make sense for atomic tests in this file, this trick doesn't
+  # work in a general case.
+  MACRO(CHECK_C_SOURCE SOURCE VAR)
+    CHECK_C_SOURCE_COMPILES("${SOURCE}" "${VAR}")
+  ENDMACRO()
+ELSE()
+  MACRO(CHECK_C_SOURCE SOURCE VAR)
+    CHECK_C_SOURCE_RUNS("${SOURCE}" "${VAR}")
+  ENDMACRO()
+ENDIF()
+
+# OS tests
+IF(UNIX)
+  IF(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    ADD_DEFINITIONS("-D_GNU_SOURCE=1")
+    IF(HAVE_LIBNUMA)
+      LINK_LIBRARIES(numa)
+    ENDIF()
+  ENDIF()
+ENDIF()
+
+# Enable InnoDB's UNIV_DEBUG in debug builds
+SET(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -DUNIV_DEBUG")
+
+OPTION(WITH_INNODB_AHI "Include innodb_adaptive_hash_index" ON)
+OPTION(WITH_INNODB_ROOT_GUESS "Cache index root block descriptors" ON)
+IF(WITH_INNODB_AHI)
+  ADD_DEFINITIONS(-DBTR_CUR_HASH_ADAPT -DBTR_CUR_ADAPT)
+  IF(NOT WITH_INNODB_ROOT_GUESS)
+    MESSAGE(WARNING "WITH_INNODB_AHI implies WITH_INNODB_ROOT_GUESS")
+    SET(WITH_INNODB_ROOT_GUESS ON)
+  ENDIF()
+ELSEIF(WITH_INNODB_ROOT_GUESS)
+  ADD_DEFINITIONS(-DBTR_CUR_ADAPT)
+ENDIF()
+ADD_FEATURE_INFO(INNODB_AHI WITH_INNODB_AHI "InnoDB Adaptive Hash Index")
+ADD_FEATURE_INFO(INNODB_ROOT_GUESS WITH_INNODB_ROOT_GUESS
+                 "Cache index root block descriptors in InnoDB")
+
+OPTION(WITH_INNODB_EXTRA_DEBUG "Enable extra InnoDB debug checks" OFF)
+IF(WITH_INNODB_EXTRA_DEBUG)
+  ADD_DEFINITIONS(-DUNIV_ZIP_DEBUG)
+ENDIF()
+ADD_FEATURE_INFO(INNODB_EXTRA_DEBUG WITH_INNODB_EXTRA_DEBUG "Extra InnoDB debug checks")
 
 
-INCLUDE(innodb.cmake)
+CHECK_FUNCTION_EXISTS(sched_getcpu  HAVE_SCHED_GETCPU)
+IF(HAVE_SCHED_GETCPU)
+ ADD_DEFINITIONS(-DHAVE_SCHED_GETCPU=1)
+ENDIF()
+
+IF(HAVE_FALLOC_PUNCH_HOLE_AND_KEEP_SIZE)
+ ADD_DEFINITIONS(-DHAVE_FALLOC_PUNCH_HOLE_AND_KEEP_SIZE=1)
+ENDIF()
+
+IF (CMAKE_CXX_COMPILER_ID MATCHES "Clang" OR
+    CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+  SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wconversion -Wno-sign-conversion")
+  SET_SOURCE_FILES_PROPERTIES(fts/fts0pars.cc
+    PROPERTIES COMPILE_FLAGS -Wno-conversion)
+ENDIF()
+
+IF(NOT MSVC)
+  # Work around MDEV-18417, MDEV-18656, MDEV-18417
+  IF(WITH_ASAN AND CMAKE_COMPILER_IS_GNUCC AND
+     CMAKE_C_COMPILER_VERSION VERSION_LESS "6.0.0")
+    SET_SOURCE_FILES_PROPERTIES(trx/trx0rec.cc PROPERTIES COMPILE_FLAGS -O1)
+  ENDIF()
+ENDIF(NOT MSVC)
+
+CHECK_FUNCTION_EXISTS(vasprintf  HAVE_VASPRINTF)
+
+# Include directories under innobase
+INCLUDE_DIRECTORIES(${CMAKE_SOURCE_DIR}/storage/innobase/include
+		    ${CMAKE_SOURCE_DIR}/storage/innobase/handler)
+
+# Sun Studio bug with -xO2
+IF(CMAKE_CXX_COMPILER_ID MATCHES "SunPro"
+	AND CMAKE_CXX_FLAGS_RELEASE MATCHES "O2"
+	AND NOT CMAKE_BUILD_TYPE STREQUAL "Debug")
+	# Sun Studio 12 crashes with -xO2 flag, but not with higher optimization
+	# -xO3
+	SET_SOURCE_FILES_PROPERTIES(${CMAKE_CURRENT_SOURCE_DIR}/rem/rem0rec.cc
+    PROPERTIES COMPILE_FLAGS -xO3)
+ENDIF()
+
+
+IF(MSVC)
+  # Avoid "unreferenced label" warning in generated file
+  GET_FILENAME_COMPONENT(_SRC_DIR ${CMAKE_CURRENT_LIST_FILE} PATH)
+  SET_SOURCE_FILES_PROPERTIES(${_SRC_DIR}/pars/pars0grm.c
+          PROPERTIES COMPILE_FLAGS "/wd4102")
+  SET_SOURCE_FILES_PROPERTIES(${_SRC_DIR}/pars/lexyy.c
+          PROPERTIES COMPILE_FLAGS "/wd4003")
+ENDIF()
+
+# Include directories under innobase
+INCLUDE_DIRECTORIES(${CMAKE_SOURCE_DIR}/storage/innobase/include
+                    ${CMAKE_SOURCE_DIR}/storage/innobase/handler
+                    ${CMAKE_SOURCE_DIR}/libbinlogevents/include)
 INCLUDE_DIRECTORIES(${PROJECT_SOURCE_DIR}/tpool)
 
 SET(INNOBASE_SOURCES
@@ -397,6 +507,11 @@ IF(MSVC)
   # silence "switch statement contains 'default' but no 'case' label
   # on generated file.
   TARGET_COMPILE_OPTIONS(innobase PRIVATE "/wd4065")
+ENDIF()
+IF(CMAKE_C_COMPILER_ID MATCHES "Clang" AND
+   NOT CMAKE_C_COMPILER_VERSION VERSION_LESS "13.0.0")
+  ADD_COMPILE_FLAGS(pars/pars0grm.cc fts/fts0pars.cc
+    COMPILE_FLAGS "-Wno-unused-but-set-variable")
 ENDIF()
 
 IF(NOT (PLUGIN_INNOBASE STREQUAL DYNAMIC))

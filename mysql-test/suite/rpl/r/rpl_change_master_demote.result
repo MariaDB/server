@@ -193,6 +193,9 @@ INSERT INTO t1 VALUES (3);
 # Update to account for statements to verify replication in include file
 CHANGE MASTER TO master_host='127.0.0.1', master_port=SLAVE_PORT, master_user='root', master_use_gtid=slave_pos, master_demote_to_slave=1;
 RESET SLAVE ALL;
+include/save_master_gtid.inc
+connection slave;
+include/sync_with_master_gtid.inc
 include/rpl_change_master_demote.inc
 ##############################################
 # Connection semantics change:

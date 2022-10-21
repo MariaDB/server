@@ -1147,7 +1147,7 @@ my_bool BJNX::LocateArray(PGLOBAL g, PBVAL jarp)
 
 	for (int i = 0; i < n && !Found; i++) {
 		Jp->N = m;
-		sprintf(s, "[%d]", i + B);
+		snprintf(s, sizeof(s), "[%d]", i + B);
 
 		if (Jp->WriteStr(s))
 			return true;
@@ -1441,7 +1441,7 @@ my_bool BJNX::AddPath(void)
 
 	for (int i = 0; i <= I; i++) {
 		if (Jpnp[i].Type == TYPE_JAR) {
-			sprintf(s, "[%d]", Jpnp[i].N + B);
+			snprintf(s, sizeof(s), "[%d]", Jpnp[i].N + B);
 
 			if (Jp->WriteStr(s))
 				return true;

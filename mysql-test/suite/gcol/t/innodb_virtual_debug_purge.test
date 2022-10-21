@@ -191,10 +191,7 @@ lock table t write;
 connection prevent_purge;
 commit;
 connection default;
---source ../../innodb/include/wait_all_purged.inc
 disconnect lock_table;
-start transaction with consistent snapshot;
-commit;
 --source ../../innodb/include/wait_all_purged.inc
 set global debug_dbug=@old_dbug;
 drop table t;

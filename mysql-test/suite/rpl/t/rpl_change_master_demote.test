@@ -143,6 +143,9 @@ INSERT INTO t1 VALUES (3);
 --eval CHANGE MASTER TO master_host='127.0.0.1', master_port=$SLAVE_MYPORT, master_user='root', master_use_gtid=slave_pos, master_demote_to_slave=1
 RESET SLAVE ALL;
 
+--source include/save_master_gtid.inc
+--connection slave
+--source include/sync_with_master_gtid.inc
 --source include/rpl_change_master_demote.inc
 
 

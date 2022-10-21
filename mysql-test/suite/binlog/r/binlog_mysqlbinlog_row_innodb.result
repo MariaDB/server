@@ -2249,7 +2249,7 @@ FLUSH LOGS;
 # Call mysqlbinlog to display the log file contents.
 #
 /*!50530 SET @@SESSION.PSEUDO_SLAVE_MODE=1*/;
-/*!40019 SET @@session.max_insert_delayed_threads=0*/;
+/*!40019 SET @@session.max_delayed_threads=0*/;
 /*!50003 SET @OLD_COMPLETION_TYPE=@@COMPLETION_TYPE,COMPLETION_TYPE=0*/;
 DELIMITER /*!*/;
 # at #
@@ -5258,7 +5258,7 @@ FLUSH LOGS;
 # Call mysqlbinlog to display the log file contents.
 #
 /*!50530 SET @@SESSION.PSEUDO_SLAVE_MODE=1*/;
-/*!40019 SET @@session.max_insert_delayed_threads=0*/;
+/*!40019 SET @@session.max_delayed_threads=0*/;
 /*!50003 SET @OLD_COMPLETION_TYPE=@@COMPLETION_TYPE,COMPLETION_TYPE=0*/;
 DELIMITER /*!*/;
 # at #
@@ -5658,7 +5658,7 @@ FLUSH LOGS;
 # Call mysqlbinlog to display the log file contents.
 #
 /*!50530 SET @@SESSION.PSEUDO_SLAVE_MODE=1*/;
-/*!40019 SET @@session.max_insert_delayed_threads=0*/;
+/*!40019 SET @@session.max_delayed_threads=0*/;
 /*!50003 SET @OLD_COMPLETION_TYPE=@@COMPLETION_TYPE,COMPLETION_TYPE=0*/;
 DELIMITER /*!*/;
 # at #
@@ -6296,7 +6296,7 @@ FLUSH LOGS;
 # Call mysqlbinlog to display the log file contents.
 #
 /*!50530 SET @@SESSION.PSEUDO_SLAVE_MODE=1*/;
-/*!40019 SET @@session.max_insert_delayed_threads=0*/;
+/*!40019 SET @@session.max_delayed_threads=0*/;
 /*!50003 SET @OLD_COMPLETION_TYPE=@@COMPLETION_TYPE,COMPLETION_TYPE=0*/;
 DELIMITER /*!*/;
 # at #

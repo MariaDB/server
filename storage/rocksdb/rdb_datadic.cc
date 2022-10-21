@@ -3140,10 +3140,10 @@ static const Rdb_collation_codec *rdb_init_collation_mapping(
           }
         }
 
-        cur->m_make_unpack_info_func = {Rdb_key_def::make_unpack_simple_varchar,
-                                        Rdb_key_def::make_unpack_simple};
-        cur->m_unpack_func = {Rdb_key_def::unpack_simple_varchar_space_pad,
-                              Rdb_key_def::unpack_simple};
+        cur->m_make_unpack_info_func = {{Rdb_key_def::make_unpack_simple_varchar,
+                                         Rdb_key_def::make_unpack_simple}};
+        cur->m_unpack_func = {{Rdb_key_def::unpack_simple_varchar_space_pad,
+                               Rdb_key_def::unpack_simple}};
       } else {
         // Out of luck for now.
       }

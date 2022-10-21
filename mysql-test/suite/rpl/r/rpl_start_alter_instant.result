@@ -18,7 +18,7 @@ tab	CREATE TABLE `tab` (
   `b` varchar(100) DEFAULT NULL,
   `c` varchar(100) DEFAULT NULL,
   PRIMARY KEY (`a`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Gtid	#	#	GTID #-#-#
@@ -43,7 +43,7 @@ tab	CREATE TABLE `tab` (
   `b` varchar(100) DEFAULT NULL,
   `c` varchar(100) DEFAULT NULL,
   PRIMARY KEY (`a`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 slave-bin.000001	#	Gtid	#	#	GTID #-#-#

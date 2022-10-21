@@ -935,7 +935,7 @@ static int run_mysqlcheck_upgrade(my_bool mysql_db_only)
     return 0;
   }
   verbose("Phase %d/%d: Checking and upgrading %s", ++phase, phases_total, what);
-  print_conn_args("mysqlcheck");
+  print_conn_args("mariadb-check");
   retch= run_tool(mysqlcheck_path,
                   NULL, /* Send output from mysqlcheck directly to screen */
                   defaults_file,
@@ -1451,7 +1451,7 @@ int main(int argc, char **argv)
   }
 
   /* Find mysql */
-  find_tool(mysql_path, IF_WIN("mysql.exe", "mysql"), self_name);
+  find_tool(mysql_path, IF_WIN("mariadb.exe", "mariadb"), self_name);
 
   open_mysql_upgrade_file();
 
@@ -1459,7 +1459,7 @@ int main(int argc, char **argv)
     exit(upgrade_already_done(0) == 0);
 
   /* Find mysqlcheck */
-  find_tool(mysqlcheck_path, IF_WIN("mysqlcheck.exe", "mysqlcheck"), self_name);
+  find_tool(mysqlcheck_path, IF_WIN("mariadb-check.exe", "mariadb-check"), self_name);
 
   if (opt_systables_only && !opt_silent)
     printf("The --upgrade-system-tables option was used, user tables won't be touched.\n");

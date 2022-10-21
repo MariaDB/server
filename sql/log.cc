@@ -3525,6 +3525,7 @@ void MYSQL_BIN_LOG::stop_background_thread()
                       &LOCK_binlog_background_thread);
     mysql_mutex_unlock(&LOCK_binlog_background_thread);
     binlog_background_thread_started= false;
+    binlog_background_thread_stop= true; // mark it's not going to restart
   }
 }
 
@@ -3723,7 +3724,8 @@ bool MYSQL_BIN_LOG::open(const char *log_name,
         DBUG_RETURN(1);
     }
 
-    if (!binlog_background_thread_started &&
+    if ((!binlog_background_thread_started &&
+         !binlog_background_thread_stop) &&
         start_binlog_background_thread())
       DBUG_RETURN(1);
   }
@@ -8382,10 +8384,12 @@ MYSQL_BIN_LOG::trx_group_commit_leader(group_commit_entry *leader)
   DBUG_ENTER("MYSQL_BIN_LOG::trx_group_commit_leader");
 
   {
+#ifdef ENABLED_DEBUG_SYNC
     DBUG_EXECUTE_IF("inject_binlog_commit_before_get_LOCK_log",
       DBUG_ASSERT(!debug_sync_set_action(leader->thd, STRING_WITH_LEN
         ("commit_before_get_LOCK_log SIGNAL waiting WAIT_FOR cont TIMEOUT 1")));
     );
+#endif
     /*
       Lock the LOCK_log(), and once we get it, collect any additional writes
       that queued up while we were waiting.
@@ -8675,7 +8679,11 @@ MYSQL_BIN_LOG::trx_group_commit_leader(group_commit_entry *leader)
     ++num_commits;
     if (current->cache_mngr->using_xa && likely(!current->error) &&
         !DBUG_IF("skip_commit_ordered"))
+    {
+      mysql_mutex_lock(&current->thd->LOCK_thd_data);
       run_commit_ordered(current->thd, current->all);
+      mysql_mutex_unlock(&current->thd->LOCK_thd_data);
+    }
     current->thd->wakeup_subsequent_commits(current->error);
 
     /*
@@ -10675,6 +10683,7 @@ binlog_background_thread(void *arg __attribute__((unused)))
   thd->store_globals();
   thd->security_ctx->skip_grants();
   thd->set_command(COM_DAEMON);
+  THD_count::count--;
 
   /*
     Load the slave replication GTID state from the mysql.gtid_slave_pos
@@ -10728,6 +10737,7 @@ binlog_background_thread(void *arg __attribute__((unused)))
     mysql_mutex_unlock(&mysql_bin_log.LOCK_binlog_background_thread);
 
     /* Process any incoming commit_checkpoint_notify() calls. */
+#ifdef ENABLED_DEBUG_SYNC
     DBUG_EXECUTE_IF("inject_binlog_background_thread_before_mark_xid_done",
       DBUG_ASSERT(!debug_sync_set_action(
         thd,
@@ -10736,6 +10746,7 @@ binlog_background_thread(void *arg __attribute__((unused)))
                         "WAIT_FOR something_that_will_never_happen "
                         "TIMEOUT 2")));
       );
+#endif
     while (queue)
     {
       long count= queue->notify_count;
@@ -10750,11 +10761,13 @@ binlog_background_thread(void *arg __attribute__((unused)))
         mysql_bin_log.mark_xid_done(queue->binlog_id, true);
       queue= next;
 
+#ifdef ENABLED_DEBUG_SYNC
       DBUG_EXECUTE_IF("binlog_background_checkpoint_processed",
         DBUG_ASSERT(!debug_sync_set_action(
           thd,
           STRING_WITH_LEN("now SIGNAL binlog_background_checkpoint_processed")));
         );
+#endif
     }
 
     if (stop)
@@ -10764,6 +10777,7 @@ binlog_background_thread(void *arg __attribute__((unused)))
   THD_STAGE_INFO(thd, stage_binlog_stopping_background_thread);
 
   /* No need to use mutex as thd is not linked into other threads */
+  THD_count::count++;
   delete thd;
 
   my_thread_end();

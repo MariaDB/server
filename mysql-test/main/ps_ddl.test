@@ -252,7 +252,8 @@ drop trigger t1_bd;
 
 set @val=11;
 execute stmt using @val;
-call p_verify_reprepare_count(1);
+# No trigger in opened table => nothing to check => no reprepare
+call p_verify_reprepare_count(0);
 select @message;
 
 --echo Test 6-e: removing a relevant trigger
@@ -261,7 +262,8 @@ drop trigger t1_bi;
 
 set @val=12;
 execute stmt using @val;
-call p_verify_reprepare_count(1);
+# No trigger in opened table => nothing to check => no reprepare
+call p_verify_reprepare_count(0);
 select @message;
 set @val=13;
 execute stmt using @val;
@@ -376,7 +378,8 @@ select * from t3;
 flush table t1;
 set @var=9;
 execute stmt using @var;
-call p_verify_reprepare_count(1);
+# flush tables now do not mean reprepare
+call p_verify_reprepare_count(0);
 select * from t2;
 select * from t3;
 drop view v1;
@@ -745,7 +748,7 @@ call p_verify_reprepare_count(1);
 flush table t2;
 
 execute stmt;
-call p_verify_reprepare_count(1);
+call p_verify_reprepare_count(0);
 
 --echo # Check that we properly handle ALTER VIEW statements.
 execute stmt;
@@ -973,7 +976,8 @@ drop trigger v2_bi;
 set @message=null;
 set @var=9;
 execute stmt using @var;
-call p_verify_reprepare_count(1);
+# No trigger in opened table => nothing to check => no reprepare
+call p_verify_reprepare_count(0);
 select @message;
 create trigger v2_bi after insert on v2 for each row set @message="v2_ai";
 set @var= 10;
@@ -1674,6 +1678,8 @@ drop table t1;
 deallocate prepare stmt;
 create table t1 (a int);
 insert into t1 (a) values (1);
+#t2-temporary table, cannot create a temporary view
+--disable_view_protocol
 prepare stmt from "create temporary table if not exists t2 as select * from t1";
 execute stmt;
 drop table t2;
@@ -1700,6 +1706,7 @@ drop table t1;
 drop temporary table t2;
 drop table t2;
 deallocate prepare stmt;
+--enable_view_protocol
 
 create table t1 (a int);
 prepare stmt from "create table t2 like t1";
