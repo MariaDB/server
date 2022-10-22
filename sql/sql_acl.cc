@@ -3456,7 +3456,7 @@ bool change_password(THD *thd, LEX_USER *user)
     goto end;
   }
 
-  acl_cache->clear(1);				// Clear locked hostname cache
+  hostname_cache_refresh();                    // Clear locked hostname cache
   mysql_mutex_unlock(&acl_cache->lock);
   result= 0;
   if (mysql_bin_log.is_open())
@@ -3621,7 +3621,6 @@ int acl_set_default_role(THD *thd, const char *host, const char *user,
       goto end;
     }
 
-    acl_cache->clear(1);
     mysql_mutex_unlock(&acl_cache->lock);
     result= 0;
     if (mysql_bin_log.is_open())
