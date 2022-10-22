@@ -2027,7 +2027,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` varchar(2) CHARACTER SET utf8mb3 COLLATE utf8mb3_unicode_ci NOT NULL,
   PRIMARY KEY (`a`(1))
-) ENGINE=InnoDB DEFAULT CHARSET=latin1
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 ALTER TABLE t1 MODIFY a VARCHAR(2)
 CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 INSERT INTO t1 VALUES ('a');
@@ -2051,7 +2051,7 @@ INSERT INTO t1 VALUES (1, 'a1'), (2, 'a1');
 ALTER TABLE t1
 CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_520_ci,
 ADD UNIQUE INDEX test_key (a);
-ERROR 23000: Duplicate entry 'a1' for key 'test_key'
+ERROR 23000: Duplicate entry 'NULL' for key 'test_key'
 ALTER TABLE t1 CONVERT TO CHARACTER SET UTF8MB4 COLLATE UTF8MB4_UNICODE_520_CI;
 CHECK TABLE t1;
 Table	Op	Msg_type	Msg_text
@@ -2066,7 +2066,7 @@ INSERT INTO t1 VALUES (1, 'a1'), (2, 'a1');
 ALTER TABLE t1
 CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_520_ci,
 ADD UNIQUE INDEX test_key (a);
-ERROR 23000: Duplicate entry 'a1' for key 'test_key'
+ERROR 23000: Duplicate entry 'NULL' for key 'test_key'
 ALTER TABLE t1 CONVERT TO CHARACTER SET UTF8MB4 COLLATE UTF8MB4_UNICODE_520_CI;
 CHECK TABLE t1;
 Table	Op	Msg_type	Msg_text

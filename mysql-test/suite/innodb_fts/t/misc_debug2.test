@@ -10,3 +10,19 @@ INSERT INTO mdev21563 VALUES('This is a test');
 ALTER TABLE mdev21563 DISCARD TABLESPACE;
 --source include/restart_mysqld.inc
 DROP TABLE mdev21563;
+
+--echo #
+--echo # MDEV-29342 Assertion failure in file que0que.cc line 728
+--echo #
+CREATE TABLE t1(f1 CHAR(100), FULLTEXT idx(f1))ENGINE=InnoDB;
+INSERT INTO t1 VALUES('mysql'), ('innodb');
+SET @save_dbug=@@debug_dbug;
+set debug_dbug="+d,fts_instrument_sync_request";
+INSERT INTO t1 VALUES('test');
+set debug_dbug=@save_dbug;
+INSERT INTO t1 VALUES('This is a fts issue');
+--source include/restart_mysqld.inc
+set debug_dbug="+d,fts_instrument_sync_request";
+UPDATE t1 SET f1="mariadb";
+set debug_dbug=@save_dbug;
+DROP TABLE t1;

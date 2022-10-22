@@ -1,8 +1,7 @@
 --source include/have_innodb.inc
 --source include/not_embedded.inc
-# Valgrind has to be disabled as killing the server hard gives a lot of
-# leak warnings
---source include/not_valgrind.inc
+--source include/no_valgrind_without_big.inc
+--source include/have_sequence.inc
 
 # Flush any open myisam tables from previous tests
 FLUSH TABLES;
@@ -13,24 +12,14 @@ call mtr.add_suppression("Found 1 prepared XA transactions");
 --echo # while rolling back recovered incomplete transactions
 --echo #
 
-CREATE TABLE t (a INT) ENGINE=InnoDB;
 let $size = 100;
 let $trx = 8;
-let $c = $size;
-BEGIN;
---disable_query_log
-while ($c) {
-INSERT INTO t VALUES();
-dec $c;
-}
---enable_query_log
-COMMIT;
 
 let $c = $trx;
 connect (con$c,localhost,root,,);
 eval CREATE TABLE t$c (a SERIAL, b INT UNIQUE, c INT UNIQUE) ENGINE=InnoDB;
 XA START 'x';
-eval INSERT INTO t$c (a) SELECT NULL FROM t;
+eval INSERT INTO t$c (a) SELECT NULL FROM seq_1_to_$size;
 eval UPDATE t$c SET a=a+$size, b=a;
 eval DELETE FROM t$c;
 XA END 'x';
@@ -41,28 +30,24 @@ while ($c)
 connect (con$c,localhost,root,,);
 eval CREATE TABLE t$c (a SERIAL, b INT UNIQUE, c INT UNIQUE) ENGINE=InnoDB;
 BEGIN;
-eval INSERT INTO t$c (a) SELECT NULL FROM t;
+eval INSERT INTO t$c (a) SELECT NULL FROM seq_1_to_$size;
 eval UPDATE t$c SET a=a+$size, b=a;
 eval DELETE FROM t$c;
 dec $c;
 }
 
-INSERT INTO t1(a) SELECT NULL FROM t;
-INSERT INTO t1(a) SELECT NULL FROM t1;
-INSERT INTO t1(a) SELECT NULL FROM t1;
-INSERT INTO t1(a) SELECT NULL FROM t1;
-INSERT INTO t1(a) SELECT NULL FROM t1;
+INSERT INTO t1(a) SELECT NULL FROM seq_1_to_1600;
 
 --connection default
 SET GLOBAL innodb_flush_log_at_trx_commit=1;
-CREATE TABLE u(a SERIAL) ENGINE=INNODB;
+CREATE TABLE MDEV_29559 (a TINYINT UNSIGNED PRIMARY KEY, KEY(a)) ENGINE=InnoDB;
+INSERT INTO MDEV_29559 VALUES (0x69);
 
 FLUSH TABLES;
 
 --let $shutdown_timeout=0
 --source include/restart_mysqld.inc
 --let $shutdown_timeout=60
---source include/restart_mysqld.inc
 
 # Perform a slow shutdown in order to roll back all recovered transactions
 # and to avoid locking conflicts with the DROP TABLE below.
@@ -85,4 +70,4 @@ dec $c;
 }
 --enable_query_log
 
-DROP TABLE t,u;
+DROP TABLE MDEV_29559;

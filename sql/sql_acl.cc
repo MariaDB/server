@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2018, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2021, MariaDB
+   Copyright (c) 2009, 2022, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -56,6 +56,7 @@
 #include "password.h"
 
 #include "sql_plugin_compat.h"
+#include "wsrep_mysqld.h"
 
 #define MAX_SCRAMBLE_LENGTH 1024
 
@@ -1937,10 +1938,17 @@ class Grant_tables
  public:
   Grant_tables() : p_user_table(&m_user_table_json) { }
 
-  int open_and_lock(THD *thd, int which_tables, enum thr_lock_type lock_type)
+  /**
+    An auxiliary to build a list of involved tables.
+
+    @retval  0 Success
+    @retval -1 A my_error reported error
+   */
+  int build_table_list(THD *thd, TABLE_LIST** ptr_first,
+                       int which_tables, enum thr_lock_type lock_type,
+                       TABLE_LIST *tables)
   {
-    DBUG_ENTER("Grant_tables::open_and_lock");
-    TABLE_LIST tables[USER_TABLE+1], *first= NULL;
+    DBUG_ENTER("Grant_tables::build_table_list");
 
     DBUG_ASSERT(which_tables); /* At least one table must be opened. */
     /*
@@ -1965,12 +1973,23 @@ class Grant_tables
         tl->updating= lock_type >= TL_FIRST_WRITE;
         if (i >= FIRST_OPTIONAL_TABLE)
           tl->open_strategy= TABLE_LIST::OPEN_IF_EXISTS;
-        tl->next_global= tl->next_local= first;
-        first= tl;
+        tl->next_global= tl->next_local= *ptr_first;
+        *ptr_first= tl;
       }
       else
         tl->table= NULL;
     }
+    DBUG_RETURN(0);
+  }
+
+  int open_and_lock(THD *thd, int which_tables, enum thr_lock_type lock_type)
+  {
+    DBUG_ENTER("Grant_tables::open_and_lock");
+
+    TABLE_LIST tables[USER_TABLE+1], *first= NULL;
+
+    if (build_table_list(thd, &first, which_tables, lock_type, tables))
+      DBUG_RETURN(-1);
 
     uint counter;
     int res= really_open(thd, first, &counter);
@@ -2041,6 +2060,50 @@ class Grant_tables
   inline const Roles_mapping_table& roles_mapping_table() const
   { return m_roles_mapping_table; }
 
+#ifdef HAVE_REPLICATION
+  /**
+    Checks if the tables targeted by a grant command should be ignored because
+    of the configured replication filters
+
+    @retval 1 Tables are excluded for replication
+    @retval 0 tables are included for replication
+  */
+  int rpl_ignore_tables(THD *thd, TABLE_LIST* tables, int which_tables= 0,
+                        enum thr_lock_type lock_type= TL_IGNORE)
+  {
+    DBUG_ENTER("Grant_tables::rpl_ignore_tables");
+
+    if (!(thd->slave_thread && !thd->spcont))
+      DBUG_RETURN(0);
+
+    TABLE_LIST all_tables[USER_TABLE+1];
+
+    if (!tables)
+    {
+      int rc __attribute__((unused))=
+        build_table_list(thd, &tables, which_tables, lock_type, all_tables);
+
+      DBUG_ASSERT(!rc);  // Grant_tables must be already initialized
+      DBUG_ASSERT(tables);
+    }
+
+    if (tables->lock_type >= TL_FIRST_WRITE)
+    {
+      /*
+        GRANT and REVOKE are applied the slave in/exclusion rules as they are
+        some kind of updates to the mysql.% tables.
+      */
+      Rpl_filter *rpl_filter= thd->system_thread_info.rpl_sql_info->rpl_filter;
+      if (rpl_filter->is_on() && !rpl_filter->tables_ok(0, tables))
+      {
+        thd->slave_expected_error= 0;
+        DBUG_RETURN(1);
+      }
+    }
+    DBUG_RETURN(0);
+  }
+#endif
+
  private:
 
   /* Before any operation is possible on grant tables, they must be opened.
@@ -2054,16 +2117,9 @@ class Grant_tables
   {
     DBUG_ENTER("Grant_tables::really_open:");
 #ifdef HAVE_REPLICATION
-    if (tables->lock_type >= TL_FIRST_WRITE &&
-        thd->slave_thread && !thd->spcont)
+    if (rpl_ignore_tables(thd, tables))
     {
-      /*
-        GRANT and REVOKE are applied the slave in/exclusion rules as they are
-        some kind of updates to the mysql.% tables.
-      */
-      Rpl_filter *rpl_filter= thd->system_thread_info.rpl_sql_info->rpl_filter;
-      if (rpl_filter->is_on() && !rpl_filter->tables_ok(0, tables))
-        DBUG_RETURN(1);
+      DBUG_RETURN(1);
     }
 #endif
     if (open_tables(thd, &tables, counter, MYSQL_LOCK_IGNORE_TIMEOUT))
@@ -2175,7 +2231,12 @@ static my_bool do_validate(THD *, plugin_ref plugin, void *arg)
   struct validation_data *data= (struct validation_data *)arg;
   struct st_mariadb_password_validation *handler=
     (st_mariadb_password_validation *)plugin_decl(plugin)->info;
-  return handler->validate_password(data->user, data->password, data->host);
+  if (handler->validate_password(data->user, data->password, data->host))
+  {
+    my_error(ER_NOT_VALID_PASSWORD, MYF(0), plugin_ref_to_int(plugin)->name.str);
+    return true;
+  }
+  return false;
 }
 
 
@@ -2191,7 +2252,6 @@ static bool validate_password(THD *thd, const LEX_CSTRING &user,
     if (plugin_foreach(NULL, do_validate,
                        MariaDB_PASSWORD_VALIDATION_PLUGIN, &data))
     {
-      my_error(ER_NOT_VALID_PASSWORD, MYF(0));
       return true;
     }
   }
@@ -4076,6 +4136,17 @@ int acl_check_set_default_role(THD *thd, const char *host, const char *user,
                                const char *role)
 {
   DBUG_ENTER("acl_check_set_default_role");
+#ifdef HAVE_REPLICATION
+  /*
+    If the roles_mapping table is excluded by the replication filter, we return
+    successful without validating the user/role data because the command will
+    be ignored in a later call to `acl_set_default_role()` for a graceful exit.
+  */
+  Grant_tables tables;
+  TABLE_LIST* first= NULL;
+  if (tables.rpl_ignore_tables(thd, first, Table_roles_mapping, TL_WRITE))
+    DBUG_RETURN(0);
+#endif
   DBUG_RETURN(check_alter_user(thd, host, user) ||
               check_user_can_set_role(thd, user, host, NULL, role, NULL));
 }
@@ -5323,7 +5394,7 @@ GRANT_NAME::GRANT_NAME(const char *h, const char *d,const char *u,
 
 GRANT_TABLE::GRANT_TABLE(const char *h, const char *d,const char *u,
                          const char *t, privilege_t p, privilege_t c)
-  :GRANT_NAME(h,d,u,t,p, FALSE), cols(c), init_cols(NO_ACL)
+  :GRANT_NAME(h,d,u,t,p, FALSE), cols(c), init_cols(c)
 {
   init_hash();
 }
@@ -6114,6 +6185,7 @@ static int count_subgraph_nodes(ACL_ROLE *role, ACL_ROLE *grantee, void *context
 }
 
 static int merge_role_privileges(ACL_ROLE *, ACL_ROLE *, void *);
+static bool merge_one_role_privileges(ACL_ROLE *grantee, PRIVS_TO_MERGE what);
 
 /**
   rebuild privileges of all affected roles
@@ -6132,6 +6204,11 @@ static void propagate_role_grants(ACL_ROLE *role,
   mysql_mutex_assert_owner(&acl_cache->lock);
   PRIVS_TO_MERGE data= { what, db, name };
 
+  /*
+     Before updating grants to roles that inherit from this role, ensure that
+     the effective grants on this role are up-to-date from *its* granted roles.
+  */
+  merge_one_role_privileges(role, data);
   /*
      Changing privileges of a role causes all other roles that had
      this role granted to them to have their rights invalidated.
@@ -6580,7 +6657,6 @@ static int table_name_sort(GRANT_TABLE * const *tbl1, GRANT_TABLE * const *tbl2)
 */
 static int update_role_columns(GRANT_TABLE *merged,
                                GRANT_TABLE **cur, GRANT_TABLE **last)
-
 {
   privilege_t rights __attribute__((unused)) (NO_ACL);
   int changed= 0;
@@ -6931,11 +7007,12 @@ static int merge_role_privileges(ACL_ROLE *role __attribute__((unused)),
   return !changed; // don't recurse into the subgraph if privs didn't change
 }
 
-static bool merge_one_role_privileges(ACL_ROLE *grantee)
+static
+bool merge_one_role_privileges(ACL_ROLE *grantee,
+                               PRIVS_TO_MERGE what)
 {
-  PRIVS_TO_MERGE data= { PRIVS_TO_MERGE::ALL, 0, 0 };
   grantee->counter= 1;
-  return merge_role_privileges(0, grantee, &data);
+  return merge_role_privileges(0, grantee, &what);
 }
 
 /*****************************************************************
@@ -7057,7 +7134,8 @@ int mysql_table_grant(THD *thd, TABLE_LIST *table_list,
                            table_list->grant.want_privilege);
         my_error(ER_TABLEACCESS_DENIED_ERROR, MYF(0),
                  command, thd->security_ctx->priv_user,
-                 thd->security_ctx->host_or_ip, table_list->alias.str);
+                 thd->security_ctx->host_or_ip, table_list->db.str,
+                 table_list->alias.str);
         DBUG_RETURN(-1);
       }
     }
@@ -7126,15 +7204,15 @@ int mysql_table_grant(THD *thd, TABLE_LIST *table_list,
 
     /* Find/create cached table grant */
     grant_table= table_hash_search(Str->host.str, NullS, db_name,
-				   Str->user.str, table_name, 1);
+                                   Str->user.str, table_name, 1);
     if (!grant_table)
     {
       if (revoke_grant)
       {
-	my_error(ER_NONEXISTING_TABLE_GRANT, MYF(0),
+        my_error(ER_NONEXISTING_TABLE_GRANT, MYF(0),
                  Str->user.str, Str->host.str, table_list->table_name.str);
-	result= TRUE;
-	continue;
+        result= TRUE;
+        continue;
       }
       grant_table= new (&grant_memroot) GRANT_TABLE(Str->host.str, db_name,
                                                     Str->user.str, table_name,
@@ -7143,8 +7221,8 @@ int mysql_table_grant(THD *thd, TABLE_LIST *table_list,
       if (!grant_table ||
           column_priv_insert(grant_table))
       {
-	result= TRUE;				/* purecov: deadcode */
-	continue;				/* purecov: deadcode */
+        result= TRUE;				/* purecov: deadcode */
+        continue;				/* purecov: deadcode */
       }
     }
 
@@ -7158,11 +7236,15 @@ int mysql_table_grant(THD *thd, TABLE_LIST *table_list,
       /* Fix old grants */
       while ((column = column_iter++))
       {
-	grant_column = column_hash_search(grant_table,
-					  column->column.ptr(),
-					  column->column.length());
-	if (grant_column)
-	  grant_column->rights&= ~(column->rights | rights);
+        grant_column = column_hash_search(grant_table,
+                                          column->column.ptr(),
+                                          column->column.length());
+        if (grant_column)
+        {
+          grant_column->init_rights&= ~(column->rights | rights);
+          // If this is a role, rights will need to be reconstructed.
+          grant_column->rights= grant_column->init_rights;
+        }
       }
       /* scan trough all columns to get new column grant */
       column_priv= NO_ACL;
@@ -7170,13 +7252,14 @@ int mysql_table_grant(THD *thd, TABLE_LIST *table_list,
       {
         grant_column= (GRANT_COLUMN*)
           my_hash_element(&grant_table->hash_columns, idx);
-	grant_column->rights&= ~rights;		// Fix other columns
-	column_priv|= grant_column->rights;
+        grant_column->init_rights&= ~rights;  // Fix other columns
+        grant_column->rights= grant_column->init_rights;
+        column_priv|= grant_column->init_rights;
       }
     }
     else
     {
-      column_priv|= grant_table->cols;
+      column_priv|= grant_table->init_cols;
     }
 
 
@@ -7304,23 +7387,24 @@ bool mysql_routine_grant(THD *thd, TABLE_LIST *table_list,
     table_name= table_list->table_name.str;
     grant_name= routine_hash_search(Str->host.str, NullS, db_name,
                                     Str->user.str, table_name, sph, 1);
-    if (!grant_name || !grant_name->init_privs)
+    if (revoke_grant && (!grant_name || !grant_name->init_privs))
     {
-      if (revoke_grant)
-      {
-        my_error(ER_NONEXISTING_PROC_GRANT, MYF(0),
-	         Str->user.str, Str->host.str, table_name);
-	result= TRUE;
-	continue;
-      }
+      my_error(ER_NONEXISTING_PROC_GRANT, MYF(0),
+               Str->user.str, Str->host.str, table_name);
+      result= TRUE;
+      continue;
+    }
+    if (!grant_name)
+    {
+      DBUG_ASSERT(!revoke_grant);
       grant_name= new GRANT_NAME(Str->host.str, db_name,
-				 Str->user.str, table_name,
-				 rights, TRUE);
+                                 Str->user.str, table_name,
+                                 rights, TRUE);
       if (!grant_name ||
-        my_hash_insert(sph->get_priv_hash(), (uchar*) grant_name))
+          my_hash_insert(sph->get_priv_hash(), (uchar*) grant_name))
       {
         result= TRUE;
-	continue;
+        continue;
       }
     }
 
@@ -7657,7 +7741,7 @@ bool mysql_grant_role(THD *thd, List <LEX_USER> &list, bool revoke)
        Only need to propagate grants when granting/revoking a role to/from
        a role
     */
-    if (role_as_user && merge_one_role_privileges(role_as_user) == 0)
+    if (role_as_user)
       propagate_role_grants(role_as_user, PRIVS_TO_MERGE::ALL);
   }
 
@@ -8103,8 +8187,8 @@ bool grant_reload(THD *thd)
   @see check_table_access
 
   @note
-     This functions assumes that either number of tables to be inspected
-     by it is limited explicitly (i.e. is is not UINT_MAX) or table list
+     This function assumes that either number of tables to be inspected
+     by it is limited explicitly (i.e. is not UINT_MAX) or table list
      used and thd->lex->query_tables_own_last value correspond to each
      other (the latter should be either 0 or point to next_global member
      of one of elements of this table list).
@@ -8309,7 +8393,7 @@ err:
     my_error(ER_TABLEACCESS_DENIED_ERROR, MYF(0),
              command,
              sctx->priv_user,
-             sctx->host_or_ip,
+             sctx->host_or_ip, tl ? tl->db.str : "unknown",
              tl ? tl->get_table_name() : "unknown");
   }
   DBUG_RETURN(TRUE);
@@ -8493,7 +8577,7 @@ bool check_grant_all_columns(THD *thd, privilege_t want_access_arg,
   Security_context *sctx= thd->security_ctx;
   privilege_t want_access(NO_ACL);
   const char *table_name= NULL;
-  const char* db_name;
+  const char* db_name= NULL;
   GRANT_INFO *grant;
   GRANT_TABLE *UNINIT_VAR(grant_table);
   GRANT_TABLE *UNINIT_VAR(grant_table_role);
@@ -8582,7 +8666,7 @@ err:
   if (using_column_privileges)
     my_error(ER_TABLEACCESS_DENIED_ERROR, MYF(0),
              command, sctx->priv_user,
-             sctx->host_or_ip, table_name);
+             sctx->host_or_ip, db_name, table_name);
   else
     my_error(ER_COLUMNACCESS_DENIED_ERROR, MYF(0),
              command,
@@ -10277,9 +10361,6 @@ static int handle_grant_struct(enum enum_acl_lists struct_no, bool drop,
     size_t old_key_length= acl_role->user.length;
     if (drop)
     {
-      /* all grants must be revoked from this role by now. propagate this */
-      propagate_role_grants(acl_role, PRIVS_TO_MERGE::ALL);
-
       // delete the role from cross-reference arrays
       for (size_t i=0; i < acl_role->role_grants.elements; i++)
       {
@@ -10294,6 +10375,12 @@ static int handle_grant_struct(enum enum_acl_lists struct_no, bool drop,
                                                  i, ACL_USER_BASE**);
         remove_ptr_from_dynarray(&grantee->role_grants, acl_role);
       }
+
+      /* Remove all of the role_grants from this role. */
+      delete_dynamic(&acl_role->role_grants);
+
+      /* all grants must be revoked from this role by now. propagate this */
+      propagate_role_grants(acl_role, PRIVS_TO_MERGE::ALL);
 
       my_hash_delete(&acl_roles, (uchar*) acl_role);
       DBUG_RETURN(1);
@@ -10758,24 +10845,21 @@ static int handle_grant_data(THD *thd, Grant_tables& tables, bool drop,
   }
 
   /* Handle roles_mapping table. */
-  if (tables.roles_mapping_table().table_exists())
+  if (tables.roles_mapping_table().table_exists() &&
+      (found= handle_grant_table(thd, tables.roles_mapping_table(),
+                         ROLES_MAPPING_TABLE, drop, user_from, user_to)) < 0)
   {
-    if ((found= handle_grant_table(thd, tables.roles_mapping_table(),
-                                   ROLES_MAPPING_TABLE, drop,
-                                   user_from, user_to)) < 0)
-    {
-      /* Handle of table failed, don't touch the in-memory array. */
-      result= -1;
-    }
-    else
-    {
-      /* Handle acl_roles_mappings array */
-      if ((handle_grant_struct(ROLES_MAPPINGS_HASH, drop, user_from, user_to) || found)
-          && ! result)
-        result= 1; /* At least one record/element found */
-      if (search_only)
-        goto end;
-    }
+    /* Handle of table failed, don't touch the in-memory array. */
+    result= -1;
+  }
+  else
+  {
+    /* Handle acl_roles_mappings array */
+    if ((handle_grant_struct(ROLES_MAPPINGS_HASH, drop, user_from, user_to) || found)
+        && ! result)
+      result= 1; /* At least one record/element found */
+    if (search_only)
+      goto end;
   }
 
   /* Handle user table. */

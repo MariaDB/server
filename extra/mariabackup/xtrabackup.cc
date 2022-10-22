@@ -242,8 +242,7 @@ ulong innobase_read_io_threads = 4;
 ulong innobase_write_io_threads = 4;
 
 longlong innobase_page_size = (1LL << 14); /* 16KB */
-char *innobase_buffer_pool_filename = NULL;
-char *buffer_pool_filename = NULL;
+char*	innobase_buffer_pool_filename = NULL;
 
 /* The default values for the following char* start-up parameters
 are determined in innobase_init below: */
@@ -338,7 +337,6 @@ uint opt_lock_wait_timeout = 0;
 uint opt_lock_wait_threshold = 0;
 uint opt_debug_sleep_before_unlock = 0;
 uint opt_safe_slave_backup_timeout = 0;
-uint opt_max_binlogs = UINT_MAX;
 
 const char *opt_history = NULL;
 
@@ -841,7 +839,6 @@ static void backup_file_op(uint32_t space_id, int type,
 	case FILE_MODIFY:
 		ddl_tracker.insert_defer_id(
 			space_id, filename_to_spacename(name, len));
-		msg("DDL tracking : modify %u \"%.*s\"", space_id, int(len), name);
 		break;
 	case FILE_RENAME:
 	{
@@ -890,7 +887,6 @@ static void backup_file_op_fail(uint32_t space_id, int type,
 				filename_to_spacename(name, len).c_str());
 		break;
 	case FILE_MODIFY:
-		msg("DDL tracking : modify %u \"%.*s\"", space_id, int(len), name);
 		break;
 	case FILE_RENAME:
 		msg("DDL tracking : rename %u \"%.*s\",\"%.*s\"",
@@ -1066,8 +1062,7 @@ enum options_xtrabackup
   OPT_XTRA_CHECK_PRIVILEGES,
   OPT_XTRA_MYSQLD_ARGS,
   OPT_XB_IGNORE_INNODB_PAGE_CORRUPTION,
-  OPT_INNODB_FORCE_RECOVERY,
-  OPT_MAX_BINLOGS
+  OPT_INNODB_FORCE_RECOVERY
 };
 
 struct my_option xb_client_options[]= {
@@ -1463,17 +1458,6 @@ struct my_option xb_client_options[]= {
      "corrupted pages and can not be considered as consistent.",
      &opt_log_innodb_page_corruption, &opt_log_innodb_page_corruption, 0,
      GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
-
-    {"sst_max_binlogs", OPT_MAX_BINLOGS,
-     "Number of recent binary logs to be included in the backup. "
-     "Setting this parameter to zero normally disables transmission "
-     "of binary logs to the joiner nodes during SST using Galera. "
-     "But sometimes a single current binlog can still be transmitted "
-     "to the joiner even with sst_max_binlogs=0, because it is "
-     "required for Galera to work properly with GTIDs support.",
-     (G_PTR *) &opt_max_binlogs,
-     (G_PTR *) &opt_max_binlogs, 0, GET_UINT, OPT_ARG,
-     UINT_MAX, 0, UINT_MAX, 0, 1, 0},
 
 #define MYSQL_CLIENT
 #include "sslopt-longopts.h"
@@ -2495,7 +2479,8 @@ xb_read_delta_metadata(const char *filepath, xb_delta_info_t *info)
 		msg("page_size is required in %s", filepath);
 		r = FALSE;
 	} else {
-		info->page_size = zip_size ? zip_size : page_size;
+		info->page_size = page_size;
+		info->zip_size = zip_size;
 	}
 
 	if (info->space_id == UINT32_MAX) {
@@ -2549,11 +2534,11 @@ xb_write_delta_metadata(const char *filename, const xb_delta_info_t *info)
 /* ================= backup ================= */
 void xtrabackup_io_throttling()
 {
-  if (!xtrabackup_backup)
+  if (!xtrabackup_backup || !xtrabackup_throttle)
     return;
 
   mysql_mutex_lock(&recv_sys.mutex);
-  if (xtrabackup_throttle && (io_ticket--) < 0)
+  if (io_ticket-- < 0)
     mysql_cond_wait(&wait_throttle, &recv_sys.mutex);
   mysql_mutex_unlock(&recv_sys.mutex);
 }
@@ -2992,14 +2977,8 @@ static bool xtrabackup_copy_logfile()
   const size_t sequence_offset{log_sys.is_encrypted() ? 8U + 5U : 5U};
   const size_t block_size_1{log_sys.get_block_size() - 1};
 
-#ifdef HAVE_PMEM
-  if (log_sys.is_pmem())
-  {
-    recv_sys.offset= size_t(log_sys.calc_lsn_offset(recv_sys.lsn));
-    recv_sys.len= size_t(log_sys.file_size);
-  }
-  else
-#endif
+  ut_ad(!log_sys.is_pmem());
+
   {
     recv_sys.offset= size_t(recv_sys.lsn - log_sys.get_first_lsn()) &
       block_size_1;
@@ -3011,87 +2990,6 @@ static bool xtrabackup_copy_logfile()
     recv_sys_t::parse_mtr_result r;
     size_t start_offset{recv_sys.offset};
 
-#ifdef HAVE_PMEM
-    if (log_sys.is_pmem())
-    {
-      if ((ut_d(r=) recv_sys.parse_pmem(STORE_NO)) != recv_sys_t::OK)
-      {
-        ut_ad(r == recv_sys_t::GOT_EOF);
-        goto retry;
-      }
-
-      retry_count= 0;
-
-      do
-      {
-        const byte seq{log_sys.get_sequence_bit(recv_sys.lsn -
-                                                sequence_offset)};
-        ut_ad(recv_sys.offset >= log_sys.START_OFFSET);
-        ut_ad(recv_sys.offset < recv_sys.len);
-        ut_ad(log_sys.buf[recv_sys.offset
-                          >= log_sys.START_OFFSET + sequence_offset
-                          ? recv_sys.offset - sequence_offset
-                          : recv_sys.len - sequence_offset +
-                          recv_sys.offset - log_sys.START_OFFSET] ==
-              seq);
-        static const byte seq_1{1};
-        if (UNIV_UNLIKELY(start_offset > recv_sys.offset))
-        {
-          const ssize_t so(recv_sys.offset - (log_sys.START_OFFSET +
-                                              sequence_offset));
-          if (so <= 0)
-          {
-            if (ds_write(dst_log_file, log_sys.buf + start_offset,
-                         recv_sys.len - start_offset + so) ||
-                ds_write(dst_log_file, &seq_1, 1))
-              goto write_error;
-            if (so < -1 &&
-                ds_write(dst_log_file, log_sys.buf + recv_sys.len + (1 + so),
-                         -(1 + so)))
-              goto write_error;
-            if (ds_write(dst_log_file, log_sys.buf + log_sys.START_OFFSET,
-                         recv_sys.offset - log_sys.START_OFFSET))
-              goto write_error;
-          }
-          else
-          {
-            if (ds_write(dst_log_file, log_sys.buf + start_offset,
-                         recv_sys.len - start_offset))
-              goto write_error;
-            if (ds_write(dst_log_file, log_sys.buf + log_sys.START_OFFSET, so))
-              goto write_error;
-            if (ds_write(dst_log_file, &seq_1, 1))
-              goto write_error;
-            if (so > 1 &&
-                ds_write(dst_log_file, log_sys.buf + recv_sys.offset -
-                         (so - 1), so - 1))
-              goto write_error;
-          }
-        }
-        else if (seq == 1)
-        {
-          if (ds_write(dst_log_file, log_sys.buf + start_offset,
-                       recv_sys.offset - start_offset))
-            goto write_error;
-        }
-        else if (ds_write(dst_log_file, log_sys.buf + start_offset,
-                          recv_sys.offset - start_offset - sequence_offset) ||
-                 ds_write(dst_log_file, &seq_1, 1) ||
-                 ds_write(dst_log_file, log_sys.buf +
-                          recv_sys.offset - sequence_offset + 1,
-                          sequence_offset - 1))
-          goto write_error;
-
-        start_offset= recv_sys.offset;
-      }
-      while ((ut_d(r=)recv_sys.parse_pmem(STORE_NO)) == recv_sys_t::OK);
-
-      ut_ad(r == recv_sys_t::GOT_EOF);
-      pthread_cond_broadcast(&scanned_lsn_cond);
-      break;
-    }
-    else
-#endif
     {
       {
         auto source_offset=
@@ -3135,9 +3033,6 @@ static bool xtrabackup_copy_logfile()
         if (ds_write(dst_log_file, log_sys.buf + start_offset,
                      recv_sys.offset - start_offset))
         {
-#ifdef HAVE_PMEM
-        write_error:
-#endif
           msg("Error: write to ib_logfile0 failed");
           return true;
         }
@@ -3167,9 +3062,6 @@ static bool xtrabackup_copy_logfile()
       else
       {
         recv_sys.len= recv_sys.offset & ~block_size_1;
-#ifdef HAVE_PMEM
-      retry:
-#endif
         if (retry_count == 100)
           break;
 
@@ -6336,22 +6228,28 @@ static bool check_all_privileges()
 	}
 
 	/* KILL ... */
-	if ((!opt_no_lock && (opt_kill_long_queries_timeout || opt_lock_ddl_per_table))
-		/* START SLAVE SQL_THREAD */
-		/* STOP SLAVE SQL_THREAD */
-		|| opt_safe_slave_backup) {
+	if (!opt_no_lock && (opt_kill_long_queries_timeout || opt_kill_long_query_type)) {
 		check_result |= check_privilege(
 			granted_privileges,
-			"SUPER", "*", "*",
+			"CONNECTION ADMIN", "*", "*",
+			PRIVILEGE_WARNING);
+	}
+
+	/* START SLAVE SQL_THREAD */
+	/* STOP SLAVE SQL_THREAD */
+	if (opt_safe_slave_backup) {
+		check_result |= check_privilege(
+			granted_privileges,
+			"REPLICATION SLAVE ADMIN", "*", "*",
 			PRIVILEGE_WARNING);
 	}
 
 	/* SHOW MASTER STATUS */
 	/* SHOW SLAVE STATUS */
 	if (opt_galera_info || opt_slave_info
-		|| (opt_no_lock && opt_safe_slave_backup)) {
+		|| opt_safe_slave_backup) {
 		check_result |= check_privilege(granted_privileges,
-			"REPLICATION CLIENT", "*", "*",
+			"SLAVE MONITOR", "*", "*",
 			PRIVILEGE_WARNING);
 	}
 
@@ -6367,44 +6265,6 @@ static bool check_all_privileges()
 	}
 
 	return true;
-}
-
-static
-void
-xb_init_buffer_pool(const char * filename)
-{
-	if (filename &&
-#ifdef _WIN32
-		(filename[0] == '/'  ||
-		 filename[0] == '\\' ||
-		 strchr(filename, ':')))
-#else
-		filename[0] == FN_LIBCHAR)
-#endif
-	{
-		buffer_pool_filename = strdup(filename);
-	} else {
-		char filepath[FN_REFLEN];
-		char *dst_dir =
-			(innobase_data_home_dir && *innobase_data_home_dir) ?
-			 innobase_data_home_dir : mysql_data_home;
-		size_t dir_length;
-		if (dst_dir && *dst_dir) {
-			dir_length = strlen(dst_dir);
-			while (IS_TRAILING_SLASH(dst_dir, dir_length)) {
-				dir_length--;
-			}
-			memcpy(filepath, dst_dir, dir_length);
-		}
-		else {
-			filepath[0] = '.';
-			dir_length = 1;
-		}
-		snprintf(filepath + dir_length,
-			sizeof(filepath) - dir_length, "%c%s", FN_LIBCHAR,
-			filename ? filename : "ib_buffer_pool");
-		buffer_pool_filename = strdup(filepath);
-	}
 }
 
 bool
@@ -6472,15 +6332,10 @@ xb_init()
 			return(false);
 		}
 
-		xb_init_buffer_pool(buffer_pool_filename);
-
 		if (opt_check_privileges && !check_all_privileges()) {
 			return(false);
 		}
-
 		history_start_time = time(NULL);
-	} else {
-		xb_init_buffer_pool(innobase_buffer_pool_filename);
 	}
 
 	return(true);
@@ -6872,8 +6727,6 @@ int main(int argc, char **argv)
 	cleanup_errmsgs();
 	free_error_messages();
 	mysql_mutex_destroy(&LOCK_error_log);
-
-	free(buffer_pool_filename);
 
 	if (status == EXIT_SUCCESS) {
 		msg("completed OK!");

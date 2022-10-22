@@ -269,8 +269,8 @@ from t1, json_table(t1.json, '$' columns (value varchar(32) PATH '$.value')) T;
 show create table tj1;
 Table	Create Table
 tj1	CREATE TABLE `tj1` (
-  `value` varchar(32) CHARACTER SET utf8mb4 DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+  `value` varchar(32) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 drop table t1;
 drop table tj1;
 CREATE TABLE t1(id INT, f1 JSON);
@@ -1009,6 +1009,12 @@ name  VARCHAR(10) CHARACTER SET latin1 COLLATE DEFAULT PATH '$.name'
 name
 Jeans
 #
+# MDEV-28480: Assertion `0' failed in Item_row::illegal_method_call
+#             on SELECT FROM JSON_TABLE
+#
+SELECT 1 FROM JSON_TABLE (row(1,2), '$' COLUMNS (o FOR ORDINALITY)) AS j;
+ERROR 21000: Operand should contain 1 column(s)
+#
 # End of 10.6 tests
 #
 #
@@ -1089,6 +1095,51 @@ DROP VIEW v1;
 SELECT * FROM JSON_TABLE('{"foo":{"bar":1},"qux":2}', '$' COLUMNS(c1 VARCHAR(8) PATH '$[0]', c2 CHAR(8) PATH '$.*.x')) AS js;
 c1	c2
 NULL	NULL
+#
+# MDEV-29446 Change SHOW CREATE TABLE to display default collations
+#
+CREATE VIEW v1 AS
+SELECT * FROM
+JSON_TABLE('[{"name":"Laptop"}]', '$[*]'
+COLUMNS
+(
+name VARCHAR(10) CHARACTER SET latin1 PATH '$.name')
+) AS jt;
+SHOW CREATE VIEW v1;
+View	Create View	character_set_client	collation_connection
+v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select `jt`.`name` AS `name` from JSON_TABLE('[{"name":"Laptop"}]', '$[*]' COLUMNS (`name` varchar(10) CHARSET latin1 COLLATE latin1_swedish_ci PATH '$.name')) `jt`	latin1	latin1_swedish_ci
+DROP VIEW v1;
+CREATE VIEW v1 AS
+SELECT * FROM
+JSON_TABLE('[{"name":"Laptop"}]', '$[*]'
+COLUMNS
+(
+name VARCHAR(10) CHARACTER SET utf8mb3 PATH '$.name')
+) AS jt;
+SHOW CREATE VIEW v1;
+View	Create View	character_set_client	collation_connection
+v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select `jt`.`name` AS `name` from JSON_TABLE('[{"name":"Laptop"}]', '$[*]' COLUMNS (`name` varchar(10) CHARSET utf8mb3 COLLATE utf8mb3_general_ci PATH '$.name')) `jt`	latin1	latin1_swedish_ci
+DROP VIEW v1;
+CREATE VIEW v1 AS
+SELECT * FROM
+JSON_TABLE('[{"name":"Laptop"}]', '$[*]'
+COLUMNS
+(
+name VARCHAR(10) CHARACTER SET BINARY PATH '$.name')
+) AS jt;
+SHOW CREATE VIEW v1;
+View	Create View	character_set_client	collation_connection
+v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select `jt`.`name` AS `name` from JSON_TABLE('[{"name":"Laptop"}]', '$[*]' COLUMNS (`name` varbinary(10) PATH '$.name')) `jt`	latin1	latin1_swedish_ci
+DROP VIEW v1;
+CREATE VIEW v1 AS
+SELECT * FROM
+JSON_TABLE('[{"name":"Laptop"}]', '$[*]'
+COLUMNS
+(
+name ENUM('Laptop') CHARACTER SET BINARY PATH '$.name')
+) AS jt;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'ENUM('Laptop') CHARACTER SET BINARY PATH '$.name')
+) AS jt' at line 6
 #
 # End of 10.9 tests
 #

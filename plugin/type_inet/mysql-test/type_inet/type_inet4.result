@@ -14,7 +14,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` inet4 DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DESCRIBE t1;
 Field	Type	Null	Key	Default	Extra
 a	inet4	YES		NULL	
@@ -70,7 +70,7 @@ t1	CREATE TABLE `t1` (
   `c3` inet4 DEFAULT '0.0.0.255',
   `c4` inet4 DEFAULT '255.0.0.255',
   `c5` inet4 DEFAULT cast(X'ffff00ff' as inet4)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DESCRIBE t1;
 Field	Type	Null	Key	Default	Extra
 c1	inet4	YES		0.0.0.0	
@@ -198,9 +198,9 @@ CREATE TABLE t1 (a INET4);
 INSERT INTO t1 VALUES ('x');
 ERROR 22007: Incorrect inet4 value: 'x' for column `test`.`t1`.`a` at row 1
 INSERT INTO t1 VALUES (1);
-ERROR HY000: Illegal parameter data types inet4 and int for operation 'SET'
+ERROR HY000: Cannot cast 'int' as 'inet4' in assignment of `test`.`t1`.`a`
 INSERT INTO t1 VALUES (TIME'10:20:30');
-ERROR HY000: Illegal parameter data types inet4 and time for operation 'SET'
+ERROR HY000: Cannot cast 'time' as 'inet4' in assignment of `test`.`t1`.`a`
 INSERT INTO t1 VALUES (0x00);
 ERROR 22007: Incorrect inet4 value: '\x00' for column `test`.`t1`.`a` at row 1
 DROP TABLE t1;
@@ -232,7 +232,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `CAST('0.0.0.0' AS INET4)` inet4 NOT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t1;
 #
 # Text and binary formats, comparison operators
@@ -434,7 +434,7 @@ t2	CREATE TABLE `t2` (
   `COALESCE(c, c_text)` inet4 DEFAULT NULL,
   `COALESCE(c, c_mediumtext)` inet4 DEFAULT NULL,
   `COALESCE(c, c_longtext)` inet4 DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t2;
 CREATE TABLE t2 AS SELECT
 LEAST(c, c_char),
@@ -453,7 +453,7 @@ t2	CREATE TABLE `t2` (
   `LEAST(c, c_text)` inet4 DEFAULT NULL,
   `LEAST(c, c_mediumtext)` inet4 DEFAULT NULL,
   `LEAST(c, c_longtext)` inet4 DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t2;
 DROP TABLE t1;
 CREATE TABLE t1 (a INET4);
@@ -484,7 +484,7 @@ t2	CREATE TABLE `t2` (
   `COALESCE(a, '0.0.0.0')` inet4 DEFAULT NULL,
   `LEAST(a,'0.0.0.0')` inet4 DEFAULT NULL,
   `GREATEST(a,'0.0.0.0')` inet4 DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t2;
 SELECT COALESCE(a, 0x00000000) FROM t1 ORDER BY a;
 COALESCE(a, 0x00000000)
@@ -518,7 +518,7 @@ t2	CREATE TABLE `t2` (
   `COALESCE(a, 0x00000000)` inet4 DEFAULT NULL,
   `LEAST(a,0x00000000)` inet4 DEFAULT NULL,
   `GREATEST(a,0x00000000)` inet4 DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t2;
 SELECT COALESCE(a, 10) FROM t1;
 ERROR HY000: Illegal parameter data types inet4 and int for operation 'coalesce'
@@ -726,7 +726,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` varchar(15) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t1;
 CREATE TABLE t1 (a INET4);
 INSERT INTO t1 VALUES ('255.0.0.255');
@@ -749,7 +749,7 @@ t2	CREATE TABLE `t2` (
   `CAST(a AS CHAR(66000))` mediumtext DEFAULT NULL,
   `CAST(a AS CHAR(16777215))` mediumtext DEFAULT NULL,
   `CAST(a AS CHAR(16777216))` longtext DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 SELECT * FROM t2;
 CAST(a AS CHAR)	255.0.0.255
 CAST(a AS CHAR(15))	255.0.0.255
@@ -785,7 +785,7 @@ t2	CREATE TABLE `t2` (
   `cb66000` mediumblob DEFAULT NULL,
   `cb16777215` mediumblob DEFAULT NULL,
   `cb16777216` longblob DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t2;
 CREATE TABLE t2 AS SELECT
 CAST(a AS BINARY(4)) AS cb4,
@@ -804,7 +804,7 @@ t2	CREATE TABLE `t2` (
   `cb32` binary(32) DEFAULT NULL,
   `cb530` varbinary(530) DEFAULT NULL,
   `cb65535` blob DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 SELECT
 HEX(cb4),
 HEX(cb),
@@ -826,15 +826,15 @@ DROP TABLE t1;
 #
 CREATE TABLE t1 (a INT);
 INSERT INTO t1 VALUES (CAST('0.0.0.0' AS INET4));
-ERROR HY000: Illegal parameter data types int and inet4 for operation 'SET'
+ERROR HY000: Cannot cast 'inet4' as 'int' in assignment of `test`.`t1`.`a`
 DROP TABLE t1;
 CREATE TABLE t1 (a DOUBLE);
 INSERT INTO t1 VALUES (CAST('0.0.0.0' AS INET4));
-ERROR HY000: Illegal parameter data types double and inet4 for operation 'SET'
+ERROR HY000: Cannot cast 'inet4' as 'double' in assignment of `test`.`t1`.`a`
 DROP TABLE t1;
 CREATE TABLE t1 (a DECIMAL(32,0));
 INSERT INTO t1 VALUES (CAST('0.0.0.0' AS INET4));
-ERROR HY000: Illegal parameter data types decimal and inet4 for operation 'SET'
+ERROR HY000: Cannot cast 'inet4' as 'decimal' in assignment of `test`.`t1`.`a`
 DROP TABLE t1;
 CREATE TABLE t1 (a VARCHAR(64));
 INSERT INTO t1 VALUES (CAST('0.0.0.0' AS INET4));
@@ -894,7 +894,7 @@ Table	Create Table
 t2	CREATE TABLE `t2` (
   `MIN(a)` inet4 DEFAULT NULL,
   `MAX(a)` inet4 DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t2;
 SELECT AVG(a) FROM t1;
 ERROR HY000: Illegal parameter data type inet4 for operation 'avg('
@@ -960,7 +960,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` inet4 NOT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 EXECUTE IMMEDIATE 'INSERT INTO t1 VALUES (?)' USING '0.0.0.1';
 EXECUTE IMMEDIATE 'INSERT INTO t1 VALUES (?)' USING CAST('0.0.0.2' AS INET4);
 EXECUTE IMMEDIATE 'INSERT INTO t1 VALUES (?)' USING 0x00000003;
@@ -998,7 +998,7 @@ Table	Create Table
 t2	CREATE TABLE `t2` (
   `c1` varchar(15) DEFAULT NULL,
   `c2` varchar(15) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t2;
 CREATE TABLE t2 AS SELECT
 CONCAT(_utf8'1', a) AS c1,
@@ -1008,10 +1008,10 @@ FROM t1;
 SHOW CREATE TABLE t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
-  `c1` varchar(16) CHARACTER SET utf8mb3 DEFAULT NULL,
-  `c2` varchar(16) CHARACTER SET utf8mb3 DEFAULT NULL,
-  `c3` varchar(16) CHARACTER SET utf8mb3 DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+  `c1` varchar(16) CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci DEFAULT NULL,
+  `c2` varchar(16) CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci DEFAULT NULL,
+  `c3` varchar(16) CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t2;
 CREATE TABLE t2 AS SELECT
 CONCAT(_latin1'1', a) AS c1,
@@ -1024,7 +1024,7 @@ t2	CREATE TABLE `t2` (
   `c1` varchar(16) DEFAULT NULL,
   `c2` varchar(16) DEFAULT NULL,
   `c3` varchar(16) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t2;
 DROP TABLE t1;
 #
@@ -1035,21 +1035,21 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c` inet4 NOT NULL DEFAULT '0.0.0.0'
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t1;
 CREATE TABLE t1 AS SELECT CAST('0.0.0.0' AS INET4) AS c UNION SELECT '0.0.0.1';
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c` inet4 NOT NULL DEFAULT '0.0.0.0'
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t1;
 CREATE TABLE t1 AS SELECT '0.0.0.0' AS c UNION SELECT CAST('0.0.0.1' AS INET4);
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c` inet4 NOT NULL DEFAULT '0.0.0.0'
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t1;
 CREATE TABLE t1 AS SELECT CAST('0.0.0.0' AS INET4) AS c UNION SELECT 0x00000001;
 SELECT * FROM t1;
@@ -1742,7 +1742,7 @@ DROP TABLE t1;
 CREATE TABLE t1 (a INET4, b INT);
 INSERT INTO t1 (a) VALUES ('0.0.0.0');
 UPDATE t1 SET b=a;
-ERROR HY000: Illegal parameter data types int and inet4 for operation 'SET'
+ERROR HY000: Cannot cast 'inet4' as 'int' in assignment of `test`.`t1`.`b`
 SELECT * FROM t1;
 a	b
 0.0.0.0	NULL
@@ -1751,16 +1751,16 @@ SET timestamp=UNIX_TIMESTAMP('2001-01-01 10:20:30');
 CREATE TABLE t1 (a INET4, b TIMESTAMP);
 INSERT INTO t1 (a) VALUES ('0.0.0.0');
 UPDATE t1 SET b=a;
-ERROR HY000: Illegal parameter data types timestamp and inet4 for operation 'SET'
+ERROR HY000: Cannot cast 'inet4' as 'timestamp' in assignment of `test`.`t1`.`b`
 SELECT * FROM t1;
 a	b
-0.0.0.0	2001-01-01 10:20:30
+0.0.0.0	NULL
 DROP TABLE t1;
 SET timestamp=DEFAULT;
 CREATE OR REPLACE TABLE t1 (a INET4);
 INSERT INTO t1 (a) VALUES ('0.0.0.0');
 ALTER TABLE t1 MODIFY a DATE;
-ERROR HY000: Illegal parameter data types date and inet4 for operation 'SET'
+ERROR HY000: Cannot cast 'inet4' as 'date' in assignment of `test`.`t1`.`a`
 DROP TABLE t1;
 #
 # MDEV-20818 ER_CRASHED_ON_USAGE or Assertion `length <= column->length' failed in write_block_record on temporary table
@@ -1921,7 +1921,7 @@ Table	Create Table
 t2	CREATE TABLE `t2` (
   `ca` inet4 NOT NULL,
   `cb` inet4 DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t2;
 CREATE TABLE t2 AS SELECT COALESCE(a,a), COALESCE(a,b) FROM t1;
 SHOW CREATE TABLE t2;
@@ -1929,7 +1929,7 @@ Table	Create Table
 t2	CREATE TABLE `t2` (
   `COALESCE(a,a)` inet4 NOT NULL,
   `COALESCE(a,b)` inet4 DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t2;
 CREATE TABLE t2 AS SELECT a AS ca,a AS cb FROM t1 UNION SELECT a,b FROM t1;
 SHOW CREATE TABLE t2;
@@ -1937,7 +1937,7 @@ Table	Create Table
 t2	CREATE TABLE `t2` (
   `ca` inet4 NOT NULL DEFAULT '0.0.0.0',
   `cb` inet4 DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t2;
 DROP TABLE t1;
 #
@@ -1961,7 +1961,7 @@ SHOW CREATE TABLE t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `IFNULL(c, 'foo')` inet4 DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 SELECT * FROM t2;
 IFNULL(c, 'foo')
 0.0.0.0
@@ -1972,7 +1972,7 @@ SHOW CREATE TABLE t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `IFNULL(c, '0.0.0.1')` inet4 NOT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 SELECT * FROM t2;
 IFNULL(c, '0.0.0.1')
 0.0.0.0

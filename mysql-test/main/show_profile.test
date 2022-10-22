@@ -5,6 +5,10 @@
 # that SHOW PROFILES, SHOW PROFILE FOR QUERY and SHOW PROFILE CPU FOR QUERY
 # do not cause syntax errors. It also increases code coverage for sql_profile.cc
 
+# Tests will be skipped for the view protocol because the view protocol creates 
+# an additional util connection and other statistics data
+-- source include/no_view_protocol.inc
+
 --source include/have_profiling.inc
 SET profiling = 1;
 SELECT 1;

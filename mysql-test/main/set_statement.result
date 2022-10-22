@@ -1085,7 +1085,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL
-) ENGINE=MEMORY DEFAULT CHARSET=latin1
+) ENGINE=MEMORY DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 select @@default_storage_engine;
 @@default_storage_engine
 MyISAM
@@ -1095,7 +1095,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 drop table t1;
 SET @@default_storage_engine=@save_dfs;
 SET STATEMENT keycache1.key_buffer_size=1024 FOR SELECT 1;
@@ -1303,7 +1303,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` varchar(3) NOT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t1;
 # Create the table t1 with the same definition as it used before
 # using regular statement execution mode.
@@ -1314,8 +1314,20 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` varchar(3) NOT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t1;
+#
+# MDEV-29074 GET_BIT variables crash in SET STATEMENT
+#
+set statement log_queries_not_using_indexes=1 for select @@log_queries_not_using_indexes;
+@@log_queries_not_using_indexes
+1
+select @@log_queries_not_using_indexes;
+@@log_queries_not_using_indexes
+0
+#
+# End of 10.3 tests
+#
 create table t (a int);
 SET sql_mode=ORACLE;
 SET STATEMENT myisam_sort_buffer_size=800000 FOR OPTIMIZE TABLE t;

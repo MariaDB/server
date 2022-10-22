@@ -19,7 +19,6 @@
 /* Headers we may want to use. */
 #cmakedefine STDC_HEADERS 1
 #cmakedefine _GNU_SOURCE 1
-#cmakedefine HAVE_ALIGNED_ALLOC 1
 #cmakedefine HAVE_ALLOCA_H 1
 #cmakedefine HAVE_ARPA_INET_H 1
 #cmakedefine HAVE_ASM_TERMBITS_H 1
@@ -35,6 +34,11 @@
 #cmakedefine HAVE_FLOAT_H 1
 #cmakedefine HAVE_FNMATCH_H 1
 #cmakedefine HAVE_FPU_CONTROL_H 1
+#cmakedefine HAVE_GETMNTENT 1
+#cmakedefine HAVE_GETMNTENT_IN_SYS_MNTAB 1
+#cmakedefine HAVE_GETMNTINFO 1
+#cmakedefine HAVE_GETMNTINFO64 1
+#cmakedefine HAVE_GETMNTINFO_TAKES_statvfs 1
 #cmakedefine HAVE_GRP_H 1
 #cmakedefine HAVE_IA64INTRIN_H 1
 #cmakedefine HAVE_IEEEFP_H 1
@@ -210,6 +214,7 @@
 #cmakedefine HAVE_SELECT 1
 #cmakedefine HAVE_SETENV 1
 #cmakedefine HAVE_SETLOCALE 1
+#cmakedefine HAVE_SETMNTENT 1
 #cmakedefine HAVE_SETUPTERM 1
 #cmakedefine HAVE_SIGSET 1
 #cmakedefine HAVE_SIGACTION 1
@@ -217,7 +222,6 @@
 #cmakedefine HAVE_SIGWAIT 1
 #cmakedefine HAVE_SIGWAITINFO 1
 #cmakedefine HAVE_SLEEP 1
-#cmakedefine HAVE_SNPRINTF 1
 #cmakedefine HAVE_STPCPY 1
 #cmakedefine HAVE_STRERROR 1
 #cmakedefine HAVE_STRCOLL 1
@@ -251,9 +255,6 @@
 #cmakedefine HAVE_SOCKADDR_IN6_SIN6_LEN 1
 #cmakedefine STRUCT_TIMESPEC_HAS_TV_SEC 1
 #cmakedefine STRUCT_TIMESPEC_HAS_TV_NSEC 1
-
-#define USE_MB 1
-#define USE_MB_IDENT 1
 
 /* this means that valgrind headers and macros are available */
 #cmakedefine HAVE_VALGRIND_MEMCHECK_H 1
@@ -450,8 +451,8 @@
 #cmakedefine MYSQL_DEFAULT_CHARSET_NAME "@MYSQL_DEFAULT_CHARSET_NAME@"
 #cmakedefine MYSQL_DEFAULT_COLLATION_NAME "@MYSQL_DEFAULT_COLLATION_NAME@"
 
-#cmakedefine USE_MB 1
-#cmakedefine USE_MB_IDENT 1
+#cmakedefine USE_MB
+#cmakedefine USE_MB_IDENT
 
 /* This should mean case insensitive file system */
 #cmakedefine FN_NO_CASE_SENSE 1

@@ -671,22 +671,22 @@ latin2	2	latin2	2
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` char(1) CHARACTER SET latin2 DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+  `a` char(1) CHARACTER SET latin2 COLLATE latin2_general_ci DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 create table t2 select max(a),min(a) from t1;
 show create table t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
-  `max(a)` char(1) CHARACTER SET latin2 DEFAULT NULL,
-  `min(a)` char(1) CHARACTER SET latin2 DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+  `max(a)` char(1) CHARACTER SET latin2 COLLATE latin2_general_ci DEFAULT NULL,
+  `min(a)` char(1) CHARACTER SET latin2 COLLATE latin2_general_ci DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 drop table t2;
 create table t2 select concat(a) from t1;
 show create table t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
-  `concat(a)` varchar(1) CHARACTER SET latin2 DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+  `concat(a)` varchar(1) CHARACTER SET latin2 COLLATE latin2_general_ci DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 drop table t2,t1;
 create table t1 (a int);
 insert into t1 values (1);
@@ -775,7 +775,7 @@ show create table t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `MAX(b)` datetime DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 drop table t1, t2;
 create table t1(f1 datetime);
 insert into t1 values (now());
@@ -1014,14 +1014,14 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `variance(0)` double(8,4) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 drop table t1;
 create table t1 select stddev(0);
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `stddev(0)` double(8,4) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 drop table t1;
 create table bug22555 (i smallint primary key auto_increment, s1 smallint, s2 smallint, e decimal(30,10), o double);
 insert into bug22555 (s1, s2, e, o) values (53, 78, 11.4276528, 6.828112), (17, 78, 5.916793, 1.8502951), (18, 76, 2.679231, 9.17975591), (31, 62, 6.07831, 0.1), (19, 41, 5.37463, 15.1), (83, 73, 14.567426, 7.959222), (92, 53, 6.10151, 13.1856852), (7, 12, 13.92272, 3.442007), (92, 35, 11.95358909, 6.01376678), (38, 84, 2.572, 7.904571);
@@ -2510,7 +2510,7 @@ t2	CREATE TABLE `t2` (
   `code` int(11) DEFAULT NULL,
   `COUNT(DISTINCT country)` bigint(21) NOT NULL,
   `MAX(id)` int(11)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t2;
 CREATE TABLE t2 AS SELECT code, COUNT(DISTINCT country), MAX(id) FROM v1 GROUP BY code ORDER BY MAX(id);
 SHOW CREATE TABLE t2;
@@ -2519,9 +2519,34 @@ t2	CREATE TABLE `t2` (
   `code` int(11) DEFAULT NULL,
   `COUNT(DISTINCT country)` bigint(21) NOT NULL,
   `MAX(id)` int(11) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t2;
 DROP VIEW v1;
+DROP TABLE t1;
+#
+# MDEV-23809: Server crash in JOIN_CACHE::free or ...
+#
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (1),(2);
+SELECT DISTINCT CASE CONVERT(EXPORT_SET(0, COLLATION(BENCHMARK(1, BIT_OR(0))),0),TIME) WHEN a THEN 1 END AS f FROM t1;
+f
+NULL
+Warnings:
+Warning	1292	Truncated incorrect time value: '0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0'
+DROP TABLE t1;
+CREATE TABLE t1 (a VARCHAR(8) NULL, b BIGINT);
+INSERT INTO t1 (a,b) VALUES (NULL,NULL),('foo',NULL);
+SELECT DISTINCT STRCMP((b > COLLATION(STDDEV_SAMP(15750))), a) AS f FROM t1;
+f
+NULL
+DROP TABLE t1;
+CREATE TABLE t1 (a BIGINT) AS SELECT 1 AS v3 UNION SELECT FALSE ;
+SELECT DISTINCT a IN ( COLLATION (AVG ('x'))) FROM t1 ;
+a IN ( COLLATION (AVG ('x')))
+NULL
+Warnings:
+Warning	1292	Truncated incorrect DOUBLE value: 'x'
+Warning	1292	Truncated incorrect DOUBLE value: 'x'
 DROP TABLE t1;
 #
 # End of 10.3 tests

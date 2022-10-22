@@ -13,7 +13,7 @@ SET @old_engine= @@GLOBAL.default_storage_engine;
 SET GLOBAL default_storage_engine=InnoDB;
 SET @old_parallel= @@GLOBAL.slave_parallel_threads;
 SET GLOBAL slave_parallel_threads=12;
-CHANGE MASTER TO master_host='127.0.0.1', master_port=SERVER_MYPORT_1, master_user='root', master_log_file='master-bin.000001', master_log_pos=4;
+CHANGE MASTER TO master_host='127.0.0.1', master_port=SERVER_MYPORT_1, master_user='root', master_log_file='master-bin.000001', master_log_pos=4, master_use_gtid=no;
 include/start_slave.inc
 connection master;
 SET SQL_LOG_BIN=0;

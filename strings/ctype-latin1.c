@@ -458,7 +458,7 @@ struct charset_info_st my_charset_latin1=
     255,		/* max_sort_char */
     ' ',                /* pad char      */
     0,                  /* escape_with_backslash_is_dangerous */
-    1,                  /* levels_for_order   */
+    MY_CS_COLL_LEVELS_S1,
     &my_charset_handler,
     &my_collation_8bit_simple_ci_handler
 };
@@ -491,7 +491,7 @@ struct charset_info_st my_charset_latin1_nopad=
     255,                          /* max_sort_char    */
     ' ',                          /* pad char         */
     0,                            /* escape_with_backslash_is_dangerous */
-    1,                            /* levels_for_order */
+    MY_CS_COLL_LEVELS_S1,
     &my_charset_handler,
     &my_collation_8bit_simple_nopad_ci_handler
 };
@@ -504,19 +504,19 @@ struct charset_info_st my_charset_latin1_nopad=
  *
  * The modern sort order is used, where:
  *
- * '‰'  ->  "ae"
- * 'ˆ'  ->  "oe"
- * '¸'  ->  "ue"
- * 'ﬂ'  ->  "ss"
+ * '√§'  ->  "ae"
+ * '√∂'  ->  "oe"
+ * '√º'  ->  "ue"
+ * '√ü'  ->  "ss"
  */
 
 
 /*
  * This is a simple latin1 mapping table, which maps all accented
  * characters to their non-accented equivalents.  Note: in this
- * table, '‰' is mapped to 'A', 'ˇ' is mapped to 'Y', etc. - all
+ * table, '√§' is mapped to 'A', '√ø' is mapped to 'Y', etc. - all
  * accented characters except the following are treated the same way.
- * ‹, ¸, ÷, ˆ, ƒ, ‰
+ * √ú, √º, √ñ, √∂, √Ñ, √§
  */
 
 static const uchar sort_order_latin1_de[] = {
@@ -582,7 +582,7 @@ static const uchar combo2map[]={
   my_strnxfrm_latin_de() on both strings and compared the result strings.
 
   This means that:
-  ƒ must also matches ¡E and AË, because my_strxn_frm_latin_de() will convert
+  √Ñ must also matches √ÅE and A√®, because my_strxn_frm_latin_de() will convert
   both to AE.
 
   The other option would be to not do any accent removal in
@@ -708,7 +708,7 @@ void my_hash_sort_latin1_de(CHARSET_INFO *cs __attribute__((unused)),
     
   /*
     Remove end space. We have to do this to be able to compare
-    'AE' and 'ƒ' as identical
+    'AE' and '√Ñ' as identical
   */
   end= skip_trailing_space(key, len);
 
@@ -741,7 +741,9 @@ static MY_COLLATION_HANDLER my_collation_german2_ci_handler=
   my_hash_sort_latin1_de,
   my_propagate_complex,
   my_min_str_8bit_simple,
-  my_max_str_8bit_simple
+  my_max_str_8bit_simple,
+  my_ci_get_id_generic,
+  my_ci_get_collation_name_generic
 };
 
 
@@ -772,7 +774,7 @@ struct charset_info_st my_charset_latin1_german2_ci=
   247,					/* max_sort_char */
   ' ',                                  /* pad char      */
   0,                                    /* escape_with_backslash_is_dangerous */
-  1,                                    /* levels_for_order   */
+  MY_CS_COLL_LEVELS_S1,
   &my_charset_handler,
   &my_collation_german2_ci_handler
 };
@@ -805,7 +807,7 @@ struct charset_info_st my_charset_latin1_bin=
   255,					/* max_sort_char */
   ' ',                                  /* pad char      */
   0,                                    /* escape_with_backslash_is_dangerous */
-  1,                                    /* levels_for_order   */
+  MY_CS_COLL_LEVELS_S1,
   &my_charset_handler,
   &my_collation_8bit_bin_handler
 };
@@ -838,7 +840,7 @@ struct charset_info_st my_charset_latin1_nopad_bin=
   255,                                 /* max_sort_char    */
   ' ',                                 /* pad char         */
   0,                                   /* escape_with_backslash_is_dangerous */
-  1,                                   /* levels_for_order */
+  MY_CS_COLL_LEVELS_S1,
   &my_charset_handler,
   &my_collation_8bit_nopad_bin_handler
 };

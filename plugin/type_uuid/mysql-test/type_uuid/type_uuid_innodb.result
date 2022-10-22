@@ -14,7 +14,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` uuid DEFAULT NULL,
   KEY `a` (`a`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 FOR i IN 0..255
 DO
 INSERT INTO t1 VALUES (CONCAT(REPEAT(0x00, 15),CHAR(i USING BINARY)));
@@ -121,7 +121,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` uuid DEFAULT NULL,
   KEY `a` (`a`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 BEGIN;
 FOR i IN 0..255
 DO

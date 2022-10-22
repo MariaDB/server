@@ -18,7 +18,6 @@
 #define LOG_H
 
 #include "handler.h"                            /* my_xid */
-#include "wsrep_mysqld.h"
 #include "rpl_constants.h"
 
 class Relay_log_info;
@@ -736,7 +735,7 @@ public:
   }
   void harvest_bytes_written(Atomic_counter<uint64> *counter)
   {
-#ifndef DBUG_OFF
+#ifdef DBUG_TRACE
     char buf1[22],buf2[22];
 #endif
     DBUG_ENTER("harvest_bytes_written");
@@ -920,7 +919,7 @@ public:
   bool lookup_domain_in_binlog_state(uint32 domain_id, rpl_gtid *out_gtid);
   int bump_seq_no_counter_if_needed(uint32 domain_id, uint64 seq_no);
   bool check_strict_gtid_sequence(uint32 domain_id, uint32 server_id,
-                                  uint64 seq_no);
+                                  uint64 seq_no, bool no_error= false);
 
   /**
    * used when opening new file, and binlog_end_pos moves backwards

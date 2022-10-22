@@ -1026,11 +1026,11 @@ BEGIN
 SELECT arg;
 END|
 CALL p1((1, 2));
-ERROR HY000: Illegal parameter data types tinyint and row for operation 'SET'
+ERROR HY000: Cannot cast 'row' as 'tinyint' in assignment of `arg`
 CALL p1((SELECT * FROM t1 LIMIT 1));
-ERROR HY000: Illegal parameter data types tinyint and row for operation 'SET'
+ERROR HY000: Cannot cast 'row' as 'tinyint' in assignment of `arg`
 CALL p1((SELECT col1, col2 FROM t1 LIMIT 1));
-ERROR HY000: Illegal parameter data types tinyint and row for operation 'SET'
+ERROR HY000: Cannot cast 'row' as 'tinyint' in assignment of `arg`
 DROP PROCEDURE p1;
 DROP TABLE t1;
 
@@ -1252,7 +1252,7 @@ $$
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE "t1" (
-  "var" tinytext CHARACTER SET utf8mb3 DEFAULT NULL
+  "var" tinytext CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci DEFAULT NULL
 )
 DROP TABLE t1;
 BEGIN NOT ATOMIC
@@ -1263,7 +1263,7 @@ $$
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE "t1" (
-  "var" text CHARACTER SET utf8mb3 DEFAULT NULL
+  "var" text CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci DEFAULT NULL
 )
 DROP TABLE t1;
 BEGIN NOT ATOMIC
@@ -1274,7 +1274,7 @@ $$
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE "t1" (
-  "var" mediumtext CHARACTER SET utf8mb3 DEFAULT NULL
+  "var" mediumtext CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci DEFAULT NULL
 )
 DROP TABLE t1;
 BEGIN NOT ATOMIC
@@ -1285,7 +1285,7 @@ $$
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE "t1" (
-  "var" longtext CHARACTER SET utf8mb3 DEFAULT NULL
+  "var" longtext CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci DEFAULT NULL
 )
 DROP TABLE t1;
 BEGIN NOT ATOMIC
@@ -1307,7 +1307,7 @@ $$
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE "t1" (
-  "var" char(1) DEFAULT NULL
+  "var" varchar(1) DEFAULT NULL
 )
 DROP TABLE t1;
 #

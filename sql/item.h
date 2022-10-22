@@ -1143,6 +1143,11 @@ public:
   {
     return fixed() ? false : fix_fields(thd, ref);
   }
+
+  /*
+   fix_fields_if_needed_for_scalar() is used where we need to filter items
+   that can't be scalars and want to return error for it.
+  */
   bool fix_fields_if_needed_for_scalar(THD *thd, Item **ref)
   {
     return fix_fields_if_needed(thd, ref) || check_cols(1);
@@ -1838,14 +1843,14 @@ public:
   */
   virtual bool is_evaluable_expression() const { return true; }
 
-  virtual bool check_assignability_to(const Field *to) const
+  virtual bool check_assignability_to(const Field *to, bool ignore) const
   {
     /*
       "this" must be neither DEFAULT/IGNORE,
       nor Item_param bound to DEFAULT/IGNORE.
     */
     DBUG_ASSERT(is_evaluable_expression());
-    return to->check_assignability_from(type_handler());
+    return to->check_assignability_from(type_handler(), ignore);
   }
 
   /**
@@ -2173,7 +2178,6 @@ public:
   virtual bool enumerate_field_refs_processor(void *arg) { return 0; }
   virtual bool mark_as_eliminated_processor(void *arg) { return 0; }
   virtual bool eliminate_subselect_processor(void *arg) { return 0; }
-  virtual bool set_fake_select_as_master_processor(void *arg) { return 0; }
   virtual bool view_used_tables_processor(void *arg) { return 0; }
   virtual bool eval_not_null_tables(void *arg) { return 0; }
   virtual bool is_subquery_processor(void *arg) { return 0; }
@@ -4088,7 +4092,7 @@ class Item_param :public Item_basic_value,
   const String *value_query_val_str(THD *thd, String* str) const;
   Item *value_clone_item(THD *thd);
   bool is_evaluable_expression() const override;
-  bool check_assignability_to(const Field *field) const override;
+  bool check_assignability_to(const Field *field, bool ignore) const override;
   bool can_return_value() const;
 
 public:
@@ -6769,7 +6773,7 @@ public:
   {
     str->append(STRING_WITH_LEN("default"));
   }
-  bool check_assignability_to(const Field *to) const override
+  bool check_assignability_to(const Field *to, bool ignore) const override
   {
     return false;
   }
@@ -6806,7 +6810,7 @@ public:
   {
     str->append(STRING_WITH_LEN("ignore"));
   }
-  bool check_assignability_to(const Field *to) const override
+  bool check_assignability_to(const Field *to, bool ignore) const override
   {
     return false;
   }

@@ -8,7 +8,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` inet6 DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DESCRIBE t1;
 Field	Type	Null	Key	Default	Extra
 a	inet6	YES		NULL	
@@ -64,7 +64,7 @@ t1	CREATE TABLE `t1` (
   `c3` inet6 DEFAULT '::',
   `c4` inet6 DEFAULT 'ffff::ffff',
   `c5` inet6 DEFAULT cast(X'ffffffffffffffffffffffffffffffff' as inet6)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DESCRIBE t1;
 Field	Type	Null	Key	Default	Extra
 c1	inet6	YES		::	
@@ -192,9 +192,9 @@ CREATE TABLE t1 (a INET6);
 INSERT INTO t1 VALUES ('x');
 ERROR 22007: Incorrect inet6 value: 'x' for column `test`.`t1`.`a` at row 1
 INSERT INTO t1 VALUES (1);
-ERROR HY000: Illegal parameter data types inet6 and int for operation 'SET'
+ERROR HY000: Cannot cast 'int' as 'inet6' in assignment of `test`.`t1`.`a`
 INSERT INTO t1 VALUES (TIME'10:20:30');
-ERROR HY000: Illegal parameter data types inet6 and time for operation 'SET'
+ERROR HY000: Cannot cast 'time' as 'inet6' in assignment of `test`.`t1`.`a`
 INSERT INTO t1 VALUES (0x00);
 ERROR 22007: Incorrect inet6 value: '\x00' for column `test`.`t1`.`a` at row 1
 DROP TABLE t1;
@@ -222,7 +222,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `CAST('::' AS INET6)` inet6 NOT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t1;
 #
 # Text and binary formats, comparison operators
@@ -428,7 +428,7 @@ t2	CREATE TABLE `t2` (
   `COALESCE(c, c_text)` inet6 DEFAULT NULL,
   `COALESCE(c, c_mediumtext)` inet6 DEFAULT NULL,
   `COALESCE(c, c_longtext)` inet6 DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t2;
 CREATE TABLE t2 AS SELECT
 LEAST(c, c_char),
@@ -447,7 +447,7 @@ t2	CREATE TABLE `t2` (
   `LEAST(c, c_text)` inet6 DEFAULT NULL,
   `LEAST(c, c_mediumtext)` inet6 DEFAULT NULL,
   `LEAST(c, c_longtext)` inet6 DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t2;
 DROP TABLE t1;
 CREATE TABLE t1 (a INET6);
@@ -478,7 +478,7 @@ t2	CREATE TABLE `t2` (
   `COALESCE(a, '::')` inet6 DEFAULT NULL,
   `LEAST(a,'::')` inet6 DEFAULT NULL,
   `GREATEST(a,'::')` inet6 DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t2;
 SELECT COALESCE(a, 0x00000000000000000000000000000000) FROM t1 ORDER BY a;
 COALESCE(a, 0x00000000000000000000000000000000)
@@ -512,7 +512,7 @@ t2	CREATE TABLE `t2` (
   `COALESCE(a, 0x00000000000000000000000000000000)` inet6 DEFAULT NULL,
   `LEAST(a,0x00000000000000000000000000000000)` inet6 DEFAULT NULL,
   `GREATEST(a,0x00000000000000000000000000000000)` inet6 DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t2;
 SELECT COALESCE(a, 10) FROM t1;
 ERROR HY000: Illegal parameter data types inet6 and int for operation 'coalesce'
@@ -720,7 +720,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` varchar(39) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t1;
 CREATE TABLE t1 (a INET6);
 INSERT INTO t1 VALUES ('ffff::ffff');
@@ -743,7 +743,7 @@ t2	CREATE TABLE `t2` (
   `CAST(a AS CHAR(66000))` mediumtext DEFAULT NULL,
   `CAST(a AS CHAR(16777215))` mediumtext DEFAULT NULL,
   `CAST(a AS CHAR(16777216))` longtext DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 SELECT * FROM t2;
 CAST(a AS CHAR)	ffff::ffff
 CAST(a AS CHAR(39))	ffff::ffff
@@ -779,7 +779,7 @@ t2	CREATE TABLE `t2` (
   `cb66000` mediumblob DEFAULT NULL,
   `cb16777215` mediumblob DEFAULT NULL,
   `cb16777216` longblob DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t2;
 CREATE TABLE t2 AS SELECT
 CAST(a AS BINARY(4)) AS cb4,
@@ -798,7 +798,7 @@ t2	CREATE TABLE `t2` (
   `cb32` binary(32) DEFAULT NULL,
   `cb530` varbinary(530) DEFAULT NULL,
   `cb65535` blob DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 SELECT
 HEX(cb4),
 HEX(cb),
@@ -820,15 +820,15 @@ DROP TABLE t1;
 #
 CREATE TABLE t1 (a INT);
 INSERT INTO t1 VALUES (CAST('::' AS INET6));
-ERROR HY000: Illegal parameter data types int and inet6 for operation 'SET'
+ERROR HY000: Cannot cast 'inet6' as 'int' in assignment of `test`.`t1`.`a`
 DROP TABLE t1;
 CREATE TABLE t1 (a DOUBLE);
 INSERT INTO t1 VALUES (CAST('::' AS INET6));
-ERROR HY000: Illegal parameter data types double and inet6 for operation 'SET'
+ERROR HY000: Cannot cast 'inet6' as 'double' in assignment of `test`.`t1`.`a`
 DROP TABLE t1;
 CREATE TABLE t1 (a DECIMAL(32,0));
 INSERT INTO t1 VALUES (CAST('::' AS INET6));
-ERROR HY000: Illegal parameter data types decimal and inet6 for operation 'SET'
+ERROR HY000: Cannot cast 'inet6' as 'decimal' in assignment of `test`.`t1`.`a`
 DROP TABLE t1;
 CREATE TABLE t1 (a VARCHAR(64));
 INSERT INTO t1 VALUES (CAST('::' AS INET6));
@@ -887,7 +887,7 @@ Table	Create Table
 t2	CREATE TABLE `t2` (
   `MIN(a)` inet6 DEFAULT NULL,
   `MAX(a)` inet6 DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t2;
 SELECT AVG(a) FROM t1;
 ERROR HY000: Illegal parameter data type inet6 for operation 'avg('
@@ -953,7 +953,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` inet6 NOT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 EXECUTE IMMEDIATE 'INSERT INTO t1 VALUES (?)' USING '::1';
 EXECUTE IMMEDIATE 'INSERT INTO t1 VALUES (?)' USING CAST('::2' AS INET6);
 EXECUTE IMMEDIATE 'INSERT INTO t1 VALUES (?)' USING 0x00000000000000000000000000000003;
@@ -986,7 +986,7 @@ Table	Create Table
 t2	CREATE TABLE `t2` (
   `c1` varchar(39) DEFAULT NULL,
   `c2` varchar(39) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t2;
 CREATE TABLE t2 AS SELECT
 CONCAT(_utf8'1', a) AS c1,
@@ -996,10 +996,10 @@ FROM t1;
 SHOW CREATE TABLE t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
-  `c1` varchar(40) CHARACTER SET utf8mb3 DEFAULT NULL,
-  `c2` varchar(40) CHARACTER SET utf8mb3 DEFAULT NULL,
-  `c3` varchar(40) CHARACTER SET utf8mb3 DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+  `c1` varchar(40) CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci DEFAULT NULL,
+  `c2` varchar(40) CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci DEFAULT NULL,
+  `c3` varchar(40) CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t2;
 CREATE TABLE t2 AS SELECT
 CONCAT(_latin1'1', a) AS c1,
@@ -1012,7 +1012,7 @@ t2	CREATE TABLE `t2` (
   `c1` varchar(40) DEFAULT NULL,
   `c2` varchar(40) DEFAULT NULL,
   `c3` varchar(40) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t2;
 DROP TABLE t1;
 #
@@ -1023,21 +1023,21 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c` inet6 NOT NULL DEFAULT '::'
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t1;
 CREATE TABLE t1 AS SELECT CAST('::' AS INET6) AS c UNION SELECT '::1';
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c` inet6 NOT NULL DEFAULT '::'
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t1;
 CREATE TABLE t1 AS SELECT '::' AS c UNION SELECT CAST('::1' AS INET6);
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c` inet6 NOT NULL DEFAULT '::'
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t1;
 CREATE TABLE t1 AS SELECT CAST('::' AS INET6) AS c UNION SELECT 0x00000000000000000000000000000001;
 SELECT * FROM t1;
@@ -1606,7 +1606,7 @@ DROP TABLE t1;
 CREATE TABLE t1 (a INET6, b INT);
 INSERT INTO t1 VALUES ('ffff::ffff', NULL);
 UPDATE t1 SET b=a;
-ERROR HY000: Illegal parameter data types int and inet6 for operation 'SET'
+ERROR HY000: Cannot cast 'inet6' as 'int' in assignment of `test`.`t1`.`b`
 SELECT b FROM t1;
 b
 NULL
@@ -1614,7 +1614,7 @@ DROP TABLE t1;
 CREATE TABLE t1 (a INET6, b DOUBLE);
 INSERT INTO t1 VALUES ('ffff::ffff', NULL);
 UPDATE t1 SET b=a;
-ERROR HY000: Illegal parameter data types double and inet6 for operation 'SET'
+ERROR HY000: Cannot cast 'inet6' as 'double' in assignment of `test`.`t1`.`b`
 SELECT b FROM t1;
 b
 NULL
@@ -1622,7 +1622,7 @@ DROP TABLE t1;
 CREATE TABLE t1 (a INET6, b DECIMAL(32,0));
 INSERT INTO t1 VALUES ('ffff::ffff', NULL);
 UPDATE t1 SET b=a;
-ERROR HY000: Illegal parameter data types decimal and inet6 for operation 'SET'
+ERROR HY000: Cannot cast 'inet6' as 'decimal' in assignment of `test`.`t1`.`b`
 SELECT b FROM t1;
 b
 NULL
@@ -1630,7 +1630,7 @@ DROP TABLE t1;
 CREATE TABLE t1 (a INET6, b YEAR);
 INSERT INTO t1 VALUES ('ffff::ffff', NULL);
 UPDATE t1 SET b=a;
-ERROR HY000: Illegal parameter data types year and inet6 for operation 'SET'
+ERROR HY000: Cannot cast 'inet6' as 'year' in assignment of `test`.`t1`.`b`
 SELECT b FROM t1;
 b
 NULL
@@ -1641,7 +1641,7 @@ DROP TABLE t1;
 CREATE TABLE t1 (a INT, b INET6);
 INSERT INTO t1 VALUES (1, NULL);
 UPDATE t1 SET b=a;
-ERROR HY000: Illegal parameter data types inet6 and int for operation 'SET'
+ERROR HY000: Cannot cast 'int' as 'inet6' in assignment of `test`.`t1`.`b`
 SELECT b FROM t1;
 b
 NULL
@@ -1649,7 +1649,7 @@ DROP TABLE t1;
 CREATE TABLE t1 (a DOUBLE, b INET6);
 INSERT INTO t1 VALUES (1, NULL);
 UPDATE t1 SET b=a;
-ERROR HY000: Illegal parameter data types inet6 and double for operation 'SET'
+ERROR HY000: Cannot cast 'double' as 'inet6' in assignment of `test`.`t1`.`b`
 SELECT b FROM t1;
 b
 NULL
@@ -1657,7 +1657,7 @@ DROP TABLE t1;
 CREATE TABLE t1 (a DECIMAL(32,0), b INET6);
 INSERT INTO t1 VALUES (1, NULL);
 UPDATE t1 SET b=a;
-ERROR HY000: Illegal parameter data types inet6 and decimal for operation 'SET'
+ERROR HY000: Cannot cast 'decimal' as 'inet6' in assignment of `test`.`t1`.`b`
 SELECT b FROM t1;
 b
 NULL
@@ -1665,7 +1665,7 @@ DROP TABLE t1;
 CREATE TABLE t1 (a YEAR, b INET6);
 INSERT INTO t1 VALUES (1, NULL);
 UPDATE t1 SET b=a;
-ERROR HY000: Illegal parameter data types inet6 and year for operation 'SET'
+ERROR HY000: Cannot cast 'year' as 'inet6' in assignment of `test`.`t1`.`b`
 SELECT b FROM t1;
 b
 NULL
@@ -1676,7 +1676,7 @@ DROP TABLE t1;
 CREATE TABLE t1 (a INET6, b TIME);
 INSERT INTO t1 VALUES ('ffff::ffff', NULL);
 UPDATE t1 SET b=a;
-ERROR HY000: Illegal parameter data types time and inet6 for operation 'SET'
+ERROR HY000: Cannot cast 'inet6' as 'time' in assignment of `test`.`t1`.`b`
 SELECT b FROM t1;
 b
 NULL
@@ -1684,7 +1684,7 @@ DROP TABLE t1;
 CREATE TABLE t1 (a INET6, b DATE);
 INSERT INTO t1 VALUES ('ffff::ffff', NULL);
 UPDATE t1 SET b=a;
-ERROR HY000: Illegal parameter data types date and inet6 for operation 'SET'
+ERROR HY000: Cannot cast 'inet6' as 'date' in assignment of `test`.`t1`.`b`
 SELECT b FROM t1;
 b
 NULL
@@ -1692,7 +1692,7 @@ DROP TABLE t1;
 CREATE TABLE t1 (a INET6, b DATETIME);
 INSERT INTO t1 VALUES ('ffff::ffff', NULL);
 UPDATE t1 SET b=a;
-ERROR HY000: Illegal parameter data types datetime and inet6 for operation 'SET'
+ERROR HY000: Cannot cast 'inet6' as 'datetime' in assignment of `test`.`t1`.`b`
 SELECT b FROM t1;
 b
 NULL
@@ -1700,7 +1700,7 @@ DROP TABLE t1;
 CREATE TABLE t1 (a INET6, b TIMESTAMP NULL DEFAULT NULL);
 INSERT INTO t1 VALUES ('ffff::ffff', NULL);
 UPDATE t1 SET b=a;
-ERROR HY000: Illegal parameter data types timestamp and inet6 for operation 'SET'
+ERROR HY000: Cannot cast 'inet6' as 'timestamp' in assignment of `test`.`t1`.`b`
 SELECT b FROM t1;
 b
 NULL
@@ -1711,7 +1711,7 @@ DROP TABLE t1;
 CREATE TABLE t1 (a TIME, b INET6);
 INSERT INTO t1 VALUES ('00:00:00', NULL);
 UPDATE t1 SET b=a;
-ERROR HY000: Illegal parameter data types inet6 and time for operation 'SET'
+ERROR HY000: Cannot cast 'time' as 'inet6' in assignment of `test`.`t1`.`b`
 SELECT b FROM t1;
 b
 NULL
@@ -1719,7 +1719,7 @@ DROP TABLE t1;
 CREATE TABLE t1 (a DATE, b INET6);
 INSERT INTO t1 VALUES ('2001-01:01', NULL);
 UPDATE t1 SET b=a;
-ERROR HY000: Illegal parameter data types inet6 and date for operation 'SET'
+ERROR HY000: Cannot cast 'date' as 'inet6' in assignment of `test`.`t1`.`b`
 SELECT b FROM t1;
 b
 NULL
@@ -1727,7 +1727,7 @@ DROP TABLE t1;
 CREATE TABLE t1 (a DATETIME, b INET6);
 INSERT INTO t1 VALUES ('2001-01-01 10:20:30', NULL);
 UPDATE t1 SET b=a;
-ERROR HY000: Illegal parameter data types inet6 and datetime for operation 'SET'
+ERROR HY000: Cannot cast 'datetime' as 'inet6' in assignment of `test`.`t1`.`b`
 SELECT b FROM t1;
 b
 NULL
@@ -1735,7 +1735,7 @@ DROP TABLE t1;
 CREATE TABLE t1 (a TIMESTAMP, b INET6);
 INSERT INTO t1 VALUES ('2001-01-01 10:20:30', NULL);
 UPDATE t1 SET b=a;
-ERROR HY000: Illegal parameter data types inet6 and timestamp for operation 'SET'
+ERROR HY000: Cannot cast 'timestamp' as 'inet6' in assignment of `test`.`t1`.`b`
 SELECT b FROM t1;
 b
 NULL
@@ -1922,16 +1922,16 @@ DROP TABLE t1;
 CREATE TABLE t1 (a INET6, b INT);
 INSERT INTO t1 (a) VALUES ('::');
 UPDATE t1 SET b=a;
-ERROR HY000: Illegal parameter data types int and inet6 for operation 'SET'
+ERROR HY000: Cannot cast 'inet6' as 'int' in assignment of `test`.`t1`.`b`
 SELECT * FROM t1;
 a	b
 ::	NULL
 DROP TABLE t1;
 SET timestamp=UNIX_TIMESTAMP('2001-01-01 10:20:30');
-CREATE TABLE t1 (a INET6, b TIMESTAMP);
+CREATE TABLE t1 (a INET6, b TIMESTAMP NOT NULL DEFAULT NOW() ON UPDATE NOW());
 INSERT INTO t1 (a) VALUES ('::');
 UPDATE t1 SET b=a;
-ERROR HY000: Illegal parameter data types timestamp and inet6 for operation 'SET'
+ERROR HY000: Cannot cast 'inet6' as 'timestamp' in assignment of `test`.`t1`.`b`
 SELECT * FROM t1;
 a	b
 ::	2001-01-01 10:20:30
@@ -1940,7 +1940,7 @@ SET timestamp=DEFAULT;
 CREATE OR REPLACE TABLE t1 (a INET6);
 INSERT INTO t1 (a) VALUES ('::');
 ALTER TABLE t1 MODIFY a DATE;
-ERROR HY000: Illegal parameter data types date and inet6 for operation 'SET'
+ERROR HY000: Cannot cast 'inet6' as 'date' in assignment of `test`.`t1`.`a`
 DROP TABLE t1;
 #
 # MDEV-20818 ER_CRASHED_ON_USAGE or Assertion `length <= column->length' failed in write_block_record on temporary table
@@ -2101,7 +2101,7 @@ Table	Create Table
 t2	CREATE TABLE `t2` (
   `ca` inet6 NOT NULL,
   `cb` inet6 DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t2;
 CREATE TABLE t2 AS SELECT COALESCE(a,a), COALESCE(a,b) FROM t1;
 SHOW CREATE TABLE t2;
@@ -2109,7 +2109,7 @@ Table	Create Table
 t2	CREATE TABLE `t2` (
   `COALESCE(a,a)` inet6 NOT NULL,
   `COALESCE(a,b)` inet6 DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t2;
 CREATE TABLE t2 AS SELECT a AS ca,a AS cb FROM t1 UNION SELECT a,b FROM t1;
 SHOW CREATE TABLE t2;
@@ -2117,7 +2117,7 @@ Table	Create Table
 t2	CREATE TABLE `t2` (
   `ca` inet6 NOT NULL DEFAULT '::',
   `cb` inet6 DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t2;
 DROP TABLE t1;
 #
@@ -2141,7 +2141,7 @@ SHOW CREATE TABLE t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `IFNULL(c, 'foo')` inet6 DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 SELECT * FROM t2;
 IFNULL(c, 'foo')
 ::
@@ -2152,7 +2152,7 @@ SHOW CREATE TABLE t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `IFNULL(c, '::1')` inet6 NOT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 SELECT * FROM t2;
 IFNULL(c, '::1')
 ::
@@ -2214,6 +2214,50 @@ id	name
 DROP TABLE divisions;
 DROP TABLE companies;
 #
+# MDEV-27099 Subquery using the ALL keyword on INET6 columns produces a wrong result
+#
+CREATE TABLE t1 (d INET6);
+INSERT INTO t1 VALUES ('1::0'), ('12::0');
+SELECT * FROM t1 ORDER BY d;
+d
+1::
+12::
+SELECT * FROM t1 WHERE d <= ALL (SELECT * FROM t1);
+d
+1::
+SELECT * FROM t1 WHERE d >= ALL (SELECT * FROM t1);
+d
+12::
+DROP TABLE t1;
+#
+# MDEV-27015 Assertion `!is_null()' failed in FixedBinTypeBundle<FbtImpl>::Fbt FixedBinTypeBundle<FbtImpl>::Field_fbt::to_fbt()
+#
+CREATE TABLE t1 (id int NOT NULL PRIMARY KEY, a INET6(6) DEFAULT '::10');
+INSERT INTO t1(id) VALUES (1), (2), (3), (4);
+INSERT INTO t1 VALUES (5,'::5'), (6,'::6');
+SELECT * FROM t1 ORDER BY a;
+id	a
+5	::5
+6	::6
+1	::10
+2	::10
+3	::10
+4	::10
+CREATE VIEW v1(a, m) AS SELECT a, MIN(id) FROM t1 GROUP BY a;
+CREATE TABLE t2 SELECT * FROM v1;
+SELECT * FROM v1 ORDER BY a;
+a	m
+::5	5
+::6	6
+::10	1
+SELECT * FROM t2 ORDER BY a;
+a	m
+::5	5
+::6	6
+::10	1
+DROP VIEW v1;
+DROP TABLE t1, t2;
+#
 # MDEV-22256 Assertion `length == pack_length()' failed in Field_timestamp_with_dec::sort_string
 #
 SET sql_mode='';
@@ -2222,10 +2266,13 @@ Warnings:
 Warning	1292	Truncated incorrect max_sort_length value: '4'
 CREATE TEMPORARY TABLE t1(c INET6,d DATE);
 INSERT INTO t1 VALUES(0,0);
-ERROR HY000: Illegal parameter data types inet6 and int for operation 'SET'
+Warnings:
+Warning	4078	Cannot cast 'int' as 'inet6' in assignment of `test`.`t1`.`c`
+Warning	1292	Incorrect inet6 value: '0' for column `test`.`t1`.`c` at row 1
 INSERT INTO t1 VALUES('::',0);
 SELECT c FROM t1 ORDER BY c;
 c
+::
 ::
 DROP TABLE t1;
 SET max_sort_length=DEFAULT;
@@ -2246,3 +2293,4 @@ f
 f::f
 DROP TABLE t1;
 SET max_sort_length=DEFAULT;
+# End of 10.8 tests

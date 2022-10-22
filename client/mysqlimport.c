@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2000, 2015, Oracle and/or its affiliates.
-   Copyright (c) 2011, 2017, MariaDB
+   Copyright (c) 2011, 2022, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -382,11 +382,7 @@ static int write_to_table(char *filename, MYSQL *mysql)
   {
     if (verbose)
       fprintf(stdout, "Deleting the old data from table %s\n", tablename);
-#ifdef HAVE_SNPRINTF
     snprintf(sql_statement, FN_REFLEN*16+256, "DELETE FROM %s", tablename);
-#else
-    sprintf(sql_statement, "DELETE FROM %s", tablename);
-#endif
     if (mysql_query(mysql, sql_statement))
     {
       db_error_with_table(mysql, tablename);
@@ -574,13 +570,18 @@ static void safe_exit(int error, MYSQL *mysql)
   if (mysql)
     mysql_close(mysql);
 
+  if (counter)
+  {
+    /* dirty exit. some threads are running,
+       memory is not freed, openssl not deinitialized */
+    DBUG_ASSERT(error);
+    _exit(error);
+  }
+
   mysql_library_end();
   free_defaults(argv_to_free);
   my_free(opt_password);
-  if (error)
-    sf_leaking_memory= 1; /* dirty exit, some threads are still running */
-  else
-    my_end(my_end_arg); /* clean exit */
+  my_end(my_end_arg); /* clean exit */
   exit(error);
 }
 
@@ -624,7 +625,7 @@ static char *add_load_option(char *ptr, const char *object,
 /*
 ** Allow the user to specify field terminator strings like:
 ** "'", "\", "\\" (escaped backslash), "\t" (tab), "\n" (newline)
-** This is done by doubleing ' and add a end -\ if needed to avoid
+** This is done by doubling ' and add a end -\ if needed to avoid
 ** syntax errors from the SQL parser.
 */ 
 

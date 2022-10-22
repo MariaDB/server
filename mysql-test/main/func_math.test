@@ -206,9 +206,15 @@ select floor(cast(-2 as unsigned)), floor(18446744073709551614), floor(-2);
 select format(cast(-2 as unsigned), 2), format(18446744073709551614, 2), format(-2, 2);
 select sqrt(cast(-2 as unsigned)), sqrt(18446744073709551614), sqrt(-2);
 select round(cast(-2 as unsigned), 1), round(18446744073709551614, 1), round(-2, 1);
+#view protocol generates additional warning
+--disable_view_protocol
 select round(4, cast(-2 as unsigned)), round(4, 18446744073709551614), round(4, -2);
+--enable_view_protocol
 select truncate(cast(-2 as unsigned), 1), truncate(18446744073709551614, 1), truncate(-2, 1);
+#view protocol generates additional warning
+--disable_view_protocol
 select truncate(4, cast(-2 as unsigned)), truncate(4, 18446744073709551614), truncate(4, -2);
+--enable_view_protocol
 select round(10000000000000000000, -19), truncate(10000000000000000000, -19);
 select round(1e0, -309), truncate(1e0, -309);
 select round(1e1,308), truncate(1e1, 308);
@@ -516,7 +522,10 @@ SELECT @a / 0.5;
 SELECT COT(1/0);
 SELECT -1 + 9223372036854775808;
 SELECT 2 DIV -2;
+#view protocol generates additional warning
+--disable_view_protocol
 SELECT -(1 DIV 0);
+--enable_view_protocol
 # Crashed the server with SIGFPE before the bugfix
 SELECT -9223372036854775808 MOD -1;
 
@@ -556,8 +565,11 @@ select (1.175494351E-37 div 1.7976931348623157E+308);
 
 select round(999999999, -9);
 select round(999999999.0, -9);
+#enable after fix MDEV-29526
+--disable_view_protocol
 select round(999999999999999999, -18);
 select round(999999999999999999.0, -18);
+--enable_view_protocol
 
 --echo #
 --echo # Bug#12537160 ASSERTION FAILED:
@@ -671,7 +683,10 @@ SELECT STDDEV_POP(ROUND(0,@A:=2009)) FROM (SELECT 1 UNION SELECT 2) fake_table;
 
 CREATE TABLE t1 ( pk int NOT NULL, i1 int NOT NULL, d1 date NOT NULL, t1 time);
 INSERT INTO t1 VALUES (7,9,'2007-08-15','03:55:02'),(8,7,'1993-06-05','04:17:51'),(9,7,'2034-07-01','17:31:12'),(10,0,'1998-08-24','08:09:27');
+#enable after fix MDEV-27871
+--disable_view_protocol
 SELECT DISTINCT  STDDEV_SAMP(EXPORT_SET(t1, -1379790335835635712, (i1 + 'o'), (MD5(d1)))) FROM t1;
+--enable_view_protocol
 DROP TABLE t1;
 
 CREATE TABLE t1 (a VARCHAR(128));
@@ -791,7 +806,10 @@ select 0=0, 0=-0, 0.0= -0.0, 0.0 = -(0.0), 0.0E1=-0.0E1, 0.0E1=-(0.0E1);
 --echo # CRC32 tests
 --echo #
 
+#enable after fix MDEV-28535
+--disable_view_protocol
 select CRC32(NULL), CRC32(''), CRC32('MySQL'), CRC32('mysql'), CRC32('01234567'), CRC32('012345678'), CRC32(REPEAT('ABCDEfghij', 20)), CRC32(REPEAT('0123456789', 200));
+--enable_view_protocol
 
 --echo #
 --echo # Start of 10.3 tests
@@ -844,12 +862,18 @@ SET sql_mode=DEFAULT;
 --echo # Bug#26495791 - EXPAND TEST SUITE TO INCLUDE CRC32 TESTS
 --echo #
 
+#enable after fix MDEV-28535
+--disable_view_protocol
 SELECT CRC32(NULL), CRC32(''), CRC32('MySQL'), CRC32('mysql');
+--enable_view_protocol
 SELECT CRC32('01234567'), CRC32('012345678');
 SELECT CRC32('~!@$%^*'),  CRC32('-0.0001');
 SELECT CRC32(99999999999999999999999999999999);
 SELECT CRC32(-99999999999999999999999999999999);
+#enable_after fix MDEV-28535
+--disable_view_protocol
 SELECT CRC32C(NULL), CRC32C(''), CRC32C('MariaDB'), CRC32C('mariadb');
+--enable_view_protocol
 SELECT CRC32(NULL,1),CRC32C(NULL,1), CRC32(1,''), CRC32C(1,'');
 SELECT CRC32(42,''),CRC32C(42,''),CRC32('42',''),CRC32C('42','');
 SELECT CRC32(42,NULL),CRC32C(42,NULL);
@@ -1907,7 +1931,7 @@ DROP TABLE t1,t2;
 --echo # MDEV-21278 Assertion `is_unsigned() == attr.unsigned_flag' or Assertion `field.is_sane()' failed
 --echo #
 
-CREATE TABLE t1 (a TIMESTAMP);
+CREATE TABLE t1 (a TIMESTAMP NOT NULL DEFAULT NOW());
 INSERT INTO t1 VALUES (NULL),(NULL);
 SET SESSION SQL_MODE= 'NO_UNSIGNED_SUBTRACTION';
 --replace_column 1 xxx
@@ -1917,7 +1941,7 @@ SHOW CREATE TABLE t2;
 DROP TABLE t2, t1;
 SET sql_mode=DEFAULT;
 
-CREATE  TABLE t1 (a TIMESTAMP);
+CREATE  TABLE t1 (a TIMESTAMP NOT NULL DEFAULT NOW());
 INSERT INTO t1 VALUES (NULL),(NULL);
 SET SESSION SQL_MODE= 'NO_UNSIGNED_SUBTRACTION';
 --replace_column 1 xxx

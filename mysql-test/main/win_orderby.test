@@ -21,6 +21,8 @@ select
   1
 from t0 A, t0 B, t0 C;
 
+#enable after fix MDEV-27871
+--disable_view_protocol
 select 
   pk,
   count(a) over (order by pk rows between 2 preceding and 2 following)
@@ -28,5 +30,6 @@ from t1
 where pk between 1 and 30
 order by pk desc
 limit 4;
+--disable_view_protocol
 
 drop table t0,t1;

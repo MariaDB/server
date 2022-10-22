@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2002, 2018, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2020, MariaDB
+   Copyright (c) 2009, 2022, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -217,12 +217,12 @@ TABLE_FIELD_TYPE proc_table_fields[MYSQL_PROC_FIELD_COUNT] =
   },
   {
     { STRING_WITH_LEN("collation_connection") },
-    { STRING_WITH_LEN("char(32)") },
+    { STRING_WITH_LEN("char(") },
     { STRING_WITH_LEN("utf8mb3") }
   },
   {
     { STRING_WITH_LEN("db_collation") },
-    { STRING_WITH_LEN("char(32)") },
+    { STRING_WITH_LEN("char(") },
     { STRING_WITH_LEN("utf8mb3") }
   },
   {
@@ -687,8 +687,7 @@ bool AUTHID::read_from_mysql_proc_row(THD *thd, TABLE *table)
 */
 
 int
-Sp_handler::db_find_routine(THD *thd,
-                            const Database_qualified_name *name,
+Sp_handler::db_find_routine(THD *thd, const Database_qualified_name *name,
                             sp_head **sphp) const
 {
   TABLE *table;
@@ -697,7 +696,7 @@ Sp_handler::db_find_routine(THD *thd,
   longlong created;
   longlong modified;
   Sp_chistics chistics;
-  bool saved_time_zone_used= thd->time_zone_used;
+  THD::used_t saved_time_zone_used= thd->used & THD::TIME_ZONE_USED;
   bool trans_commited= 0;
   sql_mode_t sql_mode;
   Stored_program_creation_ctx *creation_ctx;
@@ -763,15 +762,14 @@ Sp_handler::db_find_routine(THD *thd,
   thd->commit_whole_transaction_and_close_tables();
   new_trans.restore_old_transaction();
 
-  ret= db_load_routine(thd, name, sphp,
-                       sql_mode, params, returns, body, chistics, definer,
-                       created, modified, NULL, creation_ctx);
+  ret= db_load_routine(thd, name, sphp, sql_mode, params, returns, body,
+                      chistics, definer, created, modified, NULL, creation_ctx);
  done:
   /* 
     Restore the time zone flag as the timezone usage in proc table
     does not affect replication.
   */  
-  thd->time_zone_used= saved_time_zone_used;
+  thd->used= (thd->used & ~THD::TIME_ZONE_USED) | saved_time_zone_used;
   if (!trans_commited)
   {
     if (table)
@@ -1078,7 +1076,7 @@ sp_returns_type(THD *thd, String &result, const sp_head *sp)
   {
     result.append(STRING_WITH_LEN(" CHARSET "));
     result.append(field->charset()->cs_name);
-    if (!(field->charset()->state & MY_CS_PRIMARY))
+    if (Charset(field->charset()).can_have_collate_clause())
     {
       result.append(STRING_WITH_LEN(" COLLATE "));
       result.append(field->charset()->coll_name);

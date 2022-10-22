@@ -1,3 +1,7 @@
+--source include/no_valgrind_without_big.inc
+--source include/have_stat_tables.inc
+--source include/have_innodb.inc
+
 set @SINGLE_PREC_TYPE='single_prec_hb';
 set @DOUBLE_PREC_TYPE='double_prec_hb';
 set @DEFAULT_HIST_TYPE='double_prec_hb';
@@ -7,12 +11,6 @@ if ($histogram_type_override) {
     eval set @DOUBLE_PREC_TYPE=$histogram_type_override;
     eval set @DEFAULT_HIST_TYPE=$histogram_type_override;
 }
-
---source include/have_stat_tables.inc
---source include/have_innodb.inc
---disable_warnings
-drop table if exists t1,t2;
---enable_warnings
 
 set @save_use_stat_tables=@@use_stat_tables;
 set @save_histogram_size=@@global.histogram_size;
@@ -607,6 +605,7 @@ set use_stat_tables='preferably';
 ANALYZE TABLE Country, City, CountryLanguage;
 --enable_result_log
 
+--disable_view_protocol
 --sorted_result
 SELECT UPPER(db_name), UPPER(table_name), cardinality
   FROM mysql.table_stats;
@@ -618,6 +617,7 @@ SELECT UPPER(db_name), UPPER(table_name),
 SELECT UPPER(db_name), UPPER(table_name),
        index_name, prefix_arity, avg_frequency
   FROM mysql.index_stats;
+--enable_view_protocol
 
 use test;
 
@@ -671,10 +671,12 @@ ANALYZE TABLE City;
 FLUSH TABLES;
 --enable_result_log
 
+--disable_view_protocol
 --source include/histogram_replaces.inc
 --query_vertical select UPPER(db_name),UPPER(table_name),UPPER(column_name),min_value,max_value,nulls_ratio,avg_length,avg_frequency,hist_size,hist_type,decode_histogram(hist_type,histogram) from mysql.column_stats where UPPER(db_name)='WORLD' and UPPER(table_name)='COUNTRYLANGUAGE' and UPPER(column_name) = 'PERCENTAGE';
 --source include/histogram_replaces.inc
 --query_vertical select UPPER(db_name),UPPER(table_name),UPPER(column_name),min_value,max_value,nulls_ratio,avg_length,avg_frequency,hist_size,hist_type,decode_histogram(hist_type,histogram) from mysql.column_stats where UPPER(db_name)='WORLD' and UPPER(table_name)='CITY' and UPPER(column_name) = 'POPULATION';
+--enable_view_protocol
 
 set histogram_type=@SINGLE_PREC_TYPE;
 set histogram_size=0;

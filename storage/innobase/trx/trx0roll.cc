@@ -59,7 +59,6 @@ const trx_t*		trx_roll_crash_recv_trx;
 @retval	false	if the rollback was aborted by shutdown  */
 inline bool trx_t::rollback_finish()
 {
-  mod_tables.clear();
   apply_online_log= false;
   if (UNIV_LIKELY(error_state == DB_SUCCESS))
   {
@@ -135,6 +134,9 @@ inline void trx_t::rollback_low(trx_savept_t *savept)
   }
   else
   {
+    /* There must not be partial rollback if transaction was chosen as deadlock
+    victim. Galera transaction abort can be invoked during partial rollback. */
+    ut_ad(!(lock.was_chosen_as_deadlock_victim & 1));
     ut_a(error_state == DB_SUCCESS);
     const undo_no_t limit= savept->least_undo_no;
     apply_online_log= false;
@@ -211,6 +213,10 @@ dberr_t trx_rollback_for_mysql(trx_t* trx)
 	case TRX_STATE_NOT_STARTED:
 		trx->will_lock = false;
 		ut_ad(trx->mysql_thd);
+		/* Galera transaction abort can be invoked from MDL acquision
+		code, so trx->lock.was_chosen_as_deadlock_victim can be set
+		even if trx->state is TRX_STATE_NOT_STARTED. */
+		ut_ad(!(trx->lock.was_chosen_as_deadlock_victim & 1));
 #ifdef WITH_WSREP
 		trx->wsrep= false;
 		trx->lock.was_chosen_as_deadlock_victim= false;
@@ -418,9 +424,6 @@ trx_rollback_to_savepoint_for_mysql_low(
 	trx_mark_sql_stat_end(trx);
 
 	trx->op_info = "";
-#ifdef WITH_WSREP
-	trx->lock.was_chosen_as_deadlock_victim = false;
-#endif
 	return(err);
 }
 

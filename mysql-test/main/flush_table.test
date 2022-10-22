@@ -6,6 +6,9 @@
 
 # Should work in embedded server after mysqltest is fixed
 -- source include/not_embedded.inc
+
+--disable_service_connection
+
 --disable_warnings
 drop table if exists t1,t2;
 --enable_warnings
@@ -59,6 +62,7 @@ select * from t1;
 connection default;
 drop table t1;
 disconnect locker;
+--enable_service_connection
 
 #
 # In the following test FLUSH TABLES produces a deadlock

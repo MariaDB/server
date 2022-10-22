@@ -1922,6 +1922,7 @@ func_exit:
 		mtr.commit();
 func_exit_committed:
 		ut_ad(mtr.has_committed());
+		ut_free(pcur.old_rec_buf);
 
 		if (error != DB_SUCCESS) {
 			/* Report the erroneous row using the new
@@ -1978,7 +1979,7 @@ func_exit_committed:
 		row, NULL, index, heap, ROW_BUILD_NORMAL);
 	upd_t*		update	= row_upd_build_difference_binary(
 		index, entry, btr_pcur_get_rec(&pcur), cur_offsets,
-		false, NULL, heap, dup->table, &error);
+		false, false, NULL, heap, dup->table, &error);
 	if (error != DB_SUCCESS || !update->n_fields) {
 		goto func_exit;
 	}
@@ -2082,7 +2083,8 @@ func_exit_committed:
 		entry = row_build_index_entry(old_row, old_ext, index, heap);
 		if (!entry) {
 			ut_ad(0);
-			return(DB_CORRUPTION);
+			error = DB_CORRUPTION;
+			goto func_exit_committed;
 		}
 
 		mtr.start();
@@ -3079,7 +3081,7 @@ row_log_apply_op_low(
 					     has_index_lock
 					     ? BTR_MODIFY_TREE
 					     : BTR_MODIFY_LEAF,
-					     &cursor, 0, &mtr);
+					     &cursor, &mtr);
 	if (UNIV_UNLIKELY(*error != DB_SUCCESS)) {
 		goto func_exit;
 	}
@@ -3131,7 +3133,7 @@ row_log_apply_op_low(
 				index->set_modified(mtr);
 				*error = btr_cur_search_to_nth_level(
 					index, 0, entry, PAGE_CUR_LE,
-					BTR_MODIFY_TREE, &cursor, 0, &mtr);
+					BTR_MODIFY_TREE, &cursor, &mtr);
 				if (UNIV_UNLIKELY(*error != DB_SUCCESS)) {
 					goto func_exit;
 				}
@@ -3235,7 +3237,7 @@ insert_the_rec:
 				index->set_modified(mtr);
 				*error = btr_cur_search_to_nth_level(
 					index, 0, entry, PAGE_CUR_LE,
-					BTR_MODIFY_TREE, &cursor, 0, &mtr);
+					BTR_MODIFY_TREE, &cursor, &mtr);
 				if (*error != DB_SUCCESS) {
 					break;
 				}
@@ -3877,6 +3879,23 @@ static void row_log_mark_other_online_index_abort(dict_table_t *table)
   table->drop_aborted= TRUE;
 }
 
+void dtype_t::assign(const dict_col_t &col)
+{
+  prtype= col.prtype;
+  mtype= col.mtype;
+  len= col.len;
+  mbminlen= col.mbminlen;
+  mbmaxlen= col.mbmaxlen;
+}
+
+inline void dtuple_t::copy_field_types(const dict_index_t &index)
+{
+  ut_ad(index.n_fields == n_fields);
+  if (UNIV_LIKELY_NULL(index.change_col_info))
+    for (ulint i= 0; i < n_fields; i++)
+      fields[i].type.assign(*index.fields[i].col);
+}
+
 void UndorecApplier::log_insert(const dtuple_t &tuple,
                                 dict_index_t *clust_index)
 {
@@ -3943,7 +3962,8 @@ void UndorecApplier::log_insert(const dtuple_t &tuple,
       {
         dtuple_t *entry= row_build_index_entry_low(row, ext, index,
                                                    heap, ROW_BUILD_NORMAL);
-        success= row_log_online_op(index, entry, trx_id);
+        entry->copy_field_types(*index);
+	success= row_log_online_op(index, entry, trx_id);
       }
 
       index->lock.s_unlock();
@@ -4061,13 +4081,22 @@ void UndorecApplier::log_update(const dtuple_t &tuple,
     {
       if (is_update)
       {
+        /* Ignore the index if the update doesn't affect the index */
+        if (!row_upd_changes_ord_field_binary(index, update,
+                                              nullptr,
+                                              row, new_ext))
+          goto next_index;
         dtuple_t *old_entry= row_build_index_entry_low(
           old_row, old_ext, index, heap, ROW_BUILD_NORMAL);
 
-        success= row_log_online_op(index, old_entry, 0);
+        old_entry->copy_field_types(*index);
+
+	success= row_log_online_op(index, old_entry, 0);
 
 	dtuple_t *new_entry= row_build_index_entry_low(
           row, new_ext, index, heap, ROW_BUILD_NORMAL);
+
+        new_entry->copy_field_types(*index);
 
 	if (success)
 	  success= row_log_online_op(index, new_entry, trx_id);
@@ -4077,9 +4106,12 @@ void UndorecApplier::log_update(const dtuple_t &tuple,
         dtuple_t *old_entry= row_build_index_entry_low(
           row, new_ext, index, heap, ROW_BUILD_NORMAL);
 
+        old_entry->copy_field_types(*index);
+
         success= row_log_online_op(index, old_entry, 0);
       }
     }
+next_index:
     index->lock.s_unlock();
     if (!success)
     {

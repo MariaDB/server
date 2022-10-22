@@ -78,6 +78,7 @@
 #ifdef WITH_WSREP
 #include "wsrep_thd.h"
 #include "wsrep_sst.h"
+#include "wsrep_server_state.h"
 #endif /* WITH_WSREP */
 #include "proxy_protocol.h"
 
@@ -390,7 +391,6 @@ my_bool opt_show_slave_auth_info;
 my_bool opt_log_slave_updates= 0;
 my_bool opt_replicate_annotate_row_events= 0;
 my_bool opt_mysql56_temporal_format=0, strict_password_validation= 1;
-my_bool opt_explicit_defaults_for_timestamp= 0;
 char *opt_slave_skip_errors;
 char *opt_slave_transaction_retry_errors;
 
@@ -461,6 +461,8 @@ ulonglong binlog_cache_size=0;
 ulonglong binlog_file_cache_size=0;
 ulonglong max_binlog_cache_size=0;
 ulong slave_max_allowed_packet= 0;
+double slave_max_statement_time_double;
+ulonglong slave_max_statement_time;
 ulonglong binlog_stmt_cache_size=0;
 ulonglong  max_binlog_stmt_cache_size=0;
 ulonglong test_flags;
@@ -1570,8 +1572,11 @@ static my_bool kill_thread_phase_1(THD *thd, int *n_threads_awaiting_ack)
        ++(*n_threads_awaiting_ack)))
     return 0;
 
-  if (DBUG_IF("only_kill_system_threads") ? !thd->system_thread : 0)
+  if (DBUG_IF("only_kill_system_threads") && !thd->system_thread)
     return 0;
+  if (DBUG_IF("only_kill_system_threads_no_loop") && !thd->system_thread)
+    return 0;
+
   thd->awake(KILL_SERVER_HARD);
   return 0;
 }
@@ -1706,6 +1711,7 @@ void kill_mysql(THD *thd)
   shutdown_thread_id= thd->thread_id;
   DBUG_EXECUTE_IF("mysql_admin_shutdown_wait_for_slaves",
                   thd->lex->is_shutdown_wait_for_slaves= true;);
+#ifdef ENABLED_DEBUG_SYNC
   DBUG_EXECUTE_IF("simulate_delay_at_shutdown",
                   {
                     DBUG_ASSERT(binlog_dump_thread_count == 3);
@@ -1715,6 +1721,7 @@ void kill_mysql(THD *thd)
                     DBUG_ASSERT(!debug_sync_set_action(thd,
                                                        STRING_WITH_LEN(act)));
                   };);
+#endif
 
   if (thd->lex->is_shutdown_wait_for_slaves)
     shutdown_wait_for_slaves= true;
@@ -1781,7 +1788,6 @@ static void close_connections(void)
 
   Events::deinit();
   slave_prepare_for_shutdown();
-  mysql_bin_log.stop_background_thread();
   ack_receiver.stop();
 
   /*
@@ -1802,7 +1808,11 @@ static void close_connections(void)
 
   for (int i= 0; THD_count::connection_thd_count() - n_threads_awaiting_ack
                  && i < 1000; i++)
+  {
+    if (DBUG_IF("only_kill_system_threads_no_loop"))
+      break;
     my_sleep(20000);
+  }
 
   if (global_system_variables.log_warnings)
     server_threads.iterate(warn_threads_active_after_phase_1);
@@ -1819,7 +1829,11 @@ static void close_connections(void)
                   THD_count::connection_thd_count() - n_threads_awaiting_ack));
 
   while (THD_count::connection_thd_count() - n_threads_awaiting_ack)
+  {
+    if (DBUG_IF("only_kill_system_threads_no_loop"))
+      break;
     my_sleep(1000);
+  }
 
   /* Kill phase 2 */
   server_threads.iterate(kill_thread_phase_2);
@@ -1855,6 +1869,13 @@ extern "C" sig_handler print_signal_warning(int sig)
     alarm(2);					/* reschedule alarm */
 #endif
 }
+
+#ifdef _WIN32
+typedef void (*report_svc_status_t)(DWORD current_state, DWORD win32_exit_code,
+                                    DWORD wait_hint);
+static void dummy_svc_status(DWORD, DWORD, DWORD) {}
+static report_svc_status_t my_report_svc_status= dummy_svc_status;
+#endif
 
 #ifndef EMBEDDED_LIBRARY
 extern "C" void unireg_abort(int exit_code)
@@ -1900,13 +1921,6 @@ extern "C" void unireg_abort(int exit_code)
   DBUG_PRINT("quit",("done with cleanup in unireg_abort"));
   mysqld_exit(exit_code);
 }
-
-#ifdef _WIN32
-typedef void (*report_svc_status_t)(DWORD current_state, DWORD win32_exit_code,
-                                    DWORD wait_hint);
-static void dummy_svc_status(DWORD, DWORD, DWORD) {}
-static report_svc_status_t my_report_svc_status= dummy_svc_status;
-#endif
 
 static void mysqld_exit(int exit_code)
 {
@@ -3893,14 +3907,24 @@ static int init_common_variables()
   if (ignore_db_dirs_init())
     exit(1);
 
-#ifdef _WIN32
-  get_win_tzname(system_time_zone, sizeof(system_time_zone));
-#elif defined(HAVE_TZNAME)
   struct tm tm_tmp;
-  localtime_r(&server_start_time,&tm_tmp);
-  const char *tz_name=  tzname[tm_tmp.tm_isdst != 0 ? 1 : 0];
-  strmake_buf(system_time_zone, tz_name);
-#endif /* HAVE_TZNAME */
+  localtime_r(&server_start_time, &tm_tmp);
+
+#ifdef HAVE_TZNAME
+#ifdef _WIN32
+  /*
+   If env.variable TZ is set, derive timezone name from it.
+   Otherwise, use IANA tz name from get_win_tzname.
+  */
+  if (!getenv("TZ"))
+    get_win_tzname(system_time_zone, sizeof(system_time_zone));
+  else
+#endif
+  {
+    const char *tz_name= tzname[tm_tmp.tm_isdst != 0 ? 1 : 0];
+    strmake_buf(system_time_zone, tz_name);
+  }
+#endif
 
   /*
     We set SYSTEM time zone as reasonable default and
@@ -4283,15 +4307,15 @@ static int init_common_variables()
   /* check log options and issue warnings if needed */
   if (opt_log && opt_logname && *opt_logname &&
       !(log_output_options & (LOG_FILE | LOG_NONE)))
-    sql_print_warning("Although a path was specified for the "
-                      "--log option, log tables are used. "
+    sql_print_warning("Although a general log file was specified, "
+                      "log tables are used. "
                       "To enable logging to files use the --log-output option.");
 
   if (global_system_variables.sql_log_slow && opt_slow_logname &&
       *opt_slow_logname &&
       !(log_output_options & (LOG_FILE | LOG_NONE)))
-    sql_print_warning("Although a path was specified for the "
-                      "--log-slow-queries option, log tables are used. "
+    sql_print_warning("Although a slow query log file was specified, "
+                      "log tables are used. "
                       "To enable logging to files use the --log-output=file option.");
 
   if (!opt_logname || !*opt_logname)
@@ -4599,6 +4623,7 @@ void ssl_acceptor_stats_update(int sslaccept_ret)
 
 static void init_ssl()
 {
+#if !defined(EMBEDDED_LIBRARY)
 /*
   Not need to check require_secure_transport on the Linux,
   because it always has Unix domain sockets that are secure:
@@ -4614,7 +4639,7 @@ static void init_ssl()
     unireg_abort(1);
   }
 #endif
-#if defined(HAVE_OPENSSL) && !defined(EMBEDDED_LIBRARY)
+#if defined(HAVE_OPENSSL)
   if (opt_use_ssl)
   {
     enum enum_ssl_init_error error= SSL_INITERR_NOERROR;
@@ -4655,7 +4680,8 @@ static void init_ssl()
   }
   if (des_key_file)
     load_des_key_file(des_key_file);
-#endif /* HAVE_OPENSSL && ! EMBEDDED_LIBRARY */
+#endif /* HAVE_OPENSSL */
+#endif /* !EMBEDDED_LIBRARY */
 }
 
 /* Reinitialize SSL (FLUSH SSL) */
@@ -7360,6 +7386,7 @@ SHOW_VAR status_vars[]= {
   {"Handler_update",           (char*) offsetof(STATUS_VAR, ha_update_count), SHOW_LONG_STATUS},
   {"Handler_write",            (char*) offsetof(STATUS_VAR, ha_write_count), SHOW_LONG_STATUS},
   {"Key",                      (char*) &show_default_keycache, SHOW_FUNC},
+  {"optimizer_join_prefixes_check_calls",     (char*) offsetof(STATUS_VAR, optimizer_join_prefixes_check_calls), SHOW_LONG_STATUS},
   {"Last_query_cost",          (char*) offsetof(STATUS_VAR, last_query_cost), SHOW_DOUBLE_STATUS},
 #ifndef DBUG_OFF
   {"malloc_calls",             (char*) &malloc_calls, SHOW_LONG},
@@ -8715,6 +8742,8 @@ static int get_options(int *argc_ptr, char ***argv_ptr)
       max_relay_log_size_var->option.def_value=
         max_binlog_size_var->option.def_value;
     }
+    slave_max_statement_time=
+      double2ulonglong(slave_max_statement_time_double * 1e6);
   }
 #endif
 

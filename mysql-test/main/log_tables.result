@@ -57,7 +57,7 @@ general_log	CREATE TABLE `general_log` (
   `server_id` int(10) unsigned NOT NULL,
   `command_type` varchar(64) NOT NULL,
   `argument` mediumtext NOT NULL
-) ENGINE=CSV DEFAULT CHARSET=utf8mb3 COMMENT='General log'
+) ENGINE=CSV DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_general_ci COMMENT='General log'
 show fields from mysql.general_log;
 Field	Type	Null	Key	Default	Extra
 event_time	timestamp(6)	NO		current_timestamp(6)	on update current_timestamp(6)
@@ -82,7 +82,7 @@ slow_log	CREATE TABLE `slow_log` (
   `sql_text` mediumtext NOT NULL,
   `thread_id` bigint(21) unsigned NOT NULL,
   `rows_affected` int(11) NOT NULL
-) ENGINE=CSV DEFAULT CHARSET=utf8mb3 COMMENT='Slow log'
+) ENGINE=CSV DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_general_ci COMMENT='Slow log'
 show fields from mysql.slow_log;
 Field	Type	Null	Key	Default	Extra
 start_time	timestamp(6)	NO		current_timestamp(6)	on update current_timestamp(6)
@@ -172,7 +172,7 @@ general_log	CREATE TABLE `general_log` (
   `server_id` int(10) unsigned NOT NULL,
   `command_type` varchar(64) NOT NULL,
   `argument` mediumtext NOT NULL
-) ENGINE=CSV DEFAULT CHARSET=utf8mb3 COMMENT='General log'
+) ENGINE=CSV DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_general_ci COMMENT='General log'
 show create table mysql.slow_log;
 Table	Create Table
 slow_log	CREATE TABLE `slow_log` (
@@ -189,7 +189,7 @@ slow_log	CREATE TABLE `slow_log` (
   `sql_text` mediumtext NOT NULL,
   `thread_id` bigint(21) unsigned NOT NULL,
   `rows_affected` int(11) NOT NULL
-) ENGINE=CSV DEFAULT CHARSET=utf8mb3 COMMENT='Slow log'
+) ENGINE=CSV DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_general_ci COMMENT='Slow log'
 alter table mysql.general_log engine=myisam;
 alter table mysql.slow_log engine=myisam;
 show create table mysql.general_log;
@@ -201,7 +201,7 @@ general_log	CREATE TABLE `general_log` (
   `server_id` int(10) unsigned NOT NULL,
   `command_type` varchar(64) NOT NULL,
   `argument` mediumtext NOT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=utf8mb3 COMMENT='General log'
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_general_ci COMMENT='General log'
 show create table mysql.slow_log;
 Table	Create Table
 slow_log	CREATE TABLE `slow_log` (
@@ -218,7 +218,7 @@ slow_log	CREATE TABLE `slow_log` (
   `sql_text` mediumtext NOT NULL,
   `thread_id` bigint(21) unsigned NOT NULL,
   `rows_affected` int(11) NOT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=utf8mb3 COMMENT='Slow log'
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_general_ci COMMENT='Slow log'
 set global general_log='ON';
 set global slow_query_log='ON';
 select * from mysql.general_log;

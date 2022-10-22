@@ -982,7 +982,7 @@ srv_export_innodb_status(void)
 		- UT_LIST_GET_LEN(buf_pool.free);
 
 	export_vars.innodb_max_trx_id = trx_sys.get_max_trx_id();
-	export_vars.innodb_history_list_length = trx_sys.history_size();
+	export_vars.innodb_history_list_length = trx_sys.history_size_approx();
 
 	mysql_mutex_lock(&lock_sys.wait_mutex);
 	export_vars.innodb_row_lock_waits = lock_sys.get_wait_cumulative();
@@ -1782,7 +1782,7 @@ static void srv_shutdown_purge_tasks()
   std::unique_lock<std::mutex> lk(purge_thd_mutex);
   while (!purge_thds.empty())
   {
-    innobase_destroy_background_thd(purge_thds.front());
+    destroy_background_thd(purge_thds.front());
     purge_thds.pop_front();
   }
   n_purge_thds= 0;
@@ -1831,8 +1831,7 @@ void srv_purge_shutdown()
 		while(!srv_purge_should_exit()) {
 			ut_a(!purge_sys.paused());
 			srv_wake_purge_thread_if_not_active();
-			std::this_thread::sleep_for(
-				std::chrono::milliseconds(1));
+			purge_coordinator_task.wait();
 		}
 		purge_sys.coordinator_shutdown();
 		srv_shutdown_purge_tasks();

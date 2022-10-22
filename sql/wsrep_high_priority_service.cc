@@ -19,6 +19,7 @@
 #include "wsrep_schema.h"
 #include "wsrep_xid.h"
 #include "wsrep_trans_observer.h"
+#include "wsrep_server_state.h"
 
 #include "sql_class.h" /* THD */
 #include "transaction.h"
@@ -404,6 +405,7 @@ int Wsrep_high_priority_service::apply_toi(const wsrep::ws_meta& ws_meta,
   WSREP_DEBUG("Wsrep_high_priority_service::apply_toi: %lld",
               client_state.toi_meta().seqno().get());
 
+#ifdef ENABLED_DEBUG_SYNC
   DBUG_EXECUTE_IF("sync.wsrep_apply_toi",
                   {
                     const char act[]=
@@ -413,6 +415,7 @@ int Wsrep_high_priority_service::apply_toi(const wsrep::ws_meta& ws_meta,
                     DBUG_ASSERT(!debug_sync_set_action(thd,
                                                        STRING_WITH_LEN(act)));
                   };);
+#endif
 
   int ret= apply_events(thd, m_rli, data, err);
   wsrep_thd_set_ignored_error(thd, false);
@@ -458,6 +461,7 @@ int Wsrep_high_priority_service::log_dummy_write_set(const wsrep::ws_handle& ws_
   DBUG_PRINT("info",
              ("Wsrep_high_priority_service::log_dummy_write_set: seqno=%lld",
               ws_meta.seqno().get()));
+#ifdef ENABLED_DEBUG_SYNC
   DBUG_EXECUTE_IF("sync.wsrep_log_dummy_write_set",
                   {
                     const char act[]=
@@ -466,6 +470,7 @@ int Wsrep_high_priority_service::log_dummy_write_set(const wsrep::ws_handle& ws_
                     DBUG_ASSERT(!debug_sync_set_action(m_thd,
                                                        STRING_WITH_LEN(act)));
                   };);
+#endif
 
   if (ws_meta.ordered())
   {
@@ -561,8 +566,8 @@ int Wsrep_applier_service::apply_write_set(const wsrep::ws_meta& ws_meta,
   /* moved dbug sync point here, after possible THD switch for SR transactions
      has ben done
   */
-  /* Allow tests to block the applier thread using the DBUG facilities */
 #ifdef ENABLED_DEBUG_SYNC
+  /* Allow tests to block the applier thread using the DBUG facilities */
   DBUG_EXECUTE_IF("sync.wsrep_apply_cb",
                  {
                    const char act[]=
@@ -715,6 +720,7 @@ int Wsrep_replayer_service::apply_write_set(const wsrep::ws_meta& ws_meta,
   DBUG_ASSERT(thd->wsrep_trx().active());
   DBUG_ASSERT(thd->wsrep_trx().state() == wsrep::transaction::s_replaying);
 
+#ifdef ENABLED_DEBUG_SYNC
   /* Allow tests to block the replayer thread using the DBUG facilities */
   DBUG_EXECUTE_IF("sync.wsrep_replay_cb",
                  {
@@ -725,6 +731,7 @@ int Wsrep_replayer_service::apply_write_set(const wsrep::ws_meta& ws_meta,
                    DBUG_ASSERT(!debug_sync_set_action(thd,
                                                       STRING_WITH_LEN(act)));
                  };);
+#endif
 
   wsrep_setup_uk_and_fk_checks(thd);
 

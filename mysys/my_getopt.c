@@ -1632,7 +1632,8 @@ void my_print_help(const struct my_option *options)
       }
     }
     putchar('\n');
-    if ((optp->var_type & GET_TYPE_MASK) == GET_BOOL)
+    if ((optp->var_type & GET_TYPE_MASK) == GET_BOOL ||
+        (optp->var_type & GET_TYPE_MASK) == GET_BIT)
     {
       if (optp->def_value != 0)
       {

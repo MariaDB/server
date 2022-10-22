@@ -26,7 +26,7 @@ information_schema
 test
 show create database db;
 Database	Create Database
-db	CREATE DATABASE `db` /*!40100 DEFAULT CHARACTER SET latin1 */
+db	CREATE DATABASE `db` /*!40100 DEFAULT CHARACTER SET latin1 COLLATE latin1_swedish_ci */
 select table_schema, table_name from information_schema.tables
 where table_schema = 'db' order by table_name;
 table_schema	table_name
@@ -55,7 +55,7 @@ information_schema
 test
 show create database db;
 Database	Create Database
-db	CREATE DATABASE `db` /*!40100 DEFAULT CHARACTER SET latin1 */
+db	CREATE DATABASE `db` /*!40100 DEFAULT CHARACTER SET latin1 COLLATE latin1_swedish_ci */
 select table_schema, table_name from information_schema.tables
 where table_schema = 'db' order by table_name;
 table_schema	table_name

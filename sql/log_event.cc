@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2000, 2018, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2021, MariaDB
+   Copyright (c) 2009, 2022, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -43,6 +43,9 @@
 #include <strfunc.h>
 #include "compat56.h"
 #include "sql_insert.h"
+#ifdef WITH_WSREP
+#include "wsrep_mysqld.h"
+#endif /* WITH_WSREP */
 #else
 #include "mysqld_error.h"
 #endif /* MYSQL_CLIENT */
@@ -1356,7 +1359,7 @@ static void copy_str_and_move(const char **src, Log_event::Byte **dst,
 }
 
 
-#ifndef DBUG_OFF
+#ifdef DBUG_TRACE
 static char const *
 code_name(int code)
 {
@@ -1511,7 +1514,7 @@ Query_log_event::Query_log_event(const uchar *buf, uint event_len,
     switch (*pos++) {
     case Q_FLAGS2_CODE:
       CHECK_SPACE(pos, end, 4);
-      flags2_inited= 1;
+      flags2_inited= description_event->options_written_to_bin_log;
       flags2= uint4korr(pos);
       DBUG_PRINT("info",("In Query_log_event, read flags2: %lu", (ulong) flags2));
       pos+= 4;
@@ -2201,6 +2204,7 @@ Format_description_log_event(uint8 binlog_ver, const char* server_ver)
     break;
   }
   calc_server_version_split();
+  deduct_options_written_to_bin_log();
   checksum_alg= BINLOG_CHECKSUM_ALG_UNDEF;
   reset_crypto();
 }
@@ -2259,6 +2263,7 @@ Format_description_log_event(const uchar *buf, uint event_len,
   {
     checksum_alg= BINLOG_CHECKSUM_ALG_UNDEF;
   }
+  deduct_options_written_to_bin_log();
   reset_crypto();
 
   DBUG_VOID_RETURN;
@@ -2334,6 +2339,27 @@ void Format_description_log_event::calc_server_version_split()
                      server_version_split[1], server_version_split[2]));
 }
 
+
+void Format_description_log_event::deduct_options_written_to_bin_log()
+{
+  options_written_to_bin_log= OPTION_AUTO_IS_NULL | OPTION_NOT_AUTOCOMMIT |
+              OPTION_NO_FOREIGN_KEY_CHECKS | OPTION_RELAXED_UNIQUE_CHECKS;
+  if (!server_version_split.version_is_valid() ||
+      server_version_split.kind == master_version_split::KIND_MYSQL ||
+      server_version_split < Version(10,5,2))
+    return;
+  options_written_to_bin_log|= OPTION_IF_EXISTS;
+  if (server_version_split[0] == 10)
+  {
+    const static char v[10]={99,99,99,99,99,17,9,5,4,2};
+    if (server_version_split[1] < 10 &&
+        server_version_split[2] < v[server_version_split[1]])
+      return;
+  }
+  options_written_to_bin_log|= OPTION_EXPLICIT_DEF_TIMESTAMP;
+
+  DBUG_ASSERT(options_written_to_bin_log == OPTIONS_WRITTEN_TO_BIN_LOG);
+}
 
 /**
    @return TRUE is the event's version is earlier than one that introduced

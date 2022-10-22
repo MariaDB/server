@@ -8,7 +8,7 @@ t1	CREATE TABLE `t1` (
   `c` char(3) DEFAULT NULL,
   `e` enum('abc','def','ghi') DEFAULT NULL,
   `t` text DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 show create table vchar;
 Table	Create Table
 vchar	CREATE TABLE `vchar` (
@@ -16,7 +16,7 @@ vchar	CREATE TABLE `vchar` (
   `c` char(3) DEFAULT NULL,
   `e` enum('abc','def','ghi') DEFAULT NULL,
   `t` text DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 insert into t1 values ('abc', 'de', 'ghi', 'jkl');
 insert into t1 values ('abc ', 'de ', 'ghi', 'jkl ');
 insert into t1 values ('abc    ', 'd  ', 'ghi', 'jkl    ');
@@ -42,7 +42,7 @@ vchar	CREATE TABLE `vchar` (
   `e` enum('abc','def','ghi') DEFAULT NULL,
   `t` text DEFAULT NULL,
   `i` int(11) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 select length(v),length(c),length(e),length(t) from vchar;
 length(v)	length(c)	length(e)	length(t)
 3	2	3	3
@@ -399,21 +399,21 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `f1` varchar(65500) DEFAULT NULL,
   KEY `index1` (`f1`(10))
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 alter table t1 modify f1 varchar(255);
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `f1` varchar(255) DEFAULT NULL,
   KEY `index1` (`f1`(10))
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 alter table t1 modify f1 tinytext;
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `f1` tinytext DEFAULT NULL,
   KEY `index1` (`f1`(10))
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 drop table t1;
 DROP TABLE IF EXISTS t1;
 CREATE TABLE t1(f1 VARCHAR(100) DEFAULT 'test');
@@ -476,7 +476,6 @@ a	(a DIV 2)
 t	0
 Warnings:
 Warning	1292	Truncated incorrect DECIMAL value: '1a'
-Warning	1918	Encountered illegal value '' when converting to DECIMAL
 Warning	1292	Truncated incorrect DECIMAL value: 't '
 SELECT a,CAST(a AS SIGNED) FROM t1 ORDER BY a;
 a	CAST(a AS SIGNED)
@@ -498,8 +497,8 @@ SELECT 5 = a FROM t1;
 0
 0
 Warnings:
-Warning	1292	Truncated incorrect DOUBLE value: 's'
-Warning	1292	Truncated incorrect DOUBLE value: ''
+Warning	1292	Truncated incorrect DECIMAL value: 's'
+Warning	1292	Truncated incorrect DECIMAL value: ''
 DROP TABLE t1;
 CREATE TABLE t1 (a CHAR(16));
 INSERT INTO t1 VALUES ('5'), ('s'), ('');
@@ -509,8 +508,8 @@ SELECT 5 = a FROM t1;
 0
 0
 Warnings:
-Warning	1292	Truncated incorrect DOUBLE value: 's               '
-Warning	1292	Truncated incorrect DOUBLE value: '                '
+Warning	1292	Truncated incorrect DECIMAL value: 's               '
+Warning	1292	Truncated incorrect DECIMAL value: '                '
 DROP TABLE t1;
 #
 # MDEV-13530 VARBINARY doesn't convert to to BLOB for sizes 65533, 65534 and 65535
@@ -753,7 +752,7 @@ vchar	CREATE TABLE `vchar` (
   `c` char(3) DEFAULT NULL,
   `e` enum('abc','def','ghi') DEFAULT NULL,
   `t` text DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 ALTER TABLE vchar ADD FULLTEXT INDEX(v);
 SHOW CREATE TABLE vchar;
 Table	Create Table
@@ -763,7 +762,7 @@ vchar	CREATE TABLE `vchar` (
   `e` enum('abc','def','ghi') DEFAULT NULL,
   `t` text DEFAULT NULL,
   FULLTEXT KEY `v` (`v`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE vchar;
 #
 # End of 10.5 tests

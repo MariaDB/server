@@ -24,6 +24,7 @@ usr/lib/x86_64-linux-gnu/libidbboot.a # ColumnStore header file
 usr/lib/x86_64-linux-gnu/libprocessor.a # ColumnStore header file
 usr/lib/x86_64-linux-gnu/libwe_xml.a # ColumnStore header file
 usr/bin/test-connect-t
+usr/bin/uca-dump
 usr/bin/wsrep_sst_backup
 usr/lib/mysql/plugin/type_test.so
 usr/lib/sysusers.d/mariadb.conf # Not used (yet) in Debian systemd

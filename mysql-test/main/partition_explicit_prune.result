@@ -201,7 +201,7 @@ t1	CREATE TABLE `t1` (
   `b` varchar(64) DEFAULT NULL,
   PRIMARY KEY (`a`),
   KEY `b` (`b`,`a`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
  PARTITION BY RANGE (`a`)
 SUBPARTITION BY HASH (`a`)
 (PARTITION `pNeg` VALUES LESS THAN (0)
@@ -1133,7 +1133,7 @@ t1	CREATE TABLE `t1` (
   `b` varchar(64) DEFAULT NULL,
   PRIMARY KEY (`a`),
   KEY `b` (`b`,`a`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
  PARTITION BY RANGE (`a`)
 SUBPARTITION BY HASH (`a`)
 (PARTITION `pNeg` VALUES LESS THAN (0)
@@ -1165,7 +1165,7 @@ t2	CREATE TABLE `t2` (
   `b` varchar(64) DEFAULT NULL,
   PRIMARY KEY (`a`),
   KEY `b` (`b`,`a`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
  PARTITION BY RANGE (`a`)
 SUBPARTITION BY HASH (`a`)
 (PARTITION `pNeg` VALUES LESS THAN (0)
@@ -1192,7 +1192,7 @@ Table	Create Table
 t3	CREATE TABLE `t3` (
   `a` int(11) NOT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 SELECT * FROM t3;
 a	b
 -4	(pNeg-)subp0, Updated, Updated2, Updated from a = -2
@@ -1665,7 +1665,7 @@ t1	CREATE TABLE `t1` (
   `b` varchar(64) DEFAULT NULL,
   PRIMARY KEY (`a`),
   KEY `b` (`b`,`a`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
  PARTITION BY RANGE (`a`)
 SUBPARTITION BY HASH (`a`)
 (PARTITION `pNeg` VALUES LESS THAN (0)
@@ -1897,7 +1897,7 @@ ALTER TABLE t1 EXCHANGE PARTITION p0 WITH TABLE t2;
 SELECT * FROM t1 PARTITION (p0);
 i
 UNLOCK TABLES;
-DROP TABLE t1;
+DROP TABLE t1, t2;
 #
 # MDEV-18371 Server crashes in ha_innobase::cmp_ref upon UPDATE with PARTITION clause.
 #
@@ -1915,7 +1915,88 @@ a	b
 4	3
 8	2
 2	6
-DROP TABLE t1, t2;
+DROP TABLE t1;
+#
+# MDEV-21134 Crash with partitioned table, PARTITION syntax, and index_merge.
+#
+create table t1 (
+pk int primary key,
+a int,
+b int,
+filler char(32),
+key (a),
+key (b)
+) engine=myisam  partition by range(pk) (
+partition p0 values less than (10),
+partition p1 values less than MAXVALUE
+) ;
+insert into t1 select 
+seq,
+MOD(seq, 100),
+MOD(seq, 100),
+'filler-data-filler-data'
+  from
+seq_1_to_5000;
+explain select * from t1 partition (p1) where a=10 and b=10;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	index_merge	a,b	a,b	5,5	NULL	1	Using intersect(a,b); Using where
+flush tables;
+select * from t1 partition (p1)where a=10 and b=10;
+pk	a	b	filler
+10	10	10	filler-data-filler-data
+110	10	10	filler-data-filler-data
+210	10	10	filler-data-filler-data
+310	10	10	filler-data-filler-data
+410	10	10	filler-data-filler-data
+510	10	10	filler-data-filler-data
+610	10	10	filler-data-filler-data
+710	10	10	filler-data-filler-data
+810	10	10	filler-data-filler-data
+910	10	10	filler-data-filler-data
+1010	10	10	filler-data-filler-data
+1110	10	10	filler-data-filler-data
+1210	10	10	filler-data-filler-data
+1310	10	10	filler-data-filler-data
+1410	10	10	filler-data-filler-data
+1510	10	10	filler-data-filler-data
+1610	10	10	filler-data-filler-data
+1710	10	10	filler-data-filler-data
+1810	10	10	filler-data-filler-data
+1910	10	10	filler-data-filler-data
+2010	10	10	filler-data-filler-data
+2110	10	10	filler-data-filler-data
+2210	10	10	filler-data-filler-data
+2310	10	10	filler-data-filler-data
+2410	10	10	filler-data-filler-data
+2510	10	10	filler-data-filler-data
+2610	10	10	filler-data-filler-data
+2710	10	10	filler-data-filler-data
+2810	10	10	filler-data-filler-data
+2910	10	10	filler-data-filler-data
+3010	10	10	filler-data-filler-data
+3110	10	10	filler-data-filler-data
+3210	10	10	filler-data-filler-data
+3310	10	10	filler-data-filler-data
+3410	10	10	filler-data-filler-data
+3510	10	10	filler-data-filler-data
+3610	10	10	filler-data-filler-data
+3710	10	10	filler-data-filler-data
+3810	10	10	filler-data-filler-data
+3910	10	10	filler-data-filler-data
+4010	10	10	filler-data-filler-data
+4110	10	10	filler-data-filler-data
+4210	10	10	filler-data-filler-data
+4310	10	10	filler-data-filler-data
+4410	10	10	filler-data-filler-data
+4510	10	10	filler-data-filler-data
+4610	10	10	filler-data-filler-data
+4710	10	10	filler-data-filler-data
+4810	10	10	filler-data-filler-data
+4910	10	10	filler-data-filler-data
+DROP TABLE t1;
+#
+# End of 10.3 tests
+#
 #
 # MDEV-18982: INSERT using explicit patition pruning with column list
 #
@@ -1925,3 +2006,6 @@ select * from t1;
 a
 1
 drop table t1;
+#
+# End of 10.4 tests
+#

@@ -601,6 +601,7 @@ row_upd_build_difference_binary(
 	const rec_t*	rec,
 	const rec_offs*	offsets,
 	bool		no_sys,
+	bool		ignore_warnings,
 	trx_t*		trx,
 	mem_heap_t*	heap,
 	TABLE*		mysql_table,
@@ -699,7 +700,7 @@ row_upd_build_difference_binary(
 			dfield_t*	vfield = innobase_get_computed_value(
 				update->old_vrow, col, index,
 				&vc.heap, heap, NULL, thd, mysql_table, record,
-				NULL, NULL);
+				NULL, NULL, ignore_warnings);
 			if (vfield == NULL) {
 				*error = DB_COMPUTE_VALUE_FAILED;
 				return(NULL);
@@ -1261,9 +1262,6 @@ row_upd_changes_ord_field_binary_func(
 	ulint			i;
 	const dict_index_t*	clust_index;
 
-	ut_ad(thr);
-	ut_ad(thr->graph);
-	ut_ad(thr->graph->trx);
 	ut_ad(!index->table->skip_alter_undo);
 
 	n_unique = dict_index_get_n_unique(index);
@@ -1463,9 +1461,11 @@ row_upd_changes_ord_field_binary_func(
 					trx_rollback_recovered()
 					when the server had crashed before
 					storing the field. */
-					ut_ad(thr->graph->trx->is_recovered);
-					ut_ad(thr->graph->trx
-					      == trx_roll_crash_recv_trx);
+					ut_ad(!thr
+					      || thr->graph->trx->is_recovered);
+					ut_ad(!thr
+					      || thr->graph->trx
+					         == trx_roll_crash_recv_trx);
 					return(TRUE);
 				}
 

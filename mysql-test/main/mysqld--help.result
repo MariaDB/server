@@ -288,6 +288,7 @@ The following specify which files/extra groups are read (specified before remain
  columns as NULL with DEFAULT NULL attribute, Without this
  option, TIMESTAMP columns are NOT NULL and have implicit
  DEFAULT clauses.
+ (Defaults to on; use --skip-explicit-defaults-for-timestamp to disable.)
  --external-locking  Use system (external) locking (disabled by default). 
  With this option enabled you can run myisamchk to test
  (not repair) tables while the MySQL server is running.
@@ -364,7 +365,9 @@ The following specify which files/extra groups are read (specified before remain
  --gtid-strict-mode  Enforce strict seq_no ordering of events in the binary
  log. Slave stops with an error if it encounters an event
  that would cause it to generate an out-of-order binlog if
- executed.
+ executed. When ON the same server-id semisync-replicated
+ transactions that duplicate exising ones in binlog are
+ ignored without error and slave interruption.
  -?, --help          Display this help and exit.
  --histogram-size=#  Number of bytes used for a histogram. If set to 0, no
  histograms are created by ANALYZE.
@@ -507,6 +510,7 @@ The following specify which files/extra groups are read (specified before remain
  administrative statements to the slow log if it is open. 
  Resets or sets the option 'admin' in
  log_slow_disabled_statements
+ (Defaults to on; use --skip-log-slow-admin-statements to disable.)
  --log-slow-disabled-statements=name 
  Don't log certain types of statements to slow log. Any
  combination of: admin, call, slave, sp
@@ -527,6 +531,7 @@ The following specify which files/extra groups are read (specified before remain
  Log slow statements executed by slave thread to the slow
  log if it is open. Resets or sets the option 'slave' in
  log_slow_disabled_statements
+ (Defaults to on; use --skip-log-slow-slave-statements to disable.)
  --log-slow-verbosity=name 
  Verbosity level for the slow log. Any combination of: 
  innodb, query_plan, explain
@@ -699,6 +704,10 @@ The following specify which files/extra groups are read (specified before remain
  max_connections*5 or max_connections + table_cache*2
  (whichever is larger) number of file descriptors
  (Automatically configured unless set explicitly)
+ --optimizer-extra-pruning-depth=# 
+ If the optimizer needs to enumerate join prefix of this
+ size or larger, then it will try agressively prune away
+ the search space.
  --optimizer-max-sel-arg-weight=# 
  The maximum weight of the SEL_ARG graph. Set to 0 for no
  limit
@@ -706,8 +715,9 @@ The following specify which files/extra groups are read (specified before remain
  Controls the heuristic(s) applied during query
  optimization to prune less-promising partial plans from
  the optimizer search space. Meaning: 0 - do not apply any
- heuristic, thus perform exhaustive search; 1 - prune
- plans based on number of retrieved rows
+ heuristic, thus perform exhaustive search: 1 - prune
+ plans based on cost and number of retrieved rows eq_ref:
+ 2 - prune also if we find an eq_ref chain
  --optimizer-search-depth=# 
  Maximum depth of search performed by the query optimizer.
  Values larger than the number of relations in a query
@@ -1216,6 +1226,11 @@ The following specify which files/extra groups are read (specified before remain
  --slave-max-allowed-packet=# 
  The maximum packet length to sent successfully from the
  master to slave.
+ --slave-max-statement-time=# 
+ A query that has taken more than slave_max_statement_time
+ seconds to run on the slave will be aborted. The argument
+ will be treated as a decimal value with microsecond
+ precision. A value of 0 (default) means no timeout
  --slave-net-timeout=# 
  Number of seconds to wait for more data from any
  master/slave connection before aborting the read
@@ -1534,7 +1549,7 @@ eq-range-index-dive-limit 200
 event-scheduler OFF
 expensive-subquery-limit 100
 expire-logs-days 0
-explicit-defaults-for-timestamp FALSE
+explicit-defaults-for-timestamp TRUE
 external-locking FALSE
 extra-max-connections 1
 extra-port 0
@@ -1661,8 +1676,9 @@ old-alter-table DEFAULT
 old-mode UTF8_IS_UTF8MB3
 old-passwords FALSE
 old-style-user-limits FALSE
+optimizer-extra-pruning-depth 8
 optimizer-max-sel-arg-weight 32000
-optimizer-prune-level 1
+optimizer-prune-level 2
 optimizer-search-depth 62
 optimizer-selectivity-sampling-limit 100
 optimizer-switch index_merge=on,index_merge_union=on,index_merge_sort_union=on,index_merge_intersection=on,index_merge_sort_intersection=off,engine_condition_pushdown=off,index_condition_pushdown=on,derived_merge=on,derived_with_keys=on,firstmatch=on,loosescan=on,materialization=on,in_to_exists=on,semijoin=on,partial_match_rowid_merge=on,partial_match_table_scan=on,subquery_cache=on,mrr=off,mrr_cost_based=off,mrr_sort_keys=off,outer_join_with_cache=on,semijoin_with_cache=on,join_cache_incremental=on,join_cache_hashed=on,join_cache_bka=on,optimize_join_buffer_size=on,table_elimination=on,extended_keys=on,exists_to_in=on,orderby_uses_equalities=on,condition_pushdown_for_derived=on,split_materialized=on,condition_pushdown_for_subquery=on,rowid_filter=on,condition_pushdown_from_having=on
@@ -1792,6 +1808,7 @@ slave-ddl-exec-mode IDEMPOTENT
 slave-domain-parallel-threads 0
 slave-exec-mode STRICT
 slave-max-allowed-packet 1073741824
+slave-max-statement-time 0
 slave-net-timeout 60
 slave-parallel-max-queued 131072
 slave-parallel-mode conservative

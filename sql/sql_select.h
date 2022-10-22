@@ -359,6 +359,13 @@ typedef struct st_join_table {
 
   table_map	dependent,key_dependent;
   /*
+    This is set for embedded sub queries.  It contains the table map of
+    the outer expression, like 'A' in the following expression:
+    WHERE A in (SELECT ....)
+  */
+  table_map     embedded_dependent;
+
+  /*
      1 - use quick select
      2 - use "Range checked for each record"
   */
@@ -945,6 +952,9 @@ public:
 
   double    prefix_record_count;
 
+  /* Cost for the join prefix */
+  double prefix_cost;
+
   /*
     NULL  -  'index' or 'range' or 'index_merge' or 'ALL' access is used.
     Other - [eq_]ref[_or_null] access is used. Pointer to {t.keypart1 = expr}
@@ -975,9 +985,6 @@ public:
   Firstmatch_picker         firstmatch_picker;
   LooseScan_picker          loosescan_picker;
   Sj_materialization_picker sjmat_picker;
-
-  /* Cumulative cost and record count for the join prefix */
-  Cost_estimate prefix_cost;
 
   /*
     Current optimization state: Semi-join strategy to be used for this
@@ -1254,6 +1261,10 @@ public:
   table_map outer_join;
   /* Bitmap of tables used in the select list items */
   table_map select_list_used_tables;
+  /* Tables that have a possiblity to use EQ_ref */
+  table_map eq_ref_tables;
+
+  table_map allowed_top_level_tables;
   ha_rows  send_records,found_records,join_examined_rows, accepted_rows;
 
   /*
@@ -1286,10 +1297,12 @@ public:
 
   /* Finally picked QEP. This is result of join optimization */
   POSITION *best_positions;
+  POSITION *sort_positions;    /* Temporary space used by greedy_search */
+  POSITION *next_sort_position; /* Next free space in sort_positions */
 
   Pushdown_query *pushdown_query;
   JOIN_TAB *original_join_tab;
-  uint	   original_table_count;
+  uint	   sort_space;
 
 /******* Join optimization state members start *******/
   /*
@@ -1316,8 +1329,16 @@ public:
   */
   table_map cur_sj_inner_tables;
 
+  /* A copy of thd->variables.optimizer_prune_level */
+  uint prune_level;
+  /*
+    If true, do extra heuristic pruning (enabled based on
+    optimizer_extra_pruning_depth)
+  */
+  bool extra_heuristic_pruning;
 #ifndef DBUG_OFF
   void dbug_verify_sj_inner_tables(uint n_positions) const;
+  int dbug_join_tab_array_size;
 #endif
 
   /* We also maintain a stack of join optimization states in * join->positions[] */
@@ -1756,6 +1777,8 @@ public:
   bool transform_in_predicates_into_in_subq(THD *thd);
 
   bool optimize_upper_rownum_func();
+  void calc_allowed_top_level_tables(SELECT_LEX *lex);
+  table_map get_allowed_nj_tables(uint idx);
 
 private:
   /**
@@ -2419,7 +2442,7 @@ void fix_list_after_tbl_changes(SELECT_LEX *new_parent, List<TABLE_LIST> *tlist)
 double get_tmp_table_lookup_cost(THD *thd, double row_count, uint row_size);
 double get_tmp_table_write_cost(THD *thd, double row_count, uint row_size);
 void optimize_keyuse(JOIN *join, DYNAMIC_ARRAY *keyuse_array);
-bool sort_and_filter_keyuse(THD *thd, DYNAMIC_ARRAY *keyuse,
+bool sort_and_filter_keyuse(JOIN *join, DYNAMIC_ARRAY *keyuse,
                             bool skip_unprefixed_keyparts);
 
 struct st_cond_statistic

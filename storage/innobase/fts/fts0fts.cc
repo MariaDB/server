@@ -2605,7 +2605,7 @@ retry:
 	}
 	mysql_mutex_unlock(&cache->doc_id_lock);
 
-	if (cmp_doc_id > *doc_id) {
+	if (cmp_doc_id && cmp_doc_id >= *doc_id) {
 		error = fts_update_sync_doc_id(
 			table, cache->synced_doc_id, trx);
 	}
@@ -3314,7 +3314,7 @@ fts_add_doc_by_id(
 	dict_index_t*	fts_id_index;
 	ibool		is_id_cluster;
 	fts_cache_t*   	cache = ftt->table->fts->cache;
-
+	bool		need_sync= false;
 	ut_ad(cache->get_docs);
 
 	/* If Doc ID has been supplied by the user, then the table
@@ -3354,7 +3354,7 @@ fts_add_doc_by_id(
 
 	/* If we have a match, add the data to doc structure */
 	if (btr_pcur_open_with_no_init(fts_id_index, tuple, PAGE_CUR_LE,
-				       BTR_SEARCH_LEAF, &pcur, 0, &mtr)
+				       BTR_SEARCH_LEAF, &pcur, &mtr)
 	    == DB_SUCCESS
 	    && btr_pcur_get_low_match(&pcur) == 1) {
 		const rec_t*	rec;
@@ -3392,7 +3392,7 @@ fts_add_doc_by_id(
 			if (btr_pcur_open_with_no_init(clust_index, clust_ref,
 						       PAGE_CUR_LE,
 						       BTR_SEARCH_LEAF,
-						       &clust_pcur, 0, &mtr)
+						       &clust_pcur, &mtr)
 			    != DB_SUCCESS) {
 				goto func_exit;
 			}
@@ -3443,7 +3443,7 @@ fts_add_doc_by_id(
 				shouldn't hold the cache lock for
 				longer time. So cache should sync
 				whenever cache size exceeds 512 KB */
-				bool	need_sync =
+				need_sync =
 					cache->total_size > 512*1024;
 
 				mysql_mutex_unlock(&table->fts->cache->lock);
@@ -3463,10 +3463,6 @@ fts_add_doc_by_id(
 					"fts_instrument_sync_request",
 					need_sync= true;
 				);
-
-				if (need_sync) {
-					fts_sync_table(table);
-				}
 
 				mtr_start(&mtr);
 
@@ -3493,6 +3489,10 @@ func_exit:
 	ut_free(pcur.old_rec_buf);
 
 	mem_heap_free(heap);
+
+	if (need_sync) {
+		fts_sync_table(table);
+	}
 }
 
 
@@ -3898,6 +3898,7 @@ err_exit:
 			ib::error() << "(" << error << ") writing"
 				" word node to FTS auxiliary index table "
 				<< table->name;
+			break;
 		}
 	}
 
@@ -3959,6 +3960,43 @@ fts_sync_index(
 	return(fts_sync_write_words(trx, index_cache));
 }
 
+/** Rollback a sync operation
+@param[in,out]	sync	sync state */
+static
+void
+fts_sync_rollback(
+	fts_sync_t*	sync)
+{
+	trx_t*		trx = sync->trx;
+	fts_cache_t*	cache = sync->table->fts->cache;
+
+	for (ulint i = 0; i < ib_vector_size(cache->indexes); ++i) {
+		ulint			j;
+		fts_index_cache_t*	index_cache;
+
+		index_cache = static_cast<fts_index_cache_t*>(
+			ib_vector_get(cache->indexes, i));
+
+		for (j = 0; fts_index_selector[j].value; ++j) {
+
+			if (index_cache->ins_graph[j] != NULL) {
+
+				que_graph_free(index_cache->ins_graph[j]);
+
+				index_cache->ins_graph[j] = NULL;
+			}
+		}
+	}
+
+	mysql_mutex_unlock(&cache->lock);
+
+	fts_sql_rollback(trx);
+
+	/* Avoid assertion in trx_t::free(). */
+	trx->dict_operation_lock_mode = false;
+	trx->free();
+}
+
 /** Commit the SYNC, change state of processed doc ids etc.
 @param[in,out]	sync	sync state
 @return DB_SUCCESS if all OK */
@@ -3999,9 +4037,10 @@ fts_sync_commit(
 		mysql_mutex_unlock(&cache->lock);
 		fts_sql_commit(trx);
 	} else {
-		fts_sql_rollback(trx);
 		ib::error() << "(" << error << ") during SYNC of "
 			"table " << sync->table->name;
+		fts_sync_rollback(sync);
+		return error;
 	}
 
 	if (UNIV_UNLIKELY(fts_enable_diag_print) && elapsed_time) {
@@ -4019,43 +4058,6 @@ fts_sync_commit(
 	trx->free();
 
 	return(error);
-}
-
-/** Rollback a sync operation
-@param[in,out]	sync	sync state */
-static
-void
-fts_sync_rollback(
-	fts_sync_t*	sync)
-{
-	trx_t*		trx = sync->trx;
-	fts_cache_t*	cache = sync->table->fts->cache;
-
-	for (ulint i = 0; i < ib_vector_size(cache->indexes); ++i) {
-		ulint			j;
-		fts_index_cache_t*	index_cache;
-
-		index_cache = static_cast<fts_index_cache_t*>(
-			ib_vector_get(cache->indexes, i));
-
-		for (j = 0; fts_index_selector[j].value; ++j) {
-
-			if (index_cache->ins_graph[j] != NULL) {
-
-				que_graph_free(index_cache->ins_graph[j]);
-
-				index_cache->ins_graph[j] = NULL;
-			}
-		}
-	}
-
-	mysql_mutex_unlock(&cache->lock);
-
-	fts_sql_rollback(trx);
-
-	/* Avoid assertion in trx_t::free(). */
-	trx->dict_operation_lock_mode = false;
-	trx->free();
 }
 
 /** Run SYNC on the table, i.e., write out data from the cache to the

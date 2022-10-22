@@ -47,7 +47,7 @@ show grants;
 Grants for mysqltest_1@localhost
 GRANT USAGE ON *.* TO `mysqltest_1`@`localhost`
 delete history from mysqltest.t before system_time now();
-ERROR 42000: DELETE HISTORY command denied to user 'mysqltest_1'@'localhost' for table 't'
+ERROR 42000: DELETE HISTORY command denied to user 'mysqltest_1'@'localhost' for table `mysqltest`.`t`
 connection root;
 grant delete history on mysqltest.* to mysqltest_1@localhost;
 grant delete history on mysqltest.t to mysqltest_1@localhost;

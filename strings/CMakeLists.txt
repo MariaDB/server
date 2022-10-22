@@ -13,7 +13,10 @@
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1335 USA
 
-INCLUDE_DIRECTORIES(${CMAKE_SOURCE_DIR}/include)
+INCLUDE_DIRECTORIES(
+${CMAKE_SOURCE_DIR}/include
+${CMAKE_BINARY_DIR}/strings
+)
 
 SET(STRINGS_SOURCES bchange.c bmove_upp.c ctype-big5.c ctype-bin.c ctype-cp932.c
                 ctype-czech.c ctype-euc_kr.c ctype-eucjpms.c ctype-extra.c ctype-gb2312.c ctype-gbk.c
@@ -37,3 +40,18 @@ MAYBE_DISABLE_IPO(strings)
 ADD_EXECUTABLE(conf_to_src EXCLUDE_FROM_ALL conf_to_src.c)
 SET_TARGET_PROPERTIES(conf_to_src PROPERTIES EXCLUDE_FROM_DEFAULT_BUILD TRUE)
 TARGET_LINK_LIBRARIES(conf_to_src mysys strings)
+
+ADD_EXECUTABLE(uca-dump uca-dump.c)
+
+ADD_CUSTOM_COMMAND(
+  OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/ctype-uca1400data.h
+  COMMAND uca-dump --name-prefix=uca1400 --levels=3 ${PROJECT_SOURCE_DIR}/mysql-test/std_data/unicode/allkeys1400.txt > ctype-uca1400data.h
+  DEPENDS uca-dump
+)
+
+ADD_CUSTOM_TARGET(
+        GenUnicodeDataSource
+        DEPENDS
+        ${CMAKE_CURRENT_BINARY_DIR}/ctype-uca1400data.h
+)
+ADD_DEPENDENCIES(strings GenUnicodeDataSource)

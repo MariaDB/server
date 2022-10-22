@@ -1,3 +1,4 @@
+-- source include/no_valgrind_without_big.inc
 -- source include/have_sjis.inc
 
 #
@@ -64,6 +65,7 @@ select hex(c) from t1;
 drop table t1;
 
 
+--disable_service_connection
 SET collation_connection='sjis_japanese_ci';
 -- source include/ctype_filesort.inc
 -- source include/ctype_innodb_like.inc
@@ -77,6 +79,7 @@ SET collation_connection='sjis_bin';
 -- source include/ctype_like_escape.inc
 -- source include/ctype_like_range_f1f2.inc
 -- source include/ctype_ascii_order.inc
+--enable_service_connection
 
 # Check parsing of string literals in SJIS with multibyte characters that
 # have an embedded \ in them. (Bug #8303)
@@ -175,6 +178,8 @@ WHERE HEX(CAST(UPPER(a) AS CHAR CHARACTER SET utf8)) <>
 --echo # WL#3090 Japanese Character Set adjustments
 --echo # Test sjis->Unicode conversion
 --echo #
+# enable view-protocol in 10.6 version
+--disable_view_protocol
 SELECT HEX(a), HEX(CONVERT(a USING utf8)) as b FROM t1
 WHERE a<>'' HAVING b<>'3F' ORDER BY code;
 
@@ -189,6 +194,7 @@ DROP TABLE t1;
 SELECT HEX(a), HEX(CONVERT(a using sjis)) as b FROM t1 HAVING b<>'3F' ORDER BY BINARY a;
 DROP TABLE t1;
 
+--enable_view_protocol
 
 --echo #
 --echo # End of 5.5 tests
@@ -203,6 +209,9 @@ DROP TABLE t1;
 --echo # WL#3664 WEIGHT_STRING
 --echo #
 
+# enable view-protocol after fix MDEV-27871
+--disable_view_protocol
+
 set names sjis;
 --source include/weight_string.inc
 --source include/weight_string_l1.inc
@@ -214,6 +223,8 @@ set collation_connection=sjis_bin;
 --source include/weight_string_l1.inc
 --source include/weight_string_8140.inc
 
+--enable_view_protocol
+
 --echo #
 --echo # End of 5.6 tests
 --echo #
@@ -222,12 +233,20 @@ set collation_connection=sjis_bin;
 --echo # Start of 10.0 tests
 --echo #
 
+# Tests will be skipped for the view protocol because the view protocol creates 
+# an additional util connection and other statistics data 
+# (it is necessary to run the view-protocol not in util session )
+--disable_view_protocol
+
 let $ctype_unescape_combinations=selected;
 --source include/ctype_unescape.inc
+
 
 --character_set sjis
 SET NAMES sjis;
 --source include/ctype_E05C.inc
+
+--enable_view_protocol
 
 
 --echo #

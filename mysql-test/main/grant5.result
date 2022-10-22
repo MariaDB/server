@@ -185,6 +185,67 @@ GRANT USAGE ON *.* TO `test-user`@`%`
 SET DEFAULT ROLE `r``o'l"e` FOR `test-user`@`%`
 DROP ROLE `r``o'l"e`;
 DROP USER 'test-user';
+#
+# MDEV-28548: ER_TABLEACCESS_DENIED_ERROR is missing information about DB
+#
+create database db1;
+create user foo@localhost;
+grant create on db1.* to foo@localhost;
+connect  con1,localhost,foo,,db1;
+create table t(t int);
+show columns in t;
+ERROR 42000: SELECT command denied to user 'foo'@'localhost' for table `db1`.`t`
+show columns in db1.t;
+ERROR 42000: SELECT command denied to user 'foo'@'localhost' for table `db1`.`t`
+create view t_v as select * from t;
+ERROR 42000: CREATE VIEW command denied to user 'foo'@'localhost' for table `db1`.`t_v`
+show create view t_v;
+ERROR 42000: SELECT command denied to user 'foo'@'localhost' for table `db1`.`t_v`
+create table t2(id int primary key, b int);
+create table t3(a int, b int,  CONSTRAINT `fk_db2_db1_t1`
+                                  FOREIGN KEY (a)
+REFERENCES `db1 `.t1 (a)
+ON DELETE CASCADE
+ON UPDATE RESTRICT);
+ERROR 42000: Incorrect database name 'db1 '
+create table t3(a int, b int,  CONSTRAINT `fk_db2_db3_t1`
+                                  FOREIGN KEY (a)
+REFERENCES db3.t1 (a)
+ON DELETE CASCADE
+ON UPDATE RESTRICT);
+ERROR 42000: REFERENCES command denied to user 'foo'@'localhost' for table `db3`.`t1`
+create table t1(a int, b int,  CONSTRAINT `fk_db2_db3_t1`
+                                  FOREIGN KEY (a)
+REFERENCES t2 (id)
+ON DELETE CASCADE
+ON UPDATE RESTRICT);
+ERROR 42000: REFERENCES command denied to user 'foo'@'localhost' for table `db1`.`t2`
+connection default;
+disconnect con1;
+grant create view, select on db1.* to foo@localhost;
+connect  con1,localhost,foo,,db1;
+create view t_v as select * from t;
+show grants;
+Grants for foo@localhost
+GRANT USAGE ON *.* TO `foo`@`localhost`
+GRANT SELECT, CREATE, CREATE VIEW ON `db1`.* TO `foo`@`localhost`
+show create view t_v;
+ERROR 42000: SHOW VIEW command denied to user 'foo'@'localhost' for table `db1`.`t_v`
+connection default;
+disconnect con1;
+grant show view on db1.* to foo@localhost;
+connect  con1,localhost,foo,,db1;
+show grants;
+Grants for foo@localhost
+GRANT USAGE ON *.* TO `foo`@`localhost`
+GRANT SELECT, CREATE, CREATE VIEW, SHOW VIEW ON `db1`.* TO `foo`@`localhost`
+show create view t_v;
+View	Create View	character_set_client	collation_connection
+t_v	CREATE ALGORITHM=UNDEFINED DEFINER=`foo`@`localhost` SQL SECURITY DEFINER VIEW `t_v` AS select `t`.`t` AS `t` from `t`	latin1	latin1_swedish_ci
+connection default;
+disconnect con1;
+drop database db1;
+drop user foo@localhost;
 # End of 10.3 tests
 create user u1@h identified with 'mysql_native_password' using 'pwd';
 ERROR HY000: Password hash should be a 41-digit hexadecimal number
@@ -301,7 +362,7 @@ show create table db.t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 delete from db.t1 returning *;
 ERROR 42000: SELECT command denied to user 'foo'@'localhost' for column 'a' in table 't1'
 disconnect con1;

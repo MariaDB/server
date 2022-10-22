@@ -1,5 +1,5 @@
--- source include/have_geometry.inc
-
+--source include/no_valgrind_without_big.inc
+--source include/have_geometry.inc
 
 #
 # Spatial objects
@@ -9,13 +9,15 @@
 DROP TABLE IF EXISTS t1;
 --enable_warnings
 
+#enable after fix MDEV-27871
+--disable_view_protocol
 select 1, ST_Intersects(GeomFromText('POLYGON((0 0,20 0,20 20,0 20,0 0))'), GeomFromText('POLYGON((10 10,30 10,30 30,10 30,10 10))'));
 select 0, ST_Intersects(GeomFromText('POLYGON((0 0,20 10,10 30, 0 0))'), GeomFromText('POLYGON((10 40, 40 50, 20 70, 10 40))'));
 select 1, ST_Intersects(GeomFromText('POLYGON((0 0,20 10,10 30, 0 0))'), GeomFromText('POINT(10 10)'));
 select 1, ST_Intersects(GeomFromText('POLYGON((0 0,20 10,10 30, 0 0))'), GeomFromText('POLYGON((10 10,30 20,20 40, 10 10))'));
 select 0, ST_Within(GeomFromText('POLYGON((0 0,20 10,10 30, 0 0))'), GeomFromText('POLYGON((10 10,30 20,20 40, 10 10))'));
 select 1, ST_Within(GeomFromText('POLYGON((1 1,20 10,10 30, 1 1))'), GeomFromText('POLYGON((0 0,30 5,10 40, 0 0))'));
-
+--enable_view_protocol 
 
 create table t1 (g point);
 insert into t1 values 
@@ -36,6 +38,8 @@ select astext(g) from t1 where ST_Contains(GeomFromText('POLYGON((5 1, 7 1, 7 7,
 
 DROP TABLE t1;
 
+#enable after fix MDEV-27871
+--disable_view_protocol
 select 0, ST_Within(GeomFromText('LINESTRING(15 15, 50 50, 60 60)'), GeomFromText('POLYGON((10 10,30 20,20 40, 10 10))'));
 select 1, ST_Within(GeomFromText('LINESTRING(15 15, 16 16)'), GeomFromText('POLYGON((10 10,30 20,20 40, 10 10))'));
 
@@ -80,6 +84,8 @@ select astext(ST_symdifference(geomfromtext('polygon((0 0, 1 0, 0 1, 0 0))'), ge
 --replace_result 7.999999999999999 8
 select astext(ST_UNION(GeomFromText('POLYGON((0 0, 50 45, 40 50, 0 0))'), GeomFromText('LINESTRING(-10 -10, 200 200, 199 201, -11 -9)')));
 
+--enable_view_protocol 
+
 # Buffer() tests
 --replace_result 0012045437948276 00120454379482759
 select astext(ST_buffer(geometryfromtext('point(1 1)'), 1));
@@ -97,6 +103,9 @@ select ST_NUMPOINTS(ST_EXTERIORRING(@buff));
 # cleanup
 DROP TABLE t1;
 
+#enable after fix MDEV-27871
+--disable_view_protocol
+
 #Touches tests
 select st_touches(geomfromtext('point(0 0)'), geomfromtext('point(1 1)'));
 select st_touches(geomfromtext('point(1 1)'), geomfromtext('point(1 1)'));
@@ -111,6 +120,7 @@ SELECT ST_Equals(PolyFromText('POLYGON((67 13, 67 18, 67 18, 59 18, 59 13, 67 13
 SELECT ST_Equals(PolyFromText('POLYGON((67 13, 67 18, 67 18, 59 18, 59 13, 67 13) )'),PolyFromText('POLYGON((67 13, 67 18, 59 18, 59 13, 59 13, 67 13) )')) as result;
 SELECT ST_Equals(PointFromText('POINT (12 13)'),PointFromText('POINT (12 13)')) as result;
 
+--enable_view_protocol 
 
 --echo #
 --echo # BUG#11755628/47429: INTERSECTION FUNCTION CRASHED MYSQLD 
@@ -140,18 +150,29 @@ SELECT ASTEXT(TOUCHES(@a, GEOMFROMTEXT('point(0 0)'))) t;
 
 # bug #801243 Assertion `(0)' failed in Gis_geometry_collection::init_from_opresult on ST_UNION
 
+#enable after fix MDEV-27871
+--disable_view_protocol
+
 SELECT astext(ST_UNION (
         PolyFromText('POLYGON(( 2 2 ,3 2,2 7,2 2),( 0 0,8 2,1 9,0 0))'),
         ExteriorRing( Envelope( MultiLineStringFromText('MULTILINESTRING((3 4,5 3),(3 0,0 5))')))));
 
+--enable_view_protocol
+
 #bug 801189 ST_BUFFER asserts if radius = 0
 SELECT astext(ST_BUFFER(LineStringFromText('LINESTRING(0 0,1 1)'),0));
 
+#enable after fix MDEV-27871
+--disable_view_protocol
 #bug 801199 Infinite recursion in Gcalc_function::count_internal with ST_BUFFER over MULTIPOINT
 SELECT Round(ST_Area(ST_BUFFER(MultipointFromText('MULTIPOINT(7 7,3 7,7 2,7 4 ,7 7)'), 3)), 5);
+--enable_view_protocol
 
 #bug 801212 Assertion with ST_INTERSECTION on NULL values
 SELECT ST_INTERSECTION(NULL, NULL);
+
+#enable after fix MDEV-27871
+--disable_view_protocol
 
 #bug 804305 Crash in wkb_get_double with ST_INTERSECTION
 SELECT ASTEXT(ST_INTERSECTION(
@@ -382,6 +403,8 @@ SELECT ST_RELATE(
     'F*FFFF**F'
     ) as relate_res;
 
+--enable_view_protocol
+
 # MDEV-18920 Prepared statements with st_convexhull hang and eat 100% cpu.
 prepare s from 'do st_convexhull(st_aswkb(multipoint(point(-11702,15179),point(-5031,27960),point(-30557,11158),point(-27804,30314))))';
 execute s;
@@ -421,6 +444,8 @@ SELECT ST_DISTANCE_SPHERE(1, 1, NULL);
 --error ER_INTERNAL_ERROR
 SELECT ST_DISTANCE_SPHERE(ST_GEOMFROMTEXT('POINT(1 0)'), ST_GEOMFROMTEXT('LINESTRING(0 0, 1 1)'));
 
+#enable after fix MDEV-27871
+--disable_view_protocol
 --echo # Test Points and radius
 SELECT ST_DISTANCE_SPHERE(ST_GEOMFROMTEXT('POINT(0 0)'), ST_GEOMFROMTEXT('POINT(1 1)'));
 # make bb x86 happy
@@ -454,6 +479,8 @@ SELECT TRUNCATE(ST_DISTANCE_SPHERE(ST_GEOMFROMTEXT('MULTIPOINT(1 2,1 1 )'), ST_G
 SELECT TRUNCATE(ST_DISTANCE_SPHERE(ST_GEOMFROMTEXT('MULTIPOINT(1 2,1 1 )'), ST_GEOMFROMTEXT('MULTIPOINT(8 9,3 4 )'),1), 17);
 --error ER_INTERNAL_ERROR
 SELECT ST_DISTANCE_SPHERE(ST_GEOMFROMTEXT('MULTIPOINT(1 2,1 1 )'), ST_GEOMFROMTEXT('MULTIPOINT(8 9,3 4 )'),0);
+
+--enable_view_protocol
 
 # Longitude out of range [-180,180]
 set @pt1 = ST_GeomFromText('POINT(190 -30)');

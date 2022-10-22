@@ -47,7 +47,8 @@ Created 4/20/1996 Heikki Tuuri
 # include "btr0sea.h"
 #endif
 #ifdef WITH_WSREP
-#include "wsrep_mysqld.h"
+#include <wsrep.h>
+#include <mysql/service_wsrep.h>
 #endif /* WITH_WSREP */
 
 /*************************************************************************
@@ -306,7 +307,7 @@ row_ins_clust_index_entry_by_modify(
 	}
 
 	update = row_upd_build_difference_binary(
-		cursor->index, entry, rec, NULL, true,
+		cursor->index, entry, rec, NULL, true, true,
 		thr_get_trx(thr), heap, mysql_table, &err);
 	if (err != DB_SUCCESS) {
 		return(err);
@@ -1139,7 +1140,7 @@ row_ins_foreign_check_on_constraint(
 					tmp_heap);
 		err = btr_pcur_open_with_no_init(clust_index, ref,
 						 PAGE_CUR_LE, BTR_SEARCH_LEAF,
-						 cascade->pcur, 0, mtr);
+						 cascade->pcur, mtr);
 		if (UNIV_UNLIKELY(err != DB_SUCCESS)) {
 			goto nonstandard_exit_func;
 		}
@@ -2232,7 +2233,9 @@ row_ins_duplicate_error_in_clust_online(
 		}
 	}
 
-	rec = page_rec_get_next_const(btr_cur_get_rec(cursor));
+	if (!(rec = page_rec_get_next_const(btr_cur_get_rec(cursor)))) {
+		return DB_CORRUPTION;
+	}
 
 	if (cursor->up_match >= n_uniq && !page_rec_is_supremum(rec)) {
 		*offsets = rec_get_offsets(rec, cursor->index, *offsets,
@@ -2353,11 +2356,13 @@ duplicate:
 		}
 	}
 
+	err = DB_SUCCESS;
+
 	if (cursor->up_match >= n_unique) {
 
 		rec = page_rec_get_next(btr_cur_get_rec(cursor));
 
-		if (!page_rec_is_supremum(rec)) {
+		if (rec && !page_rec_is_supremum(rec)) {
 			offsets = rec_get_offsets(rec, cursor->index, offsets,
 						  cursor->index->n_core_fields,
 						  ULINT_UNDEFINED, &heap);
@@ -2382,24 +2387,23 @@ duplicate:
 			}
 
 			switch (err) {
-			case DB_SUCCESS_LOCKED_REC:
-			case DB_SUCCESS:
-				break;
 			default:
-				goto func_exit;
-			}
-
-			if (row_ins_dupl_error_with_rec(
-				    rec, entry, cursor->index, offsets)) {
-				goto duplicate;
+				break;
+			case DB_SUCCESS_LOCKED_REC:
+				err = DB_SUCCESS;
+				/* fall through */
+			case DB_SUCCESS:
+				if (row_ins_dupl_error_with_rec(
+					    rec, entry, cursor->index,
+					    offsets)) {
+					goto duplicate;
+				}
 			}
 		}
 
 		/* This should never happen */
-		ut_error;
+		err = DB_CORRUPTION;
 	}
-
-	err = DB_SUCCESS;
 func_exit:
 	if (UNIV_LIKELY_NULL(heap)) {
 		mem_heap_free(heap);
@@ -2905,7 +2909,7 @@ row_ins_sec_index_entry_low(
 		err = btr_cur_search_to_nth_level(
 			index, 0, entry, PAGE_CUR_RTREE_INSERT,
 			search_mode,
-			&cursor, 0, &mtr);
+			&cursor, &mtr);
 
 		if (err == DB_SUCCESS && search_mode == BTR_MODIFY_LEAF
 		    && rtr_info.mbr_adj) {
@@ -2924,7 +2928,7 @@ row_ins_sec_index_entry_low(
 			err = btr_cur_search_to_nth_level(
 				index, 0, entry, PAGE_CUR_RTREE_INSERT,
 				search_mode,
-				&cursor, 0, &mtr);
+				&cursor, &mtr);
 		}
 
 		DBUG_EXECUTE_IF(
@@ -2939,7 +2943,7 @@ row_ins_sec_index_entry_low(
 		err = btr_cur_search_to_nth_level(
 			index, 0, entry, PAGE_CUR_LE,
 			search_mode,
-			&cursor, 0, &mtr);
+			&cursor, &mtr);
 	}
 
 	if (err != DB_SUCCESS) {
@@ -3019,7 +3023,7 @@ row_ins_sec_index_entry_low(
 			index, 0, entry, PAGE_CUR_LE,
 			(search_mode
 			 & ~(BTR_INSERT | BTR_IGNORE_SEC_UNIQUE)),
-			&cursor, 0, &mtr);
+			&cursor, &mtr);
 		if (err != DB_SUCCESS) {
 			goto func_exit;
 		}

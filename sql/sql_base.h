@@ -562,6 +562,11 @@ public:
     return m_timeout;
   }
 
+  enum_open_table_action get_action() const
+  {
+    return m_action;
+  }
+
   uint get_flags() const { return m_flags; }
 
   /**

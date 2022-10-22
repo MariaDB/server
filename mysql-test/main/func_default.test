@@ -142,6 +142,9 @@ DROP TABLE t1;
 --echo #
 --echo # MDEV-21028 Server crashes in Query_arena::set_query_arena upon SELECT from view
 --echo #
+#view protocol generates additional statistics
+--disable_view_protocol
+
 create table t1 (a datetime default current_timestamp);
 insert into t1 () values (),();
 create algorithm=temptable view v1 as select * from t1;
@@ -151,7 +154,9 @@ select default(a) = now() from v2;
 drop view v1, v2;
 drop table t1;
 
-create table t1 (v1 timestamp) select 'x';
+--enable_view_protocol
+
+create table t1 (v1 timestamp not null default now() on update now()) select 'x';
 show create table t1;
 select default(v1) from (select v1 from t1) dt;
 select default(v1) from (select v1 from t1 group by v1) dt;

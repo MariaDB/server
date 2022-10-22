@@ -1,0 +1,39 @@
+include/master-slave.inc
+[connection master]
+#
+# Set replica to ignore system tables
+connection slave;
+include/stop_slave.inc
+SET @@GLOBAL.replicate_wild_ignore_table="mysql.%";
+include/start_slave.inc
+#
+# Trying to execute REVOKE ALL PRIVILEGES on a non-existent user and
+# DROP USER on a list of users where not all users exist should error
+# and be written into the binary log
+connection master;
+REVOKE ALL PRIVILEGES, GRANT OPTION FROM 'nonexistentuser'@'%';
+ERROR HY000: Can't revoke all privileges for one or more of the requested users
+CREATE USER 'testuser'@'localhost' IDENTIFIED by '';
+DROP USER 'testuser'@'localhost', 'nonexistentuser'@'%';
+ERROR HY000: Operation DROP USER failed for 'nonexistentuser'@'%'
+#
+# Ensure the events exist in the primary's binary log
+FLUSH BINARY LOGS;
+# MYSQL_BINLOG MYSQLD_DATADIR/binlog_file > MYSQL_TMP_DIR/mysqlbinlog_out.sql
+# There should be three Query events: REVOKE, CREATE USER, and DROP USER
+FOUND 3 /Query/ in mysqlbinlog_out.sql
+FOUND 1 /REVOKE ALL PRIVILEGES/ in mysqlbinlog_out.sql
+FOUND 1 /CREATE USER/ in mysqlbinlog_out.sql
+FOUND 1 /DROP USER/ in mysqlbinlog_out.sql
+#
+# Ensure that the replica receives the event without error
+connection slave;
+Last_SQL_Error = 
+Last_SQL_Errno = 0
+#
+# Clean up
+connection slave;
+include/stop_slave.inc
+SET @@GLOBAL.replicate_wild_ignore_table="";
+include/start_slave.inc
+include/rpl_end.inc

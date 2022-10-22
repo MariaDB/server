@@ -27,7 +27,7 @@ use Sys::Hostname;
 use base qw(Exporter);
 our @EXPORT= qw(report_option mtr_print_line mtr_print_thick_line
 		mtr_print_header mtr_report mtr_report_stats
-		mtr_warning mtr_error mtr_debug mtr_verbose
+		mtr_warning mtr_error mtr_debug mtr_verbose mtr_verbose2
 		mtr_verbose_restart mtr_report_test_passed
 		mtr_report_test_skipped mtr_print
 		mtr_report_test isotime);
@@ -709,6 +709,15 @@ sub mtr_debug (@) {
 
 sub mtr_verbose (@) {
   if ( $verbose )
+  {
+    print STDERR _name(). _timestamp().
+      "> ".join(" ", @_)."\n";
+  }
+}
+
+
+sub mtr_verbose2 (@) {
+  if ( $verbose > 1 )
   {
     print STDERR _name(). _timestamp().
       "> ".join(" ", @_)."\n";

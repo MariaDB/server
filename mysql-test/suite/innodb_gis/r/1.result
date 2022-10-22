@@ -580,7 +580,7 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `ST_GeomFromWKB(POINT(1,3))` geometry DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 drop table t1;
 SET sql_mode = 'NO_ENGINE_SUBSTITUTION';
 CREATE TABLE `t1` (`object_id` bigint(20) unsigned NOT NULL default '0', `geo`
@@ -660,9 +660,9 @@ object_id	ST_geometrytype(geo)	ST_ISSIMPLE(GEO)	ST_ASTEXT(ST_centroid(geo))
 drop table t1;
 create table t1 (fl geometry not null);
 insert into t1 values (1);
-ERROR HY000: Illegal parameter data types geometry and int for operation 'SET'
+ERROR HY000: Cannot cast 'int' as 'geometry' in assignment of `test`.`t1`.`fl`
 insert into t1 values (1.11);
-ERROR HY000: Illegal parameter data types geometry and decimal for operation 'SET'
+ERROR HY000: Cannot cast 'decimal' as 'geometry' in assignment of `test`.`t1`.`fl`
 insert into t1 values ("qwerty");
 ERROR 22003: Cannot get geometry object from data you send to the GEOMETRY field
 insert into t1 values (ST_pointfromtext('point(1,1)'));
@@ -1118,8 +1118,8 @@ SELECT 1 FROM g1 WHERE a >= ANY
 (SELECT 1 FROM g1 WHERE a = ST_geomfromtext('') OR a) ;
 1
 Warnings:
-Warning	1292	Truncated incorrect DOUBLE value: 'a'
-Warning	1292	Truncated incorrect DOUBLE value: 'a'
+Warning	1292	Truncated incorrect DECIMAL value: 'a'
+Warning	1292	Truncated incorrect DECIMAL value: 'a'
 DROP TABLE g1;
 End of 5.5 tests
 DROP DATABASE IF EXISTS gis_ogs;

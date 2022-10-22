@@ -1,0 +1,17 @@
+connection node_2;
+connection node_1;
+show variables like 'auto_increment%';
+Variable_name	Value
+auto_increment_increment	3
+auto_increment_offset	3
+create table t4 (c1 int primary key auto_increment) engine=innodb;
+show variables like 'auto_increment%';
+Variable_name	Value
+auto_increment_increment	3
+auto_increment_offset	3
+alter table t4 add (c2 varchar(50));
+show variables like 'auto_increment%';
+Variable_name	Value
+auto_increment_increment	3
+auto_increment_offset	3
+DROP TABLE t4;

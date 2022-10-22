@@ -32,7 +32,7 @@ CREATE OR REPLACE DATABASE db2;
 ERROR 42000: Access denied for user 'mysqltest_1'@'localhost' to database 'db2'
 USE db1;
 CREATE OR REPLACE TABLE t1(id INT);
-ERROR 42000: DROP command denied to user 'mysqltest_1'@'localhost' for table 't1'
+ERROR 42000: DROP command denied to user 'mysqltest_1'@'localhost' for table `db1`.`t1`
 CREATE OR REPLACE PROCEDURE proc1 (OUT cnt INT) BEGIN END;
 ERROR 42000: alter routine command denied to user 'mysqltest_1'@'localhost' for routine 'db1.proc1'
 CREATE OR REPLACE FUNCTION lookup RETURNS STRING SONAME "UDF_EXAMPLE_LIB";

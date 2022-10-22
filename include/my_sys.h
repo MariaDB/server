@@ -243,7 +243,7 @@ extern void (*proc_info_hook)(void *, const PSI_stage_info *, PSI_stage_info *,
                               const char *, const char *, const unsigned int);
 
 /* charsets */
-#define MY_ALL_CHARSETS_SIZE 2048
+#define MY_ALL_CHARSETS_SIZE 4096
 extern MYSQL_PLUGIN_IMPORT CHARSET_INFO *default_charset_info;
 extern MYSQL_PLUGIN_IMPORT CHARSET_INFO *all_charsets[MY_ALL_CHARSETS_SIZE];
 extern struct charset_info_st compiled_charsets[];
@@ -958,6 +958,17 @@ extern ulonglong my_getcputime(void);
 #define hrtime_sec_part(X)              ((ulong)((X).val % HRTIME_RESOLUTION))
 #define my_time(X)                      hrtime_to_time(my_hrtime_coarse())
 
+/**
+  Make high resolution time from two parts.
+*/
+
+static inline my_hrtime_t make_hr_time(my_time_t time, ulong time_sec_part)
+{
+  my_hrtime_t res= {((ulonglong) time)*1000000 + time_sec_part};
+  return res;
+}
+
+
 #if STACK_DIRECTION < 0
 #define available_stack_size(CUR,END) (long) ((char*)(CUR) - (char*)(END))
 #else
@@ -1112,4 +1123,135 @@ void my_init_mysys_psi_keys(void);
 struct st_mysql_file;
 extern struct st_mysql_file *mysql_stdin;
 C_MODE_END
+
+
+#ifdef __cplusplus
+
+class Charset_loader_mysys: public MY_CHARSET_LOADER
+{
+public:
+  Charset_loader_mysys()
+  {
+    my_charset_loader_init_mysys(this);
+  }
+
+  /**
+    Get a CHARSET_INFO by a character set name.
+
+    @param name      Collation name
+    @param cs_flags  e.g. MY_CS_PRIMARY, MY_CS_BINARY
+    @param my_flags  mysys flags (MY_WME, MY_UTF8_IS_UTF8MB3)
+    @return
+    @retval          NULL on error (e.g. not found)
+    @retval          A CHARSET_INFO pointter on success
+  */
+  CHARSET_INFO *get_charset(const char *cs_name, uint cs_flags, myf my_flags)
+  {
+    error[0]= '\0'; // Need to clear in case of the second call
+    return my_charset_get_by_name(this, cs_name, cs_flags, my_flags);
+  }
+
+  /**
+    Get a CHARSET_INFO by an exact collation by name.
+
+    @param name      Collation name
+    @param my_flags  e.g. the utf8 translation flag
+    @return
+    @retval          NULL on error (e.g. not found)
+    @retval          A CHARSET_INFO pointter on success
+  */
+  CHARSET_INFO *get_exact_collation(const char *name, myf my_flags)
+  {
+    error[0]= '\0'; // Need to clear in case of the second call
+    return my_collation_get_by_name(this, name, my_flags);
+  }
+
+  /**
+    Get a CHARSET_INFO by a context collation by name.
+    The returned pointer must be further resolved to a character set.
+
+    @param name      Collation name
+    @param utf8_flag The utf8 translation flag
+    @return
+    @retval          NULL on error (e.g. not found)
+    @retval          A CHARSET_INFO pointter on success
+  */
+  CHARSET_INFO *get_context_collation(const char *name, myf my_flags)
+  {
+    return get_exact_collation_by_context_name(&my_charset_utf8mb4_general_ci,
+                                               name, my_flags);
+  }
+
+  /**
+    Get an exact CHARSET_INFO by a contextually typed collation name.
+
+    @param name      Collation name
+    @param utf8_flag The utf8 translation flag
+    @return
+    @retval          NULL on error (e.g. not found)
+    @retval          A CHARSET_INFO pointer on success
+  */
+  CHARSET_INFO *get_exact_collation_by_context_name(CHARSET_INFO *cs,
+                                                    const char *name,
+                                                    myf my_flags)
+  {
+    char tmp[MY_CS_COLLATION_NAME_SIZE];
+    my_snprintf(tmp, sizeof(tmp), "%s_%s", cs->cs_name.str, name);
+    return get_exact_collation(tmp, my_flags);
+  }
+
+  /*
+    Find a collation with binary comparison rules
+  */
+  CHARSET_INFO *get_bin_collation(CHARSET_INFO *cs, myf my_flags)
+  {
+    /*
+      We don't need to handle old_mode=UTF8_IS_UTF8MB3 here,
+      This method assumes that "cs" points to a real character set name.
+      It can be either "utf8mb3" or "utf8mb4". It cannot be "utf8".
+      No thd->get_utf8_flag() flag passed to get_charset_by_csname().
+    */
+    DBUG_ASSERT(cs->cs_name.length !=4 || memcmp(cs->cs_name.str, "utf8", 4));
+    /*
+      CREATE TABLE t1 (a CHAR(10) BINARY)
+        CHARACTER SET utf8mb4 COLLATE utf8mb4_bin;
+      Nothing to do, we have the binary collation already.
+    */
+    if (cs->state & MY_CS_BINSORT)
+      return cs;
+
+    // CREATE TABLE t1 (a CHAR(10) BINARY) CHARACTER SET utf8mb4;/
+    error[0]= '\0'; // Need in case of the second execution
+    return get_charset(cs->cs_name.str, MY_CS_BINSORT, my_flags);
+  }
+
+  /*
+    Find the default collation in the given character set
+  */
+  CHARSET_INFO *get_default_collation(CHARSET_INFO *cs, myf my_flags)
+  {
+    // See comments in find_bin_collation_or_error()
+    DBUG_ASSERT(cs->cs_name.length !=4 || memcmp(cs->cs_name.str, "utf8", 4));
+    /*
+      CREATE TABLE t1 (a CHAR(10) COLLATE DEFAULT) CHARACTER SET utf8mb4;
+      Nothing to do, we have the default collation already.
+    */
+    if (cs->state & MY_CS_PRIMARY)
+      return cs;
+    /*
+      CREATE TABLE t1 (a CHAR(10) COLLATE DEFAULT)
+        CHARACTER SET utf8mb4 COLLATE utf8mb4_bin;
+
+      Don't need to handle old_mode=UTF8_IS_UTF8MB3 here.
+      See comments in find_bin_collation_or_error.
+    */
+    cs= get_charset(cs->cs_name.str, MY_CS_PRIMARY, my_flags);
+    DBUG_ASSERT(cs);
+    return cs;
+  }
+};
+
+#endif /*__cplusplus */
+
+
 #endif /* _my_sys_h */

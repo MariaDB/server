@@ -217,7 +217,9 @@ public:
     /** The page was modified, affecting the encryption parameters */
     APPLIED_TO_ENCRYPTION,
     /** The page was modified, affecting the tablespace header */
-    APPLIED_TO_FSP_HEADER
+    APPLIED_TO_FSP_HEADER,
+    /** The page was found to be corrupted */
+    APPLIED_CORRUPTED,
   };
 
   /** Apply log to a page frame.
@@ -299,12 +301,10 @@ public:
         ut_ad(*l == OPT_PAGE_CHECKSUM);
         if (page_checksum(block, l + 1))
         {
-          applied= APPLIED_YES;
 page_corrupted:
           sql_print_error("InnoDB: Set innodb_force_recovery=1"
                           " to ignore corruption.");
-          recv_sys.set_corrupt_log();
-          return applied;
+          return APPLIED_CORRUPTED;
         }
         goto next_after_applying;
       }
@@ -393,7 +393,7 @@ page_corrupted:
             rlen-= ll;
             l+= ll;
             ll= mlog_decode_varint_length(*l);
-            if (UNIV_UNLIKELY(ll > 3 || ll >= rlen))
+            if (UNIV_UNLIKELY(ll > 3 || ll > rlen))
               goto record_corrupted;
             size_t data_c= mlog_decode_varint(l);
             ut_ad(data_c != MLOG_DECODE_ERROR);
@@ -420,7 +420,7 @@ page_corrupted:
             rlen-= ll;
             l+= ll;
             ll= mlog_decode_varint_length(*l);
-            if (UNIV_UNLIKELY(ll > 2 || ll >= rlen))
+            if (UNIV_UNLIKELY(ll > 2 || ll > rlen))
               goto record_corrupted;
             size_t data_c= mlog_decode_varint(l);
             rlen-= ll;
@@ -727,7 +727,7 @@ static struct
   @param id   tablespace id
   @return tablespace whose creation was deferred
   @retval nullptr if no such tablespace was found */
-  const item *find(uint32_t id)
+  item *find(uint32_t id)
   {
     mysql_mutex_assert_owner(&recv_sys.mutex);
     auto it= defers.find(id);
@@ -829,7 +829,29 @@ processed:
     fil_space_t *space= fil_space_t::create(it->first, flags,
                                             FIL_TYPE_TABLESPACE, crypt_data);
     ut_ad(space);
-    space->add(name.c_str(), OS_FILE_CLOSED, size, false, false);
+    const char *filename= name.c_str();
+    if (srv_operation == SRV_OPERATION_RESTORE)
+    {
+      const char* tbl_name = strrchr(filename, '/');
+#ifdef _WIN32
+      if (const char *last = strrchr(filename, '\\'))
+      {
+        if (last > tbl_name)
+          tbl_name = last;
+      }
+#endif
+      if (tbl_name)
+      {
+        while (--tbl_name > filename &&
+#ifdef _WIN32
+               *tbl_name != '\\' &&
+#endif
+               *tbl_name != '/');
+        if (tbl_name > filename)
+          filename= tbl_name + 1;
+      }
+    }
+    space->add(filename, OS_FILE_CLOSED, size, false, false);
     space->recv_size= it->second.size;
     space->size_in_header= size;
     return space;
@@ -1181,11 +1203,11 @@ inline size_t recv_sys_t::files_size()
 @param[in]	name		file name
 @param[in]	len		length of the file name
 @param[in]	space_id	the tablespace ID
-@param[in]	deleted		whether this is a FILE_DELETE record
+@param[in]	ftype		FILE_MODIFY, FILE_DELETE, or FILE_RENAME
 @param[in]	lsn		lsn of the redo log
 @param[in]	store		whether the redo log has to be stored */
 static void fil_name_process(const char *name, ulint len, uint32_t space_id,
-                             bool deleted, lsn_t lsn, store_t store)
+                             mfile_type_t ftype, lsn_t lsn, store_t store)
 {
 	if (srv_operation == SRV_OPERATION_BACKUP
 	    || srv_operation == SRV_OPERATION_BACKUP_NO_DEFER) {
@@ -1200,6 +1222,7 @@ static void fil_name_process(const char *name, ulint len, uint32_t space_id,
 	further checks can ensure that a FILE_MODIFY record was
 	scanned before applying any page records for the space_id. */
 
+	const bool deleted{ftype == FILE_DELETE};
 	const file_name_t fname(std::string(name, len), deleted);
 	std::pair<recv_spaces_t::iterator,bool> p = recv_spaces.emplace(
 		space_id, fname);
@@ -2806,11 +2829,9 @@ inline recv_sys_t::parse_mtr_result recv_sys_t::parse(store_t store, source &l)
           continue;
 
         fil_name_process(fn, fnend - fn, space_id,
-                         (b & 0xf0) == FILE_DELETE, start_lsn,
-                         store);
-        if (fn2)
-          fil_name_process(fn2, fn2end - fn2, space_id,
-                           false, start_lsn, store);
+                         (b & 0xf0) == FILE_DELETE ? FILE_DELETE : FILE_MODIFY,
+                         start_lsn, store);
+
         if ((b & 0xf0) < FILE_CHECKPOINT && log_file_op)
           log_file_op(space_id, b & 0xf0,
                       reinterpret_cast<const byte*>(fn),
@@ -2818,13 +2839,19 @@ inline recv_sys_t::parse_mtr_result recv_sys_t::parse(store_t store, source &l)
                       reinterpret_cast<const byte*>(fn2),
                       fn2 ? static_cast<ulint>(fn2end - fn2) : 0);
 
-        if (fn2 && file_checkpoint)
+        if (fn2)
         {
-          const size_t len= fn2end - fn2;
-          auto r= renamed_spaces.emplace(space_id, std::string{fn2, len});
-          if (!r.second)
-            r.first->second= std::string{fn2, len};
+          fil_name_process(fn2, fn2end - fn2, space_id,
+                           FILE_RENAME, start_lsn, store);
+          if (file_checkpoint)
+          {
+            const size_t len= fn2end - fn2;
+            auto r= renamed_spaces.emplace(space_id, std::string{fn2, len});
+            if (!r.second)
+              r.first->second= std::string{fn2, len};
+          }
         }
+
         if (is_corrupt_fs())
           return GOT_EOF;
       }
@@ -2980,6 +3007,7 @@ static buf_block_t *recv_recover_page(buf_block_t *block, mtr_t &mtr,
 			start_lsn = 0;
 			continue;
 		case log_phys_t::APPLIED_YES:
+		case log_phys_t::APPLIED_CORRUPTED:
 			goto set_start_lsn;
 		case log_phys_t::APPLIED_TO_FSP_HEADER:
 		case log_phys_t::APPLIED_TO_ENCRYPTION:
@@ -3033,7 +3061,8 @@ static buf_block_t *recv_recover_page(buf_block_t *block, mtr_t &mtr,
 		}
 
 set_start_lsn:
-		if (recv_sys.is_corrupt_log() && !srv_force_recovery) {
+		if ((a == log_phys_t::APPLIED_CORRUPTED
+		     || recv_sys.is_corrupt_log()) && !srv_force_recovery) {
 			if (init) {
 				init->created = false;
 				if (space || block->page.id().page_no()) {
@@ -3130,7 +3159,13 @@ ATTRIBUTE_COLD void recv_sys_t::free_corrupted_page(page_id_t page_id)
     p->second.log.clear();
     pages.erase(p);
     if (!srv_force_recovery)
+    {
       set_corrupt_fs();
+      ib::error() << "Unable to apply log to corrupted page " << page_id
+                  << "; set innodb_force_recovery to ignore";
+    }
+    else
+      ib::warn() << "Discarding log for corrupted page " << page_id;
   }
 
   if (pages.empty())
@@ -3678,7 +3713,7 @@ static bool recv_scan_log(bool last_phase)
 
       for (;;)
       {
-        const byte b{log_sys.buf[recv_sys.offset]};
+        const byte& b{log_sys.buf[recv_sys.offset]};
         r= recv_sys.parse_pmem(store);
         if (r == recv_sys_t::OK)
         {

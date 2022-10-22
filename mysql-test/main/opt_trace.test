@@ -21,6 +21,7 @@ create view v2 as select * from t1 where t1.a=1 group by t1.b;
 set optimizer_trace="enabled=on";
 
 --echo # Mergeable views/derived tables
+--disable_view_protocol
 select * from v1;
 select * from information_schema.OPTIMIZER_TRACE;
 select * from (select * from t1 where t1.a=1)q;
@@ -29,7 +30,7 @@ select * from information_schema.OPTIMIZER_TRACE;
 --echo # Non-Mergeable views
 select * from v2;
 select * from information_schema.OPTIMIZER_TRACE;
-
+--enable_view_protocol
 drop table t1,t2;
 drop view v1,v2;
 drop function f1;
@@ -276,6 +277,7 @@ end|
 --disable_prepare_warnings
 
 delimiter ;|
+--disable_view_protocol
 set optimizer_trace='enabled=on';
 select f1(a) from t1;
 select * from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
@@ -285,11 +287,12 @@ drop table t1,t2;
 drop function f1;
 drop function f2;
 set optimizer_trace='enabled=off';
+--enable_view_protocol
 
 --echo #
 --echo # MDEV-18489: Limit the memory used by the optimizer trace
 --echo #
-
+--disable_view_protocol
 create table t1 (a int);
 insert into t1 values (1),(2);
 
@@ -308,7 +311,7 @@ select * from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
 drop table t1;
 set optimizer_trace='enabled=off';
 set @@optimizer_trace_max_mem_size= @save_optimizer_trace_max_mem_size;
-
+--enable_view_protocol
 --echo #
 --echo # MDEV-18527: Optimizer trace for DELETE query shows table:null
 --echo #
@@ -405,6 +408,8 @@ create table t1 ( a int, b int, key a_b(a,b));
 insert into t1 select a,a from one_k;
 set optimizer_trace='enabled=on';
 
+#enable after fix MDEV-27871
+--disable_view_protocol
 explain select * from t1 force index (a_b) where a=2 and b=4;
 select JSON_DETAILED(JSON_EXTRACT(trace, '$**.analyzing_range_alternatives')) from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
 
@@ -503,6 +508,7 @@ insert into t1 select date_add(now(), interval a day), date_add(now(), interval 
 explain format=json select * from t1 force index(start_date) where start_date >= '2019-02-10' and end_date <'2019-04-01';
 select JSON_DETAILED(JSON_EXTRACT(trace, '$**.analyzing_range_alternatives')) from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
 drop table t1, t0, one_k;
+--enable_view_protocol
 
 --echo #
 --echo # MDEV-19776: Assertion `to_len >= 8' failed in convert_to_printable with optimizer trace enabled
@@ -532,6 +538,8 @@ set optimizer_trace=1;
 --echo #  (cost_for_plan is the same as best_access_path.cost for single-table SELECTs
 --echo #   but for joins using condition selectivity it is not as trivial. So,
 --echo #   now we are printing it)
+#enable after fix MDEV-27871
+--disable_view_protocol
 explain select * from t0 A, one_k B where A.a<5 and B.a<800;
 select JSON_DETAILED(JSON_EXTRACT(trace, '$**.considered_execution_plans')) from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
 
@@ -541,6 +549,7 @@ set join_cache_level=@tmp_jcl;
 explain select * from t0 A, one_k B where A.a=B.b and B.a<800;
 select JSON_DETAILED(JSON_EXTRACT(trace, '$**.considered_execution_plans')) from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
 drop table t0, one_k;
+--enable_view_protocol
 
 --echo #
 --echo # Assertion `to_len >= 8' failed in convert_to_printable
@@ -551,8 +560,10 @@ insert into t1 values ('foo'), ('bar');
 
 EXPLAIN SELECT * FROM t1 WHERE a= REPEAT('a', 0);
 SELECT * FROM t1 WHERE a= REPEAT('a', 0);
+#enable after fix MDEV-27871
+--disable_view_protocol
 select JSON_DETAILED(JSON_EXTRACT(trace, '$**.analyzing_range_alternatives')) from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
-
+--enable_view_protocol
 DROP TABLE t1;
 
 --echo #
@@ -582,7 +593,10 @@ create table t1 (kp1 int, kp2 int, key(kp1, kp2));
 insert into t1 values (1,1),(1,5),(5,1),(5,5);
 set optimizer_trace=1;
 select * from t1 force index(kp1) where (kp1=2 and kp2 >=4);
+#enable after fix MDEV-27871
+--disable_view_protocol
 select JSON_DETAILED(JSON_EXTRACT(trace, '$**.range_scan_alternatives')) from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+--enable_view_protocol
 drop table t1;
 
 --echo #
@@ -594,10 +608,13 @@ INSERT INTO t1 SELECT seq, seq from seq_1_to_10;
 CREATE TABLE t2(a INT, b INT, key(a));
 INSERT INTO t2 SELECT seq, seq from seq_1_to_100;
 
+#enable after fix MDEV-27871
+--disable_view_protocol
 SET OPTIMIZER_TRACE=1;
 EXPLAIN SELECT * FROM t1, t2 WHERE t1.a=t2.a ORDER BY t2.b;
 select JSON_DETAILED(JSON_EXTRACT(trace, '$**.considered_execution_plans')) from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
 DROP TABLE t1,t2;
+--enable_view_protocol
 
 --echo #
 --echo # MDEV-22665: Print ranges in the optimizer trace created for non-indexed columns when
@@ -608,12 +625,15 @@ CREATE TABLE t1(a INT, b INT);
 INSERT INTO t1 SELECT seq, seq from seq_1_to_100;
 SET optimizer_trace=1;
 ANALYZE TABLE t1 PERSISTENT FOR ALL;
+#enable after fix MDEV-27871
+--disable_view_protocol
 EXPLAIN EXTENDED SELECT * from t1 WHERE a between 1 and 5 and b <= 5;
 select JSON_DETAILED(JSON_EXTRACT(trace, '$**.selectivity_for_columns')) from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
 EXPLAIN EXTENDED SELECT * from t1 WHERE a != 5;
 select JSON_DETAILED(JSON_EXTRACT(trace, '$**.selectivity_for_columns')) from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
 EXPLAIN EXTENDED SELECT * from t1 WHERE b >= 10 and b < 25;
 select JSON_DETAILED(JSON_EXTRACT(trace, '$**.selectivity_for_columns')) from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+--enable_view_protocol
 drop table t1;
 
 --echo #
@@ -624,7 +644,10 @@ drop table t1;
 CREATE TABLE t1( a INT, b INT, PRIMARY KEY( a ) );
 SELECT sum(b), row_number() OVER (order by b) FROM t1 WHERE a = 101;
 UPDATE t1 SET b=10 WHERE a=1;
+#enable after fix MDEV-27871
+--disable_view_protocol
 SELECT JSON_DETAILED(JSON_EXTRACT(trace, '$**.range_scan_alternatives')) from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+--enable_view_protocol
 DROP TABLE t1;
 
 set optimizer_trace='enabled=off';
@@ -642,11 +665,12 @@ set max_session_mem_used=default;
 --echo #
 --echo # MDEV-22380 Assertion `name.length == strlen(name.str)' failed in Item::print_item_w_name on SELECT w/ optimizer_trace enabled
 --echo #
-
+--disable_view_protocol
 SET optimizer_trace="enabled=on";
 SELECT 'a\0' LIMIT 0;
 SELECT query, trace FROM INFORMATION_SCHEMA.OPTIMIZER_TRACE;
 SET optimizer_trace=DEFAULT;
+--enable_view_protocol
 
 --echo #
 --echo # MDEV-27238: Assertion `got_name == named_item_expected()' failed in Json_writer::on_start_object
@@ -668,8 +692,10 @@ set optimizer_trace='enabled=on';
 --echo # Test many rows to see output of big cost numbers
 --echo #
 
+--disable_view_protocol
 select count(*) from seq_1_to_10000000;
 select * from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+--enable_view_protocol
 
 --echo #
 --echo # MDEV-22891: Optimizer trace: const tables are not clearly visible
@@ -689,14 +715,20 @@ insert into t3 select a,a from t0;
 explain
 select * from t1 left join (t2 join t3 on t3.pk=1000) on t2.a=t1.a and t2.pk is null;
 
+#enable after fix MDEV-27871
+--disable_view_protocol
 select JSON_DETAILED(JSON_EXTRACT(trace, '$**.mark_join_nest_as_const'))
 from information_schema.optimizer_trace;
+--enable_view_protocol
 
 drop table t0, t1, t2, t3;
 
 --echo #
 --echo # MDEV-23767: IN-to-subquery conversion is not visible in optimizer trace
 --echo #
+
+#enable after fix MDEV-27871
+--disable_view_protocol
 create table t0 (a int);
 INSERT INTO t0 VALUES (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
 
@@ -719,6 +751,7 @@ from information_schema.optimizer_trace;
 
 set in_predicate_conversion_threshold=@tmp;
 drop table t0;
+--enable_view_protocol
 
 --echo #
 --echo # End of 10.5 tests
@@ -798,10 +831,12 @@ from t1 left join (t2,t3) on t2.a=t1.a and t3.a=t2.a and t3.a + t2.a <1000
 where 
   t1.b > 5555;
 
+--disable_view_protocol
 select
   json_detailed(json_extract(trace, '$**.substitute_best_equal'))
 from
   information_schema.optimizer_trace;
+--enable_view_protocol
 
 --echo # The next query is test for:
 --echo # MDEV-23646: Optimizer trace: optimize_cond() should show ON expression processing
@@ -848,10 +883,12 @@ where t1.b < 3;
 # Just show that choose_best_splitting function has coverage in the 
 # optimizer trace and re-optmization of child select inside it is distinct 
 # from the rest of join optimization.
+--disable_view_protocol
 select
   json_detailed(json_extract(trace, '$**.choose_best_splitting')) 
 from
   information_schema.optimizer_trace;
+--enable_view_protocol
 
 # Same as above. just to show that splitting plan has some coverage in the
 # trace.
@@ -870,9 +907,11 @@ CREATE TABLE t1(id INT, f1 JSON);
 INSERT INTO t1 VALUES (1, '{\"1\": 1}'), (2, '{\"1\": 2}'), (3, '{\"1\": 3}'),
        (4, '{\"1\": 4}'), (5, '{\"1\": 5}'), (6, '{\"1\": 6}');
 
+--disable_view_protocol
 SELECT * FROM t1 WHERE id IN
   (SELECT id FROM t1 as tt2,
          JSON_TABLE(f1, "$" COLUMNS (jf FOR ORDINALITY)) AS tbl);
+--enable_view_protocol
 
 select json_detailed(json_extract(trace, '$**.best_join_order'))
     from information_schema.OPTIMIZER_TRACE;
@@ -885,6 +924,7 @@ set optimizer_trace=0;
 set statement optimizer_trace=1 for select * from seq_1_to_10 where seq<2;
 --echo # The trace must not be empty:
 select left(trace, 100) from information_schema.optimizer_trace;
+set optimizer_trace='enabled=off';
 
 --echo # End of 10.6 tests
-set optimizer_trace='enabled=off';
+

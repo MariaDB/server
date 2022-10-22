@@ -48,7 +48,7 @@ Created 10/25/1995 Heikki Tuuri
 #include "ibuf0ibuf.h"
 #include "buf0flu.h"
 #include "log.h"
-#ifdef UNIV_LINUX
+#ifdef __linux__
 # include <sys/types.h>
 # include <sys/sysmacros.h>
 # include <dirent.h>
@@ -649,11 +649,9 @@ fil_space_extend_must_retry(
 }
 
 /** @return whether the file is usable for io() */
-ATTRIBUTE_COLD bool fil_space_t::prepare(bool have_mutex)
+ATTRIBUTE_COLD bool fil_space_t::prepare_acquired()
 {
   ut_ad(referenced());
-  if (!have_mutex)
-    mysql_mutex_lock(&fil_system.mutex);
   mysql_mutex_assert_owner(&fil_system.mutex);
   fil_node_t *node= UT_LIST_GET_LAST(chain);
   ut_ad(!id || purpose == FIL_TYPE_TEMPORARY ||
@@ -698,8 +696,16 @@ ATTRIBUTE_COLD bool fil_space_t::prepare(bool have_mutex)
 clear:
     clear_closing();
 
-  if (!have_mutex)
-    mysql_mutex_unlock(&fil_system.mutex);
+  return is_open;
+}
+
+/** @return whether the file is usable for io() */
+ATTRIBUTE_COLD bool fil_space_t::acquire_and_prepare()
+{
+  mysql_mutex_lock(&fil_system.mutex);
+  const auto flags= acquire_low() & (STOPPING | CLOSING);
+  const bool is_open= !flags || (flags == CLOSING && prepare_acquired());
+  mysql_mutex_unlock(&fil_system.mutex);
   return is_open;
 }
 
@@ -1201,7 +1207,7 @@ void fil_system_t::create(ulint hash_size)
 	spaces.create(hash_size);
 
 	fil_space_crypt_init();
-#ifdef UNIV_LINUX
+#ifdef __linux__
 	ssd.clear();
 	char fn[sizeof(dirent::d_name)
 		+ sizeof "/sys/block/" "/queue/rotational"];
@@ -1281,10 +1287,10 @@ void fil_system_t::close()
 
   ut_ad(!spaces.array);
 
-#ifdef UNIV_LINUX
+#ifdef __linux__
   ssd.clear();
   ssd.shrink_to_fit();
-#endif /* UNIV_LINUX */
+#endif /* __linux__ */
 }
 
 /** Extend all open data files to the recovered size */
@@ -1396,13 +1402,13 @@ fil_space_t *fil_space_t::get(uint32_t id)
   mysql_mutex_lock(&fil_system.mutex);
   fil_space_t *space= fil_space_get_by_id(id);
   const uint32_t n= space ? space->acquire_low() : 0;
-  mysql_mutex_unlock(&fil_system.mutex);
 
   if (n & STOPPING)
     space= nullptr;
-  else if ((n & CLOSING) && !space->prepare())
+  else if ((n & CLOSING) && !space->prepare_acquired())
     space= nullptr;
 
+  mysql_mutex_unlock(&fil_system.mutex);
   return space;
 }
 

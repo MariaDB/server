@@ -108,9 +108,9 @@ GRANT USAGE ON *.* TO `mysqltest_1`@`localhost`
 GRANT SELECT, INSERT ON `mysqltest`.* TO `mysqltest_1`@`localhost`
 insert into t1 values (1, 'I can''t change it!');
 update t1 set data='I can change it!' where id = 1;
-ERROR 42000: UPDATE command denied to user 'mysqltest_1'@'localhost' for table 't1'
+ERROR 42000: UPDATE command denied to user 'mysqltest_1'@'localhost' for table `mysqltest`.`t1`
 insert into t1 values (1, 'XXX') on duplicate key update data= 'I can change it!';
-ERROR 42000: UPDATE command denied to user 'mysqltest_1'@'localhost' for table 't1'
+ERROR 42000: UPDATE command denied to user 'mysqltest_1'@'localhost' for table `mysqltest`.`t1`
 select * from t1;
 id	data
 1	I can't change it!
@@ -127,7 +127,7 @@ connection mrugly;
 grant select (a,b) on t1 to mysqltest_2@localhost;
 ERROR 42000: SELECT command denied to user 'mysqltest_1'@'localhost' for column 'b' in table 't1'
 grant select on t1 to mysqltest_3@localhost;
-ERROR 42000: SELECT command denied to user 'mysqltest_1'@'localhost' for table 't1'
+ERROR 42000: SELECT command denied to user 'mysqltest_1'@'localhost' for table `mysqltest`.`t1`
 disconnect mrugly;
 connection default;
 drop table t1;
@@ -312,7 +312,7 @@ grant create user on *.* to mysqltest_2@localhost;
 connect  user3,localhost,mysqltest_2,,;
 connection user3;
 select host,user,password,plugin,authentication_string from mysql.user where user like 'mysqltest_%' ;
-ERROR 42000: SELECT command denied to user 'mysqltest_2'@'localhost' for table 'user'
+ERROR 42000: SELECT command denied to user 'mysqltest_2'@'localhost' for table `mysql`.`user`
 create user mysqltest_A@'%';
 rename user mysqltest_A@'%' to mysqltest_B@'%';
 drop user mysqltest_B@'%';
@@ -328,7 +328,7 @@ Grants for mysqltest_3@localhost
 GRANT USAGE ON *.* TO `mysqltest_3`@`localhost`
 GRANT INSERT, UPDATE, DELETE ON `mysql`.* TO `mysqltest_3`@`localhost`
 select host,user,password,plugin,authentication_string from mysql.user where user like 'mysqltest_%' ;
-ERROR 42000: SELECT command denied to user 'mysqltest_3'@'localhost' for table 'user'
+ERROR 42000: SELECT command denied to user 'mysqltest_3'@'localhost' for table `mysql`.`user`
 insert into mysql.global_priv set host='%', user='mysqltest_B';
 create user mysqltest_A@'%';
 rename user mysqltest_B@'%' to mysqltest_C@'%';
@@ -476,9 +476,9 @@ create table t1 (i int);
 connect  user1,localhost,mysqltest_u1,,mysqltest_1;
 connection user1;
 show create table mysqltest_2.t1;
-ERROR 42000: SHOW command denied to user 'mysqltest_u1'@'localhost' for table 't1'
+ERROR 42000: SHOW command denied to user 'mysqltest_u1'@'localhost' for table `mysqltest_2`.`t1`
 create table t1 like mysqltest_2.t1;
-ERROR 42000: SELECT command denied to user 'mysqltest_u1'@'localhost' for table 't1'
+ERROR 42000: SELECT command denied to user 'mysqltest_u1'@'localhost' for table `mysqltest_2`.`t1`
 connection default;
 grant select on mysqltest_2.t1 to mysqltest_u1@localhost;
 connection user1;
@@ -486,7 +486,7 @@ show create table mysqltest_2.t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `i` int(11) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 create table t1 like mysqltest_2.t1;
 connection default;
 disconnect user1;
@@ -533,7 +533,7 @@ USE db1;
 SELECT c FROM t2;
 ERROR 42000: SELECT command denied to user 'mysqltest1'@'localhost' for column 'c' in table 't2'
 SELECT * FROM t2;
-ERROR 42000: SELECT command denied to user 'mysqltest1'@'localhost' for table 't2'
+ERROR 42000: SELECT command denied to user 'mysqltest1'@'localhost' for table `db1`.`t2`
 SELECT * FROM t1 JOIN t2 USING (b);
 ERROR 42000: SELECT command denied to user 'mysqltest1'@'localhost' for column 'c' in table 't2'
 connection default;
@@ -629,7 +629,7 @@ CREATE TEMPORARY TABLE t4 SELECT * FROM t1;
 # temporary table without additional privileges.
 CREATE TEMPORARY TABLE t5(a INT) ENGINE = MyISAM;
 CREATE TEMPORARY TABLE t6(a INT) ENGINE = MERGE UNION = (t5);
-ERROR 42000: SELECT, UPDATE, DELETE command denied to user 'mysqltest_u1'@'localhost' for table 't5'
+ERROR 42000: SELECT, UPDATE, DELETE command denied to user 'mysqltest_u1'@'localhost' for table `mysqltest_db1`.`t5`
 # Check that we allow creation of MERGE table with no underlying table
 # without additional privileges.
 CREATE TEMPORARY TABLE t6(a INT) ENGINE = MERGE UNION = ();
@@ -657,7 +657,7 @@ ALTER TABLE t6 UNION = ();
 # Check that we do *not* allow altering of MERGE table with underlying
 # temporary table without additional privileges.
 ALTER TABLE t6 UNION = (t5);
-ERROR 42000: SELECT, UPDATE, DELETE command denied to user 'mysqltest_u1'@'localhost' for table 't5'
+ERROR 42000: SELECT, UPDATE, DELETE command denied to user 'mysqltest_u1'@'localhost' for table `mysqltest_db1`.`t5`
 #
 # Simple INSERT and INSERT ... SELECT.
 #
@@ -717,7 +717,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TEMPORARY TABLE `t1` (
   `a` int(11) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 #
 # LOAD DATA INFILE (also SELECT INTO OUTFILE).
 #
@@ -902,7 +902,7 @@ CREATE TEMPORARY TABLE t9(a INT);
 CREATE TEMPORARY TABLE t10(a INT) ENGINE = MERGE UNION = (t7, t8);
 ALTER TABLE t10 UNION = (t9);
 ALTER TABLE t10 UNION = (mysqltest_db2.t2_1);
-ERROR 42000: SELECT, UPDATE, DELETE command denied to user 'mysqltest_u5'@'localhost' for table 't2_1'
+ERROR 42000: SELECT, UPDATE, DELETE command denied to user 'mysqltest_u5'@'localhost' for table `mysqltest_db2`.`t2_1`
 CREATE TEMPORARY TABLE mysqltest_db2.t2_2(a INT) ENGINE = MERGE UNION = (t7, t8);
 ALTER TABLE mysqltest_db2.t2_2 UNION = (t9);
 ALTER TABLE mysqltest_db2.t2_2 UNION = ();

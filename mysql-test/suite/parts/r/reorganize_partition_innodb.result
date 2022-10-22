@@ -13,7 +13,7 @@ SHOW CREATE TABLE t;
 Table	Create Table
 t	CREATE TABLE `t` (
   `a` int(11) NOT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
  PARTITION BY HASH (`a`)
 (PARTITION `p1` DATA DIRECTORY = 'MYSQLTEST_VARDIR/tmp/partitions_here' ENGINE = InnoDB,
  PARTITION `p2` DATA DIRECTORY = 'MYSQLTEST_VARDIR/tmp/partitions_here' ENGINE = InnoDB)
@@ -25,7 +25,7 @@ Table	Create Table
 t	CREATE TABLE `t` (
   `a` int(11) NOT NULL,
   PRIMARY KEY (`a`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
  PARTITION BY HASH (`a`)
 (PARTITION `p1` DATA DIRECTORY = 'MYSQLTEST_VARDIR/tmp/partitions_here' ENGINE = InnoDB,
  PARTITION `p2` DATA DIRECTORY = 'MYSQLTEST_VARDIR/tmp/partitions_here' ENGINE = InnoDB)
@@ -34,7 +34,7 @@ SHOW CREATE TABLE t;
 Table	Create Table
 t	CREATE TABLE `t` (
   `a` int(11) NOT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
  PARTITION BY HASH (`a`)
 (PARTITION `p1` DATA DIRECTORY = 'MYSQLTEST_VARDIR/tmp/partitions_here' ENGINE = InnoDB,
  PARTITION `p2` DATA DIRECTORY = 'MYSQLTEST_VARDIR/tmp/partitions_here' ENGINE = InnoDB)
@@ -48,7 +48,7 @@ Table	Create Table
 t	CREATE TABLE `t` (
   `a` int(11) NOT NULL,
   PRIMARY KEY (`a`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
  PARTITION BY HASH (`a`)
 (PARTITION `p1` DATA DIRECTORY = 'MYSQLTEST_VARDIR/tmp/partitions_here' ENGINE = InnoDB,
  PARTITION `p2` DATA DIRECTORY = 'MYSQLTEST_VARDIR/tmp/partitions_here' ENGINE = InnoDB)
@@ -65,7 +65,7 @@ Table	Create Table
 t	CREATE TABLE `t` (
   `a` int(11) NOT NULL,
   PRIMARY KEY (`a`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
  PARTITION BY HASH (`a`)
 (PARTITION `p1` DATA DIRECTORY = 'MYSQLTEST_VARDIR/tmp/partitions_here' ENGINE = InnoDB,
  PARTITION `p2` DATA DIRECTORY = 'MYSQLTEST_VARDIR/tmp/partitions_here' ENGINE = InnoDB)
@@ -81,7 +81,7 @@ Table	Create Table
 t	CREATE TABLE `t` (
   `a` int(11) NOT NULL,
   PRIMARY KEY (`a`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
  PARTITION BY HASH (`a`)
 (PARTITION `p1` DATA DIRECTORY = 'MYSQLTEST_VARDIR/tmp/partitions_here' ENGINE = InnoDB,
  PARTITION `p2` DATA DIRECTORY = 'MYSQLTEST_VARDIR/tmp/partitions_here' ENGINE = InnoDB)
@@ -97,7 +97,7 @@ Table	Create Table
 t	CREATE TABLE `t` (
   `a` int(11) NOT NULL,
   PRIMARY KEY (`a`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
  PARTITION BY HASH (`a`)
 (PARTITION `p1` DATA DIRECTORY = 'MYSQLTEST_VARDIR/tmp/partitions_here' ENGINE = InnoDB,
  PARTITION `p2` DATA DIRECTORY = 'MYSQLTEST_VARDIR/tmp/partitions_here' ENGINE = InnoDB)
@@ -151,7 +151,7 @@ SHOW CREATE TABLE t;
 Table	Create Table
 t	CREATE TABLE `t` (
   `a` int(11) NOT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
  PARTITION BY RANGE (`a`)
 SUBPARTITION BY HASH (`a`)
 SUBPARTITIONS 2

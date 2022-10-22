@@ -976,6 +976,7 @@ SET STATEMENT keycache1.key_buffer_size=1024 FOR SELECT 1;
 #
 # MDEV-6940: SET STATEMENT executed after SET GLOBAL does not work
 #
+--disable_view_protocol
 set @save_general_log=@@global.general_log;
 --echo # SET STATEMENT works (OK)
 set statement lock_wait_timeout=1 for select @@lock_wait_timeout;
@@ -1036,6 +1037,7 @@ select sql_text from mysql.slow_log where sql_text not like 'set @@long_query_ti
 set statement long_query_time=0.01,min_examined_row_limit=50 for select sleep(0.1);
 select sql_text from mysql.slow_log where sql_text not like 'set @@long_query_time%';
 --echo #---
+--enable_view_protocol
 #
 # log_slow_verbosity is impossible to check because results are not written
 # in TABLE mode
@@ -1160,6 +1162,16 @@ SET STATEMENT sql_mode = 'NO_ENGINE_SUBSTITUTION' FOR CREATE TABLE t1 AS SELECT 
 SHOW CREATE TABLE t1;
 
 DROP TABLE t1;
+
+--echo #
+--echo # MDEV-29074 GET_BIT variables crash in SET STATEMENT
+--echo #
+set statement log_queries_not_using_indexes=1 for select @@log_queries_not_using_indexes;
+select @@log_queries_not_using_indexes;
+
+--echo #
+--echo # End of 10.3 tests
+--echo #
 
 create table t (a int);
 SET sql_mode=ORACLE;

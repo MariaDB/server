@@ -405,21 +405,24 @@ update_mbr:
 		}
 
 		/* Insert the new rec. */
-		page_cur_search_with_match(block, index, node_ptr,
-					   PAGE_CUR_LE , &up_match, &low_match,
-					   btr_cur_get_page_cur(cursor), NULL);
+		if (page_cur_search_with_match(block, index, node_ptr,
+					       PAGE_CUR_LE,
+					       &up_match, &low_match,
+					       btr_cur_get_page_cur(cursor),
+					       NULL)) {
+			goto err_exit;
+		}
 
 		err = btr_cur_optimistic_insert(flags, cursor, &insert_offsets,
 						&heap, node_ptr, &insert_rec,
 						&dummy_big_rec, 0, NULL, mtr);
 
-		if (!ins_suc && err == DB_SUCCESS) {
-			ins_suc = true;
-		}
-
 		/* If optimistic insert fail, try reorganize the page
 		and insert again. */
-		if (err != DB_SUCCESS && ins_suc) {
+		if (err == DB_SUCCESS) {
+			ins_suc = true;
+		} else if (ins_suc) {
+			ut_ad(err == DB_FAIL);
 			err = btr_page_reorganize(btr_cur_get_page_cur(cursor),
 						  index, mtr);
 			if (err == DB_SUCCESS) {
@@ -431,6 +434,7 @@ update_mbr:
 
 			/* Will do pessimistic insert */
 			if (err != DB_SUCCESS) {
+				ut_ad(err == DB_FAIL);
 				ins_suc = false;
 			}
 		}
@@ -462,10 +466,14 @@ update_mbr:
 			cur2_pno = btr_node_ptr_get_child_page_no(cur2_rec, offsets2);
 			if ((del_page_no != cur2_pno)
 			    || (cur2_rec == insert_rec)) {
-				cur2_rec = page_rec_get_next(
-					page_get_infimum_rec(page));
+				cur2_rec = page_get_infimum_rec(page);
 
-				while (!page_rec_is_supremum(cur2_rec)) {
+				while ((cur2_rec
+					= page_rec_get_next(cur2_rec))) {
+					if (page_rec_is_supremum(cur2_rec)) {
+						break;
+					}
+
 					offsets2 = rec_get_offsets(cur2_rec, index,
 								   NULL,
 								   n_core,
@@ -480,10 +488,7 @@ update_mbr:
 							break;
 						}
 					}
-					cur2_rec = page_rec_get_next(cur2_rec);
 				}
-
-				ut_ad(!page_rec_is_supremum(cur2_rec));
 			}
 
 			rec_info = rec_get_info_bits(cur2_rec,
@@ -529,7 +534,7 @@ update_mbr:
 	      || (REC_INFO_MIN_REC_FLAG & rec_get_info_bits(
 			  page_rec_get_next(page_get_infimum_rec(page)),
 			  page_is_comp(page))));
-
+err_exit:
 	mem_heap_free(heap);
 }
 
@@ -556,11 +561,10 @@ rtr_adjust_upper_level(
 	rec_offs*	offsets;
 	mem_heap_t*	heap;
 	ulint		level;
-	dtuple_t*	node_ptr_upper;
+	dtuple_t*	node_ptr_upper = nullptr;
 	page_cur_t*	page_cursor;
 	lock_prdt_t	prdt;
 	lock_prdt_t	new_prdt;
-	dberr_t		err;
 	big_rec_t*	dummy_big_rec;
 	rec_t*		rec;
 
@@ -597,29 +601,32 @@ rtr_adjust_upper_level(
 		}
 	}
 
-	/* Insert the node for the new page. */
-	node_ptr_upper = rtr_index_build_node_ptr(
-		index, new_mbr,
-		page_rec_get_next(page_get_infimum_rec(new_block->page.frame)),
-		new_page_no, heap);
+	dberr_t err;
 
-	ulint	up_match = 0;
-	ulint	low_match = 0;
-
-	buf_block_t*	father_block = btr_cur_get_block(&cursor);
-
-	page_cur_search_with_match(
-		father_block, index, node_ptr_upper,
-		PAGE_CUR_LE , &up_match, &low_match,
-		btr_cur_get_page_cur(&cursor), NULL);
-
-	err = btr_cur_optimistic_insert(
-		flags
-		| BTR_NO_LOCKING_FLAG
-		| BTR_KEEP_SYS_FLAG
-		| BTR_NO_UNDO_LOG_FLAG,
-		&cursor, &offsets, &heap,
-		node_ptr_upper, &rec, &dummy_big_rec, 0, NULL, mtr);
+	if (const rec_t* first = page_rec_get_next_const(
+		    page_get_infimum_rec(new_block->page.frame))) {
+		/* Insert the node for the new page. */
+		node_ptr_upper = rtr_index_build_node_ptr(
+			index, new_mbr, first, new_page_no, heap);
+		ulint	up_match = 0, low_match = 0;
+		err = page_cur_search_with_match(btr_cur_get_block(&cursor),
+						 index, node_ptr_upper,
+						 PAGE_CUR_LE,
+						 &up_match, &low_match,
+						 btr_cur_get_page_cur(&cursor),
+						 NULL)
+			? DB_CORRUPTION
+			: btr_cur_optimistic_insert(flags
+						    | BTR_NO_LOCKING_FLAG
+						    | BTR_KEEP_SYS_FLAG
+						    | BTR_NO_UNDO_LOG_FLAG,
+						    &cursor, &offsets, &heap,
+						    node_ptr_upper, &rec,
+						    &dummy_big_rec, 0, NULL,
+						    mtr);
+	} else {
+		err = DB_CORRUPTION;
+	}
 
 	if (err == DB_FAIL) {
 		cursor.rtr_info = sea_cur->rtr_info;
@@ -638,22 +645,26 @@ rtr_adjust_upper_level(
 						 node_ptr_upper, &rec,
 						 &dummy_big_rec, 0, NULL, mtr);
 		cursor.rtr_info = NULL;
-		ut_a(err == DB_SUCCESS);
-
 		mem_heap_free(new_heap);
 	}
 
-	prdt.data = static_cast<void*>(mbr);
-	prdt.op = 0;
-	new_prdt.data = static_cast<void*>(new_mbr);
-	new_prdt.op = 0;
+	if (err == DB_SUCCESS) {
+		prdt.data = static_cast<void*>(mbr);
+		prdt.op = 0;
+		new_prdt.data = static_cast<void*>(new_mbr);
+		new_prdt.op = 0;
 
-	lock_prdt_update_parent(block, new_block, &prdt, &new_prdt,
-				page_cursor->block->page.id());
+		lock_prdt_update_parent(block, new_block, &prdt, &new_prdt,
+					page_cursor->block->page.id());
+	}
 
 	mem_heap_free(heap);
 
 	ut_ad(block->zip_size() == index->table->space->zip_size());
+
+	if (err != DB_SUCCESS) {
+		return err;
+	}
 
 	const uint32_t next_page_no = btr_page_get_next(block->page.frame);
 
@@ -765,12 +776,14 @@ rtr_split_page_move_rec_list(
 				&new_page_cursor,
 				index, cur_split_node->key, offsets, mtr);
 
-			ut_a(rec);
+			if (UNIV_UNLIKELY
+			    (!rec
+			     || !page_cur_move_to_next(&new_page_cursor))) {
+				return DB_CORRUPTION;
+			}
 
 			lock_rec_restore_from_page_infimum(
 				*new_block, rec, block->page.id());
-
-			page_cur_move_to_next(&new_page_cursor);
 
 			rec_move[moved].new_rec = rec;
 			rec_move[moved].old_rec = cur_split_node->key;
@@ -913,6 +926,11 @@ func_start:
 	if (!page_has_prev(page) && !page_is_leaf(page)) {
 		first_rec = page_rec_get_next(
 			page_get_infimum_rec(buf_block_get_frame(block)));
+		if (UNIV_UNLIKELY(!first_rec)) {
+corrupted:
+			*err = DB_CORRUPTION;
+			return nullptr;
+		}
 	}
 
 	/* Initial split nodes array. */
@@ -1098,9 +1116,13 @@ func_start:
 
 	/* Reposition the cursor for insert and try insertion */
 	page_cursor = btr_cur_get_page_cur(cursor);
+	ulint up_match = 0, low_match = 0;
 
-	page_cur_search(insert_block, cursor->index, tuple,
-			PAGE_CUR_LE, page_cursor);
+	if (page_cur_search_with_match(insert_block, cursor->index, tuple,
+				       PAGE_CUR_LE, &up_match, &low_match,
+				       page_cursor, nullptr)) {
+		goto corrupted;
+	}
 
 	/* It's possible that the new record is too big to be inserted into
 	the page, and it'll need the second round split in this case.
@@ -1154,7 +1176,7 @@ after_insert:
 	the first ssn value from it after restart server. */
 
 	root_block = btr_root_block_get(cursor->index, RW_SX_LATCH, mtr, err);
-        if (UNIV_UNLIKELY(!root_block)) {
+	if (UNIV_UNLIKELY(!root_block)) {
 		return nullptr;
 	}
 
@@ -1180,6 +1202,9 @@ after_insert:
 
 		rec_t* i_rec = page_rec_get_next(page_get_infimum_rec(
 			buf_block_get_frame(block)));
+		if (UNIV_UNLIKELY(!i_rec)) {
+			goto corrupted;
+		}
 		btr_cur_position(cursor->index, i_rec, block, cursor);
 
 		goto func_start;
@@ -1299,8 +1324,8 @@ rtr_page_copy_rec_list_end_no_locks(
 
 	page_cur_position(rec, block, &cur1);
 
-	if (page_cur_is_before_first(&cur1)) {
-		page_cur_move_to_next(&cur1);
+	if (page_cur_is_before_first(&cur1) && !page_cur_move_to_next(&cur1)) {
+		return DB_CORRUPTION;
 	}
 
 	ut_a(page_is_comp(new_page) == page_rec_is_comp(rec));
@@ -1309,6 +1334,9 @@ rtr_page_copy_rec_list_end_no_locks(
 
 	cur_rec = page_rec_get_next(
 		page_get_infimum_rec(buf_block_get_frame(new_block)));
+	if (UNIV_UNLIKELY(!cur_rec)) {
+		return DB_CORRUPTION;
+	}
 	page_cur_position(cur_rec, new_block, &page_cur);
 
 	/* Copy records from the original page to the new page */
@@ -1318,6 +1346,9 @@ rtr_page_copy_rec_list_end_no_locks(
 
 		if (page_rec_is_infimum(cur_rec)) {
 			cur_rec = page_rec_get_next(cur_rec);
+			if (UNIV_UNLIKELY(!cur_rec)) {
+				return DB_CORRUPTION;
+			}
 		}
 
 		offsets1 = rec_get_offsets(cur1_rec, index, offsets1, n_core,
@@ -1336,8 +1367,7 @@ rtr_page_copy_rec_list_end_no_locks(
 				goto move_to_prev;
 			} else if (cmp > 0) {
 				/* Skip small recs. */
-				page_cur_move_to_next(&page_cur);
-				cur_rec = page_cur_get_rec(&page_cur);
+				cur_rec = page_cur_move_to_next(&page_cur);
 			} else if (n_core) {
 				if (rec_get_deleted_flag(cur1_rec,
 					dict_table_is_comp(index->table))) {
@@ -1380,7 +1410,9 @@ move_to_prev:
 		rec_move[moved].moved = false;
 		moved++;
 next:
-		page_cur_move_to_next(&cur1);
+		if (UNIV_UNLIKELY(!page_cur_move_to_next(&cur1))) {
+			return DB_CORRUPTION;
+		}
 	}
 
 	*num_moved = moved;
@@ -1419,10 +1451,15 @@ rtr_page_copy_rec_list_start_no_locks(
 	rec_offs_init(offsets_2);
 
 	page_cur_set_before_first(block, &cur1);
-	page_cur_move_to_next(&cur1);
+	if (UNIV_UNLIKELY(!page_cur_move_to_next(&cur1))) {
+		return DB_CORRUPTION;
+	}
 
 	cur_rec = page_rec_get_next(
 		page_get_infimum_rec(buf_block_get_frame(new_block)));
+	if (UNIV_UNLIKELY(!cur_rec)) {
+		return DB_CORRUPTION;
+	}
 	page_cur_position(cur_rec, new_block, &page_cur);
 
 	while (page_cur_get_rec(&cur1) != rec) {
@@ -1431,6 +1468,9 @@ rtr_page_copy_rec_list_start_no_locks(
 
 		if (page_rec_is_infimum(cur_rec)) {
 			cur_rec = page_rec_get_next(cur_rec);
+			if (UNIV_UNLIKELY(!cur_rec)) {
+				return DB_CORRUPTION;
+			}
 		}
 
 		offsets1 = rec_get_offsets(cur1_rec, index, offsets1, n_core,
@@ -1449,8 +1489,7 @@ rtr_page_copy_rec_list_start_no_locks(
 				goto move_to_prev;
 			} else if (cmp > 0) {
 				/* Skip small recs. */
-				page_cur_move_to_next(&page_cur);
-				cur_rec = page_cur_get_rec(&page_cur);
+				cur_rec = page_cur_move_to_next(&page_cur);
 			} else if (n_core) {
 				if (rec_get_deleted_flag(
 					cur1_rec,
@@ -1472,11 +1511,12 @@ rtr_page_copy_rec_list_start_no_locks(
 		if (page_rec_is_supremum(cur_rec)) {
 move_to_prev:
 			cur_rec = page_cur_move_to_prev(&page_cur);
-			if (UNIV_UNLIKELY(!cur_rec)) {
-				return DB_CORRUPTION;
-			}
 		} else {
 			cur_rec = page_cur_get_rec(&page_cur);
+		}
+
+		if (UNIV_UNLIKELY(!cur_rec)) {
+			return DB_CORRUPTION;
 		}
 
 		offsets1 = rec_get_offsets(cur1_rec, index, offsets1, n_core,
@@ -1493,7 +1533,9 @@ move_to_prev:
 		rec_move[moved].moved = false;
 		moved++;
 next:
-		page_cur_move_to_next(&cur1);
+		if (UNIV_UNLIKELY(!page_cur_move_to_next(&cur1))) {
+			return DB_CORRUPTION;
+		}
 	}
 
 	*num_moved = moved;
@@ -1559,7 +1601,7 @@ rtr_merge_and_update_mbr(
 	rtr_mbr_t		new_mbr;
 
 	if (rtr_merge_mbr_changed(cursor, cursor2, offsets, offsets2,
-                                  &new_mbr)) {
+				  &new_mbr)) {
 		rtr_update_mbr_field(cursor, offsets, cursor2, child_page,
 				     &new_mbr, NULL, mtr);
 	} else {
@@ -1604,10 +1646,9 @@ rtr_check_same_block(
 {
 	ulint		page_no = childb->page.id().page_no();
 	rec_offs*	offsets;
-	rec_t*		rec = page_rec_get_next(page_get_infimum_rec(
-				buf_block_get_frame(parentb)));
+	rec_t*		rec = page_get_infimum_rec(parentb->page.frame);
 
-	while (!page_rec_is_supremum(rec)) {
+	while ((rec = page_rec_get_next(rec)) && !page_rec_is_supremum(rec)) {
 		offsets = rec_get_offsets(
 			rec, index, NULL, 0, ULINT_UNDEFINED, &heap);
 
@@ -1615,8 +1656,6 @@ rtr_check_same_block(
 			btr_cur_position(index, rec, parentb, cursor);
 			return(true);
 		}
-
-		rec = page_rec_get_next(rec);
 	}
 
 	return(false);
@@ -1826,9 +1865,9 @@ err_exit:
 
 	/* Scan records in root page and calculate area. */
 	double	area = 0;
-	for (const rec_t* rec = page_rec_get_next(
+	for (const rec_t* rec = page_rec_get_next_const(
 		     page_get_infimum_rec(block->page.frame));
-	     !page_rec_is_supremum(rec);
+	     rec && !page_rec_is_supremum(rec);
 	     rec = page_rec_get_next_const(rec)) {
 		rtr_mbr_t	mbr;
 		double		rec_area;

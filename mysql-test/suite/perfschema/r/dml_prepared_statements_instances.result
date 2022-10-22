@@ -7,20 +7,20 @@ OBJECT_INSTANCE_BEGIN	STATEMENT_ID	STATEMENT_NAME	SQL_TEXT	OWNER_THREAD_ID	OWNER
 insert into performance_schema.prepared_statements_instances
 set owner_object_name='XXYYZZ', count_execute=1, sum_timer_execute=2,
 min_timer_execute=3, avg_timer_execute=4, max_timer_execute=5;
-ERROR 42000: INSERT command denied to user 'root'@'localhost' for table 'prepared_statements_instances'
+ERROR 42000: INSERT command denied to user 'root'@'localhost' for table `performance_schema`.`prepared_statements_instances`
 update performance_schema.prepared_statements_instances set count_execute=12;
-ERROR 42000: UPDATE command denied to user 'root'@'localhost' for table 'prepared_statements_instances'
+ERROR 42000: UPDATE command denied to user 'root'@'localhost' for table `performance_schema`.`prepared_statements_instances`
 update performance_schema.prepared_statements_instances
 set count_execute=12 where owner_object_name like "XXYYZZ";
-ERROR 42000: UPDATE command denied to user 'root'@'localhost' for table 'prepared_statements_instances'
+ERROR 42000: UPDATE command denied to user 'root'@'localhost' for table `performance_schema`.`prepared_statements_instances`
 delete from performance_schema.prepared_statements_instances
 where count_execute=1;
-ERROR 42000: DELETE command denied to user 'root'@'localhost' for table 'prepared_statements_instances'
+ERROR 42000: DELETE command denied to user 'root'@'localhost' for table `performance_schema`.`prepared_statements_instances`
 delete from performance_schema.prepared_statements_instances;
-ERROR 42000: DELETE command denied to user 'root'@'localhost' for table 'prepared_statements_instances'
+ERROR 42000: DELETE command denied to user 'root'@'localhost' for table `performance_schema`.`prepared_statements_instances`
 LOCK TABLES performance_schema.prepared_statements_instances READ;
-ERROR 42000: SELECT, LOCK TABLES command denied to user 'root'@'localhost' for table 'prepared_statements_instances'
+ERROR 42000: SELECT, LOCK TABLES command denied to user 'root'@'localhost' for table `performance_schema`.`prepared_statements_instances`
 UNLOCK TABLES;
 LOCK TABLES performance_schema.prepared_statements_instances WRITE;
-ERROR 42000: SELECT, LOCK TABLES command denied to user 'root'@'localhost' for table 'prepared_statements_instances'
+ERROR 42000: SELECT, LOCK TABLES command denied to user 'root'@'localhost' for table `performance_schema`.`prepared_statements_instances`
 UNLOCK TABLES;

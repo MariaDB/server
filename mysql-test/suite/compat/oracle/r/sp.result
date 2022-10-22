@@ -1698,13 +1698,13 @@ t2	CREATE TABLE "t2" (
   "dc209" decimal(20,9) DEFAULT NULL,
   "cc" char(10) DEFAULT NULL,
   "cv" varchar(10) DEFAULT NULL,
-  "cvu" varchar(10) CHARACTER SET utf8mb3 DEFAULT NULL,
+  "cvu" varchar(10) CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci DEFAULT NULL,
   "t1" tinytext DEFAULT NULL,
   "t2" text DEFAULT NULL,
   "t3" mediumtext DEFAULT NULL,
   "t4" longtext DEFAULT NULL,
-  "enum1" char(1) DEFAULT NULL,
-  "set1" char(5) DEFAULT NULL,
+  "enum1" varchar(1) DEFAULT NULL,
+  "set1" varchar(5) DEFAULT NULL,
   "blob1" tinyblob DEFAULT NULL,
   "blob2" longblob DEFAULT NULL,
   "blob3" mediumblob DEFAULT NULL,
@@ -1796,7 +1796,7 @@ def				tm6	tm6	11	17	15	Y	128	6	63
 def				dt0	dt0	12	19	19	Y	128	0	63
 def				dt3	dt3	12	23	23	Y	128	3	63
 def				dt6	dt6	12	26	26	Y	128	6	63
-def				ts0	ts0	7	19	19	Y	9376	0	63
+def				ts0	ts0	7	19	19	Y	160	0	63
 def				ts3	ts3	7	23	23	Y	160	3	63
 def				ts6	ts6	7	26	26	Y	160	6	63
 bit6	0
@@ -1860,13 +1860,13 @@ t2	CREATE TABLE "t2" (
   "dc209" decimal(20,9) DEFAULT NULL,
   "cc" char(10) DEFAULT NULL,
   "cv" varchar(10) DEFAULT NULL,
-  "cvu" varchar(10) CHARACTER SET utf8mb3 DEFAULT NULL,
+  "cvu" varchar(10) CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci DEFAULT NULL,
   "t1" tinytext DEFAULT NULL,
   "t2" text DEFAULT NULL,
   "t3" mediumtext DEFAULT NULL,
   "t4" longtext DEFAULT NULL,
-  "enum1" char(1) DEFAULT NULL,
-  "set1" char(5) DEFAULT NULL,
+  "enum1" varchar(1) DEFAULT NULL,
+  "set1" varchar(5) DEFAULT NULL,
   "blob1" tinyblob DEFAULT NULL,
   "blob2" longblob DEFAULT NULL,
   "blob3" mediumblob DEFAULT NULL,
@@ -2061,9 +2061,9 @@ CALL p1();
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE "t1" (
-  "tables_table_name" varchar(64) CHARACTER SET utf8mb3 DEFAULT NULL,
+  "tables_table_name" varchar(64) CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci DEFAULT NULL,
   "tables_table_rows" bigint(21) unsigned DEFAULT NULL,
-  "processlist_info" longtext CHARACTER SET utf8mb3 DEFAULT NULL,
+  "processlist_info" longtext CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci DEFAULT NULL,
   "processlist_info_binary" blob(65535) DEFAULT NULL
 )
 DROP TABLE t1;
@@ -2370,7 +2370,7 @@ t1	CREATE TABLE "t1" (
   "a_flt0" float DEFAULT NULL,
   "a_dbl0" double DEFAULT NULL,
   "a_bit3" bit(3) DEFAULT NULL,
-  "a_enum0" char(1) DEFAULT NULL,
+  "a_enum0" varchar(1) DEFAULT NULL,
   "a_varchar10" varchar(10) DEFAULT NULL,
   "a_text1" text DEFAULT NULL,
   "a_tinytext1" tinytext DEFAULT NULL,
@@ -2388,7 +2388,7 @@ t1	CREATE TABLE "t1" (
   "aa_flt0" float DEFAULT NULL,
   "aa_dbl0" double DEFAULT NULL,
   "aa_bit3" bit(3) DEFAULT NULL,
-  "aa_enum0" char(1) DEFAULT NULL,
+  "aa_enum0" varchar(1) DEFAULT NULL,
   "aa_varchar10" varchar(10) DEFAULT NULL,
   "aa_text1" text DEFAULT NULL,
   "aa_tinytext1" tinytext DEFAULT NULL,

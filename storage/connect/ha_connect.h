@@ -11,7 +11,7 @@
 
   You should have received a copy of the GNU General Public License
   along with this program; if not, write to the Free Software
-	Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA */
+  Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA */
 
 /** @file ha_connect.h
 	Author Olivier Bertrand
@@ -555,3 +555,25 @@ public:
 #if defined(JAVA_SUPPORT) || defined(CMGO_SUPPORT)
 bool MongoEnabled(void);
 #endif   // JAVA_SUPPORT || CMGO_SUPPORT
+
+/* This is a hack for ASAN
+ * Libraries such as libxml2 and libodbc do not like being unloaded before
+ * exit and will show as a leak in ASAN with no stack trace (as the plugin
+ * has been unloaded from memory).
+ *
+ * The below is designed to trick the compiler into adding a "UNIQUE" symbol
+ * which can be seen using:
+ * readelf -s storage/connect/ha_connect.so | grep UNIQUE
+ *
+ * Having this symbol means that the plugin remains in memory after dlclose()
+ * has been called. Thereby letting the libraries clean up properly.
+ */
+#if defined(__SANITIZE_ADDRESS__)
+__attribute__((__used__))
+inline int dummy(void)
+{
+  static int d;
+  d++;
+  return d;
+}
+#endif

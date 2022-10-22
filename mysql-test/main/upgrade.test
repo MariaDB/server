@@ -1,6 +1,9 @@
 call mtr.add_suppression("Invalid .old.. table or database name");
 --source include/not_embedded.inc
 
+#remove this include after fix MDEV-27872
+--source include/no_view_protocol.inc
+
 --disable_warnings
 drop database if exists `mysqltest1`;
 drop database if exists `mysqltest-1`;

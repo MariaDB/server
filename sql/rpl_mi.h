@@ -352,6 +352,20 @@ class Master_info : public Slave_reporting_capability
     ACK from slave, or if delay_master is enabled.
   */
   int semi_ack;
+  /*
+    The flag has replicate_same_server_id semantics and is raised to accept
+    a same-server-id event group by the gtid strict mode semisync slave.
+    Own server-id events can normally appear as result of EITHER
+    A. this server semisync (failover to) slave crash-recovery:
+       the transaction was created on this server then being master,
+       got replicated elsewhere right before the crash before commit,
+       and finally at recovery the transaction gets evicted from the
+       server's binlog and its gtid (slave) state; OR
+    B. in a general circular configuration and then when a recieved (returned
+       to slave) gtid exists in the server's binlog. Then, in gtid strict mode,
+       it must be ignored similarly to the replicate-same-server-id rule.
+ */
+  bool do_accept_own_server_id= false;
   List <start_alter_info> start_alter_list;
   MEM_ROOT mem_root;
   /*
@@ -360,7 +374,22 @@ class Master_info : public Slave_reporting_capability
     The flag is read by Start Alter event to self-mark its state accordingly
     at time its alter info struct is about to be appened to the list.
   */
-  bool is_shutdown;
+  bool is_shutdown= false;
+
+  /*
+    A replica will default to Slave_Pos for using Using_Gtid; however, we
+    first need to test if the master supports GTIDs. If not, fall back to 'No'.
+    Cache the value so future RESET SLAVE commands don't revert to Slave_Pos.
+  */
+  bool master_supports_gtid= true;
+
+  /*
+    When TRUE, transition this server from being an active master to a slave.
+    This updates the replication state to account for any transactions which
+    were committed into the binary log. In particular, it merges
+    gtid_binlog_pos into gtid_slave_pos.
+  */
+  bool is_demotion= false;
 };
 
 struct start_alter_thd_args

@@ -1152,11 +1152,11 @@ SELECT @var62, @var63;
 @var62	@var63
 1	NULL
 INSERT INTO t1 SELECT id2, val2, p2 from t2;
-ERROR HY000: Illegal parameter data types double and point for operation 'SET'
+ERROR HY000: Cannot cast 'point' as 'double' in assignment of `test`.`t1`.`d1`
 GET DIAGNOSTICS CONDITION 1 @var64= ROW_NUMBER;
 GET DIAGNOSTICS CONDITION 2 @var65= ROW_NUMBER;
 Warnings:
-Error	4078	Illegal parameter data types double and point for operation 'SET'
+Error	4078	Cannot cast 'point' as 'double' in assignment of `test`.`t1`.`d1`
 Error	1758	Invalid condition number
 SELECT @var64, @var65;
 @var64	@var65
@@ -1396,11 +1396,11 @@ SELECT @var103, @var104;
 @var103	@var104
 1	NULL
 INSERT INTO t1 SELECT id2, val2, p2 from t2;
-ERROR HY000: Illegal parameter data types double and point for operation 'SET'
+ERROR HY000: Cannot cast 'point' as 'double' in assignment of `test`.`t1`.`d1`
 GET DIAGNOSTICS CONDITION 1 @var105= ROW_NUMBER;
 GET DIAGNOSTICS CONDITION 2 @var106= ROW_NUMBER;
 Warnings:
-Error	4078	Illegal parameter data types double and point for operation 'SET'
+Error	4078	Cannot cast 'point' as 'double' in assignment of `test`.`t1`.`d1`
 Error	1758	Invalid condition number
 SELECT @var105, @var106;
 @var105	@var106
@@ -1811,14 +1811,14 @@ val2
 val4
 DELETE FROM t WHERE a = 100;
 Warnings:
-Warning	1292	Truncated incorrect DOUBLE value: 'val1'
-Warning	1292	Truncated incorrect DOUBLE value: 'val2'
-Warning	1292	Truncated incorrect DOUBLE value: 'val4'
+Warning	1292	Truncated incorrect DECIMAL value: 'val1'
+Warning	1292	Truncated incorrect DECIMAL value: 'val2'
+Warning	1292	Truncated incorrect DECIMAL value: 'val4'
 SHOW WARNINGS;
 Level	Code	Message
-Warning	1292	Truncated incorrect DOUBLE value: 'val1'
-Warning	1292	Truncated incorrect DOUBLE value: 'val2'
-Warning	1292	Truncated incorrect DOUBLE value: 'val4'
+Warning	1292	Truncated incorrect DECIMAL value: 'val1'
+Warning	1292	Truncated incorrect DECIMAL value: 'val2'
+Warning	1292	Truncated incorrect DECIMAL value: 'val4'
 GET DIAGNOSTICS CONDITION 3 @n = ROW_NUMBER;
 SELECT @n;
 @n

@@ -16,6 +16,8 @@ insert into t_keyword values (1), (1), (2), (3), (2);
 --echo # Make sure the FETCH clause addition didn't introduce problems with
 --echo # the offset keyword.
 --echo #
+#enable after fix MDEV-29645
+--disable_view_protocol
 select * from t1
 order by a
 offset 2 rows;
@@ -24,7 +26,7 @@ offset 2 rows;
 --sorted_result
 select * from t1
 offset 2 rows;
-
+--enable_view_protocol
 
 --echo #
 --echo # Offset is now a reserved keyword. Column names can not have that name
@@ -682,7 +684,8 @@ order by first_name
 offset 1 rows
 fetch first 2 rows with ties;
 
-
+#enable after fix MDEV-29645
+--disable_view_protocol
 select first_name, row_number() over () rn
 from t1
 order by rn
@@ -694,6 +697,7 @@ from t1
 order by rn desc
 offset 1 rows
 fetch first 2 rows with ties;
+--enable_view_protocol
 
 select first_name, score, rank() over (ORDER BY score)
 from t1
@@ -811,6 +815,8 @@ drop table t2;
 create table t1 (a int, b int, index (a,b));
 insert into t1 values (1,1), (1,2), (1,3), (2,1), (2,2), (3,1);
 
+#enable after fix MDEV-29645
+--disable_view_protocol
 select SQL_CALC_FOUND_ROWS a, b, count(*)
 from t1
 group by a, b
@@ -824,6 +830,7 @@ from t1
 order by a
 fetch first 1 rows with ties;
 SELECT FOUND_ROWS();
+--enable_view_protocol
 
 --echo #
 --echo # Test index read optimization with ORDER BY as sub part of GROUP BY

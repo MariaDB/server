@@ -72,7 +72,7 @@ DROP TABLE t1;
 
 --echo # Test case 3: Check that the 'USE' statement is supported by
 --echo # prepared statements
-
+--disable_service_connection
 CREATE DATABASE mdev_16708_db;
 PREPARE stmt_1 FROM 'USE mdev_16708_db';
 EXECUTE stmt_1;
@@ -88,7 +88,7 @@ SELECT DATABASE();
 DEALLOCATE PREPARE stmt_1;
 USE test;
 DROP DATABASE mdev_16708_db;
-
+--enable_service_connection
 --echo # Test case 4: Check that the 'ALTER DATABASE' statement is supported
 --echo # by prepared statements
 CREATE DATABASE mdev_16708_db;
@@ -151,6 +151,7 @@ DROP TABLE t1;
 --echo # Test case 7: Check that the BEGIN/SAVEPOINT/RELEASE SAVEPOINT
 --echo # statements are supported by prepared statements
 
+--disable_view_protocol
 --echo # Set up environmentr for the test case
 CREATE TABLE t1 (a INT);
 
@@ -195,6 +196,7 @@ DEALLOCATE PREPARE stmt_1;
 DEALLOCATE PREPARE stmt_2;
 DEALLOCATE PREPARE stmt_3;
 DROP TABLE t1;
+--enable_view_protocol
 
 --echo # Test case 8: Check that the 'PURGE BINARY LOGS BEFORE' statement
 --echo # is supported by prepared statements
@@ -267,13 +269,16 @@ DROP TABLE t1;
 
 --echo # Test case 10: Check that the HELP statement
 --echo # is supported by prepared statements
-PREPARE stmt_1 FROM "HELP `UPDATE`";
+# avoid existing articles that may get updated.
+INSERT INTO mysql.help_topic VALUES (0, 'Tamagotchi', 0, 'This digital pet is not a KB article', 'no example', 'https://tamagotchi.com/');
+PREPARE stmt_1 FROM "HELP `Tamagotchi`";
 EXECUTE stmt_1;
 --echo # Execute the same prepared statement the second time to check that
 --echo # no internal structures used for handling the 'HELP' statement
 --echo # were damaged.
 
 EXECUTE stmt_1;
+DELETE FROM mysql.help_topic WHERE help_topic_id = 0;
 
 --echo # Test case 11: Check that the 'CREATE PROCEDURE' statement
 --echo # is supported by prepared statements

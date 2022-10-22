@@ -23,13 +23,13 @@
 	solution was needed than the one-to-one conversion table. To
 	note a few, here is an example of a Czech sorting sequence:
 
-		co < hlaska < hláska < hlava < chlapec < krtek
+		co < hlaska < hlÃ¡ska < hlava < chlapec < krtek
 
 	It because some of the rules are: double char 'ch' is sorted
-	between 'h' and 'i'. Accented character 'á' (a with acute) is
+	between 'h' and 'i'. Accented character 'Ã¡' (a with acute) is
 	sorted after 'a' and before 'b', but only if the word is
 	otherwise the same. However, because 's' is sorted before 'v'
-	in hlava, the accentness of 'á' is overridden. There are many
+	in hlava, the accentness of 'Ã¡' is overridden. There are many
 	more rules.
 
 	This file defines functions my_strxfrm and my_strcoll for
@@ -42,8 +42,9 @@
 	passes, that's why we need four times more space for expanded
 	string.
 
-	This file also contains the ISO-Latin-2 definitions of
-	characters.
+	The non-ASCII literal strings in this file are encoded
+	in the iso-8859-2 / latin-2 character set
+	(https://en.wikipedia.org/wiki/ISO/IEC_8859-2)
 
 	Author: (c) 1997--1998 Jan Pazdziora, adelton@fi.muni.cz
 	Jan Pazdziora has a shared copyright for this code
@@ -112,7 +113,7 @@ static const struct wordvalue doubles[] = {
 	};
 
 /*
-	Unformal description of the algorithm:
+	Informal description of the algorithm:
 
 	We walk the string left to right.
 
@@ -127,7 +128,7 @@ static const struct wordvalue doubles[] = {
 
 	End of pass is marked with value 1 on the output.
 
-	For each character, we read it's value from the table.
+	For each character, we read its value from the table.
 
 	If the value is ignore (0), we go straight to the next character.
 
@@ -139,31 +140,6 @@ static const struct wordvalue doubles[] = {
 	exists behind it, find its value.
 
 	We append 0 to the end.
----
-	Neformální popis algoritmu:
-
-	Procházíme øetìzec zleva doprava.
-
-	Konec øetìzce je pøedán buï jako parametr, nebo je to *p == 0.
-	Toto je o¹etøeno makrem IS_END.
-
-	Pokud jsme do¹li na konec øetìzce pøi prùchodu 0, nejdeme na
-	zaèátek, ale na ulo¾enou pozici, proto¾e první a druhý prùchod
-	bì¾í souèasnì.
-
-	Konec vstupu (prùchodu) oznaèíme na výstupu hodnotou 1.
-
-	Pro ka¾dý znak øetìzce naèteme hodnotu z tøídící tabulky.
-
-	Jde-li o hodnotu ignorovat (0), skoèíme ihned na dal¹í znak..
-
-	Jde-li o hodnotu konec slova (2) a je to prùchod 0 nebo 1,
-	pøeskoèíme v¹echny dal¹í 0 -- 2 a prohodíme prùchody.
-
-	Jde-li o kompozitní znak (255), otestujeme, zda následuje
-	správný do dvojice, dohledáme správnou hodnotu.
-
-	Na konci pøipojíme znak 0
  */
 
 #define ADD_TO_RESULT(dest, len, totlen, value)			\
@@ -336,24 +312,23 @@ my_strnxfrm_czech(CHARSET_INFO *cs __attribute__((unused)),
 
 
 /*
-	Neformální popis algoritmu:
+	Informal description of the algorithm:
 
-	procházíme øetìzec zleva doprava
-	konec øetìzce poznáme podle *p == 0
-	pokud jsme do¹li na konec øetìzce pøi prùchodu 0, nejdeme na
-		zaèátek, ale na ulo¾enou pozici, proto¾e první a druhý
-		prùchod bì¾í souèasnì
-	konec vstupu (prùchodu) oznaèíme na výstupu hodnotou 1
+	we pass the chain from left to right
+	we know the end of the string by *p == 0
+	if we reached the end of the string on transition 0, then we don't go to
+		start, but to the saved position, because the first and second
+		the passage runs concurrently
+	we mark the end of the input (transition) with the value 1 on the output
 
-	naèteme hodnotu z tøídící tabulky
-	jde-li o hodnotu ignorovat (0), skoèíme na dal¹í prùchod
-	jde-li o hodnotu konec slova (2) a je to prùchod 0 nebo 1,
-		pøeskoèíme v¹echny dal¹í 0 -- 2 a prohodíme
-		prùchody
-	jde-li o kompozitní znak (255), otestujeme, zda následuje
-		správný do dvojice, dohledáme správnou hodnotu
+	then we load the value from the sorting table
+	if the value is ignore (0), we jump to the next pass
+	if the value is the end of the word (2) and it is a 0 or 1 transition,
+		we skip all the other 0 -- 2 and switch transitions
+	if it is a composite character (255), we test whether it follows
+		correct to the pair, we find the correct value
 
-	na konci pøipojíme znak 0
+	then we add the character 0 at the end
  */
 
 
@@ -621,7 +596,9 @@ static MY_COLLATION_HANDLER my_collation_latin2_czech_cs_handler =
   my_hash_sort_simple,
   my_propagate_simple,
   my_min_str_8bit_simple,
-  my_max_str_8bit_simple
+  my_max_str_8bit_simple,
+  my_ci_get_id_generic,
+  my_ci_get_collation_name_generic
 };
 
 struct charset_info_st my_charset_latin2_czech_cs =
@@ -652,7 +629,7 @@ struct charset_info_st my_charset_latin2_czech_cs =
     0xAE,               /* max_sort_char */
     ' ',                /* pad char      */
     0,                  /* escape_with_backslash_is_dangerous */
-    4,                  /* levels_for_order   */
+    MY_CS_COLL_LEVELS_S4,
     &my_charset_8bit_handler,
     &my_collation_latin2_czech_cs_handler
 };

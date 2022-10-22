@@ -899,15 +899,14 @@ void ha_close_connection(THD* thd)
 {
   for (auto i= 0; i < MAX_HA; i++)
   {
-    if (thd->ha_data[i].lock)
+    if (plugin_ref plugin= thd->ha_data[i].lock)
     {
-      handlerton *hton= plugin_hton(thd->ha_data[i].lock);
+      thd->ha_data[i].lock= NULL;
+      handlerton *hton= plugin_hton(plugin);
       if (hton->close_connection)
         hton->close_connection(hton, thd);
-      /* make sure SE didn't reset ha_data in close_connection() */
-      DBUG_ASSERT(thd->ha_data[i].lock);
-      /* make sure ha_data is reset and ha_data_lock is released */
       thd_set_ha_data(thd, hton, 0);
+      plugin_unlock(NULL, plugin);
     }
     DBUG_ASSERT(!thd->ha_data[i].ha_ptr);
   }
@@ -4934,17 +4933,32 @@ int handler::ha_check(THD *thd, HA_CHECK_OPT *check_opt)
   DBUG_ASSERT(table_share->tmp_table != NO_TMP_TABLE ||
               m_lock_type != F_UNLCK);
 
-  if ((table->s->mysql_version >= MYSQL_VERSION_ID) &&
+  const ulong v= table->s->mysql_version;
+
+  if ((v >= MYSQL_VERSION_ID) &&
       (check_opt->sql_flags & TT_FOR_UPGRADE))
     return 0;
 
-  if (table->s->mysql_version < MYSQL_VERSION_ID)
+  if (v < MYSQL_VERSION_ID)
   {
     if (unlikely((error= check_old_types())))
       return error;
     error= ha_check_for_upgrade(check_opt);
     if (unlikely(error && (error != HA_ADMIN_NEEDS_CHECK)))
       return error;
+    if (table->s->table_category == TABLE_CATEGORY_USER &&
+        (v < 100142 ||
+         (v >= 100200 && v < 100228) ||
+         (v >= 100300 && v < 100319) ||
+         (v >= 100400 && v < 100409)))
+    {
+      for (const KEY *key= table->key_info,
+           *end= table->key_info + table->s->keys; key < end; key++)
+      {
+        if (key->flags & HA_BINARY_PACK_KEY && key->flags & HA_VAR_LENGTH_KEY)
+          return HA_ADMIN_NEEDS_UPGRADE;
+      }
+    }
     if (unlikely(!error && (check_opt->sql_flags & TT_FOR_UPGRADE)))
       return 0;
   }
@@ -7537,6 +7551,17 @@ int handler::ha_write_row(const uchar *buf)
   if ((error= ha_check_overlaps(NULL, buf)))
     DBUG_RETURN(error);
 
+  /*
+    NOTE: this != table->file is true in 3 cases:
+
+    1. under copy_partitions() (REORGANIZE PARTITION): that does not
+       require long unique check as it does not introduce new rows or new index.
+    2. under partition's ha_write_row() (INSERT): check_duplicate_long_entries()
+       was already done by ha_partition::ha_write_row(), no need to check it
+       again for each single partition.
+    3. under ha_mroonga::wrapper_write_row()
+  */
+
   if (table->s->long_unique_table && this == table->file)
   {
     DBUG_ASSERT(inited == NONE || lookup_handler != this);
@@ -7589,6 +7614,13 @@ int handler::ha_update_row(const uchar *old_data, const uchar *new_data)
 
   uint saved_status= table->status;
   error= ha_check_overlaps(old_data, new_data);
+
+  /*
+    NOTE: this != table->file is true under partition's ha_update_row():
+    check_duplicate_long_entries_update() was already done by
+    ha_partition::ha_update_row(), no need to check it again for each single
+    partition. Same applies to ha_mroonga wrapper.
+  */
 
   if (!error && table->s->long_unique_table && this == table->file)
     error= check_duplicate_long_entries_update(new_data);

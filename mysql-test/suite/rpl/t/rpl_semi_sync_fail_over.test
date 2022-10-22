@@ -1,6 +1,7 @@
 # ==== References ====
 #
-# MDEV-21117: recovery for --rpl-semi-sync-slave-enabled server
+# MDEV-21117 recovery for --rpl-semi-sync-slave-enabled server
+# MDEV-27760 event may non stop replicate in circular semisync setup
 #
 
 --source include/have_innodb.inc
@@ -72,6 +73,7 @@ INSERT INTO t1 VALUES (1, 'dummy1');
 --save_master_pos
 --echo # The gtid state on current master must be equal to ...
 SHOW VARIABLES LIKE 'gtid_binlog_pos';
+SHOW VARIABLES LIKE 'gtid_binlog_state';
 SHOW VARIABLES LIKE 'gtid_slave_pos';
 
 --connection server_1
@@ -80,6 +82,7 @@ SHOW VARIABLES LIKE 'gtid_slave_pos';
 --echo # ... the gtid states on the slave:
 SHOW VARIABLES LIKE 'gtid_slave_pos';
 SHOW VARIABLES LIKE 'gtid_binlog_pos';
+SHOW VARIABLES LIKE 'gtid_binlog_state';
 
 --connection server_2
 --let $case = 2
@@ -89,7 +92,9 @@ SHOW VARIABLES LIKE 'gtid_binlog_pos';
 --echo # CRASH the new master, and FAILOVER back to the original
 # value 0 for the reverse server id 2 -> 1 failover
 --let $failover_to_slave=0
---let $query_to_crash = INSERT INTO t1 VALUES (4, REPEAT("x", 4100))
+# Additionally through "foreign" server_id verify MDEV-27760's acceptance
+# policy on the recient (to be promoted into master) server.
+--let $query_to_crash = SET STATEMENT server_id=1 FOR INSERT INTO t1 VALUES (4, REPEAT("x", 4100))
 --let $query2_to_crash= INSERT INTO t1 VALUES (5, REPEAT("x", 4100))
 --echo # $query_to_crash
 --echo # $query2_to_crash
@@ -100,18 +105,18 @@ SHOW VARIABLES LIKE 'gtid_binlog_pos';
 --echo # Expected State post crash:
 --echo #=================================================================
 --echo # Master                |  Slave                                 |
---echo # 0-2-6 (Not commited)  |  0-2-6 (Received through semi-sync     |
+--echo # 0-1-6 (Not commited)  |  0-1-6 (Received through semi-sync     |
 --echo #                       |         replication and applied)       |
 --echo # 0-2-7 (Not commited)  |  0-2-7 (Received through semi-sync     |
 --echo #                       |         replication and applied)       |
 --echo #=================================================================
---let $log_search_pattern=truncated binlog file:.*slave.*000002
+--let $log_search_pattern=truncated binlog file:.*slave.*000002.* to remove transactions starting from GTID 0-1-6
 --let $expected_rows_on_master= 3
 --let $expected_rows_on_slave= 5
 --source rpl_semi_sync_crash.inc
 
 --echo #
---echo # Server_1 promoted as master will send 0-2-6  and 0-2-7 to slave Server_2
+--echo # Server_1 promoted as master will send 0-1-6  and 0-2-7 to slave Server_2
 --echo #
 --connection server_1
 --let $rows_so_far=6
@@ -119,6 +124,7 @@ SHOW VARIABLES LIKE 'gtid_binlog_pos';
 --save_master_pos
 --echo # The gtid state on current master must be equal to ...
 SHOW VARIABLES LIKE 'gtid_binlog_pos';
+SHOW VARIABLES LIKE 'gtid_binlog_state';
 SHOW VARIABLES LIKE 'gtid_slave_pos';
 
 --connection server_2
@@ -127,6 +133,7 @@ SHOW VARIABLES LIKE 'gtid_slave_pos';
 --echo # ... the gtid states on the slave:
 SHOW VARIABLES LIKE 'gtid_slave_pos';
 SHOW VARIABLES LIKE 'gtid_binlog_pos';
+SHOW VARIABLES LIKE 'gtid_binlog_state';
 
 --let $diff_tables=server_1:t1, server_2:t1
 --source include/diff_tables.inc
@@ -154,7 +161,7 @@ SHOW VARIABLES LIKE 'gtid_binlog_pos';
 --echo # 0-1-10 (Not commited -  |                                      |
 --echo #  never sent to slave)   |                                      |
 --echo #=================================================================
---let $log_search_pattern=truncated binlog file:.*master.*000003
+--let $log_search_pattern=truncated binlog file:.*master.*000002.* to remove transactions starting from GTID 0-1-9
 --let $expected_rows_on_master= 6
 --let $expected_rows_on_slave= 7
 --source rpl_semi_sync_crash.inc
@@ -168,6 +175,7 @@ SHOW VARIABLES LIKE 'gtid_binlog_pos';
 --source include/save_master_gtid.inc
 --echo # The gtid state on current master must be equal to ...
 SHOW VARIABLES LIKE 'gtid_binlog_pos';
+SHOW VARIABLES LIKE 'gtid_binlog_state';
 SHOW VARIABLES LIKE 'gtid_slave_pos';
 
 --connection server_1
@@ -176,6 +184,7 @@ SHOW VARIABLES LIKE 'gtid_slave_pos';
 --echo # ... the gtid states on the slave:
 SHOW VARIABLES LIKE 'gtid_slave_pos';
 SHOW VARIABLES LIKE 'gtid_binlog_pos';
+SHOW VARIABLES LIKE 'gtid_binlog_state';
 
 --echo #
 --echo # Cleanup

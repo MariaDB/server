@@ -997,7 +997,7 @@ bool mtr_t::commit_file(fil_space_t &space, const char *name)
 /** Commit a mini-transaction that did not modify any pages,
 but generated some redo log on a higher level, such as
 FILE_MODIFY records and an optional FILE_CHECKPOINT marker.
-The caller must hold log_sys.mutex.
+The caller must hold exclusive log_sys.latch.
 This is to be used at log_checkpoint().
 @param checkpoint_lsn   the log sequence number of a checkpoint, or 0
 @return current LSN */
@@ -1348,11 +1348,17 @@ std::pair<lsn_t,mtr_t::page_flush_ahead> mtr_t::do_write()
   size_t len= m_log.size() + 5;
   ut_ad(len > 5);
 
-#ifdef UNIV_DEBUG
+#ifndef DBUG_OFF
   if (m_log_mode == MTR_LOG_ALL)
   {
     m_memo.for_each_block(CIterate<WriteOPT_PAGE_CHECKSUM>(*this));
-    len= m_log.size() + 5;
+    do
+    {
+      DBUG_EXECUTE_IF("skip_page_checksum", continue;);
+      m_memo.for_each_block(CIterate<WriteOPT_PAGE_CHECKSUM>(*this));
+      len= m_log.size() + 5;
+    }
+    while (0);
   }
 #endif
 
@@ -1606,6 +1612,21 @@ struct FindBlockX
   }
 };
 
+/** Find out whether a block was not X or U latched by the mini-transaction */
+struct FindBlockUX
+{
+  const buf_block_t &block;
+
+  FindBlockUX(const buf_block_t &block): block(block) {}
+
+  /** @return whether the block was not found x-latched */
+  bool operator()(const mtr_memo_slot_t *slot) const
+  {
+    return slot->object != &block ||
+      !(slot->type & (MTR_MEMO_PAGE_X_FIX | MTR_MEMO_PAGE_SX_FIX));
+  }
+};
+
 #ifdef UNIV_DEBUG
 /** Assert that the block is not present in the mini-transaction */
 struct FindNoBlock
@@ -1636,6 +1657,14 @@ bool mtr_t::have_x_latch(const buf_block_t &block) const
   return true;
 }
 
+bool mtr_t::have_u_or_x_latch(const buf_block_t &block) const
+{
+  if (m_memo.for_each_block(CIterate<FindBlockUX>(FindBlockUX(block))))
+    return false;
+  ut_ad(block.page.lock.have_u_or_x());
+  return true;
+}
+
 /** Check if we are holding exclusive tablespace latch
 @param space  tablespace to search for
 @param shared whether to look for shared latch, instead of exclusive
@@ -1650,43 +1679,6 @@ bool mtr_t::memo_contains(const fil_space_t& space, bool shared)
   ut_ad(shared || space.is_owner());
   return true;
 }
-
-#ifdef BTR_CUR_HASH_ADAPT
-/** If a stale adaptive hash index exists on the block, drop it. */
-ATTRIBUTE_COLD
-void mtr_t::defer_drop_ahi(buf_block_t *block, mtr_memo_type_t fix_type)
-{
-  switch (fix_type) {
-  default:
-    ut_ad(fix_type == MTR_MEMO_BUF_FIX);
-    /* We do not drop the adaptive hash index, because safely doing so
-    would require acquiring exclusive block->page.lock, which could
-    lead to hangs in some access paths. Those code paths should have
-    no business accessing the adaptive hash index anyway. */
-    break;
-  case MTR_MEMO_PAGE_S_FIX:
-    /* Temporarily release our S-latch. */
-    block->page.lock.s_unlock();
-    block->page.lock.x_lock();
-    if (dict_index_t *index= block->index)
-      if (index->freed())
-        btr_search_drop_page_hash_index(block);
-    block->page.lock.x_unlock();
-    block->page.lock.s_lock();
-    ut_ad(!block->page.is_read_fixed());
-    break;
-  case MTR_MEMO_PAGE_SX_FIX:
-    block->page.lock.u_x_upgrade();
-    if (dict_index_t *index= block->index)
-      if (index->freed())
-        btr_search_drop_page_hash_index(block);
-    block->page.lock.x_u_downgrade();
-    break;
-  case MTR_MEMO_PAGE_X_FIX:
-    btr_search_drop_page_hash_index(block);
-  }
-}
-#endif /* BTR_CUR_HASH_ADAPT */
 
 /** Upgrade U-latched pages to X */
 struct UpgradeX
@@ -1742,8 +1734,7 @@ void mtr_t::page_lock(buf_block_t *block, ulint rw_latch)
   ut_d(const auto state= block->page.state());
   ut_ad(state > buf_page_t::FREED);
   ut_ad(state > buf_page_t::WRITE_FIX || state < buf_page_t::READ_FIX);
-  switch (rw_latch)
-  {
+  switch (rw_latch) {
   case RW_NO_LATCH:
     fix_type= MTR_MEMO_BUF_FIX;
     goto done;
@@ -1769,10 +1760,8 @@ void mtr_t::page_lock(buf_block_t *block, ulint rw_latch)
   }
 
 #ifdef BTR_CUR_HASH_ADAPT
-  if (dict_index_t *index= block->index)
-    if (index->freed())
-      defer_drop_ahi(block, fix_type);
-#endif /* BTR_CUR_HASH_ADAPT */
+  btr_search_drop_page_hash_index(block, true);
+#endif
 
 done:
   ut_ad(state < buf_page_t::UNFIXED ||
@@ -2003,8 +1992,10 @@ void mtr_t::free(const fil_space_t &space, uint32_t offset)
 
   if (is_logged())
   {
-    m_memo.for_each_block_in_reverse
-      (CIterate<MarkFreed>((MarkFreed{{space.id, offset}})));
+    CIterate<MarkFreed> mf{MarkFreed{{space.id, offset}}};
+    m_memo.for_each_block_in_reverse(mf);
+    if (mf.functor.freed && !m_made_dirty)
+      m_made_dirty= is_block_dirtied(mf.functor.freed);
     m_log.close(log_write<FREE_PAGE>({space.id, offset}, nullptr));
   }
 }

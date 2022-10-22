@@ -27,7 +27,7 @@ c	CREATE TABLE `c` (
   `d2` datetime NOT NULL,
   PRIMARY KEY (`b`,`d1`),
   CONSTRAINT `b_fk` FOREIGN KEY (`b`) REFERENCES `b` (`b`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 CREATE TABLE b (
 b bigint unsigned NOT NULL,
 d1 date NOT NULL,
@@ -58,7 +58,7 @@ c	CREATE TABLE `c` (
   `d2` datetime NOT NULL,
   PRIMARY KEY (`b`,`d1`),
   CONSTRAINT `b_fk` FOREIGN KEY (`b`) REFERENCES `b` (`b`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 show create table d;
 Table	Create Table
 d	CREATE TABLE `d` (
@@ -66,7 +66,7 @@ d	CREATE TABLE `d` (
   `d1` date NOT NULL,
   PRIMARY KEY (`b`,`d1`),
   CONSTRAINT `bd_fk` FOREIGN KEY (`b`) REFERENCES `b` (`b`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 CREATE TABLE b (
 b bigint unsigned NOT NULL,
 d1 date NOT NULL,

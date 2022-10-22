@@ -259,9 +259,10 @@ btr_defragment_calc_n_recs_for_size(
 
 	const ulint n_core = page_is_leaf(page) ? index->n_core_fields : 0;
 	page_cur_set_before_first(block, &cur);
-	page_cur_move_to_next(&cur);
-	while (page_cur_get_rec(&cur) != page_get_supremum_rec(page)) {
-		rec_t* cur_rec = page_cur_get_rec(&cur);
+	while (rec_t* cur_rec = page_cur_move_to_next(&cur)) {
+		if (page_rec_is_supremum(cur_rec)) {
+			break;
+		}
 		offsets = rec_get_offsets(cur_rec, index, offsets, n_core,
 					  ULINT_UNDEFINED, &heap);
 		ulint rec_size = rec_offs_size(offsets);
@@ -271,7 +272,6 @@ btr_defragment_calc_n_recs_for_size(
 			break;
 		}
 		n_recs ++;
-		page_cur_move_to_next(&cur);
 	}
 	*n_recs_size = size;
 	if (UNIV_LIKELY_NULL(heap)) {
@@ -356,8 +356,9 @@ btr_defragment_merge_pages(
 	target_n_recs = n_recs_to_move;
 	dberr_t err;
 	while (n_recs_to_move > 0) {
-		rec = page_rec_get_nth(from_page,
-					n_recs_to_move + 1);
+		if (!(rec = page_rec_get_nth(from_page, n_recs_to_move + 1))) {
+			return nullptr;
+		}
 		orig_pred = page_copy_rec_list_start(
 			to_block, from_block, rec, index, mtr, &err);
 		if (orig_pred)
@@ -439,14 +440,17 @@ btr_defragment_merge_pages(
 			}
 			rec = page_rec_get_next(
 				page_get_infimum_rec(from_page));
+			if (!rec) {
+				return nullptr;
+			}
 			node_ptr = dict_index_build_node_ptr(
 				index, rec, page_get_page_no(from_page),
 				heap, level);
 			if (btr_insert_on_non_leaf_level(0, index, level+1,
-                                                         node_ptr, mtr)
-                            != DB_SUCCESS) {
+							 node_ptr, mtr)
+			    != DB_SUCCESS) {
 				return nullptr;
-                        }
+			}
 		}
 		to_block = from_block;
 	}
@@ -652,7 +656,7 @@ release_and_exit:
 				mysql_mutex_unlock(&btr_defragment_mutex);
 func_exit:
 				set_current_thd(nullptr);
-				innobase_destroy_background_thd(thd);
+				destroy_background_thd(thd);
 				return;
 			}
 			item = *btr_defragment_wq.begin();

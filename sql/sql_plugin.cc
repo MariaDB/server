@@ -40,6 +40,7 @@
 #include <mysql/plugin_data_type.h>
 #include <mysql/plugin_function.h>
 #include "sql_plugin_compat.h"
+#include "wsrep_mysqld.h"
 
 static PSI_memory_key key_memory_plugin_mem_root;
 static PSI_memory_key key_memory_plugin_int_mem_root;
@@ -2532,7 +2533,7 @@ static bool plugin_dl_foreach_internal(THD *thd, st_plugin_dl *plugin_dl,
     tmp.plugin_dl= plugin_dl;
 
     mysql_mutex_lock(&LOCK_plugin);
-    if ((plugin= plugin_find_internal(&tmp.name, MYSQL_ANY_PLUGIN)) &&
+    if ((plugin= plugin_find_internal(&tmp.name, plug->type)) &&
         plugin->plugin == plug)
 
     {

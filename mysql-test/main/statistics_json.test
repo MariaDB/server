@@ -117,6 +117,8 @@ drop table t2;
 
 DELETE FROM mysql.column_stats;
 
+--disable_service_connection
+
 create schema world;
 use world;
 --disable_query_log
@@ -143,6 +145,9 @@ set histogram_type=@save_histogram_type;
 set histogram_size=@save_histogram_size;
 
 DROP SCHEMA world;
+
+--enable_service_connection
+
 use test;
 
 create table t10 (

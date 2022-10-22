@@ -1,0 +1,92 @@
+--echo #
+--echo # MDEV-27172 Prefix indices on Spider tables may lead to wrong query results
+--echo #
+
+--disable_query_log
+--disable_result_log
+--source ../../t/test_init.inc
+--enable_result_log
+--enable_query_log
+
+--connection child2_1
+SET @general_log_backup = @@global.general_log;
+SET @log_output_backup = @@global.log_output;
+SET @@global.general_log = 1;
+SET @@global.log_output = "TABLE";
+
+CREATE DATABASE auto_test_remote;
+USE auto_test_remote;
+
+eval CREATE TABLE tbl_a (
+  id int NOT NULL,
+  greeting  VARCHAR(255),
+  KEY(greeting)
+) $CHILD2_1_ENGINE $CHILD2_1_CHARSET;
+
+eval CREATE TABLE tbl_b (
+  id int NOT NULL,
+  greeting VARCHAR(255),
+  KEY k (greeting(5))
+) $CHILD2_1_ENGINE $CHILD2_1_CHARSET;
+
+eval CREATE TABLE tbl_c (
+  id int NOT NULL,
+  greeting TEXT,
+  KEY k (greeting(5))
+) $CHILD2_1_ENGINE $CHILD2_1_CHARSET;
+
+TRUNCATE TABLE mysql.general_log;
+
+--connection master_1
+CREATE DATABASE auto_test_local;
+USE auto_test_local;
+
+# = (equality)
+eval CREATE TABLE tbl_a (
+  id int NOT NULL,
+  greeting VARCHAR(255),
+  KEY k (greeting)
+) $MASTER_1_ENGINE $MASTER_1_CHARSET COMMENT='table "tbl_a", srv "s_2_1"';
+
+INSERT INTO tbl_a VALUES (1, "Hi!"),(2, "Aloha!"),(3, "Aloha!!!");
+SELECT * FROM tbl_a WHERE greeting = "Aloha!"
+  AND CASE greeting WHEN "Aloha!" THEN "one" ELSE 'more' END = "one"; # hack to disable GBH
+
+# LIKE
+eval CREATE TABLE tbl_b (
+  id int NOT NULL,
+  greeting VARCHAR(255),
+  KEY k (greeting(5))
+) $MASTER_1_ENGINE $MASTER_1_CHARSET COMMENT='table "tbl_b", srv "s_2_1"';
+
+INSERT INTO tbl_b VALUES (1, "Hi!"),(2, "Aloha!"),(3, "Aloha!!!");
+SELECT * FROM tbl_b WHERE greeting = "Aloha!"
+  AND CASE greeting WHEN "Aloha!" THEN "one" ELSE 'more' END = "one"; # hack to disable GBH
+
+# LIKE
+eval CREATE TABLE tbl_c (
+  id int NOT NULL,
+  greeting TEXT,
+  KEY k (greeting(5))
+) $MASTER_1_ENGINE $MASTER_1_CHARSET COMMENT='table "tbl_c", srv "s_2_1"';
+
+INSERT INTO tbl_c VALUES (1, "Hi!"),(2, "Aloha!"),(3, "Aloha!!!");
+SELECT * FROM tbl_c WHERE greeting = "Aloha!"
+  AND CASE greeting WHEN "Aloha!" THEN "one" ELSE 'more' END = "one"; # hack to disable GBH
+
+--connection child2_1
+SELECT argument FROM mysql.general_log WHERE argument LIKE 'select `id`,`greeting` from %';
+
+--connection child2_1
+SET @@global.general_log = @general_log_backup;
+SET @@global.log_output = @log_output_backup;
+DROP DATABASE auto_test_remote;
+
+--connection master_1
+DROP DATABASE auto_test_local;
+
+--disable_query_log
+--disable_result_log
+--source ../../t/test_deinit.inc
+--enable_result_log
+--enable_query_log

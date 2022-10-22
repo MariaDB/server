@@ -25,7 +25,7 @@ call mtr.add_suppression("Slave SQL.*Column [0-9] of table .test.t[0-9]*. cannot
 
 sync_slave_with_master;
 STOP SLAVE;
-RESET SLAVE;
+--source include/reset_slave.inc
 
 SET @saved_slave_type_conversions = @@slave_type_conversions;
 SET GLOBAL SLAVE_TYPE_CONVERSIONS = 'ALL_NON_LOSSY';
@@ -71,7 +71,7 @@ sync_slave_with_master;
 ## BUG22086
 --echo *** Create t2 on slave  ***
 STOP SLAVE;
-RESET SLAVE;
+--source include/reset_slave.inc
 eval CREATE TABLE t2 (a INT, b INT PRIMARY KEY, c CHAR(5),
                       d FLOAT DEFAULT '2.00',
                       e CHAR(5) DEFAULT 'TEST2')
@@ -96,7 +96,7 @@ START SLAVE;
 --let $show_slave_sql_error= 1
 --source include/wait_for_slave_sql_error.inc
 STOP SLAVE;
-RESET SLAVE;
+--source include/reset_slave.inc
 SELECT * FROM t2 ORDER BY a;
 
 connection master;
@@ -116,7 +116,7 @@ sync_slave_with_master;
 ####################################
 --echo *** Create t3 on slave  ***
 STOP SLAVE;
-RESET SLAVE;
+--source include/reset_slave.inc
 eval CREATE TABLE t3 (a INT, b INT PRIMARY KEY, c CHAR(20),
                       d FLOAT DEFAULT '2.00',
                       e CHAR(5) DEFAULT 'TEST2')
@@ -161,7 +161,7 @@ sync_slave_with_master;
 
 --echo *** Create t4 on slave  ***
 STOP SLAVE;
-RESET SLAVE;
+--source include/reset_slave.inc
 eval CREATE TABLE t4 (a INT, b INT PRIMARY KEY, c CHAR(20),
                       d FLOAT DEFAULT '2.00',
                       e CHAR(5) DEFAULT 'TEST2')
@@ -204,7 +204,7 @@ sync_slave_with_master;
 
 --echo *** Create t5 on slave  ***
 STOP SLAVE;
-RESET SLAVE;
+--source include/reset_slave.inc
 eval CREATE TABLE t5 (a INT PRIMARY KEY, b CHAR(5),
                       c FLOAT, d INT, e DOUBLE,
                       f DECIMAL(8,2))ENGINE=$engine_type;
@@ -249,7 +249,7 @@ sync_slave_with_master;
 
 --echo *** Create t6 on slave  ***
 STOP SLAVE;
-RESET SLAVE;
+--source include/reset_slave.inc
 eval CREATE TABLE t6 (a INT PRIMARY KEY, b CHAR(5),
                       c FLOAT, d INT)ENGINE=$engine_type;
 
@@ -307,7 +307,7 @@ DROP TABLE t6;
 
 --echo *** Create t7 on slave  ***
 STOP SLAVE;
-RESET SLAVE;
+--source include/reset_slave.inc
 eval CREATE TABLE t7 (a INT KEY, b BLOB, c CHAR(5),
                       d TIMESTAMP NULL DEFAULT '0000-00-00 00:00:00',
                       e CHAR(20) DEFAULT 'Extra Column Testing')
@@ -349,7 +349,7 @@ sync_slave_with_master;
 ###########################################
 --echo *** Create t8 on slave  ***
 STOP SLAVE;
-RESET SLAVE;
+--source include/reset_slave.inc
 eval CREATE TABLE t8 (a INT KEY, b BLOB, c CHAR(5),
                       d TIMESTAMP NULL DEFAULT '0000-00-00 00:00:00',
                       e INT)ENGINE=$engine_type;
@@ -395,7 +395,7 @@ sync_slave_with_master;
 # Error reaction is up to sql_mode of the slave sql (bug#38173)
 #--echo *** Create t9 on slave  ***
   STOP SLAVE;
-  RESET SLAVE;
+  --source include/reset_slave.inc
   eval CREATE TABLE t9 (a INT KEY, b BLOB, c CHAR(5),
                         d TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP 
                           ON UPDATE CURRENT_TIMESTAMP,
@@ -449,7 +449,7 @@ sync_slave_with_master;
 ############################################
 --echo  *** Create t10 on slave  ***
 STOP SLAVE;
-RESET SLAVE;
+--source include/reset_slave.inc
 eval CREATE TABLE t10 (a INT KEY, b BLOB, f DOUBLE DEFAULT '233', 
                       c CHAR(5), e INT DEFAULT '1')ENGINE=$engine_type;
 
@@ -491,7 +491,7 @@ sync_slave_with_master;
 ############################################
 --echo  *** Create t11 on slave  ***
 STOP SLAVE;
-RESET SLAVE;
+--source include/reset_slave.inc
 eval CREATE TABLE t11 (a INT KEY, b BLOB, f INT,
                       c CHAR(5) DEFAULT 'test', e INT DEFAULT '1')ENGINE=$engine_type;
 
@@ -533,7 +533,7 @@ sync_slave_with_master;
 ############################################
 --echo  *** Create t12 on slave  ***
 STOP SLAVE;
-RESET SLAVE;
+--source include/reset_slave.inc
 eval CREATE TABLE t12 (a INT KEY, b BLOB, f TEXT,
                       c CHAR(5) DEFAULT 'test', e INT DEFAULT '1')ENGINE=$engine_type;
 
@@ -572,7 +572,7 @@ sync_slave_with_master;
 --echo *** BUG 22177 Start ***
 --echo *** Create t13 on slave  ***
 STOP SLAVE;
-RESET SLAVE;
+--source include/reset_slave.inc
 eval CREATE TABLE t13 (a INT KEY, b BLOB, c CHAR(5),
                       d INT DEFAULT '1',
                       e TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP
@@ -620,7 +620,7 @@ sync_slave_with_master;
 
 --echo *** Create t14 on slave  ***
 STOP SLAVE;
-RESET SLAVE;
+--source include/reset_slave.inc
 eval CREATE TABLE t14 (c1 INT KEY, c4 BLOB, c5 CHAR(5),
                       c6 INT DEFAULT '1',
                       c7 TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP
@@ -660,7 +660,7 @@ SELECT * FROM t14 ORDER BY c1;
 
 --echo *** Create t14a on slave  ***
 STOP SLAVE;
-RESET SLAVE;
+--source include/reset_slave.inc
 eval CREATE TABLE t14a (c1 INT KEY, c4 BLOB, c5 CHAR(5),
                       c6 INT DEFAULT '1',
                       c7 TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP
@@ -690,7 +690,7 @@ sync_slave_with_master;
 --replace_column 5 CURRENT_TIMESTAMP
 SELECT * FROM t14a ORDER BY c1;
 STOP SLAVE;
-RESET SLAVE;
+--source include/reset_slave.inc
 
 --echo *** Master Drop c5 ***
 connection master;
@@ -749,7 +749,7 @@ sync_slave_with_master;
 
 --echo *** Create t15 on slave  ***
 STOP SLAVE;
-RESET SLAVE;
+--source include/reset_slave.inc
 eval CREATE TABLE t15 (c1 INT KEY, c2 DECIMAL(8,2), c3 TEXT,
                       c4 BLOB, c5 CHAR(5),
                       c6 INT DEFAULT '1',
@@ -822,7 +822,7 @@ sync_slave_with_master;
 
 --echo *** Create t16 on slave  ***
 STOP SLAVE;
-RESET SLAVE;
+--source include/reset_slave.inc
 eval CREATE TABLE t16 (c1 INT KEY, c2 DECIMAL(8,2), c3 TEXT,
                       c4 BLOB, c5 CHAR(5),
                       c6 INT DEFAULT '1',
@@ -877,7 +877,7 @@ sync_slave_with_master;
 
 --echo *** Create t17 on slave  ***
 STOP SLAVE;
-RESET SLAVE;
+--source include/reset_slave.inc
 eval CREATE TABLE t17 (a SMALLINT, b INT PRIMARY KEY, c CHAR(5),
                       d FLOAT DEFAULT '2.00',
                       e CHAR(5) DEFAULT 'TEST2')

@@ -19,7 +19,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `b` blob DEFAULT NULL,
   UNIQUE KEY `b` (`b`) USING HASH
-) ENGINE=InnoDB DEFAULT CHARSET=latin1
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 drop table t1;
 create table t1 (pk int, b blob, primary key(pk), unique(b)) engine=myisam;
 insert into t1 values (1,'foo');
@@ -229,9 +229,9 @@ unique key a using hash (c(1))
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c` char(10) CHARACTER SET utf8mb4 DEFAULT NULL,
+  `c` char(10) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci DEFAULT NULL,
   UNIQUE KEY `a` (`c`(1)) USING HASH
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 insert into t1 values ('б');
 insert into t1 values ('бб');
 ERROR 23000: Duplicate entry '�' for key 'a'
@@ -317,6 +317,25 @@ ERROR 23000: Duplicate entry '1' for key 'v2'
 update t1,t2 set v1 = v2 , v5 = 0;
 ERROR 23000: Duplicate entry '-128' for key 'v1'
 drop table t1, t2;
+#
+# MDEV-21540 Initialization of already inited long unique index on reorganize partition
+#
+create table t1 (x int, a blob)
+partition by range (x) (
+partition p1 values less than (50),
+partition pn values less than maxvalue);
+insert into t1 values (1, 1), (100, 1);
+alter table t1 add unique key (a);
+ERROR 23000: Duplicate entry '1' for key 'a'
+update t1 set a= x;
+alter table t1 add unique key (a);
+update t1 set a= 1;
+ERROR 23000: Duplicate entry '1' for key 'a'
+update t1 set a= x + 1;
+alter table t1 reorganize partition p1 into (
+partition n0 values less than (10),
+partition n1 values less than (50));
+drop table t1;
 #
 # End of 10.4 tests
 #

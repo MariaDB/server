@@ -6,6 +6,7 @@
 #
 CREATE TABLE t1 (target INET4 DEFAULT '99.99.99.99', source TIME DEFAULT '10:20:30');
 # Start of type_store_assignment_incompatible.inc
+SET @sql_mode_save= @@sql_mode;
 SET @source_type= (SELECT COLUMN_TYPE FROM INFORMATION_SCHEMA.COLUMNS
 WHERE COLUMN_NAME='source'
                    AND TABLE_NAME='t1'
@@ -14,6 +15,10 @@ SET @target_type= (SELECT COLUMN_TYPE FROM INFORMATION_SCHEMA.COLUMNS
 WHERE COLUMN_NAME='target'
                    AND TABLE_NAME='t1'
                    AND TABLE_SCHEMA='test');
+SET @ignore= CASE WHEN @ignore IS NULL OR @ignore = '' THEN ''
+                  WHEN @ignore NOT LIKE ' %' THEN CONCAT(' ',@ignore)
+ELSE @ignore
+END;
 CREATE TABLE t2 LIKE t1;
 ALTER TABLE t2 ADD id INT NOT NULL PRIMARY KEY FIRST;
 INSERT INTO t2 VALUES (1,DEFAULT,DEFAULT);
@@ -24,13 +29,13 @@ t2	CREATE TABLE `t2` (
   `target` inet4 DEFAULT '99.99.99.99',
   `source` time DEFAULT '10:20:30',
   PRIMARY KEY (`id`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 CREATE TABLE t3 LIKE t2;
 INSERT INTO t3 VALUES
 (1,
 (SELECT source FROM t2 ORDER BY id LIMIT 1),
 (SELECT source FROM t2 ORDER BY id LIMIT 1));
-ERROR HY000: Illegal parameter data types inet4 and time for operation 'SET'
+ERROR HY000: Cannot cast 'time' as 'inet4' in assignment of `test`.`t3`.`target`
 DROP TABLE t3;
 SET sql_mode='';
 CREATE TABLE t3 LIKE t2;
@@ -62,37 +67,37 @@ INSERT INTO t3 VALUES
 (2,
 (SELECT source FROM t2 ORDER BY id LIMIT 1),
 (SELECT source FROM t2 ORDER BY id LIMIT 1));
-Got one of the listed errors
+ERROR 22007: Incorrect inet4 value: '10:20:30' for column `test`.`t3`.`target` at row 2
 SELECT * FROM v3;
 id	target	source
 1	99.99.99.99	10:20:30
 TRUNCATE TABLE t3;
-SET sql_mode=DEFAULT;
+SET sql_mode=@sql_mode_save;
 DROP TABLE t3;
 DROP VIEW v3;
 CREATE TABLE t3 LIKE t2;
 INSERT INTO t3 SELECT id,source,source FROM t2;
-ERROR HY000: Illegal parameter data types inet4 and time for operation 'SET'
+ERROR HY000: Cannot cast 'time' as 'inet4' in assignment of `test`.`t3`.`target`
 INSERT INTO t3 (id,target,source) SELECT id,source,source FROM t2;
-ERROR HY000: Illegal parameter data types inet4 and time for operation 'SET'
+ERROR HY000: Cannot cast 'time' as 'inet4' in assignment of `test`.`t3`.`target`
 INSERT INTO t3 VALUES (1,DEFAULT,DEFAULT) ON DUPLICATE KEY UPDATE target=source;
-ERROR HY000: Illegal parameter data types inet4 and time for operation 'SET'
+ERROR HY000: Cannot cast 'time' as 'inet4' in assignment of `test`.`t3`.`target`
 INSERT INTO t3 (id,target,source) VALUES (1,DEFAULT,DEFAULT) ON DUPLICATE KEY UPDATE target=source;
-ERROR HY000: Illegal parameter data types inet4 and time for operation 'SET'
+ERROR HY000: Cannot cast 'time' as 'inet4' in assignment of `test`.`t3`.`target`
 INSERT INTO t3 SELECT 1,DEFAULT(t2.target),DEFAULT(t2.source) FROM t2 ON DUPLICATE KEY UPDATE t3.target=t2.source;
-ERROR HY000: Illegal parameter data types inet4 and time for operation 'SET'
+ERROR HY000: Cannot cast 'time' as 'inet4' in assignment of `test`.`t3`.`target`
 INSERT INTO t3 (id,target,source) SELECT 1,DEFAULT(t2.target),DEFAULT(t2.source) FROM t2 ON DUPLICATE KEY UPDATE t3.target=t2.source;
-ERROR HY000: Illegal parameter data types inet4 and time for operation 'SET'
+ERROR HY000: Cannot cast 'time' as 'inet4' in assignment of `test`.`t3`.`target`
 UPDATE t3 SET target=source;
-ERROR HY000: Illegal parameter data types inet4 and time for operation 'SET'
+ERROR HY000: Cannot cast 'time' as 'inet4' in assignment of `test`.`t3`.`target`
 UPDATE t2, t3 SET t3.target=t2.source WHERE t2.id=t3.id;
-ERROR HY000: Illegal parameter data types inet4 and time for operation 'SET'
-SET @alter=CONCAT('ALTER TABLE t3 MODIFY target ', @source_type);
+ERROR HY000: Cannot cast 'time' as 'inet4' in assignment of `test`.`t3`.`target`
+SET @alter=CONCAT('ALTER', @ignore, ' TABLE t3 MODIFY target ', @source_type);
 SELECT @alter;
 @alter
 ALTER TABLE t3 MODIFY target time
 EXECUTE IMMEDIATE @alter;
-ERROR HY000: Illegal parameter data types time and inet4 for operation 'SET'
+ERROR HY000: Cannot cast 'inet4' as 'time' in assignment of `test`.`t3`.`target`
 DROP TABLE t3;
 DROP TABLE t2;
 CREATE PROCEDURE p1()
@@ -103,15 +108,15 @@ SET dst=src;
 END;
 $$
 CALL p1;
-ERROR HY000: Illegal parameter data types inet4 and time for operation 'SET'
+ERROR HY000: Cannot cast 'time' as 'inet4' in assignment of `dst`
 DROP PROCEDURE p1;
 CREATE FUNCTION f1(a inet4) RETURNS INT RETURN NULL;;
 SELECT f1((SELECT source FROM t1 ORDER BY source LIMIT 1));
-ERROR HY000: Illegal parameter data types inet4 and time for operation 'SET'
+ERROR HY000: Cannot cast 'time' as 'inet4' in assignment of `a`
 DROP FUNCTION f1;
 CREATE PROCEDURE p1(a inet4) BEGIN END;;
 CALL p1((SELECT source FROM t1 ORDER BY source LIMIT 1));
-ERROR HY000: Illegal parameter data types inet4 and time for operation 'SET'
+ERROR HY000: Cannot cast 'time' as 'inet4' in assignment of `a`
 DROP PROCEDURE p1;
 CREATE PROCEDURE p1(OUT dst inet4)
 BEGIN
@@ -126,10 +131,10 @@ CALL p1(dst);
 END;
 $$
 CALL p2();
-ERROR HY000: Illegal parameter data types inet4 and time for operation 'SET'
+ERROR HY000: Cannot cast 'time' as 'inet4' in assignment of `dst`
 SHOW WARNINGS;
 Level	Code	Message
-Error	4078	Illegal parameter data types inet4 and time for operation 'SET'
+Error	4078	Cannot cast 'time' as 'inet4' in assignment of `dst`
 Note	4094	At line 4 in test.p1
 Note	4094	At line 4 in test.p2
 DROP PROCEDURE p2;
@@ -141,7 +146,7 @@ RETURN rc;
 END;
 $$
 SELECT f1();
-ERROR HY000: Illegal parameter data types inet4 and time for operation 'SET'
+ERROR HY000: Cannot cast 'time' as 'inet4' in assignment of `f1()`
 DROP FUNCTION f1;
 CREATE PROCEDURE p1()
 BEGIN
@@ -152,7 +157,7 @@ CLOSE cur1;
 END;
 $$
 CALL p1();
-ERROR HY000: Illegal parameter data types inet4 and time for operation 'SET'
+ERROR HY000: Cannot cast 'time' as 'inet4' in assignment of `t`
 DROP PROCEDURE p1;
 CREATE TABLE t2 LIKE t1;
 INSERT INTO t2 VALUES ();
@@ -166,13 +171,14 @@ CLOSE cur2;
 END;
 $$
 CALL p1();
-ERROR HY000: Illegal parameter data types inet4 and time for operation 'SET'
+ERROR HY000: Cannot cast 'time' as 'inet4' in assignment of `dst`
 DROP PROCEDURE p1;
 DROP TABLE t2;
 # End of type_store_assignment_incompatible.inc
 DROP TABLE t1;
 CREATE TABLE t1 (target TIME DEFAULT '10:20:30', source INET4 DEFAULT '99.99.99.99');
 # Start of type_store_assignment_incompatible.inc
+SET @sql_mode_save= @@sql_mode;
 SET @source_type= (SELECT COLUMN_TYPE FROM INFORMATION_SCHEMA.COLUMNS
 WHERE COLUMN_NAME='source'
                    AND TABLE_NAME='t1'
@@ -181,6 +187,10 @@ SET @target_type= (SELECT COLUMN_TYPE FROM INFORMATION_SCHEMA.COLUMNS
 WHERE COLUMN_NAME='target'
                    AND TABLE_NAME='t1'
                    AND TABLE_SCHEMA='test');
+SET @ignore= CASE WHEN @ignore IS NULL OR @ignore = '' THEN ''
+                  WHEN @ignore NOT LIKE ' %' THEN CONCAT(' ',@ignore)
+ELSE @ignore
+END;
 CREATE TABLE t2 LIKE t1;
 ALTER TABLE t2 ADD id INT NOT NULL PRIMARY KEY FIRST;
 INSERT INTO t2 VALUES (1,DEFAULT,DEFAULT);
@@ -191,13 +201,13 @@ t2	CREATE TABLE `t2` (
   `target` time DEFAULT '10:20:30',
   `source` inet4 DEFAULT '99.99.99.99',
   PRIMARY KEY (`id`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 CREATE TABLE t3 LIKE t2;
 INSERT INTO t3 VALUES
 (1,
 (SELECT source FROM t2 ORDER BY id LIMIT 1),
 (SELECT source FROM t2 ORDER BY id LIMIT 1));
-ERROR HY000: Illegal parameter data types time and inet4 for operation 'SET'
+ERROR HY000: Cannot cast 'inet4' as 'time' in assignment of `test`.`t3`.`target`
 DROP TABLE t3;
 SET sql_mode='';
 CREATE TABLE t3 LIKE t2;
@@ -229,37 +239,37 @@ INSERT INTO t3 VALUES
 (2,
 (SELECT source FROM t2 ORDER BY id LIMIT 1),
 (SELECT source FROM t2 ORDER BY id LIMIT 1));
-Got one of the listed errors
+ERROR 22007: Incorrect time value: '99.99.99.99' for column `test`.`t3`.`target` at row 2
 SELECT * FROM v3;
 id	target	source
 1	10:20:30	99.99.99.99
 TRUNCATE TABLE t3;
-SET sql_mode=DEFAULT;
+SET sql_mode=@sql_mode_save;
 DROP TABLE t3;
 DROP VIEW v3;
 CREATE TABLE t3 LIKE t2;
 INSERT INTO t3 SELECT id,source,source FROM t2;
-ERROR HY000: Illegal parameter data types time and inet4 for operation 'SET'
+ERROR HY000: Cannot cast 'inet4' as 'time' in assignment of `test`.`t3`.`target`
 INSERT INTO t3 (id,target,source) SELECT id,source,source FROM t2;
-ERROR HY000: Illegal parameter data types time and inet4 for operation 'SET'
+ERROR HY000: Cannot cast 'inet4' as 'time' in assignment of `test`.`t3`.`target`
 INSERT INTO t3 VALUES (1,DEFAULT,DEFAULT) ON DUPLICATE KEY UPDATE target=source;
-ERROR HY000: Illegal parameter data types time and inet4 for operation 'SET'
+ERROR HY000: Cannot cast 'inet4' as 'time' in assignment of `test`.`t3`.`target`
 INSERT INTO t3 (id,target,source) VALUES (1,DEFAULT,DEFAULT) ON DUPLICATE KEY UPDATE target=source;
-ERROR HY000: Illegal parameter data types time and inet4 for operation 'SET'
+ERROR HY000: Cannot cast 'inet4' as 'time' in assignment of `test`.`t3`.`target`
 INSERT INTO t3 SELECT 1,DEFAULT(t2.target),DEFAULT(t2.source) FROM t2 ON DUPLICATE KEY UPDATE t3.target=t2.source;
-ERROR HY000: Illegal parameter data types time and inet4 for operation 'SET'
+ERROR HY000: Cannot cast 'inet4' as 'time' in assignment of `test`.`t3`.`target`
 INSERT INTO t3 (id,target,source) SELECT 1,DEFAULT(t2.target),DEFAULT(t2.source) FROM t2 ON DUPLICATE KEY UPDATE t3.target=t2.source;
-ERROR HY000: Illegal parameter data types time and inet4 for operation 'SET'
+ERROR HY000: Cannot cast 'inet4' as 'time' in assignment of `test`.`t3`.`target`
 UPDATE t3 SET target=source;
-ERROR HY000: Illegal parameter data types time and inet4 for operation 'SET'
+ERROR HY000: Cannot cast 'inet4' as 'time' in assignment of `test`.`t3`.`target`
 UPDATE t2, t3 SET t3.target=t2.source WHERE t2.id=t3.id;
-ERROR HY000: Illegal parameter data types time and inet4 for operation 'SET'
-SET @alter=CONCAT('ALTER TABLE t3 MODIFY target ', @source_type);
+ERROR HY000: Cannot cast 'inet4' as 'time' in assignment of `test`.`t3`.`target`
+SET @alter=CONCAT('ALTER', @ignore, ' TABLE t3 MODIFY target ', @source_type);
 SELECT @alter;
 @alter
 ALTER TABLE t3 MODIFY target inet4
 EXECUTE IMMEDIATE @alter;
-ERROR HY000: Illegal parameter data types inet4 and time for operation 'SET'
+ERROR HY000: Cannot cast 'time' as 'inet4' in assignment of `test`.`t3`.`target`
 DROP TABLE t3;
 DROP TABLE t2;
 CREATE PROCEDURE p1()
@@ -270,15 +280,15 @@ SET dst=src;
 END;
 $$
 CALL p1;
-ERROR HY000: Illegal parameter data types time and inet4 for operation 'SET'
+ERROR HY000: Cannot cast 'inet4' as 'time' in assignment of `dst`
 DROP PROCEDURE p1;
 CREATE FUNCTION f1(a time) RETURNS INT RETURN NULL;;
 SELECT f1((SELECT source FROM t1 ORDER BY source LIMIT 1));
-ERROR HY000: Illegal parameter data types time and inet4 for operation 'SET'
+ERROR HY000: Cannot cast 'inet4' as 'time' in assignment of `a`
 DROP FUNCTION f1;
 CREATE PROCEDURE p1(a time) BEGIN END;;
 CALL p1((SELECT source FROM t1 ORDER BY source LIMIT 1));
-ERROR HY000: Illegal parameter data types time and inet4 for operation 'SET'
+ERROR HY000: Cannot cast 'inet4' as 'time' in assignment of `a`
 DROP PROCEDURE p1;
 CREATE PROCEDURE p1(OUT dst time)
 BEGIN
@@ -293,10 +303,10 @@ CALL p1(dst);
 END;
 $$
 CALL p2();
-ERROR HY000: Illegal parameter data types time and inet4 for operation 'SET'
+ERROR HY000: Cannot cast 'inet4' as 'time' in assignment of `dst`
 SHOW WARNINGS;
 Level	Code	Message
-Error	4078	Illegal parameter data types time and inet4 for operation 'SET'
+Error	4078	Cannot cast 'inet4' as 'time' in assignment of `dst`
 Note	4094	At line 4 in test.p1
 Note	4094	At line 4 in test.p2
 DROP PROCEDURE p2;
@@ -308,7 +318,7 @@ RETURN rc;
 END;
 $$
 SELECT f1();
-ERROR HY000: Illegal parameter data types time and inet4 for operation 'SET'
+ERROR HY000: Cannot cast 'inet4' as 'time' in assignment of `f1()`
 DROP FUNCTION f1;
 CREATE PROCEDURE p1()
 BEGIN
@@ -319,7 +329,7 @@ CLOSE cur1;
 END;
 $$
 CALL p1();
-ERROR HY000: Illegal parameter data types time and inet4 for operation 'SET'
+ERROR HY000: Cannot cast 'inet4' as 'time' in assignment of `t`
 DROP PROCEDURE p1;
 CREATE TABLE t2 LIKE t1;
 INSERT INTO t2 VALUES ();
@@ -333,7 +343,7 @@ CLOSE cur2;
 END;
 $$
 CALL p1();
-ERROR HY000: Illegal parameter data types time and inet4 for operation 'SET'
+ERROR HY000: Cannot cast 'inet4' as 'time' in assignment of `dst`
 DROP PROCEDURE p1;
 DROP TABLE t2;
 # End of type_store_assignment_incompatible.inc

@@ -31,7 +31,13 @@ static int validate(const MYSQL_CONST_LEX_STRING *username,
   const char *ptr= password->str, *end= ptr + length;
 
   if (strncmp(password->str, username->str, length) == 0)
+  {
+    // warning used to do not change error code
+    my_printf_error(ER_NOT_VALID_PASSWORD,
+                    "simple_password_check: The password equal to the user name",
+                    ME_WARNING);
     return 1;
+  }
 
   /* everything non-ascii is the "other" character and is good for the password */
   for(; ptr < end; ptr++)
@@ -45,6 +51,28 @@ static int validate(const MYSQL_CONST_LEX_STRING *username,
     else
       others++;
   }
+
+  // warnings used to do not change error code
+  if (length < min_length)
+    my_printf_error(ER_NOT_VALID_PASSWORD,
+                    "simple_password_check: Too short password (< %u)",
+                    ME_WARNING, min_length);
+  if (uppers < min_letters)
+    my_printf_error(ER_NOT_VALID_PASSWORD,
+                    "simple_password_check: Not enough upper case "
+                    "letters (< %u)",ME_WARNING,  min_letters);
+  if (lowers < min_letters)
+    my_printf_error(ER_NOT_VALID_PASSWORD,
+                    "simple_password_check: Not enough lower case "
+                    "letters (< %u)",ME_WARNING,  min_letters);
+  if (digits < min_digits)
+    my_printf_error(ER_NOT_VALID_PASSWORD,
+                    "simple_password_check: Not enough digits (< %u)",
+                    ME_WARNING, min_digits);
+  if (others < min_others)
+    my_printf_error(ER_NOT_VALID_PASSWORD,
+                    "simple_password_check: Not enough special "
+                    "characters (< %u)",ME_WARNING,  min_others);
   /* remember TRUE means the password failed the validation */
   return length < min_length  ||
          uppers < min_letters ||

@@ -148,7 +148,7 @@ bool CntCheckDB(PGLOBAL g, PHC handler, const char *pathname)
   /*********************************************************************/
   /*  All is correct.                                                  */
   /*********************************************************************/
-  sprintf(g->Message, MSG(DATABASE_LOADED), "???");
+  snprintf(g->Message, sizeof(g->Message), MSG(DATABASE_LOADED), "???");
 
   if (trace(1))
     printf("msg=%s\n", g->Message);
@@ -268,7 +268,7 @@ bool CntOpenTable(PGLOBAL g, PTDB tdbp, MODE mode, char *c1, char *c2,
 
 			if (!colp && !(mode == MODE_INSERT && tdbp->IsSpecial(p))) {
 				if (g->Message[0] == 0)
-					sprintf(g->Message, MSG(COL_ISNOT_TABLE), p, tdbp->GetName());
+					snprintf(g->Message, sizeof(g->Message), MSG(COL_ISNOT_TABLE), p, tdbp->GetName());
 
 				throw 1;
 			} // endif colp
@@ -304,7 +304,7 @@ bool CntOpenTable(PGLOBAL g, PTDB tdbp, MODE mode, char *c1, char *c2,
             throw 7;
           }
         }
-				sprintf(g->Message, MSG(INV_UPDT_TABLE), tdbp->GetName());
+				snprintf(g->Message, sizeof(g->Message), MSG(INV_UPDT_TABLE), tdbp->GetName());
 				throw 4;
 			} // endif tp
 
@@ -553,7 +553,8 @@ int CntCloseTable(PGLOBAL g, PTDB tdbp, bool nox, bool abort)
 	if (!tdbp)
 		return rc;                           // Nothing to do
 	else if (tdbp->GetUse() != USE_OPEN) {
-		if (tdbp->GetAmType() == TYPE_AM_XML)
+		if (tdbp->GetAmType() == TYPE_AM_XML ||
+			tdbp->GetAmType() == TYPE_AM_JSN)
 			tdbp->CloseDB(g);                  // Opened by GetMaxSize
 
 		return rc;
@@ -633,7 +634,7 @@ int CntIndexInit(PGLOBAL g, PTDB ptdb, int id, bool sorted)
   if (!ptdb)
     return -1;
   else if (!ptdb->GetDef()->Indexable()) {
-    sprintf(g->Message, MSG(TABLE_NO_INDEX), ptdb->GetName());
+    snprintf(g->Message, sizeof(g->Message), MSG(TABLE_NO_INDEX), ptdb->GetName());
     return 0;
   } else if (ptdb->GetDef()->Indexable() == 3) {
     return 1;
@@ -666,7 +667,7 @@ int CntIndexInit(PGLOBAL g, PTDB ptdb, int id, bool sorted)
       break;
 
   if (!xdp) {
-    sprintf(g->Message, "Wrong index ID %d", id);
+    snprintf(g->Message, sizeof(g->Message), "Wrong index ID %d", id);
     return 0;
     } // endif xdp
 
@@ -725,7 +726,7 @@ RCODE CntIndexRead(PGLOBAL g, PTDB ptdb, OPVAL op,
     x= ptdb->GetDef()->Indexable();
 
   if (!x) {
-    sprintf(g->Message, MSG(TABLE_NO_INDEX), ptdb->GetName());
+    snprintf(g->Message, sizeof(g->Message), MSG(TABLE_NO_INDEX), ptdb->GetName());
     return RC_FX;
   } else if (x == 2) {
     // Remote index. Only used in read mode
@@ -748,13 +749,13 @@ RCODE CntIndexRead(PGLOBAL g, PTDB ptdb, OPVAL op,
   // Set reference values and index operator
   if (!tdbp->GetLink() || !tdbp->GetKindex()) {
 //  if (!tdbp->To_Xdp) {
-      sprintf(g->Message, "Index not initialized for table %s", tdbp->GetName());
+      snprintf(g->Message, sizeof(g->Message), "Index not initialized for table %s", tdbp->GetName());
       return RC_FX;
 #if 0
       } // endif !To_Xdp
     // Now it's time to make the dynamic index
     if (tdbp->InitialyzeIndex(g, NULL, false)) {
-      sprintf(g->Message, "Fail to make dynamic index %s", 
+      snprintf(g->Message, sizeof(g->Message), "Fail to make dynamic index %s", 
                           tdbp->To_Xdp->GetName());
       return RC_FX;
       } // endif MakeDynamicIndex
@@ -794,10 +795,10 @@ RCODE CntIndexRead(PGLOBAL g, PTDB ptdb, OPVAL op,
 
         if (rcb) {
           if (tdbp->RowNumber(g))
-            sprintf(g->Message, "Out of range value for column %s at row %d",
+            snprintf(g->Message, sizeof(g->Message), "Out of range value for column %s at row %d",
                     colp->GetName(), tdbp->RowNumber(g));
           else
-            sprintf(g->Message, "Out of range value for column %s",
+            snprintf(g->Message, sizeof(g->Message), "Out of range value for column %s",
                     colp->GetName());
 
           PushWarning(g, tdbp);
@@ -856,7 +857,7 @@ int CntIndexRange(PGLOBAL g, PTDB ptdb, const uchar* *key, uint *len,
   x= ptdb->GetDef()->Indexable();
 
   if (!x) {
-    sprintf(g->Message, MSG(TABLE_NO_INDEX), ptdb->GetName());
+    snprintf(g->Message, sizeof(g->Message), MSG(TABLE_NO_INDEX), ptdb->GetName());
     DBUG_PRINT("Range", ("%s", g->Message));
     return -1;
   } else if (x == 2) {
@@ -876,7 +877,7 @@ int CntIndexRange(PGLOBAL g, PTDB ptdb, const uchar* *key, uint *len,
 
   if (!tdbp->GetKindex() || !tdbp->GetLink()) {
     if (!tdbp->GetXdp()) {
-      sprintf(g->Message, "Index not initialized for table %s", tdbp->GetName());
+      snprintf(g->Message, sizeof(g->Message), "Index not initialized for table %s", tdbp->GetName());
       DBUG_PRINT("Range", ("%s", g->Message));
       return -1;
     } else       // Dynamic index
@@ -917,11 +918,11 @@ int CntIndexRange(PGLOBAL g, PTDB ptdb, const uchar* *key, uint *len,
 
           if (rcb) {
             if (tdbp->RowNumber(g))
-              sprintf(g->Message,
+              snprintf(g->Message, sizeof(g->Message),
                       "Out of range value for column %s at row %d",
                       colp->GetName(), tdbp->RowNumber(g));
             else
-              sprintf(g->Message, "Out of range value for column %s",
+              snprintf(g->Message, sizeof(g->Message), "Out of range value for column %s",
                       colp->GetName());
 
             PushWarning(g, tdbp);

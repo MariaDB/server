@@ -936,6 +936,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %token  <kwd>  MASTER_USER_SYM
 %token  <kwd>  MASTER_USE_GTID_SYM
 %token  <kwd>  MASTER_HEARTBEAT_PERIOD_SYM
+%token  <kwd>  MASTER_DEMOTE_TO_SLAVE_SYM
 %token  <kwd>  MAX_CONNECTIONS_PER_HOUR
 %token  <kwd>  MAX_QUERIES_PER_HOUR
 %token  <kwd>  MAX_ROWS
@@ -2292,6 +2293,10 @@ master_file_def:
               my_yyabort_error((ER_DUP_ARGUMENT, MYF(0), "MASTER_use_gtid"));
             Lex->mi.use_gtid_opt= LEX_MASTER_INFO::LEX_GTID_NO;
           }
+        | MASTER_DEMOTE_TO_SLAVE_SYM '=' bool
+          {
+            Lex->mi.is_demotion_opt= (bool) $3;
+          }
         ;
 
 optional_connection_name:
@@ -2527,6 +2532,7 @@ create:
           {
             if (Lex->main_select_push())
               MYSQL_YYABORT;
+            Lex->inc_select_stack_outer_barrier();
             if (Lex->add_create_view(thd, $1 | $5,
                                      DTYPE_ALGORITHM_UNDEFINED, $3, $6))
               MYSQL_YYABORT;
@@ -2542,6 +2548,7 @@ create:
               MYSQL_YYABORT;
             if (Lex->main_select_push())
               MYSQL_YYABORT;
+            Lex->inc_select_stack_outer_barrier();
           }
           view_list_opt AS view_select
           {
@@ -5831,7 +5838,6 @@ field_def:
         | opt_generated_always AS virtual_column_func
          {
            Lex->last_field->vcol_info= $3;
-           Lex->last_field->flags&= ~NOT_NULL_FLAG; // undo automatic NOT NULL for timestamps
          }
           vcol_opt_specifier vcol_opt_attribute
           {
@@ -6313,8 +6319,17 @@ attribute_list:
         ;
 
 attribute:
-          NULL_SYM { Lex->last_field->flags&= ~ NOT_NULL_FLAG; $$.init(); }
-        | DEFAULT column_default_expr { Lex->last_field->default_value= $2; $$.init(); }
+          NULL_SYM
+          {
+            Lex->last_field->flags&= ~NOT_NULL_FLAG;
+            Lex->last_field->explicitly_nullable= true;
+            $$.init();
+          }
+        | DEFAULT column_default_expr
+          {
+            Lex->last_field->default_value= $2;
+            $$.init();
+          }
         | ON UPDATE_SYM NOW_SYM opt_default_time_precision
           {
             Item *item= new (thd->mem_root) Item_func_now_local(thd, $4);
@@ -6473,11 +6488,8 @@ old_or_new_charset_name_or_default:
 collation_name:
           ident_or_text
           {
-            CHARSET_INFO *cs;
-            if (unlikely(!(cs= mysqld_collation_get_by_name($1.str,
-                                                            thd->get_utf8_flag()))))
+            if ($$.set_by_name($1.str, thd->get_utf8_flag()))
               MYSQL_YYABORT;
-            $$= Lex_extended_collation(Lex_exact_collation(cs));
           }
         ;
 
@@ -8929,14 +8941,20 @@ select_item_list:
         | select_item
         | '*'
           {
+            bool is_parsing_returning=
+                              thd->lex->current_select->parsing_place ==
+                                                IN_RETURNING;
+            SELECT_LEX *correct_select= is_parsing_returning ?
+                                              thd->lex->returning() :
+                                              thd->lex->current_select;
             Item *item= new (thd->mem_root)
-                          Item_field(thd, &thd->lex->current_select->context,
+                          Item_field(thd, &correct_select->context,
                                      star_clex_str);
             if (unlikely(item == NULL))
               MYSQL_YYABORT;
             if (unlikely(add_item_to_list(thd, item)))
               MYSQL_YYABORT;
-            (thd->lex->current_select->with_wild)++;
+            correct_select->with_wild++;
           }
         ;
 
@@ -9737,8 +9755,7 @@ string_factor_expr:
         | string_factor_expr COLLATE_SYM collation_name
           {
             if (unlikely(!($$= new (thd->mem_root)
-                               Item_func_set_collation(thd, $1,
-                                                       $3.charset_info()))))
+                               Item_func_set_collation(thd, $1, $3))))
               MYSQL_YYABORT;
           }
         ;
@@ -13414,19 +13431,33 @@ opt_returning:
         | RETURNING_SYM
           {
             DBUG_ASSERT(!Lex->has_returning());
-            if (($<num>$= (Select != Lex->returning())))
-            {
-              SELECT_LEX *sl= Lex->returning();
-              sl->set_master_unit(0);
-              Select->add_slave(Lex->create_unit(sl));
-              sl->include_global((st_select_lex_node**)&Lex->all_selects_list);
-              Lex->push_select(sl);
-            }
+            /*
+              When parsing_place is IN_RETURNING, we push select items to
+              item_list of builtin_select instead of current_select.
+              But set parsing_place of current_select to true.
+
+              Because parsing_place for builtin_select will be IN_RETURNING,
+              regardless there is SELECT in RETURNING. Example, if
+              there is RETURNING (SELECT...), then when we parse
+              SELECT inside RETURNING, builtin_select->parsing_place
+              will still be true. So the select items of SELECT inside
+              RETURNING will be added to item_list of builtin_select which
+              is incorrect. We want to prevent this from happening.
+              Since for every new select, a new SELECT_LEX
+              object is created and pushed to select stack, current_select
+              will point to SELECT inside RETURNING, and also has
+              parsing_place not set to IN_RETURNING by default.
+              So items are correctly added to item_list of SELECT inside
+              RETURNING instead of builtin_select.
+            */
+
+            thd->lex->current_select->parsing_place= IN_RETURNING;
+            thd->lex->push_context(&thd->lex->returning()->context);
           }
           select_item_list
           {
-            if ($<num>2)
-              Lex->pop_select();
+            thd->lex->pop_context();
+            thd->lex->current_select->parsing_place= NO_MATTER;
           }
         ;
 
@@ -14982,7 +15013,8 @@ with_clause:
              lex->derived_tables|= DERIVED_WITH;
              lex->with_cte_resolution= true;
              lex->curr_with_clause= with_clause;
-             with_clause->add_to_list(Lex->with_clauses_list_last_next);
+             with_clause->add_to_list(&lex->with_clauses_list,
+                                      lex->with_clauses_list_last_next);
              if (lex->current_select &&
                  lex->current_select->parsing_place == BEFORE_OPT_LIST)
                lex->current_select->parsing_place= NO_MATTER;

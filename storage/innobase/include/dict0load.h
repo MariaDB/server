@@ -125,11 +125,12 @@ dict_getnext_system(
 /** Load a table definition from a SYS_TABLES record to dict_table_t.
 Do not load any columns or indexes.
 @param[in,out]	mtr		mini-transaction
+@param[in]	uncommitted	whether to use READ UNCOMMITTED isolation level
 @param[in]	rec		SYS_TABLES record
 @param[out,own]	table		table, or nullptr
 @return	error message
 @retval	nullptr on success */
-const char *dict_load_table_low(mtr_t *mtr,
+const char *dict_load_table_low(mtr_t *mtr, bool uncommitted,
                                 const rec_t *rec, dict_table_t **table)
   MY_ATTRIBUTE((nonnull, warn_unused_result));
 

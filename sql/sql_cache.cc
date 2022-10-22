@@ -347,6 +347,9 @@ TODO list:
 #include "probes_mysql.h"
 #include "transaction.h"
 #include "strfunc.h"
+#ifdef WITH_WSREP
+#include "wsrep_mysqld.h"
+#endif
 
 const uchar *query_state_map;
 
@@ -1205,7 +1208,7 @@ void Query_cache::end_of_result(THD *thd)
     BLOCK_LOCK_WR(query_block);
     Query_cache_query *header= query_block->query();
     Query_cache_block *last_result_block;
-    size_t allign_size;
+    size_t align_size;
     size_t len;
 
     if (header->result() == 0)
@@ -1223,8 +1226,8 @@ void Query_cache::end_of_result(THD *thd)
       DBUG_VOID_RETURN;
     }
     last_result_block= header->result()->prev;
-    allign_size= ALIGN_SIZE(last_result_block->used);
-    len= MY_MAX(query_cache.min_allocation_unit, allign_size);
+    align_size= ALIGN_SIZE(last_result_block->used);
+    len= MY_MAX(query_cache.min_allocation_unit, align_size);
     if (last_result_block->length >= query_cache.min_allocation_unit + len)
       query_cache.split_block(last_result_block,len);
 
@@ -4767,7 +4770,7 @@ void Query_cache::cache_dump()
 
 void Query_cache::queries_dump()
 {
-
+#ifdef DBUG_TRACE
   if (!initialized)
   {
     DBUG_PRINT("qcache", ("Query Cache not initialized"));
@@ -4828,11 +4831,13 @@ void Query_cache::queries_dump()
     DBUG_PRINT("qcache", ("no queries in list"));
   }
   DBUG_PRINT("qcache", ("------------------"));
+#endif
 }
 
 
 void Query_cache::tables_dump()
 {
+#ifdef DBUG_TRACE
   if (!initialized || query_cache_size == 0)
   {
     DBUG_PRINT("qcache", ("Query Cache not initialized"));
@@ -4855,6 +4860,7 @@ void Query_cache::tables_dump()
   else
     DBUG_PRINT("qcache", ("no tables in list"));
   DBUG_PRINT("qcache", ("--------------------"));
+#endif
 }
 
 

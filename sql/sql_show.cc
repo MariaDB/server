@@ -1072,7 +1072,8 @@ public:
       my_snprintf(m_view_access_denied_message, MYSQL_ERRMSG_SIZE,
                   ER_THD(thd, ER_TABLEACCESS_DENIED_ERROR), "SHOW VIEW",
                   m_sctx->priv_user,
-                  m_sctx->host_or_ip, m_top_view->get_table_name());
+                  m_sctx->host_or_ip,
+                  m_top_view->get_db_name(), m_top_view->get_table_name());
     }
     return m_view_access_denied_message_ptr;
   }
@@ -1164,7 +1165,8 @@ mysqld_show_create_get_fields(THD *thd, TABLE_LIST *table_list,
       DBUG_PRINT("debug", ("check_table_access failed"));
       my_error(ER_TABLEACCESS_DENIED_ERROR, MYF(0),
               "SHOW", thd->security_ctx->priv_user,
-              thd->security_ctx->host_or_ip, table_list->alias.str);
+              thd->security_ctx->host_or_ip,
+              table_list->db.str, table_list->alias.str);
       goto exit;
     }
     DBUG_PRINT("debug", ("check_table_access succeeded"));
@@ -1193,7 +1195,8 @@ mysqld_show_create_get_fields(THD *thd, TABLE_LIST *table_list,
     {
       my_error(ER_TABLEACCESS_DENIED_ERROR, MYF(0),
               "SHOW", thd->security_ctx->priv_user,
-              thd->security_ctx->host_or_ip, table_list->alias.str);
+              thd->security_ctx->host_or_ip,
+              table_list->db.str, table_list->alias.str);
       goto exit;
     }
   }
@@ -1260,11 +1263,11 @@ mysqld_show_create_get_fields(THD *thd, TABLE_LIST *table_list,
                          mem_root);
     field_list->push_back(new (mem_root)
                          Item_empty_string(thd, "character_set_client",
-                                           MY_CS_NAME_SIZE),
+                                           MY_CS_CHARACTER_SET_NAME_SIZE),
                          mem_root);
     field_list->push_back(new (mem_root)
                          Item_empty_string(thd, "collation_connection",
-                                           MY_CS_NAME_SIZE),
+                                           MY_CS_COLLATION_NAME_SIZE),
                          mem_root);
   }
   else
@@ -1456,7 +1459,7 @@ bool mysqld_show_create_db(THD *thd, LEX_CSTRING *dbname,
     buffer.append(STRING_WITH_LEN(" /*!40100"));
     buffer.append(STRING_WITH_LEN(" DEFAULT CHARACTER SET "));
     buffer.append(create.default_table_charset->cs_name);
-    if (!(create.default_table_charset->state & MY_CS_PRIMARY))
+    if (Charset(create.default_table_charset).can_have_collate_clause())
     {
       buffer.append(STRING_WITH_LEN(" COLLATE "));
       buffer.append(create.default_table_charset->coll_name);
@@ -1916,7 +1919,7 @@ static void add_table_options(THD *thd, TABLE *table,
     {
       packet->append(STRING_WITH_LEN(" DEFAULT CHARSET="));
       packet->append(share->table_charset->cs_name);
-      if (!(share->table_charset->state & MY_CS_PRIMARY))
+      if (Charset(table->s->table_charset).can_have_collate_clause())
       {
         packet->append(STRING_WITH_LEN(" COLLATE="));
         packet->append(table->s->table_charset->coll_name);
@@ -2202,20 +2205,11 @@ int show_create_table_ex(THD *thd, TABLE_LIST *table_list,
       {
 	packet->append(STRING_WITH_LEN(" CHARACTER SET "));
 	packet->append(field->charset()->cs_name);
-      }
-      /*
-	For string types dump collation name only if
-	collation is not primary for the given charset
-
-        For generated fields don't print the COLLATE clause if
-        the collation matches the expression's collation.
-      */
-      if (!(field->charset()->state & MY_CS_PRIMARY) &&
-          (!field->vcol_info ||
-           field->charset() != field->vcol_info->expr->collation.collation))
-      {
-	packet->append(STRING_WITH_LEN(" COLLATE "));
-	packet->append(field->charset()->coll_name);
+        if (Charset(field->charset()).can_have_collate_clause())
+        {
+          packet->append(STRING_WITH_LEN(" COLLATE "));
+          packet->append(field->charset()->coll_name);
+        }
       }
     }
 
@@ -3633,6 +3627,7 @@ union Any_pointer {
   @param variable    [in]     Details of the variable.
   @param value_type  [in]     Variable type.
   @param show_type   [in]     Variable show type.
+  @param status_var  [in]     Status variable pointer
   @param charset     [out]    Character set of the value.
   @param buff        [in,out] Buffer to store the value.
                               (Needs to have enough memory
@@ -6352,16 +6347,39 @@ int fill_schema_collation(THD *thd, TABLE_LIST *tables, COND *cond)
       if (!(wild && wild[0] &&
 	  wild_case_compare(scs, tmp_cl->coll_name.str, wild)))
       {
-	const char *tmp_buff;
+        LEX_CSTRING context_collation_name=
+          tmp_cl->get_collation_name(MY_COLLATION_NAME_MODE_CONTEXT);
+        LEX_CSTRING full_collation_name=
+          tmp_cl->get_collation_name(MY_COLLATION_NAME_MODE_FULL);
+        bool is_context= cmp(context_collation_name, full_collation_name);
+        /*
+          Some collations are applicable to multiple character sets.
+          Display them only once, with the short name (without the
+          character set prefix).
+        */
+        if (is_context &&
+            cmp(tmp_cl->cs_name, Lex_cstring(STRING_WITH_LEN("utf8mb4"))))
+          continue;
 	restore_record(table, s->default_values);
-	table->field[0]->store(tmp_cl->coll_name.str, tmp_cl->coll_name.length,
-                               scs);
-        table->field[1]->store(&tmp_cl->cs_name, scs);
-        table->field[2]->store((longlong) tmp_cl->number, TRUE);
-        tmp_buff= (tmp_cl->state & MY_CS_PRIMARY) ? "Yes" : "";
-	table->field[3]->store(tmp_buff, strlen(tmp_buff), scs);
-        tmp_buff= (tmp_cl->state & MY_CS_COMPILED)? "Yes" : "";
-	table->field[4]->store(tmp_buff, strlen(tmp_buff), scs);
+        table->field[0]->store(context_collation_name, scs);
+        if (is_context)
+        {
+          table->field[1]->set_null(); // CHARACTER_SET_NAME
+          table->field[2]->set_null(); // ID
+          table->field[3]->set_null(); // IS_DEFAULT
+        }
+        else
+        {
+          table->field[1]->set_notnull(); // CHARACTER_SET_NAME
+          table->field[1]->store(tmp_cl->cs_name, scs);
+          table->field[2]->set_notnull(); // ID
+          table->field[2]->store((longlong) tmp_cl->number, TRUE);
+          table->field[3]->set_notnull(); // IS_DEFAULT
+          table->field[3]->store(
+            Show::Yes_or_empty::value(tmp_cl->default_flag()), scs);
+        }
+        table->field[4]->store(
+          Show::Yes_or_empty::value(tmp_cl->compiled_flag()), scs);
         table->field[5]->store((longlong) tmp_cl->strxfrm_multiply, TRUE);
         if (schema_table_store_record(thd, table))
           return 1;
@@ -6396,8 +6414,16 @@ int fill_schema_coll_charset_app(THD *thd, TABLE_LIST *tables, COND *cond)
           !my_charset_same(tmp_cs,tmp_cl))
 	continue;
       restore_record(table, s->default_values);
-      table->field[0]->store(&tmp_cl->coll_name, scs);
+      LEX_CSTRING context_collation_name=
+        tmp_cl->get_collation_name(MY_COLLATION_NAME_MODE_CONTEXT);
+      LEX_CSTRING full_collation_name=
+        tmp_cl->get_collation_name(MY_COLLATION_NAME_MODE_FULL);
+      table->field[0]->store(context_collation_name, scs);
       table->field[1]->store(&tmp_cl->cs_name, scs);
+      table->field[2]->store(full_collation_name, scs);
+      table->field[3]->store(tmp_cl->number);
+      table->field[4]->store(
+        Show::Yes_or_empty::value(tmp_cl->default_flag()), scs);
       if (schema_table_store_record(thd, table))
         return 1;
     }
@@ -7202,13 +7228,14 @@ static bool store_trigger(THD *thd, Trigger *trigger,
   table->field[14]->store(STRING_WITH_LEN("OLD"), cs);
   table->field[15]->store(STRING_WITH_LEN("NEW"), cs);
 
-  if (trigger->create_time)
+  if (trigger->hr_create_time.val)
   {
+    /* timestamp is in microseconds */
     table->field[16]->set_notnull();
-    thd->variables.time_zone->gmt_sec_to_TIME(&timestamp,
-                                              (my_time_t)(trigger->create_time/100));
-    /* timestamp is with 6 digits */
-    timestamp.second_part= (trigger->create_time % 100) * 10000;
+    thd->variables.time_zone->
+      gmt_sec_to_TIME(&timestamp,
+                      (my_time_t) hrtime_to_time(trigger->hr_create_time));
+    timestamp.second_part= hrtime_sec_part(trigger->hr_create_time);
     table->field[16]->store_time_dec(&timestamp, 2);
   }
 
@@ -9071,7 +9098,7 @@ ST_FIELD_INFO schema_fields_info[]=
   Column("CATALOG_NAME",               Catalog(),        NOT_NULL),
   Column("SCHEMA_NAME",                Name(),           NOT_NULL, "Database"),
   Column("DEFAULT_CHARACTER_SET_NAME", CSName(),         NOT_NULL),
-  Column("DEFAULT_COLLATION_NAME",     CSName(),         NOT_NULL),
+  Column("DEFAULT_COLLATION_NAME",     CLName(),         NOT_NULL),
   Column("SQL_PATH",                   Varchar(FN_REFLEN),   NULLABLE),
   Column("SCHEMA_COMMENT", Varchar(DATABASE_COMMENT_MAXLEN), NOT_NULL),
   CEnd()
@@ -9100,7 +9127,7 @@ ST_FIELD_INFO tables_fields_info[]=
   Column("CREATE_TIME",     Datetime(0), NULLABLE, "Create_time",OPEN_FULL_TABLE),
   Column("UPDATE_TIME",     Datetime(0), NULLABLE, "Update_time",OPEN_FULL_TABLE),
   Column("CHECK_TIME",      Datetime(0), NULLABLE, "Check_time", OPEN_FULL_TABLE),
-  Column("TABLE_COLLATION", CSName(),    NULLABLE, "Collation",  OPEN_FRM_ONLY),
+  Column("TABLE_COLLATION", CLName(),    NULLABLE, "Collation",  OPEN_FRM_ONLY),
   Column("CHECKSUM",        ULonglong(), NULLABLE, "Checksum",   OPEN_FULL_TABLE),
   Column("CREATE_OPTIONS",  Varchar(2048),NULLABLE, "Create_options",
                                                                  OPEN_FULL_TABLE),
@@ -9130,7 +9157,7 @@ ST_FIELD_INFO columns_fields_info[]=
   Column("NUMERIC_SCALE",           ULonglong(), NULLABLE,          OPEN_FRM_ONLY),
   Column("DATETIME_PRECISION",      ULonglong(), NULLABLE,          OPEN_FRM_ONLY),
   Column("CHARACTER_SET_NAME",      CSName(),    NULLABLE,          OPEN_FRM_ONLY),
-  Column("COLLATION_NAME",          CSName(),    NULLABLE, "Collation", OPEN_FRM_ONLY),
+  Column("COLLATION_NAME",          CLName(),    NULLABLE, "Collation", OPEN_FRM_ONLY),
   Column("COLUMN_TYPE",         Longtext(65535), NOT_NULL, "Type",  OPEN_FRM_ONLY),
   Column("COLUMN_KEY",              Varchar(3),  NOT_NULL, "Key",   OPEN_FRM_ONLY),
   Column("EXTRA",                   Varchar(80), NOT_NULL, "Extra", OPEN_FRM_ONLY),
@@ -9147,7 +9174,7 @@ ST_FIELD_INFO columns_fields_info[]=
 ST_FIELD_INFO charsets_fields_info[]=
 {
   Column("CHARACTER_SET_NAME",   CSName(),     NOT_NULL, "Charset"),
-  Column("DEFAULT_COLLATE_NAME", CSName(),     NOT_NULL, "Default collation"),
+  Column("DEFAULT_COLLATE_NAME", CLName(),     NOT_NULL, "Default collation"),
   Column("DESCRIPTION",          Varchar(60),  NOT_NULL, "Description"),
   Column("MAXLEN",               SLonglong(3), NOT_NULL, "Maxlen"),
   CEnd()
@@ -9156,10 +9183,10 @@ ST_FIELD_INFO charsets_fields_info[]=
 
 ST_FIELD_INFO collation_fields_info[]=
 {
-  Column("COLLATION_NAME",               CSName(),     NOT_NULL, "Collation"),
-  Column("CHARACTER_SET_NAME",           CSName(),     NOT_NULL, "Charset"),
-  Column("ID", SLonglong(MY_INT32_NUM_DECIMAL_DIGITS), NOT_NULL, "Id"),
-  Column("IS_DEFAULT",                 Yes_or_empty(), NOT_NULL, "Default"),
+  Column("COLLATION_NAME",               CLName(),     NOT_NULL, "Collation"),
+  Column("CHARACTER_SET_NAME",           CSName(),     NULLABLE, "Charset"),
+  Column("ID", SLonglong(MY_INT32_NUM_DECIMAL_DIGITS), NULLABLE, "Id"),
+  Column("IS_DEFAULT",                 Yes_or_empty(), NULLABLE, "Default"),
   Column("IS_COMPILED",                Yes_or_empty(), NOT_NULL, "Compiled"),
   Column("SORTLEN",                      SLonglong(3), NOT_NULL, "Sortlen"),
   CEnd()
@@ -9232,8 +9259,8 @@ ST_FIELD_INFO events_fields_info[]=
   Column("EVENT_COMMENT",        Name(),      NOT_NULL),
   Column("ORIGINATOR",          SLonglong(10),NOT_NULL,"Originator"),
   Column("CHARACTER_SET_CLIENT", CSName(),    NOT_NULL, "character_set_client"),
-  Column("COLLATION_CONNECTION", CSName(),    NOT_NULL, "collation_connection"),
-  Column("DATABASE_COLLATION",   CSName(),    NOT_NULL, "Database Collation"),
+  Column("COLLATION_CONNECTION", CLName(),    NOT_NULL, "collation_connection"),
+  Column("DATABASE_COLLATION",   CLName(),    NOT_NULL, "Database Collation"),
   CEnd()
 };
 
@@ -9241,8 +9268,11 @@ ST_FIELD_INFO events_fields_info[]=
 
 ST_FIELD_INFO coll_charset_app_fields_info[]=
 {
-  Column("COLLATION_NAME",     CSName(), NOT_NULL),
+  Column("COLLATION_NAME",     CLName(), NOT_NULL),
   Column("CHARACTER_SET_NAME", CSName(), NOT_NULL),
+  Column("FULL_COLLATION_NAME",CLName(), NOT_NULL),
+  Column("ID", SLonglong(MY_INT32_NUM_DECIMAL_DIGITS), NOT_NULL),
+  Column("IS_DEFAULT",   Yes_or_empty(), NOT_NULL),
   CEnd()
 };
 
@@ -9278,8 +9308,8 @@ ST_FIELD_INFO proc_fields_info[]=
   Column("ROUTINE_COMMENT",    Longtext(65535), NOT_NULL, "Comment"),
   Column("DEFINER",                 Definer(),  NOT_NULL, "Definer"),
   Column("CHARACTER_SET_CLIENT",    CSName(),   NOT_NULL, "character_set_client"),
-  Column("COLLATION_CONNECTION",    CSName(),   NOT_NULL, "collation_connection"),
-  Column("DATABASE_COLLATION",      CSName(),   NOT_NULL, "Database Collation"),
+  Column("COLLATION_CONNECTION",    CLName(),   NOT_NULL, "collation_connection"),
+  Column("DATABASE_COLLATION",      CLName(),   NOT_NULL, "Database Collation"),
   CEnd()
 };
 
@@ -9319,7 +9349,7 @@ ST_FIELD_INFO view_fields_info[]=
   Column("DEFINER",              Definer(),  NOT_NULL, OPEN_FRM_ONLY),
   Column("SECURITY_TYPE",        Varchar(7), NOT_NULL, OPEN_FRM_ONLY),
   Column("CHARACTER_SET_CLIENT", CSName(),   NOT_NULL, OPEN_FRM_ONLY),
-  Column("COLLATION_CONNECTION", CSName(),   NOT_NULL, OPEN_FRM_ONLY),
+  Column("COLLATION_CONNECTION", CLName(),   NOT_NULL, OPEN_FRM_ONLY),
   Column("ALGORITHM",            Varchar(10),NOT_NULL, OPEN_FRM_ONLY),
   CEnd()
 };
@@ -9446,9 +9476,9 @@ ST_FIELD_INFO triggers_fields_info[]=
   Column("DEFINER",                Definer(), NOT_NULL, "Definer",  OPEN_FRM_ONLY),
   Column("CHARACTER_SET_CLIENT",    CSName(), NOT_NULL, "character_set_client",
                                                                  OPEN_FRM_ONLY),
-  Column("COLLATION_CONNECTION",    CSName(), NOT_NULL, "collation_connection",
+  Column("COLLATION_CONNECTION",    CLName(), NOT_NULL, "collation_connection",
                                                                  OPEN_FRM_ONLY),
-  Column("DATABASE_COLLATION",      CSName(), NOT_NULL, "Database Collation",
+  Column("DATABASE_COLLATION",      CLName(), NOT_NULL, "Database Collation",
                                                                  OPEN_FRM_ONLY),
   CEnd()
 };
@@ -10014,17 +10044,17 @@ static bool show_create_trigger_impl(THD *thd, Trigger *trigger)
 
   fields.push_back(new (mem_root)
                    Item_empty_string(thd, "character_set_client",
-                                     MY_CS_NAME_SIZE),
+                                     MY_CS_CHARACTER_SET_NAME_SIZE),
                    mem_root);
 
   fields.push_back(new (mem_root)
                    Item_empty_string(thd, "collation_connection",
-                                     MY_CS_NAME_SIZE),
+                                     MY_CS_COLLATION_NAME_SIZE),
                    mem_root);
 
   fields.push_back(new (mem_root)
                    Item_empty_string(thd, "Database Collation",
-                                     MY_CS_NAME_SIZE),
+                                     MY_CS_COLLATION_NAME_SIZE),
                    mem_root);
 
   static const Datetime zero_datetime(Datetime::zero());
@@ -10060,12 +10090,14 @@ static bool show_create_trigger_impl(THD *thd, Trigger *trigger)
 
   p->store(&trigger->db_cl_name, system_charset_info);
 
-  if (trigger->create_time)
+  if (trigger->hr_create_time.val)
   {
     MYSQL_TIME timestamp;
-    thd->variables.time_zone->gmt_sec_to_TIME(&timestamp,
-                                              (my_time_t)(trigger->create_time/100));
-    timestamp.second_part= (trigger->create_time % 100) * 10000;
+    thd->variables.time_zone->
+      gmt_sec_to_TIME(&timestamp,
+                      (my_time_t)
+                      hrtime_to_time(trigger->hr_create_time));
+    timestamp.second_part= hrtime_sec_part(trigger->hr_create_time);
     p->store_datetime(&timestamp, 2);
   }
   else

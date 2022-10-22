@@ -3389,25 +3389,25 @@ ER_NONEXISTING_GRANT 42000
         swe "Det finns inget privilegium definierat för användare '%-.48s' på '%-.64s'"
         ukr "Повноважень не визначено для користувача '%-.48s' з хосту '%-.64s'"
 ER_TABLEACCESS_DENIED_ERROR 42000 
-        chi "%-.100T 命令的权限拒绝用户 '%s'@'%s' 用在表 '%-.192s'"
-        cze "%-.100T příkaz nepřístupný pro uživatele: '%s'@'%s' pro tabulku '%-.192s'"
-        dan "%-.100T-kommandoen er ikke tilladt for brugeren '%s'@'%s' for tabellen '%-.192s'"
-        eng "%-.100T command denied to user '%s'@'%s' for table '%-.192s'"
-        est "%-.100T käsk ei ole lubatud kasutajale '%s'@'%s' tabelis '%-.192s'"
-        fre "La commande '%-.100T' est interdite à l'utilisateur: '%s'@'%s' sur la table '%-.192s'"
-        ger "%-.100T Befehl nicht erlaubt für Benutzer '%s'@'%s' auf Tabelle '%-.192s'"
-        hun "%-.100T parancs a '%s'@'%s' felhasznalo szamara nem engedelyezett a '%-.192s' tablaban"
-        ita "Comando %-.100T negato per l'utente: '%s'@'%s' sulla tabella '%-.192s'"
-        jpn "コマンド %-.100T は ユーザー '%s'@'%s' ,テーブル '%-.192s' に対して許可されていません"
-        kor "'%-.100T' 명령은 다음 사용자에게 거부되었습니다. : '%s'@'%s' for 테이블 '%-.192s'"
-        nla "%-.100T commando geweigerd voor gebruiker: '%s'@'%s' voor tabel '%-.192s'"
-        por "Comando '%-.100T' negado para o usuário '%s'@'%s' na tabela '%-.192s'"
-        rum "Comanda %-.100T interzisa utilizatorului: '%s'@'%s' pentru tabela '%-.192s'"
-        rus "Команда %-.100T запрещена пользователю '%s'@'%s' для таблицы '%-.192s'"
-        serbian "%-.100T komanda zabranjena za korisnika '%s'@'%s' za tabelu '%-.192s'"
-        spa "%-.100T comando denegado a usuario '%s'@'%s' para la tabla '%-.192s'"
-        swe "%-.100T ej tillåtet för '%s'@'%s' för tabell '%-.192s'"
-        ukr "%-.100T команда заборонена користувачу: '%s'@'%s' у таблиці '%-.192s'"
+        chi "%-.100T 命令的权限拒绝用户 '%s'@'%s' 用在表 %`s.%`s"
+        cze "%-.100T příkaz nepřístupný pro uživatele: '%s'@'%s' pro tabulku %`s.%`s"
+        dan "%-.100T-kommandoen er ikke tilladt for brugeren '%s'@'%s' for tabellen %`s.%`s"
+        nla "%-.100T commando geweigerd voor gebruiker: '%s'@'%s' voor tabel %`s.%`s"
+        eng "%-.100T command denied to user '%s'@'%s' for table %`s.%`s"
+        est "%-.100T käsk ei ole lubatud kasutajale '%s'@'%s' tabelis %`s.%`s"
+        fre "La commande '%-.100T' est interdite à l'utilisateur: '%s'@'%s' sur la table %`s.%`s"
+        ger "%-.100T Befehl nicht erlaubt für Benutzer '%s'@'%s' auf Tabelle %`s.%`s"
+        hun "%-.100T parancs a '%s'@'%s' felhasznalo szamara nem engedelyezett a %`s.%`s tablaban"
+        ita "Comando %-.100T negato per l'utente: '%s'@'%s' sulla tabella %`s.%`s"
+        jpn "コマンド %-.100T は ユーザー '%s'@'%s' ,テーブル %`s.%`s に対して許可されていません"
+        kor "'%-.100T' 명령은 다음 사용자에게 거부되었습니다. : '%s'@'%s' for 테이블 %`s.%`s"
+        por "Comando '%-.100T' negado para o usuário '%s'@'%s' na tabela %`s.%`s"
+        rum "Comanda %-.100T interzisa utilizatorului: '%s'@'%s' pentru tabela %`s.%`s"
+        rus "Команда %-.100T запрещена пользователю '%s'@'%s' для таблицы %`s.%`s"
+        serbian "%-.100T komanda zabranjena za korisnika '%s'@'%s' za tabelu %`s.%`s"
+        spa "%-.100T comando denegado a usuario '%s'@'%s' para la tabla %`s.%`s"
+        swe "%-.100T ej tillåtet för '%s'@'%s' för tabell %`s.%`s"
+        ukr "%-.100T команда заборонена користувачу: '%s'@'%s' у таблиці %`s.%`s"
 ER_COLUMNACCESS_DENIED_ERROR 42000 
         chi "%-.32s 命令的权限拒绝用户 '%s'@'%s' 用在列 '%-.192s' 在表 '%-.192s'"
         cze "%-.32s příkaz nepřístupný pro uživatele: '%s'@'%s' pro sloupec '%-.192s' v tabulce '%-.192s'"
@@ -7535,9 +7535,10 @@ ER_BINLOG_UNSAFE_NONTRANS_AFTER_TRANS
         eng "Statement is unsafe because it accesses a non-transactional table after accessing a transactional table within the same transaction"
         spa "La sentencia no es segura porque accede a una tabla no transaccional tras acceder a una transaccional dentro de la misma transacción"
 ER_MESSAGE_AND_STATEMENT
-        chi "%s语句：%s"
-        eng "%s Statement: %s"
-        spa "%s Sentencia: %s"
+  chi "%s．语句：%s"
+  eng "%s. Statement: %s"
+  spa "%s. Sentencia: %s"
+
 ER_SLAVE_CONVERSION_FAILED
         chi "列%d表'%-.192s.%-.192s'无法从'%-.50s'类型为'%-.50s'"
         eng "Column %d of table '%-.192s.%-.192s' cannot be converted from type '%-.50s' to type '%-.50s'"
@@ -8257,9 +8258,8 @@ ER_INVALID_YEAR_COLUMN_LENGTH
         spa "El tipo de columna YEAR(%lu) está obsoleto. Creando columna YEAR(4) en su lugar"
 
 ER_NOT_VALID_PASSWORD
-        chi "您的密码不满足当前的政策要求"
-        eng "Your password does not satisfy the current policy requirements"
-        spa "Su contraseña no satisface los requerimientos de la política en curso"
+        eng "Your password does not satisfy the current policy requirements (%s)"
+        ukr "Ваш пароль не відповідає поточним правилам (%s)"
 
 ER_MUST_CHANGE_PASSWORD
         bgn "Трябва първо да си смените паролата със SET PASSWORD за да можете да изпълните тази команда"
@@ -10074,3 +10074,9 @@ ER_INCONSISTENT_SLAVE_TEMP_TABLE
         eng "Replicated query '%s' table `%s.%s` can not be temporary"
 ER_VERS_HIST_PART_FAILED
         eng "Versioned table %`s.%`s: adding HISTORY partition(s) failed"
+WARN_OPTION_CHANGING
+        eng "%s is implicitly changing the value of '%s' from '%s' to '%s'"
+ER_CM_OPTION_MISSING_REQUIREMENT
+        eng "CHANGE MASTER TO option '%s=%s' is missing requirement %s"
+ER_SLAVE_STATEMENT_TIMEOUT 70100
+        eng "Slave log event execution was interrupted (slave_max_statement_time exceeded)"

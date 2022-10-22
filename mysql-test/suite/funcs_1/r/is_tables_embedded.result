@@ -45,7 +45,7 @@ AUTO_INCREMENT	bigint(21) unsigned	YES		NULL
 CREATE_TIME	datetime	YES		NULL	
 UPDATE_TIME	datetime	YES		NULL	
 CHECK_TIME	datetime	YES		NULL	
-TABLE_COLLATION	varchar(32)	YES		NULL	
+TABLE_COLLATION	varchar(64)	YES		NULL	
 CHECKSUM	bigint(21) unsigned	YES		NULL	
 CREATE_OPTIONS	varchar(2048)	YES		NULL	
 TABLE_COMMENT	varchar(2048)	NO		NULL	
@@ -71,13 +71,13 @@ TABLES	CREATE TEMPORARY TABLE `TABLES` (
   `CREATE_TIME` datetime,
   `UPDATE_TIME` datetime,
   `CHECK_TIME` datetime,
-  `TABLE_COLLATION` varchar(32),
+  `TABLE_COLLATION` varchar(64),
   `CHECKSUM` bigint(21) unsigned,
   `CREATE_OPTIONS` varchar(2048),
   `TABLE_COMMENT` varchar(2048) NOT NULL,
   `MAX_INDEX_LENGTH` bigint(21) unsigned,
   `TEMPORARY` varchar(1)
-) ENGINE=MEMORY DEFAULT CHARSET=utf8mb3
+) ENGINE=MEMORY DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_general_ci
 SHOW COLUMNS FROM information_schema.TABLES;
 Field	Type	Null	Key	Default	Extra
 TABLE_CATALOG	varchar(512)	NO		NULL	
@@ -97,7 +97,7 @@ AUTO_INCREMENT	bigint(21) unsigned	YES		NULL
 CREATE_TIME	datetime	YES		NULL	
 UPDATE_TIME	datetime	YES		NULL	
 CHECK_TIME	datetime	YES		NULL	
-TABLE_COLLATION	varchar(32)	YES		NULL	
+TABLE_COLLATION	varchar(64)	YES		NULL	
 CHECKSUM	bigint(21) unsigned	YES		NULL	
 CREATE_OPTIONS	varchar(2048)	YES		NULL	
 TABLE_COMMENT	varchar(2048)	NO		NULL	

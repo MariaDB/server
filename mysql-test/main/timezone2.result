@@ -607,7 +607,7 @@ SET time_zone=DEFAULT;
 # MDEV-19961 MIN(timestamp_column) returns a wrong result in a GROUP BY query
 #
 SET time_zone='Europe/Moscow';
-CREATE OR REPLACE TABLE t1 (i INT, d TIMESTAMP);
+CREATE OR REPLACE TABLE t1 (i INT, d TIMESTAMP NOT NULL DEFAULT NOW());
 SET timestamp=1288477526  /* this is summer time */ ;
 INSERT INTO t1 VALUES (3,NULL);
 SET timestamp=1288477526+3599 /* this is winter time*/ ;
@@ -629,7 +629,7 @@ SET time_zone=DEFAULT;
 # MDEV-20397 Support TIMESTAMP, DATETIME, TIME in ROUND() and TRUNCATE()
 #
 SET time_zone='Europe/Moscow';
-CREATE TABLE t1 (i INT, d TIMESTAMP(6));
+CREATE TABLE t1 (i INT, d TIMESTAMP(6) NOT NULL DEFAULT NOW());
 SET timestamp=1288479599.999999  /* this is the last second in summer time */ ;
 INSERT INTO t1 VALUES (1,NULL);
 SET timestamp=1288479600.000000 /* this is the first second in winter time */ ;
@@ -654,3 +654,25 @@ SET time_zone=DEFAULT;
 #
 # End of 10.4 tests
 #
+#
+# MDEV-27101 Subquery using the ALL keyword on TIMESTAMP columns produces a wrong result
+#
+SET time_zone='Europe/Moscow';
+CREATE TABLE t1 (a TIMESTAMP NULL);
+SET timestamp=1288477526;
+/* this is summer time, earlier */
+INSERT INTO t1 VALUES (NOW());
+SET timestamp=1288477526+3599;
+/* this is winter time, later */
+INSERT INTO t1 VALUES (NOW());
+SELECT a, UNIX_TIMESTAMP(a) FROM t1 ORDER BY a;
+a	UNIX_TIMESTAMP(a)
+2010-10-31 02:25:26	1288477526
+2010-10-31 02:25:25	1288481125
+SELECT a, UNIX_TIMESTAMP(a) FROM t1 WHERE a <= ALL (SELECT * FROM t1);
+a	UNIX_TIMESTAMP(a)
+2010-10-31 02:25:26	1288477526
+SELECT a, UNIX_TIMESTAMP(a) FROM t1 WHERE a >= ALL (SELECT * FROM t1);
+a	UNIX_TIMESTAMP(a)
+2010-10-31 02:25:25	1288481125
+DROP TABLE t1;

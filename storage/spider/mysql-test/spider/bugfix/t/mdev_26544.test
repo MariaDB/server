@@ -1,0 +1,32 @@
+--echo #
+--echo # MDEV-26544 Assertion `part_share->auto_inc_initialized' failed in ha_partition::get_auto_increment on INSERT
+--echo #
+
+--disable_query_log
+--disable_result_log
+--source ../../t/test_init.inc
+--enable_result_log
+--enable_query_log
+
+--connection master_1
+CREATE DATABASE auto_test_remote;
+USE auto_test_remote;
+
+eval CREATE TABLE `tbl_a` (
+    `a` INT AUTO_INCREMENT, KEY(`a`)
+) $MASTER_1_ENGINE $MASTER_1_CHARSET
+PARTITION BY LIST COLUMNS (`a`) (
+    PARTITION `pt1` DEFAULT
+);
+--error ER_CONNECT_TO_FOREIGN_DATA_SOURCE
+INSERT INTO tbl_a (a) VALUES (0);
+--error ER_CONNECT_TO_FOREIGN_DATA_SOURCE
+INSERT INTO tbl_a () VALUES ();
+
+DROP DATABASE IF EXISTS auto_test_remote;
+
+--disable_query_log
+--disable_result_log
+--source ../../t/test_deinit.inc
+--enable_result_log
+--enable_query_log

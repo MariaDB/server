@@ -21,3 +21,33 @@ SET NAMES utf8 COLLATE utf8_unicode_nopad_ci;
 --echo #
 --echo # End of 10.2 tests
 --echo #
+
+--echo #
+--echo # Start of 10.10 tests
+--echo #
+
+--echo #
+--echo # MDEV-27009 Add UCA-14.0.0 collations
+--echo # Collation IDs in the protocol
+--echo #
+
+SET NAMES utf8mb3;
+SET @charset=(SELECT @@character_set_client);
+--source include/ctype_uca1400_ids_using_set_names.inc
+
+--echo #
+--echo # MDEV-29776 collation_connection and db_collation are too short in mysql.proc and mysql.event
+--echo #
+
+SET NAMES 'utf8mb3' COLLATE 'utf8mb3_uca1400_swedish_nopad_ai_ci';
+CREATE FUNCTION f1() RETURNS INT RETURN 1;
+SELECT length(collation_connection), collation_connection
+FROM mysql.proc WHERE db='test' AND name='f1';
+SELECT f1();
+DROP FUNCTION f1;
+SET NAMES utf8mb3;
+
+
+--echo #
+--echo # End of 10.10 tests
+--echo #

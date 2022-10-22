@@ -33,6 +33,7 @@
 #endif
 #include "sql_base.h"                       // open_and_lock_tables
 #include "ddl_log.h"
+#include "wsrep_mysqld.h"
 
 #ifndef WITH_PARTITION_STORAGE_ENGINE
 

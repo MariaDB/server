@@ -1,5 +1,7 @@
---source include/maybe_debug.inc
 --source include/innodb_page_size_small.inc
+--source include/no_valgrind_without_big.inc
+
+let $have_debug_sync=`select count(*) = 1 from information_schema.session_variables where variable_name = 'debug_sync' and variable_value like 'on %'`;
 
 --echo #
 --echo # Bug #16963396 INNODB: USE OF LARGE EXTERNALLY-STORED FIELDS MAKES
@@ -94,7 +96,7 @@ select f1, right(f2, 20), right(f3, 20) from t2;
 update t2 set f3 = '&';
 select f1, right(f2, 20), right(f3, 20) from t2;
 
-if ($have_debug) {
+if ($have_debug_sync) {
 --disable_query_log
 set DEBUG_SYNC='blob_rollback_middle SIGNAL stuck WAIT_FOR ever';
 send ROLLBACK;
@@ -102,7 +104,7 @@ send ROLLBACK;
 }
 
 connection default;
-if ($have_debug) {
+if ($have_debug_sync) {
 --disable_query_log
 SET DEBUG_SYNC = 'now WAIT_FOR stuck';
 --enable_query_log

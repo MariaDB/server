@@ -72,7 +72,7 @@ flush privileges;
 connect  con2, localhost, user2, , ;
 update performance_schema.setup_actors 
 set ENABLED='NO';
-ERROR 42000: UPDATE command denied to user 'user2'@'localhost' for table 'setup_actors'
+ERROR 42000: UPDATE command denied to user 'user2'@'localhost' for table `performance_schema`.`setup_actors`
 disconnect con2;
 connection default;
 insert into performance_schema.setup_actors

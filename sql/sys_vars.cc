@@ -65,6 +65,9 @@
 #include "semisync_master.h"
 #include "semisync_slave.h"
 #include <ssl_compat.h>
+#ifdef WITH_WSREP
+#include "wsrep_mysqld.h"
+#endif
 
 #define PCRE2_STATIC 1             /* Important on Windows */
 #include "pcre2.h"                 /* pcre2 header file */
@@ -719,15 +722,13 @@ Sys_binlog_direct(
        CMD_LINE(OPT_ARG), DEFAULT(FALSE),
        NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(binlog_direct_check));
 
-
-static Sys_var_mybool Sys_explicit_defaults_for_timestamp(
+static Sys_var_bit Sys_explicit_defaults_for_timestamp(
        "explicit_defaults_for_timestamp",
        "This option causes CREATE TABLE to create all TIMESTAMP columns "
        "as NULL with DEFAULT NULL attribute, Without this option, "
        "TIMESTAMP columns are NOT NULL and have implicit DEFAULT clauses.",
-       READ_ONLY GLOBAL_VAR(opt_explicit_defaults_for_timestamp),
-       CMD_LINE(OPT_ARG), DEFAULT(FALSE));
-
+       SESSION_VAR(option_bits), CMD_LINE(OPT_ARG),
+       OPTION_EXPLICIT_DEF_TIMESTAMP, DEFAULT(TRUE), NO_MUTEX_GUARD, IN_BINLOG);
 
 static Sys_var_ulonglong Sys_bulk_insert_buff_size(
        "bulk_insert_buffer_size", "Size of tree cache used in bulk "
@@ -2049,7 +2050,10 @@ Sys_gtid_strict_mode(
        "gtid_strict_mode",
        "Enforce strict seq_no ordering of events in the binary log. Slave "
        "stops with an error if it encounters an event that would cause it to "
-       "generate an out-of-order binlog if executed.",
+       "generate an out-of-order binlog if executed. "
+       "When ON the same server-id semisync-replicated transactions that "
+       "duplicate exising ones in binlog are ignored without error "
+       "and slave interruption.",
        GLOBAL_VAR(opt_gtid_strict_mode),
        CMD_LINE(OPT_ARG), DEFAULT(FALSE));
 
@@ -2452,6 +2456,27 @@ Sys_gtid_ignore_duplicates(
        DEFAULT(FALSE), NO_MUTEX_GUARD,
        NOT_IN_BINLOG, ON_CHECK(check_gtid_ignore_duplicates),
        ON_UPDATE(fix_gtid_ignore_duplicates));
+
+static bool
+update_slave_max_statement_time(sys_var *self, THD *thd, enum_var_type type)
+{
+  slave_max_statement_time=
+    double2ulonglong(slave_max_statement_time_double * 1e6);
+
+  return false;
+}
+
+static Sys_var_on_access_global<
+    Sys_var_double, PRIV_SET_SYSTEM_GLOBAL_VAR_SLAVE_MAX_STATEMENT_TIME>
+    Sys_slave_max_statement_time(
+        "slave_max_statement_time",
+        "A query that has taken more than slave_max_statement_time seconds to "
+        "run on the slave will be aborted. The argument will be treated as a "
+        "decimal value with microsecond precision. A value of 0 (default) "
+        "means no timeout",
+        GLOBAL_VAR(slave_max_statement_time_double), CMD_LINE(REQUIRED_ARG),
+        VALID_RANGE(0, LONG_TIMEOUT), DEFAULT(0), NO_MUTEX_GUARD,
+        NOT_IN_BINLOG, ON_CHECK(0), ON_UPDATE(update_slave_max_statement_time));
 #endif
 
 
@@ -2736,9 +2761,10 @@ static Sys_var_ulong Sys_optimizer_prune_level(
        "Controls the heuristic(s) applied during query optimization to prune "
        "less-promising partial plans from the optimizer search space. "
        "Meaning: 0 - do not apply any heuristic, thus perform exhaustive "
-       "search; 1 - prune plans based on number of retrieved rows",
+       "search: 1 - prune plans based on cost and number of retrieved rows "
+       "eq_ref: 2 - prune also if we find an eq_ref chain",
        SESSION_VAR(optimizer_prune_level), CMD_LINE(REQUIRED_ARG),
-       VALID_RANGE(0, 1), DEFAULT(1), BLOCK_SIZE(1));
+       VALID_RANGE(0, 2), DEFAULT(2), BLOCK_SIZE(1));
 
 static Sys_var_ulong Sys_optimizer_selectivity_sampling_limit(
        "optimizer_selectivity_sampling_limit",
@@ -2779,6 +2805,13 @@ static Sys_var_ulong Sys_optimizer_search_depth(
        "the system will automatically pick a reasonable value.",
        SESSION_VAR(optimizer_search_depth), CMD_LINE(REQUIRED_ARG),
        VALID_RANGE(0, MAX_TABLES+1), DEFAULT(MAX_TABLES+1), BLOCK_SIZE(1));
+
+static Sys_var_ulong Sys_optimizer_extra_pruning_depth(
+       "optimizer_extra_pruning_depth",
+       "If the optimizer needs to enumerate join prefix of this size or "
+       "larger, then it will try agressively prune away the search space.",
+       SESSION_VAR(optimizer_extra_pruning_depth), CMD_LINE(REQUIRED_ARG),
+       VALID_RANGE(0, MAX_TABLES+1), DEFAULT(8), BLOCK_SIZE(1));
 
 /* this is used in the sigsegv handler */
 export const char *optimizer_switch_names[]=
@@ -5438,7 +5471,6 @@ Sys_var_rpl_filter::global_value_ptr(THD *thd,
   }
 
   rpl_filter= mi->rpl_filter;
-  tmp.length(0);
 
   mysql_mutex_lock(&LOCK_active_mi);
   switch (opt_id) {
@@ -6230,6 +6262,12 @@ static Sys_var_charptr Sys_wsrep_patch_version(
        "wsrep_patch_version", "Wsrep patch version, for example wsrep_25.10.",
        READ_ONLY GLOBAL_VAR(wsrep_patch_version_ptr), CMD_LINE_HELP_ONLY,
        DEFAULT(WSREP_PATCH_VERSION));
+
+
+static Sys_var_charptr Sys_wsrep_allowlist(
+       "wsrep_allowlist", "Allowed IP addresses split by comma delimiter",
+       READ_ONLY GLOBAL_VAR(wsrep_allowlist), CMD_LINE(REQUIRED_ARG),
+       DEFAULT(""));
 
 #endif /* WITH_WSREP */
 

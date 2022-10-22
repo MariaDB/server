@@ -1040,9 +1040,9 @@ int bootstrap(MYSQL_FILE *file)
         break;
 
       case READ_BOOTSTRAP_QUERY_SIZE:
-        my_printf_error(ER_UNKNOWN_ERROR, "Boostrap file error. Query size "
+        my_printf_error(ER_UNKNOWN_ERROR, "Bootstrap file error. Query size "
                         "exceeded %d bytes near '%s'.", MYF(0),
-                        MAX_BOOTSTRAP_LINE_SIZE, err_ptr);
+                        MAX_BOOTSTRAP_QUERY_SIZE, err_ptr);
         break;
 
       default:
@@ -3323,6 +3323,7 @@ bool run_set_statement_if_requested(THD *thd, LEX *lex)
       {
         switch (v->var->option.var_type & GET_TYPE_MASK)
         {
+          case GET_BIT:
           case GET_BOOL:
           case GET_INT:
           case GET_LONG:
@@ -4853,7 +4854,7 @@ mysql_execute_command(THD *thd, bool is_called_from_prepared_stmt)
     if (likely(!thd->is_fatal_error))
     {
       result= new (thd->mem_root) multi_delete(thd, aux_tables,
-                                               lex->table_count);
+                                               lex->table_count_update);
       if (likely(result))
       {
         if (unlikely(select_lex->vers_setup_conds(thd, aux_tables)))
@@ -7312,7 +7313,6 @@ bool check_fk_parent_table_access(THD *thd,
     if (key->type == Key::FOREIGN_KEY)
     {
       TABLE_LIST parent_table;
-      bool is_qualified_table_name;
       Foreign_key *fk_key= (Foreign_key *)key;
       LEX_CSTRING db_name;
       LEX_CSTRING table_name= { fk_key->ref_table.str,
@@ -7329,7 +7329,6 @@ bool check_fk_parent_table_access(THD *thd,
 
       if (fk_key->ref_db.str)
       {
-        is_qualified_table_name= true;
         if (!(db_name.str= (char *) thd->memdup(fk_key->ref_db.str,
                                                 fk_key->ref_db.length+1)))
           return true;
@@ -7351,7 +7350,6 @@ bool check_fk_parent_table_access(THD *thd,
           if (!(db_name.str= (char *) thd->memdup(create_db,
                                                   db_name.length+1)))
             return true;
-          is_qualified_table_name= true;
 
           if (check_db_name((LEX_STRING*) &db_name))
           {
@@ -7363,8 +7361,6 @@ bool check_fk_parent_table_access(THD *thd,
         {
           if (thd->lex->copy_db_to(&db_name))
             return true;
-          else
-           is_qualified_table_name= false;
         }
       }
 
@@ -7390,22 +7386,11 @@ bool check_fk_parent_table_access(THD *thd,
       if (check_some_access(thd, privileges, &parent_table) ||
           parent_table.grant.want_privilege)
       {
-        if (is_qualified_table_name)
-        {
-          const size_t qualified_table_name_len= NAME_LEN + 1 + NAME_LEN + 1;
-          char *qualified_table_name= (char *) thd->alloc(qualified_table_name_len);
-
-          my_snprintf(qualified_table_name, qualified_table_name_len, "%s.%s",
-                      db_name.str, table_name.str);
-          table_name.str= qualified_table_name;
-        }
-
         my_error(ER_TABLEACCESS_DENIED_ERROR, MYF(0),
-                 "REFERENCES",
-                 thd->security_ctx->priv_user,
-                 thd->security_ctx->host_or_ip,
-                 table_name.str);
-
+                "REFERENCES",
+                thd->security_ctx->priv_user,
+                thd->security_ctx->host_or_ip,
+                db_name.str, table_name.str);
         return true;
       }
     }
@@ -7574,8 +7559,8 @@ void THD::reset_for_next_command(bool do_clear_error)
   }
 #endif /* WITH_WSREP */
 
-  query_start_sec_part_used= 0;
-  is_fatal_error= time_zone_used= 0;
+  used= 0;
+  is_fatal_error= 0;
   variables.option_bits&= ~OPTION_BINLOG_THIS_STMT;
 
   /*
@@ -7594,14 +7579,12 @@ void THD::reset_for_next_command(bool do_clear_error)
     transaction->all.reset();
   }
   DBUG_ASSERT(security_ctx== &main_security_ctx);
-  thread_specific_used= FALSE;
 
   if (opt_bin_log)
     reset_dynamic(&user_var_events);
   DBUG_ASSERT(user_var_events_alloc == &main_mem_root);
   enable_slow_log= true;
   get_stmt_da()->reset_for_next_command();
-  rand_used= 0;
   m_sent_row_count= m_examined_row_count= 0;
   accessed_rows_and_keys= 0;
 
@@ -7886,6 +7869,7 @@ static bool wsrep_mysql_parse(THD *thd, char *rawbuf, uint length,
           thd->lex->sql_command != SQLCOM_SELECT  &&
           thd->wsrep_retry_counter < thd->variables.wsrep_retry_autocommit)
       {
+#ifdef ENABLED_DEBUG_SYNC
 	DBUG_EXECUTE_IF("sync.wsrep_retry_autocommit",
                     {
                       const char act[]=
@@ -7894,6 +7878,7 @@ static bool wsrep_mysql_parse(THD *thd, char *rawbuf, uint length,
                         "WAIT_FOR wsrep_retry_autocommit_continue";
                       DBUG_ASSERT(!debug_sync_set_action(thd, STRING_WITH_LEN(act)));
                     });
+#endif
         WSREP_DEBUG("wsrep retrying AC query: %lu  %s",
                     thd->wsrep_retry_counter,
                     wsrep_thd_query(thd));
@@ -9214,7 +9199,7 @@ kill_one_thread(THD *thd, longlong id, killed_state kill_signal, killed_type typ
   tmp= find_thread_by_id(id, type == KILL_TYPE_QUERY);
   if (!tmp)
     DBUG_RETURN(error);
-
+  DEBUG_SYNC(thd, "found_killee");
   if (tmp->get_command() != COM_DAEMON)
   {
     /*
@@ -9757,12 +9742,12 @@ bool multi_delete_set_locks_and_link_aux_tables(LEX *lex)
   TABLE_LIST *target_tbl;
   DBUG_ENTER("multi_delete_set_locks_and_link_aux_tables");
 
-  lex->table_count= 0;
+  lex->table_count_update= 0;
 
   for (target_tbl= lex->auxiliary_table_list.first;
        target_tbl; target_tbl= target_tbl->next_local)
   {
-    lex->table_count++;
+    lex->table_count_update++;
     /* All tables in aux_tables must be found in FROM PART */
     TABLE_LIST *walk= multi_delete_table_match(lex, target_tbl, tables);
     if (!walk)
@@ -9919,7 +9904,7 @@ bool create_table_precheck(THD *thd, TABLE_LIST *tables,
 {
   LEX *lex= thd->lex;
   SELECT_LEX *select_lex= lex->first_select_lex();
-  privilege_t want_priv(NO_ACL);
+  privilege_t want_priv{CREATE_ACL};
   bool error= TRUE;                                 // Error message is given
   DBUG_ENTER("create_table_precheck");
 
@@ -9928,8 +9913,10 @@ bool create_table_precheck(THD *thd, TABLE_LIST *tables,
     CREATE TABLE ... SELECT, also require INSERT.
   */
 
-  want_priv= lex->tmp_table() ? CREATE_TMP_ACL :
-             (CREATE_ACL | (select_lex->item_list.elements ? INSERT_ACL : NO_ACL));
+  if (lex->tmp_table())
+    want_priv= CREATE_TMP_ACL;
+  else if (select_lex->item_list.elements || select_lex->tvc)
+    want_priv|= INSERT_ACL;
 
   /* CREATE OR REPLACE on not temporary tables require DROP_ACL */
   if (lex->create_info.or_replace() && !lex->tmp_table())

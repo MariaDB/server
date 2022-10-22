@@ -76,7 +76,7 @@ a	b	c
 connection child2_1;
 SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %';
 argument
-select t0.`b` `b`,t0.`a` `a`,t2.`b` `b`,t2.`c` `c` from `auto_test_remote`.`ta_r` t0,`auto_test_remote`.`ta_r_3` t1,`auto_test_remote`.`ta_r_int` t2 where ((t0.`a` = t1.`a`) and (t2.`a` = t1.`a`)) order by t0.`b` desc limit 1,2
+select t0.`b` `b`,t0.`a` `a`,t2.`b` `b`,t2.`c` `c` from `auto_test_remote`.`ta_r` t0 join `auto_test_remote`.`ta_r_3` t1 join `auto_test_remote`.`ta_r_int` t2 where ((t0.`a` = t1.`a`) and (t2.`a` = t1.`a`)) order by t0.`b` desc limit 1,2
 SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %'
 SELECT a, b, date_format(c, '%Y-%m-%d %H:%i:%s') FROM ta_r ORDER BY a;
 a	b	date_format(c, '%Y-%m-%d %H:%i:%s')
@@ -114,7 +114,7 @@ tbl_person	CREATE TABLE `tbl_person` (
   `region_code` varchar(50) DEFAULT NULL,
   `region` int(11) NOT NULL,
   PRIMARY KEY (`id`,`region`) USING BTREE
-) ENGINE=SPIDER DEFAULT CHARSET=utf8mb3 ROW_FORMAT=DYNAMIC COMMENT='table "tbl_ncd_cm_person"'
+) ENGINE=SPIDER DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_general_ci ROW_FORMAT=DYNAMIC COMMENT='table "tbl_ncd_cm_person"'
  PARTITION BY LIST  COLUMNS(`region`)
 (PARTITION `pt1` VALUES IN (510411) COMMENT = 'tbl "tbl_person", srv "s_2_1"' ENGINE = SPIDER)
 CREATE TABLE tbl_ncd_cm_person (
@@ -133,7 +133,7 @@ tbl_ncd_cm_person	CREATE TABLE `tbl_ncd_cm_person` (
   `diseaseKind_id` varchar(50) DEFAULT NULL,
   `region` int(11) NOT NULL,
   PRIMARY KEY (`id`,`region`) USING BTREE
-) ENGINE=SPIDER DEFAULT CHARSET=utf8mb3 ROW_FORMAT=DYNAMIC
+) ENGINE=SPIDER DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_general_ci ROW_FORMAT=DYNAMIC
  PARTITION BY LIST  COLUMNS(`region`)
 (PARTITION `pt1` VALUES IN (510411) COMMENT = 'tbl "tbl_ncd_cm_person", srv "s_2_1"' ENGINE = SPIDER)
 INSERT INTO tbl_person VALUES ('24FC3F0A5119432BAE13DD65AABAA39C',

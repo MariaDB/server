@@ -30,7 +30,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `id` int(10) unsigned NOT NULL AUTO_INCREMENT,
   PRIMARY KEY (`id`)
-) ENGINE=InnoDB AUTO_INCREMENT=43 DEFAULT CHARSET=latin1
+) ENGINE=InnoDB AUTO_INCREMENT=43 DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t1;
 CREATE TABLE t1 (i1 INT UNSIGNED NOT NULL, d1 TIMESTAMP NULL) ENGINE=InnoDB;
 SHOW CREATE TABLE t1;
@@ -38,7 +38,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `i1` int(10) unsigned NOT NULL,
   `d1` timestamp NULL DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 INSERT INTO t1 (i1) VALUES (1), (2), (3), (4), (5);
 select * from t1;
 i1	d1
@@ -59,16 +59,11 @@ SELECT DISTINCT d1 FROM t1;
 d1
 NULL
 ALTER TABLE t1 CHANGE d1 d1 TIMESTAMP DEFAULT '2017-05-08 16:32:54';
-affected rows: 5
-info: Records: 5  Duplicates: 0  Warnings: 0
-# Note: NULL was changed to CURRENT_TIMESTAMP(),
-# not the specified constant DEFAULT value!
+affected rows: 0
+info: Records: 0  Duplicates: 0  Warnings: 0
 SELECT COUNT(DISTINCT d1),COUNT(d1),COUNT(*) FROM t1;
 COUNT(DISTINCT d1)	COUNT(d1)	COUNT(*)
-1	5	5
-SELECT DISTINCT (CURRENT_TIMESTAMP()-d1) <= 60 FROM t1;
-(CURRENT_TIMESTAMP()-d1) <= 60
-1
+0	0	5
 drop table t1;
 CREATE TABLE t1 (
 `i1` INT(10) UNSIGNED NOT NULL,
@@ -111,9 +106,9 @@ t1	CREATE TABLE `t1` (
   `i1` int(10) unsigned NOT NULL,
   `d1` timestamp NOT NULL DEFAULT current_timestamp(),
   `u1` varchar(30) DEFAULT substr(user(),1),
-  `d2` timestamp NOT NULL DEFAULT '2017-05-08 16:23:45',
-  `d3` timestamp NOT NULL DEFAULT `d1`
-) ENGINE=InnoDB DEFAULT CHARSET=latin1
+  `d2` timestamp NULL DEFAULT '2017-05-08 16:23:45',
+  `d3` timestamp NULL DEFAULT `d1`
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 ALTER TABLE t1 ADD COLUMN d4 TIMESTAMP DEFAULT CURRENT_TIMESTAMP;
 affected rows: 0
 info: Records: 0  Duplicates: 0  Warnings: 0

@@ -1,6 +1,10 @@
+--source include/no_valgrind_without_big.inc
 #
 # Tests with the utf8 character set
 #
+
+# Enable after fix MDEV-27904
+-- source include/no_view_protocol.inc
 
 let $MYSQLD_DATADIR= `select @@datadir`;
 
@@ -1665,7 +1669,7 @@ DROP TABLE t1, t2;
 --echo # MDEV-8630 Datetime value dropped in "INSERT ... SELECT ... ON DUPLICATE KEY"
 --echo #
 SET NAMES utf8;
-CREATE TABLE t1 (id2 int, ts timestamp);
+CREATE TABLE t1 (id2 int, ts timestamp not null);
 INSERT INTO t1 VALUES (1,'2012-06-11 15:17:34'),(2,'2012-06-11 15:18:24');
 CREATE TABLE t2 AS SELECT
   COALESCE(ts, 0) AS c0,

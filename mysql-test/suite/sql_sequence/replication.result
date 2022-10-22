@@ -64,7 +64,7 @@ connection master;
 create sequence s2;
 alter table s2 add id int;
 ERROR HY000: Sequence 's_db.s2' table structure is invalid (Wrong number of columns)
-alter table s2 add index ind_x(start);
+alter table s2 add index ind_x(start_value);
 ERROR HY000: Sequence 's_db.s2' table structure is invalid (Sequence tables cannot have any keys)
 drop sequence s2;
 ###########################################
@@ -285,9 +285,9 @@ create sequence s_db.s2;
 drop sequence s_db.s2;
 connection m_normal_2;
 select NEXT VALUE for s_db.s1;
-ERROR 42000: INSERT command denied to user 'normal_2'@'localhost' for table 's1'
+ERROR 42000: INSERT command denied to user 'normal_2'@'localhost' for table `s_db`.`s1`
 create sequence s_db.s2;
-ERROR 42000: CREATE command denied to user 'normal_2'@'localhost' for table 's2'
+ERROR 42000: CREATE command denied to user 'normal_2'@'localhost' for table `s_db`.`s2`
 connection m_normal_1;
 drop sequence s_db.s1;
 ###########################################

@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2021, MariaDB Corporation.
+Copyright (c) 2017, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -63,15 +63,9 @@ both have sensible values.
 @param[in,out]	info		index search info
 @param[in]	tuple		logical record
 @param[in]	mode		PAGE_CUR_L, ....
-@param[in]	latch_mode	BTR_SEARCH_LEAF, ...;
-				NOTE that only if has_search_latch is 0, we will
-				have a latch set on the cursor page, otherwise
-				we assume the caller uses his search latch
-				to protect the record!
+@param[in]	latch_mode	BTR_SEARCH_LEAF, ...
 @param[out]	cursor		tree cursor
-@param[in]	ahi_latch	the adaptive hash index latch being held,
-				or NULL
-@param[in]	mtr		mini transaction
+@param[in]	mtr		mini-transaction
 @return whether the search succeeded */
 bool
 btr_search_guess_on_hash(
@@ -81,7 +75,6 @@ btr_search_guess_on_hash(
 	ulint		mode,
 	ulint		latch_mode,
 	btr_cur_t*	cursor,
-	srw_spin_lock*	ahi_latch,
 	mtr_t*		mtr);
 
 /** Move or delete hash entries for moved records, usually in a page split.
@@ -100,8 +93,11 @@ btr_search_move_or_delete_hash_entries(
 			index page for which we know that
 			block->buf_fix_count == 0 or it is an index page which
 			has already been removed from the buf_pool.page_hash
-			i.e.: it is in state BUF_BLOCK_REMOVE_HASH */
-void btr_search_drop_page_hash_index(buf_block_t* block);
+			i.e.: it is in state BUF_BLOCK_REMOVE_HASH
+@param[in]	garbage_collect	drop ahi only if the index is marked
+				as freed */
+void btr_search_drop_page_hash_index(buf_block_t* block,
+				     bool garbage_collect= false);
 
 /** Drop possible adaptive hash index entries when a page is evicted
 from the buffer pool or freed in a file, or the index is being dropped.
@@ -146,16 +142,23 @@ static inline void btr_search_s_lock_all();
 /** Unlock all search latches from shared mode. */
 static inline void btr_search_s_unlock_all();
 
+# ifdef UNIV_DEBUG
+/** @return if the index is marked as freed */
+bool btr_search_check_marked_free_index(const buf_block_t *block);
+# endif /* UNIV_DEBUG */
 #else /* BTR_CUR_HASH_ADAPT */
 # define btr_search_sys_create()
 # define btr_search_sys_free()
-# define btr_search_drop_page_hash_index(block)
+# define btr_search_drop_page_hash_index(block, garbage_collect)
 # define btr_search_s_lock_all(index)
 # define btr_search_s_unlock_all(index)
 # define btr_search_info_update(index, cursor)
 # define btr_search_move_or_delete_hash_entries(new_block, block)
 # define btr_search_update_hash_on_insert(cursor, ahi_latch)
 # define btr_search_update_hash_on_delete(cursor)
+# ifdef UNIV_DEBUG
+#  define btr_search_check_marked_free_index(block)
+# endif /* UNIV_DEBUG */
 #endif /* BTR_CUR_HASH_ADAPT */
 
 #ifdef BTR_CUR_ADAPT

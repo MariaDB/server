@@ -38,7 +38,9 @@ perl;
               test-sql-discovery query-cache-info password-reuse-check
               query-response-time metadata-lock-info locales unix-socket
               wsrep file-key-management cracklib-password-check user-variables
-              thread-pool-groups thread-pool-queues thread-pool-stats thread-pool-waits/;
+              provider-bzip2 provider-lzma provider-lzo
+              thread-pool-groups thread-pool-queues thread-pool-stats
+              thread-pool-waits hashicorp provider/;
 
   # And substitute the content some environment variables with their
   # names:

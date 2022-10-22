@@ -68,6 +68,7 @@
 #ifdef WITH_WSREP
 #include "wsrep_thd.h"
 #include "wsrep_trans_observer.h"
+#include "wsrep_server_state.h"
 #else
 static inline bool wsrep_is_bf_aborted(THD* thd) { return false; }
 #endif /* WITH_WSREP */
@@ -451,6 +452,7 @@ void thd_storage_lock_wait(THD *thd, long long value)
 extern "C"
 void *thd_get_ha_data(const THD *thd, const struct handlerton *hton)
 {
+  DBUG_ASSERT(thd == current_thd ||  mysql_mutex_is_owner(&thd->LOCK_thd_data));
   return thd->ha_data[hton->slot].ha_ptr;
 }
 
@@ -635,7 +637,7 @@ THD::THD(my_thread_id id, bool is_wsrep_applier)
    protocol_text(this), protocol_binary(this), initial_status_var(0),
    m_current_stage_key(0), m_psi(0),
    in_sub_stmt(0), log_all_errors(0),
-   binlog_unsafe_warning_flags(0),
+   binlog_unsafe_warning_flags(0), used(0),
    current_stmt_binlog_format(BINLOG_FORMAT_MIXED),
    bulk_param(0),
    table_map_for_update(0),
@@ -655,8 +657,6 @@ THD::THD(my_thread_id id, bool is_wsrep_applier)
    is_fatal_error(0),
    transaction_rollback_request(0),
    is_fatal_sub_stmt_error(false),
-   rand_used(0),
-   time_zone_used(0),
    in_lock_tables(0),
    bootstrap(0),
    derived_tables_processing(FALSE),
@@ -769,11 +769,10 @@ THD::THD(my_thread_id id, bool is_wsrep_applier)
   security_ctx= &main_security_ctx;
   no_errors= 0;
   password= 0;
-  query_start_sec_part_used= 0;
   count_cuted_fields= CHECK_FIELD_IGNORE;
   killed= NOT_KILLED;
   killed_err= 0;
-  is_slave_error= thread_specific_used= FALSE;
+  is_slave_error= FALSE;
   my_hash_clear(&handler_tables_hash);
   my_hash_clear(&ull_hash);
   tmp_table=0;
@@ -1522,6 +1521,8 @@ void THD::cleanup(void)
   wsrep_client_thread= false;
 #endif /* WITH_WSREP */
 
+  DEBUG_SYNC(this, "THD_cleanup_after_set_killed");
+
   mysql_ha_cleanup(this);
   locked_tables_list.unlock_locked_tables(this);
 
@@ -1861,7 +1862,7 @@ void add_diff_to_status(STATUS_VAR *to_var, STATUS_VAR *from_var,
 extern std::atomic<my_thread_id> shutdown_thread_id;
 void THD::awake_no_mutex(killed_state state_to_set)
 {
-  DBUG_ENTER("THD::awake");
+  DBUG_ENTER("THD::awake_no_mutex");
   DBUG_PRINT("enter", ("this: %p current_thd: %p  state: %d",
                        this, current_thd, (int) state_to_set));
   THD_CHECK_SENTRY(this);
@@ -2095,7 +2096,8 @@ int THD::killed_errno()
     DBUG_RETURN(ER_QUERY_INTERRUPTED);
   case KILL_TIMEOUT:
   case KILL_TIMEOUT_HARD:
-    DBUG_RETURN(ER_STATEMENT_TIMEOUT);
+    DBUG_RETURN(slave_thread ?
+                ER_SLAVE_STATEMENT_TIMEOUT : ER_STATEMENT_TIMEOUT);
   case KILL_SERVER:
   case KILL_SERVER_HARD:
     DBUG_RETURN(ER_SERVER_SHUTDOWN);
@@ -2231,13 +2233,13 @@ void THD::cleanup_after_query()
   thd_progress_end(this);
 
   /*
-    Reset rand_used so that detection of calls to rand() will save random 
+    Reset RAND_USED so that detection of calls to rand() will save random
     seeds if needed by the slave.
 
-    Do not reset rand_used if inside a stored function or trigger because 
+    Do not reset RAND_USED if inside a stored function or trigger because
     only the call to these operations is logged. Thus only the calling 
     statement needs to detect rand() calls made by its substatements. These
-    substatements must not set rand_used to 0 because it would remove the
+    substatements must not set RAND_USED to 0 because it would remove the
     detection of rand() by the calling statement. 
   */
   if (!in_sub_stmt) /* stored functions and triggers are a special case */
@@ -2245,7 +2247,7 @@ void THD::cleanup_after_query()
     /* Forget those values, for next binlogger: */
     stmt_depends_on_first_successful_insert_id_in_prev_stmt= 0;
     auto_inc_intervals_in_cur_stmt_for_binlog.empty();
-    rand_used= 0;
+    used&= ~THD::RAND_USED;
 #ifndef EMBEDDED_LIBRARY
     /*
       Clean possible unused INSERT_ID events by current statement.
@@ -3664,6 +3666,41 @@ void select_max_min_finder_subselect::cleanup()
 }
 
 
+void select_max_min_finder_subselect::set_op(const Type_handler *th)
+{
+  if (th->is_val_native_ready())
+  {
+    op= &select_max_min_finder_subselect::cmp_native;
+    return;
+  }
+
+  switch (th->cmp_type()) {
+  case REAL_RESULT:
+    op= &select_max_min_finder_subselect::cmp_real;
+    break;
+  case INT_RESULT:
+    op= &select_max_min_finder_subselect::cmp_int;
+    break;
+  case STRING_RESULT:
+    op= &select_max_min_finder_subselect::cmp_str;
+    break;
+  case DECIMAL_RESULT:
+    op= &select_max_min_finder_subselect::cmp_decimal;
+    break;
+  case TIME_RESULT:
+    if (th->field_type() == MYSQL_TYPE_TIME)
+      op= &select_max_min_finder_subselect::cmp_time;
+    else
+      op= &select_max_min_finder_subselect::cmp_str;
+    break;
+  case ROW_RESULT:
+    // This case should never be chosen
+    DBUG_ASSERT(0);
+    op= 0;
+  }
+}
+
+
 int select_max_min_finder_subselect::send_data(List<Item> &items)
 {
   DBUG_ENTER("select_max_min_finder_subselect::send_data");
@@ -3682,30 +3719,7 @@ int select_max_min_finder_subselect::send_data(List<Item> &items)
     if (!cache)
     {
       cache= val_item->get_cache(thd);
-      switch (val_item->cmp_type()) {
-      case REAL_RESULT:
-	op= &select_max_min_finder_subselect::cmp_real;
-	break;
-      case INT_RESULT:
-	op= &select_max_min_finder_subselect::cmp_int;
-	break;
-      case STRING_RESULT:
-	op= &select_max_min_finder_subselect::cmp_str;
-	break;
-      case DECIMAL_RESULT:
-        op= &select_max_min_finder_subselect::cmp_decimal;
-        break;
-      case TIME_RESULT:
-        if (val_item->field_type() == MYSQL_TYPE_TIME)
-          op= &select_max_min_finder_subselect::cmp_time;
-        else
-          op= &select_max_min_finder_subselect::cmp_str;
-        break;
-      case ROW_RESULT:
-        // This case should never be chosen
-	DBUG_ASSERT(0);
-	op= 0;
-      }
+      set_op(val_item->type_handler());
     }
     cache->store(val_item);
     it->store(0, cache);
@@ -3798,6 +3812,26 @@ bool select_max_min_finder_subselect::cmp_str()
     return (sortcmp(val1, val2, cache->collation.collation) > 0) ;
   return (sortcmp(val1, val2, cache->collation.collation) < 0);
 }
+
+
+bool select_max_min_finder_subselect::cmp_native()
+{
+  NativeBuffer<STRING_BUFFER_USUAL_SIZE> cvalue, mvalue;
+  Item *maxmin= ((Item_singlerow_subselect *)item)->element_index(0);
+  bool cvalue_is_null= cache->val_native(thd, &cvalue);
+  bool mvalue_is_null= maxmin->val_native(thd, &mvalue);
+
+  /* Ignore NULLs for ANY and keep them for ALL subqueries */
+  if (cvalue_is_null)
+    return (is_all && !mvalue_is_null) || (!is_all && mvalue_is_null);
+  if (mvalue_is_null)
+    return !is_all;
+
+  const Type_handler *th= cache->type_handler();
+  return fmax ? th->cmp_native(cvalue, mvalue) > 0 :
+                th->cmp_native(cvalue, mvalue) < 0;
+}
+
 
 int select_exists_subselect::send_data(List<Item> &items)
 {
@@ -3904,6 +3938,7 @@ Statement::Statement(LEX *lex_arg, MEM_ROOT *mem_root_arg,
   lex(lex_arg),
   db(null_clex_str)
 {
+  hr_prepare_time.val= 0,
   name= null_clex_str;
 }
 
@@ -3920,6 +3955,7 @@ void Statement::set_statement(Statement *stmt)
   column_usage=   stmt->column_usage;
   lex=            stmt->lex;
   query_string=   stmt->query_string;
+  hr_prepare_time=    stmt->hr_prepare_time;
 }
 
 
@@ -7358,7 +7394,7 @@ int THD::binlog_flush_pending_rows_event(bool stmt_end, bool is_transactional)
 */
 bool THD::binlog_for_noop_dml(bool transactional_table)
 {
-  if (log_current_statement())
+  if (mysql_bin_log.is_open() && log_current_statement())
   {
     reset_unsafe_warnings();
     if (binlog_query(THD::STMT_QUERY_TYPE, query(), query_length(),
@@ -7372,7 +7408,7 @@ bool THD::binlog_for_noop_dml(bool transactional_table)
 }
 
 
-#if !defined(DBUG_OFF) && !defined(_lint)
+#if defined(DBUG_TRACE) && !defined(_lint)
 static const char *
 show_query_type(THD::enum_binlog_query_type qtype)
 {
@@ -7536,7 +7572,7 @@ MYSQL_TIME THD::query_start_TIME()
   MYSQL_TIME res;
   variables.time_zone->gmt_sec_to_TIME(&res, query_start());
   res.second_part= query_start_sec_part();
-  time_zone_used= 1;
+  used|= TIME_ZONE_USED;
   return res;
 }
 
@@ -8275,7 +8311,7 @@ Query_arena_stmt::~Query_arena_stmt()
 bool THD::timestamp_to_TIME(MYSQL_TIME *ltime, my_time_t ts,
                             ulong sec_part, date_mode_t fuzzydate)
 {
-  time_zone_used= 1;
+  used|= TIME_ZONE_USED;
   if (ts == 0 && sec_part == 0)
   {
     if (fuzzydate & TIME_NO_ZERO_DATE)
@@ -8317,4 +8353,22 @@ THD::charset_collation_context_alter_table(const TABLE_SHARE *s)
 {
   return Charset_collation_context(get_default_db_collation(this, s->db.str),
                                    s->table_charset);
+}
+
+
+void Charset_loader_server::raise_unknown_collation_error(const char *name) const
+{
+  ErrConvString err(name, &my_charset_utf8mb4_general_ci);
+  my_error(ER_UNKNOWN_COLLATION, MYF(0), err.ptr());
+  if (error[0])
+    push_warning_printf(current_thd,
+                        Sql_condition::WARN_LEVEL_WARN,
+                        ER_UNKNOWN_COLLATION, "%s", error);
+}
+
+
+void Charset_loader_server::raise_not_applicable_error(const char *cs,
+                                                       const char *cl) const
+{
+  my_error(ER_COLLATION_CHARSET_MISMATCH, MYF(0), cl, cs);
 }

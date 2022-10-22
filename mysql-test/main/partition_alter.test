@@ -126,7 +126,7 @@ alter table t1 drop primary key, drop column x, add primary key (pk);
 select * from t1 partition (p0);
 drop table t1;
 
-create or replace table t1 (pk int not null, x timestamp(6), unique u(pk, x)) engine innodb
+create or replace table t1 (pk int not null, x timestamp(6) not null, unique u(pk, x)) engine innodb
 partition by key() partitions 2;
 insert into t1 (pk, x) values (1, '2000-01-01 00:00'), (2, '2000-01-01 00:01');
 --echo # Same for NOT NULL UNIQUE KEY as this is actually primary key
@@ -136,7 +136,7 @@ alter table t1 drop key u, drop column x, add unique (pk);
 select * from t1 partition (p0);
 drop table t1;
 
-create or replace table t1 (pk int, x timestamp(6), primary key (pk)) engine innodb
+create or replace table t1 (pk int, x timestamp(6) not null, primary key (pk)) engine innodb
 partition by key(pk) partitions 2;
 insert into t1 (pk, x) values (1, '2000-01-01 00:00'), (2, '2000-01-01 00:01');
 --echo # Inplace for DROP PRIMARY KEY when partitioned by explicit field list is allowed
@@ -185,7 +185,59 @@ select * from t1 partition(p1);
 delete from t1;
 drop table t1;
 
+--echo #
+--echo # MDEV-28576 RENAME COLUMN with NOCOPY algorithm leads to corrupt partitioned table
+--echo #
+create table t (a int, b int) partition by list (b) (partition p1 values in (1, 2));
+insert into t values (0, 1), (2, 2);
+alter table t change b f int, change a b int, algorithm=nocopy;
+check table t;
+delete from t order by b limit 1;
+# cleanup
+drop table t;
+
 --echo # End of 10.3 tests
+
+--echo #
+--echo # MDEV-28576 RENAME COLUMN with NOCOPY algorithm leads to corrupt partitioned table
+--echo #
+create table t (a int)
+partition by list (a)
+subpartition by hash(a) subpartitions 2
+(partition p0 values in (1));
+alter table t rename column a to b, algorithm=nocopy;
+show create table t;
+alter table t rename column b to c, algorithm=copy;
+show create table t;
+drop table t;
+
+create table t (d int, e int)
+partition by list columns (d, e)
+subpartition by key (d, e)
+(partition p0 values in ((2, 3)));
+alter table t rename column d to f, rename column e to g, algorithm=nocopy;
+show create table t;
+alter table t rename column f to h, rename column g to i, algorithm=copy;
+show create table t;
+drop table t;
+
+create table t (k int, l int)
+partition by range (k)
+subpartition by hash(l) subpartitions 4
+(partition p0 values less than (5));
+alter table t rename column k to l, rename column l to k;
+show create table t;
+drop table t;
+
+create table t (a int, b int) partition by list (b) (partition p1 values in (1, 2));
+insert into t values (0, 1), (2, 2);
+alter table t rename column b to f, rename column a to b, algorithm=nocopy;
+check table t;
+delete from t order by b limit 1;
+# cleanup
+drop table t;
+
+--echo # End of 10.5 tests
 
 create or replace table t1 (x int primary key)
 partition by range(x) (
@@ -233,3 +285,5 @@ partition by list(x) (
   pn values in (52, 53, 54));
 
 drop table t1;
+
+--echo # End of 10.7 tests

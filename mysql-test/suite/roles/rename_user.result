@@ -25,3 +25,12 @@ newhost	test_user_rm	test_role1	N
 delete from mysql.roles_mapping;
 delete from mysql.user where user like 'test%';
 flush privileges;
+#
+# MDEV-29131 Assertion `status == 0' failed when renaming user after deleting table roles_mapping
+#
+create role r;
+rename table mysql.roles_mapping to test.t1;
+rename user current_user to a@a;
+rename user a@a to root@localhost;
+rename table test.t1 to mysql.roles_mapping;
+drop role r;

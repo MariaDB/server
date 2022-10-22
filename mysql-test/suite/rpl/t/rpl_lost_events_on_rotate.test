@@ -13,6 +13,7 @@
 # during this window while forcing a rotation in the binlog.
 #
 --source include/have_debug.inc
+--source include/have_debug_sync.inc
 --source include/master-slave.inc
 
 --connection master

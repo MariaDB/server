@@ -494,7 +494,73 @@ mysql-8.0 Jammy to mariadb upgrade:
     variables:
       - $CI_COMMIT_TAG != null && $SALSA_CI_ENABLE_PIPELINE_ON_TAGS !~ /^(1|yes|true)$/
 
-mariadb.org-10.7 to mariadb-10.10 upgrade:
+mariadb.org 10.9 to mariadb upgrade:
+  stage: upgrade extras
+  needs:
+    - job: build
+  image: debian:${RELEASE}
+  artifacts:
+    when: always
+    name: "$CI_BUILD_NAME"
+    paths:
+      - ${WORKING_DIR}/debug
+  script:
+    - *test-prepare-container
+    - apt install -y curl
+    - curl -sS https://mariadb.org/mariadb_release_signing_key.asc -o /etc/apt/trusted.gpg.d/mariadb.asc
+    - echo "deb https://deb.mariadb.org/10.9/debian ${RELEASE} main" > /etc/apt/sources.list.d/mariadb.list
+    - apt-get update
+    - apt-get install -y mariadb-server-10.9
+    - *test-verify-initial
+    # Install MariaDB built in this commit
+    # Force downgrades so our version installs on top of upstream revision, e.g. 1:10.9.1-1 vs 1:10.9.1+mariadb~sid
+    - apt-get install -y --allow-downgrades ./*.deb
+    # Verify installation of MariaDB built in this commit
+    - dpkg -l | grep -iE 'maria|mysql|galera' || true # List installed
+    - mariadb --version # Client version
+    - service mariadb status # There is no init.d/mysql in MariaDB 10.5+
+    - *test-verify-final
+  variables:
+    GIT_STRATEGY: none
+  except:
+    variables:
+      - $CI_COMMIT_TAG != null && $SALSA_CI_ENABLE_PIPELINE_ON_TAGS !~ /^(1|yes|true)$/
+  allow_failure: true
+
+mariadb.org-10.8 to mariadb upgrade:
+  stage: upgrade extras
+  needs:
+    - job: build
+  image: debian:${RELEASE}
+  artifacts:
+    when: always
+    name: "$CI_BUILD_NAME"
+    paths:
+      - ${WORKING_DIR}/debug
+  script:
+    - *test-prepare-container
+    - apt install -y curl
+    - curl -sS https://mariadb.org/mariadb_release_signing_key.asc -o /etc/apt/trusted.gpg.d/mariadb.asc
+    - echo "deb https://deb.mariadb.org/10.8/debian ${RELEASE} main" > /etc/apt/sources.list.d/mariadb.list
+    - apt-get update
+    - apt-get install -y mariadb-server-10.8
+    - *test-verify-initial
+    # Install MariaDB built in this commit
+    # Force downgrades so our version installs on top of upstream revision, e.g. 1:10.9.1-1 vs 1:10.9.1+mariadb~sid
+    - apt-get install -y --allow-downgrades ./*.deb
+    # Verify installation of MariaDB built in this commit
+    - dpkg -l | grep -iE 'maria|mysql|galera' || true # List installed
+    - mariadb --version # Client version
+    - service mariadb status # There is no init.d/mysql in MariaDB 10.5+
+    - *test-verify-final
+  variables:
+    GIT_STRATEGY: none
+  except:
+    variables:
+      - $CI_COMMIT_TAG != null && $SALSA_CI_ENABLE_PIPELINE_ON_TAGS !~ /^(1|yes|true)$/
+  allow_failure: true
+
+mariadb.org-10.7 to mariadb upgrade:
   stage: upgrade extras
   needs:
     - job: build
@@ -510,13 +576,10 @@ mariadb.org-10.7 to mariadb-10.10 upgrade:
     - curl -sS https://mariadb.org/mariadb_release_signing_key.asc -o /etc/apt/trusted.gpg.d/mariadb.asc
     - echo "deb https://deb.mariadb.org/10.7/debian ${RELEASE} main" > /etc/apt/sources.list.d/mariadb.list
     - apt-get update
-    # Package libmariadbclient-dev from mariadb.org conflicts with libmariadb-dev in Sid, so cannot use wildcard that would include it
-    # Enable this line when there is a way to install them only from the mariadb.org repo
-    # - apt-get install -y 'mariadb*' libmariadb3 'libmariadb-*' 'libmariadbd*'
     - apt-get install -y mariadb-server-10.7
     - *test-verify-initial
     # Install MariaDB built in this commit
-    # Force downgrades so our version installs on top of upstream revision, e.g. 1:10.5.5-1 vs 1:10.5.5+mariadb~sid
+    # Force downgrades so our version installs on top of upstream revision, e.g. 1:10.9.1-1 vs 1:10.9.1+mariadb~sid
     - apt-get install -y --allow-downgrades ./*.deb
     # Verify installation of MariaDB built in this commit
     - dpkg -l | grep -iE 'maria|mysql|galera' || true # List installed
@@ -529,12 +592,8 @@ mariadb.org-10.7 to mariadb-10.10 upgrade:
     variables:
       - $CI_COMMIT_TAG != null && $SALSA_CI_ENABLE_PIPELINE_ON_TAGS !~ /^(1|yes|true)$/
   allow_failure: true
-  # Installation on Sid fails on missing liburing1 because upstream 10.8
-  # MariaDB.org buildbot has not run 'apt upgrade' for a long time.
-  # Remove this allow_failure once buildbot has built a new 10.8
-  # release using latest liburing-dev in Debian Sid.
 
-mariadb.org-10.6 to mariadb-10.8 upgrade:
+mariadb.org-10.6 to mariadb upgrade:
   stage: upgrade extras
   needs:
     - job: build
@@ -550,13 +609,10 @@ mariadb.org-10.6 to mariadb-10.8 upgrade:
     - curl -sS https://mariadb.org/mariadb_release_signing_key.asc -o /etc/apt/trusted.gpg.d/mariadb.asc
     - echo "deb https://deb.mariadb.org/10.6/debian ${RELEASE} main" > /etc/apt/sources.list.d/mariadb.list
     - apt-get update
-    # Package libmariadbclient-dev from mariadb.org conflicts with libmariadb-dev in Sid, so cannot use wildcard that would include it
-    # Enable this line when there is a way to install them only from the mariadb.org repo
-    # - apt-get install -y 'mariadb*' libmariadb3 'libmariadb-*' 'libmariadbd*'
     - apt-get install -y mariadb-server-10.6
     - *test-verify-initial
     # Install MariaDB built in this commit
-    # Force downgrades so our version installs on top of upstream revision, e.g. 1:10.5.5-1 vs 1:10.5.5+mariadb~sid
+    # Force downgrades so our version installs on top of upstream revision, e.g. 1:10.9.1-1 vs 1:10.9.1+mariadb~sid
     - apt-get install -y --allow-downgrades ./*.deb
     # Verify installation of MariaDB built in this commit
     - dpkg -l | grep -iE 'maria|mysql|galera' || true # List installed
@@ -569,12 +625,8 @@ mariadb.org-10.6 to mariadb-10.8 upgrade:
     variables:
       - $CI_COMMIT_TAG != null && $SALSA_CI_ENABLE_PIPELINE_ON_TAGS !~ /^(1|yes|true)$/
   allow_failure: true
-  # Installation on Sid fails on missing liburing1 because upstream 10.10
-  # MariaDB.org buildbot has not run 'apt upgrade' for a long time.
-  # Remove this allow_failure once buildbot has built a new 10.10
-  # release using latest liburing-dev in Debian Sid.
 
-mariadb.org-10.5 to mariadb-10.10 upgrade:
+mariadb.org-10.5 to mariadb upgrade:
   stage: upgrade extras
   needs:
     - job: build

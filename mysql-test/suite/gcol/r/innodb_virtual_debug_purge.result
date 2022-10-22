@@ -89,7 +89,7 @@ t1	CREATE TABLE `t1` (
   `b` int(11) DEFAULT NULL,
   `c` int(11) GENERATED ALWAYS AS (`a` + `b`) VIRTUAL,
   KEY `idx` (`c`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 SELECT * FROM t1;
 a	b	c
 2	2	4
@@ -129,7 +129,7 @@ t1	CREATE TABLE `t1` (
   `b` int(11) DEFAULT NULL,
   `c` int(11) GENERATED ALWAYS AS (`a` + `b`) VIRTUAL,
   KEY `idx` (`c`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 SELECT * FROM t1;
 a	b	c
 2	2	4
@@ -150,10 +150,7 @@ lock table t write;
 connection prevent_purge;
 commit;
 connection default;
-InnoDB		0 transactions not purged
 disconnect lock_table;
-start transaction with consistent snapshot;
-commit;
 InnoDB		0 transactions not purged
 set global debug_dbug=@old_dbug;
 drop table t;

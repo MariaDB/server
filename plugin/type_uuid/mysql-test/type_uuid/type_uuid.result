@@ -11,7 +11,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` uuid DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DESCRIBE t1;
 Field	Type	Null	Key	Default	Extra
 a	uuid	YES		NULL	
@@ -67,7 +67,7 @@ t1	CREATE TABLE `t1` (
   `c3` uuid DEFAULT '00000000-0000-0000-0000-000000000000',
   `c4` uuid DEFAULT 'ffffffff-ffff-ffff-ffff-ffffffffffff',
   `c5` uuid DEFAULT cast(X'ffffffffffffffffffffffffffffffff' as uuid)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DESCRIBE t1;
 Field	Type	Null	Key	Default	Extra
 c1	uuid	YES		00000000-0000-0000-0000-000000000000	
@@ -195,9 +195,9 @@ CREATE TABLE t1 (a UUID);
 INSERT INTO t1 VALUES ('x');
 ERROR 22007: Incorrect uuid value: 'x' for column `test`.`t1`.`a` at row 1
 INSERT INTO t1 VALUES (1);
-ERROR HY000: Illegal parameter data types uuid and int for operation 'SET'
+ERROR HY000: Cannot cast 'int' as 'uuid' in assignment of `test`.`t1`.`a`
 INSERT INTO t1 VALUES (TIME'10:20:30');
-ERROR HY000: Illegal parameter data types uuid and time for operation 'SET'
+ERROR HY000: Cannot cast 'time' as 'uuid' in assignment of `test`.`t1`.`a`
 INSERT INTO t1 VALUES (0x00);
 ERROR 22007: Incorrect uuid value: '\x00' for column `test`.`t1`.`a` at row 1
 DROP TABLE t1;
@@ -225,7 +225,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `CAST('00000000-0000-0000-0000-000000000000' AS UUID)` uuid NOT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t1;
 #
 # Text and binary formats, comparison operators
@@ -1509,7 +1509,7 @@ t2	CREATE TABLE `t2` (
   `COALESCE(c, c_text)` uuid DEFAULT NULL,
   `COALESCE(c, c_mediumtext)` uuid DEFAULT NULL,
   `COALESCE(c, c_longtext)` uuid DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t2;
 CREATE TABLE t2 AS SELECT
 LEAST(c, c_char),
@@ -1528,7 +1528,7 @@ t2	CREATE TABLE `t2` (
   `LEAST(c, c_text)` uuid DEFAULT NULL,
   `LEAST(c, c_mediumtext)` uuid DEFAULT NULL,
   `LEAST(c, c_longtext)` uuid DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t2;
 DROP TABLE t1;
 CREATE TABLE t1 (a UUID);
@@ -1570,7 +1570,7 @@ t2	CREATE TABLE `t2` (
   `COALESCE(a, '00000000-0000-0000-0000-000000000000')` uuid DEFAULT NULL,
   `LEAST(a,'00000000-0000-0000-0000-000000000000')` uuid DEFAULT NULL,
   `GREATEST(a,'00000000-0000-0000-0000-000000000000')` uuid DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t2;
 SELECT COALESCE(a, 0x00000000000000000000000000000000) FROM t1 ORDER BY a;
 COALESCE(a, 0x00000000000000000000000000000000)
@@ -1606,7 +1606,7 @@ t2	CREATE TABLE `t2` (
   `COALESCE(a, 0x00000000000000000000000000000000)` uuid DEFAULT NULL,
   `LEAST(a,0x00000000000000000000000000000000)` uuid DEFAULT NULL,
   `GREATEST(a,0x00000000000000000000000000000000)` uuid DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t2;
 SELECT COALESCE(a, 10) FROM t1;
 ERROR HY000: Illegal parameter data types uuid and int for operation 'coalesce'
@@ -1831,7 +1831,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` varchar(36) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t1;
 CREATE TABLE t1 (a UUID);
 INSERT INTO t1 VALUES ('ffffffff-ffff-ffff-ffff-ffffffffffff');
@@ -1854,7 +1854,7 @@ t2	CREATE TABLE `t2` (
   `CAST(a AS CHAR(66000))` mediumtext DEFAULT NULL,
   `CAST(a AS CHAR(16777215))` mediumtext DEFAULT NULL,
   `CAST(a AS CHAR(16777216))` longtext DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 SELECT * FROM t2;
 CAST(a AS CHAR)	ffffffff-ffff-ffff-ffff-ffffffffffff
 CAST(a AS CHAR(36))	ffffffff-ffff-ffff-ffff-ffffffffffff
@@ -1890,7 +1890,7 @@ t2	CREATE TABLE `t2` (
   `cb66000` mediumblob DEFAULT NULL,
   `cb16777215` mediumblob DEFAULT NULL,
   `cb16777216` longblob DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t2;
 CREATE TABLE t2 AS SELECT
 CAST(a AS BINARY(4)) AS cb4,
@@ -1909,7 +1909,7 @@ t2	CREATE TABLE `t2` (
   `cb32` binary(32) DEFAULT NULL,
   `cb530` varbinary(530) DEFAULT NULL,
   `cb65535` blob DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 SELECT
 HEX(cb4),
 HEX(cb),
@@ -1931,15 +1931,15 @@ DROP TABLE t1;
 #
 CREATE TABLE t1 (a INT);
 INSERT INTO t1 VALUES (CAST('00000000-0000-0000-0000-000000000000' AS UUID));
-ERROR HY000: Illegal parameter data types int and uuid for operation 'SET'
+ERROR HY000: Cannot cast 'uuid' as 'int' in assignment of `test`.`t1`.`a`
 DROP TABLE t1;
 CREATE TABLE t1 (a DOUBLE);
 INSERT INTO t1 VALUES (CAST('00000000-0000-0000-0000-000000000000' AS UUID));
-ERROR HY000: Illegal parameter data types double and uuid for operation 'SET'
+ERROR HY000: Cannot cast 'uuid' as 'double' in assignment of `test`.`t1`.`a`
 DROP TABLE t1;
 CREATE TABLE t1 (a DECIMAL(32,0));
 INSERT INTO t1 VALUES (CAST('00000000-0000-0000-0000-000000000000' AS UUID));
-ERROR HY000: Illegal parameter data types decimal and uuid for operation 'SET'
+ERROR HY000: Cannot cast 'uuid' as 'decimal' in assignment of `test`.`t1`.`a`
 DROP TABLE t1;
 CREATE TABLE t1 (a VARCHAR(64));
 INSERT INTO t1 VALUES (CAST('00000000-0000-0000-0000-000000000000' AS UUID));
@@ -2021,7 +2021,7 @@ Table	Create Table
 t2	CREATE TABLE `t2` (
   `MIN(a)` uuid DEFAULT NULL,
   `MAX(a)` uuid DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 SELECT * FROM t2;
 MIN(a)	MAX(a)
 00000000-0000-0000-0000-000000000000	00000000-0000-0000-0000-000000000002
@@ -2084,7 +2084,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` uuid NOT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 EXECUTE IMMEDIATE 'INSERT INTO t1 VALUES (?)'
   USING '00000000-0000-0000-0000-000000000001';
 EXECUTE IMMEDIATE 'INSERT INTO t1 VALUES (?)'
@@ -2123,7 +2123,7 @@ Table	Create Table
 t2	CREATE TABLE `t2` (
   `c1` varchar(36) DEFAULT NULL,
   `c2` varchar(36) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t2;
 CREATE TABLE t2 AS SELECT
 CONCAT(_utf8'1', LEFT(a,35)) AS c1,
@@ -2133,10 +2133,10 @@ FROM t1;
 SHOW CREATE TABLE t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
-  `c1` varchar(36) CHARACTER SET utf8mb3 DEFAULT NULL,
-  `c2` varchar(36) CHARACTER SET utf8mb3 DEFAULT NULL,
-  `c3` varchar(36) CHARACTER SET utf8mb3 DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+  `c1` varchar(36) CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci DEFAULT NULL,
+  `c2` varchar(36) CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci DEFAULT NULL,
+  `c3` varchar(36) CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t2;
 CREATE TABLE t2 AS SELECT
 CONCAT(_latin1'1', LEFT(a,35)) AS c1,
@@ -2149,7 +2149,7 @@ t2	CREATE TABLE `t2` (
   `c1` varchar(36) DEFAULT NULL,
   `c2` varchar(36) DEFAULT NULL,
   `c3` varchar(36) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t2;
 DROP TABLE t1;
 #
@@ -2163,7 +2163,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c` uuid NOT NULL DEFAULT '00000000-0000-0000-0000-000000000000'
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 SELECT * FROM t1 ORDER BY c;
 c
 00000000-0000-0000-0000-000000000000
@@ -2177,7 +2177,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c` uuid NOT NULL DEFAULT '00000000-0000-0000-0000-000000000000'
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 SELECT * FROM t1 ORDER BY c;
 c
 00000000-0000-0000-0000-000000000000
@@ -2191,7 +2191,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c` uuid NOT NULL DEFAULT '00000000-0000-0000-0000-000000000000'
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 SELECT * FROM t1 ORDER BY c;
 c
 00000000-0000-0000-0000-000000000000
@@ -2205,7 +2205,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c` uuid NOT NULL DEFAULT '00000000-0000-0000-0000-000000000000'
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 SELECT * FROM t1 ORDER BY c;
 c
 00000000-0000-0000-0000-000000000000
@@ -2762,7 +2762,7 @@ DROP TABLE t1;
 CREATE TABLE t1 (a UUID, b INT);
 INSERT INTO t1 VALUES ('ffffffff-ffff-ffff-ffff-ffffffffffff', NULL);
 UPDATE t1 SET b=a;
-ERROR HY000: Illegal parameter data types int and uuid for operation 'SET'
+ERROR HY000: Cannot cast 'uuid' as 'int' in assignment of `test`.`t1`.`b`
 SELECT b FROM t1;
 b
 NULL
@@ -2770,7 +2770,7 @@ DROP TABLE t1;
 CREATE TABLE t1 (a UUID, b DOUBLE);
 INSERT INTO t1 VALUES ('ffffffff-ffff-ffff-ffff-ffffffffffff', NULL);
 UPDATE t1 SET b=a;
-ERROR HY000: Illegal parameter data types double and uuid for operation 'SET'
+ERROR HY000: Cannot cast 'uuid' as 'double' in assignment of `test`.`t1`.`b`
 SELECT b FROM t1;
 b
 NULL
@@ -2778,7 +2778,7 @@ DROP TABLE t1;
 CREATE TABLE t1 (a UUID, b DECIMAL(32,0));
 INSERT INTO t1 VALUES ('ffffffff-ffff-ffff-ffff-ffffffffffff', NULL);
 UPDATE t1 SET b=a;
-ERROR HY000: Illegal parameter data types decimal and uuid for operation 'SET'
+ERROR HY000: Cannot cast 'uuid' as 'decimal' in assignment of `test`.`t1`.`b`
 SELECT b FROM t1;
 b
 NULL
@@ -2786,7 +2786,7 @@ DROP TABLE t1;
 CREATE TABLE t1 (a UUID, b YEAR);
 INSERT INTO t1 VALUES ('ffffffff-ffff-ffff-ffff-ffffffffffff', NULL);
 UPDATE t1 SET b=a;
-ERROR HY000: Illegal parameter data types year and uuid for operation 'SET'
+ERROR HY000: Cannot cast 'uuid' as 'year' in assignment of `test`.`t1`.`b`
 SELECT b FROM t1;
 b
 NULL
@@ -2797,7 +2797,7 @@ DROP TABLE t1;
 CREATE TABLE t1 (a INT, b UUID);
 INSERT INTO t1 VALUES (1, NULL);
 UPDATE t1 SET b=a;
-ERROR HY000: Illegal parameter data types uuid and int for operation 'SET'
+ERROR HY000: Cannot cast 'int' as 'uuid' in assignment of `test`.`t1`.`b`
 SELECT b FROM t1;
 b
 NULL
@@ -2805,7 +2805,7 @@ DROP TABLE t1;
 CREATE TABLE t1 (a DOUBLE, b UUID);
 INSERT INTO t1 VALUES (1, NULL);
 UPDATE t1 SET b=a;
-ERROR HY000: Illegal parameter data types uuid and double for operation 'SET'
+ERROR HY000: Cannot cast 'double' as 'uuid' in assignment of `test`.`t1`.`b`
 SELECT b FROM t1;
 b
 NULL
@@ -2813,7 +2813,7 @@ DROP TABLE t1;
 CREATE TABLE t1 (a DECIMAL(32,0), b UUID);
 INSERT INTO t1 VALUES (1, NULL);
 UPDATE t1 SET b=a;
-ERROR HY000: Illegal parameter data types uuid and decimal for operation 'SET'
+ERROR HY000: Cannot cast 'decimal' as 'uuid' in assignment of `test`.`t1`.`b`
 SELECT b FROM t1;
 b
 NULL
@@ -2821,7 +2821,7 @@ DROP TABLE t1;
 CREATE TABLE t1 (a YEAR, b UUID);
 INSERT INTO t1 VALUES (1, NULL);
 UPDATE t1 SET b=a;
-ERROR HY000: Illegal parameter data types uuid and year for operation 'SET'
+ERROR HY000: Cannot cast 'year' as 'uuid' in assignment of `test`.`t1`.`b`
 SELECT b FROM t1;
 b
 NULL
@@ -2832,7 +2832,7 @@ DROP TABLE t1;
 CREATE TABLE t1 (a UUID, b TIME);
 INSERT INTO t1 VALUES ('ffffffff-ffff-ffff-ffff-ffffffffffff', NULL);
 UPDATE t1 SET b=a;
-ERROR HY000: Illegal parameter data types time and uuid for operation 'SET'
+ERROR HY000: Cannot cast 'uuid' as 'time' in assignment of `test`.`t1`.`b`
 SELECT b FROM t1;
 b
 NULL
@@ -2840,7 +2840,7 @@ DROP TABLE t1;
 CREATE TABLE t1 (a UUID, b DATE);
 INSERT INTO t1 VALUES ('ffffffff-ffff-ffff-ffff-ffffffffffff', NULL);
 UPDATE t1 SET b=a;
-ERROR HY000: Illegal parameter data types date and uuid for operation 'SET'
+ERROR HY000: Cannot cast 'uuid' as 'date' in assignment of `test`.`t1`.`b`
 SELECT b FROM t1;
 b
 NULL
@@ -2848,7 +2848,7 @@ DROP TABLE t1;
 CREATE TABLE t1 (a UUID, b DATETIME);
 INSERT INTO t1 VALUES ('ffffffff-ffff-ffff-ffff-ffffffffffff', NULL);
 UPDATE t1 SET b=a;
-ERROR HY000: Illegal parameter data types datetime and uuid for operation 'SET'
+ERROR HY000: Cannot cast 'uuid' as 'datetime' in assignment of `test`.`t1`.`b`
 SELECT b FROM t1;
 b
 NULL
@@ -2856,7 +2856,7 @@ DROP TABLE t1;
 CREATE TABLE t1 (a UUID, b TIMESTAMP NULL DEFAULT NULL);
 INSERT INTO t1 VALUES ('ffffffff-ffff-ffff-ffff-ffffffffffff', NULL);
 UPDATE t1 SET b=a;
-ERROR HY000: Illegal parameter data types timestamp and uuid for operation 'SET'
+ERROR HY000: Cannot cast 'uuid' as 'timestamp' in assignment of `test`.`t1`.`b`
 SELECT b FROM t1;
 b
 NULL
@@ -2867,7 +2867,7 @@ DROP TABLE t1;
 CREATE TABLE t1 (a TIME, b UUID);
 INSERT INTO t1 VALUES ('00:00:00', NULL);
 UPDATE t1 SET b=a;
-ERROR HY000: Illegal parameter data types uuid and time for operation 'SET'
+ERROR HY000: Cannot cast 'time' as 'uuid' in assignment of `test`.`t1`.`b`
 SELECT b FROM t1;
 b
 NULL
@@ -2875,7 +2875,7 @@ DROP TABLE t1;
 CREATE TABLE t1 (a DATE, b UUID);
 INSERT INTO t1 VALUES ('2001-01:01', NULL);
 UPDATE t1 SET b=a;
-ERROR HY000: Illegal parameter data types uuid and date for operation 'SET'
+ERROR HY000: Cannot cast 'date' as 'uuid' in assignment of `test`.`t1`.`b`
 SELECT b FROM t1;
 b
 NULL
@@ -2883,7 +2883,7 @@ DROP TABLE t1;
 CREATE TABLE t1 (a DATETIME, b UUID);
 INSERT INTO t1 VALUES ('2001-01-01 10:20:30', NULL);
 UPDATE t1 SET b=a;
-ERROR HY000: Illegal parameter data types uuid and datetime for operation 'SET'
+ERROR HY000: Cannot cast 'datetime' as 'uuid' in assignment of `test`.`t1`.`b`
 SELECT b FROM t1;
 b
 NULL
@@ -2891,7 +2891,7 @@ DROP TABLE t1;
 CREATE TABLE t1 (a TIMESTAMP, b UUID);
 INSERT INTO t1 VALUES ('2001-01-01 10:20:30', NULL);
 UPDATE t1 SET b=a;
-ERROR HY000: Illegal parameter data types uuid and timestamp for operation 'SET'
+ERROR HY000: Cannot cast 'timestamp' as 'uuid' in assignment of `test`.`t1`.`b`
 SELECT b FROM t1;
 b
 NULL
@@ -3171,3 +3171,19 @@ SELECT * FROM companies;
 id	name
 DROP TABLE divisions;
 DROP TABLE companies;
+#
+# MDEV-27100 Subquery using the ALL keyword on UUID columns produces a wrong result
+#
+CREATE TABLE t1 (d UUID);
+INSERT INTO t1 VALUES ('00000000-0000-0000-0000-111111111111'), ('11111111-0000-0000-0000-000000000000');
+SELECT * FROM t1 ORDER BY d;
+d
+11111111-0000-0000-0000-000000000000
+00000000-0000-0000-0000-111111111111
+SELECT * FROM t1 WHERE d <= ALL (SELECT * FROM t1);
+d
+11111111-0000-0000-0000-000000000000
+SELECT * FROM t1 WHERE d >= ALL (SELECT * FROM t1);
+d
+00000000-0000-0000-0000-111111111111
+DROP TABLE t1;

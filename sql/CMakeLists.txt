@@ -23,6 +23,7 @@ IF(WITH_WSREP AND NOT EMBEDDED_LIBRARY)
     wsrep_storage_service.cc
     wsrep_server_state.cc
     wsrep_status.cc
+    wsrep_allowlist_service.cc
     wsrep_utils.cc
     wsrep_xid.cc
     wsrep_check_opts.cc
@@ -182,6 +183,13 @@ SET (SQL_SOURCE
                ${GEN_SOURCES}
                ${MYSYS_LIBWRAP_SOURCE}
 )
+
+IF(CMAKE_C_COMPILER_ID MATCHES "Clang" AND
+   NOT CMAKE_C_COMPILER_VERSION VERSION_LESS "13.0.0")
+  ADD_COMPILE_FLAGS(${CMAKE_CURRENT_BINARY_DIR}/yy_mariadb.cc
+    ${CMAKE_CURRENT_BINARY_DIR}/yy_oracle.cc
+    COMPILE_FLAGS "-Wno-unused-but-set-variable")
+ENDIF()
 
 IF ((CMAKE_SYSTEM_NAME MATCHES "Linux" OR
      CMAKE_SYSTEM_NAME MATCHES "SunOS" OR

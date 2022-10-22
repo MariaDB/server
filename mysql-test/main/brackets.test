@@ -2246,6 +2246,8 @@ drop view v1;
 
 --echo 10.2. view as tailed simple select
 
+#enable after fix MDEV-29554
+--disable_view_protocol
 create view v1 as
 select * from t1 order by a;
 show create view v1;
@@ -2257,6 +2259,7 @@ create view v1 as
 show create view v1;
 select * from v1;
 drop view v1;
+--enable_view_protocol
 
 --echo 10.3. view as union
 

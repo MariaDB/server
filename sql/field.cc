@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2000, 2017, Oracle and/or its affiliates.
-   Copyright (c) 2008, 2021, MariaDB
+   Copyright (c) 2008, 2022, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -964,7 +964,8 @@ Type_handler::aggregate_for_result_traditional(const Type_handler *a,
 }
 
 
-bool Field::check_assignability_from(const Type_handler *from) const
+bool Field::check_assignability_from(const Type_handler *from,
+                                     bool ignore) const
 {
   /*
     Using type_handler_for_item_field() here to get the data type handler
@@ -982,9 +983,27 @@ bool Field::check_assignability_from(const Type_handler *from) const
                                       type_handler_for_item_field());
   if (th.aggregate_for_result(from->type_handler_for_item_field()))
   {
-    my_error(ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION, MYF(0),
-             type_handler()->name().ptr(), from->name().ptr(), "SET");
-    return true;
+    bool error= (!ignore && get_thd()->is_strict_mode()) ||
+                (type_handler()->is_scalar_type() != from->is_scalar_type());
+    /*
+      Display fully qualified column name for table columns.
+      Display non-qualified names for other things,
+      e.g. SP variables, SP return values, SP and CURSOR parameters.
+    */
+    if (table->s->db.str && table->s->table_name.str)
+      my_printf_error(ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION,
+                      "Cannot cast '%s' as '%s' in assignment of %`s.%`s.%`s",
+                      MYF(error ? 0 : ME_WARNING),
+                      from->name().ptr(), type_handler()->name().ptr(),
+                      table->s->db.str, table->s->table_name.str,
+                      field_name.str);
+    else
+      my_printf_error(ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION,
+                      "Cannot cast '%s' as '%s' in assignment of %`s",
+                      MYF(error ? 0 : ME_WARNING),
+                      from->name().ptr(), type_handler()->name().ptr(),
+                      field_name.str);
+    return error;
   }
   return false;
 }
@@ -1473,15 +1492,6 @@ bool Field::sp_prepare_and_store_item(THD *thd, Item **value)
 
   if (!(expr_item= thd->sp_fix_func_item_for_assignment(this, value)))
     goto error;
-
-  /*
-    expr_item is now fixed, it's safe to call cmp_type()
-  */
-  if (expr_item->cmp_type() == ROW_RESULT)
-  {
-    my_error(ER_OPERAND_COLUMNS, MYF(0), 1);
-    goto error;
-  }
 
   /* Save the value in the field. Convert the value if needed. */
 
@@ -3433,7 +3443,7 @@ bool Field_new_decimal::store_value(const my_decimal *decimal_value,
   DBUG_ASSERT(marked_for_write_or_computed());
   int error= 0;
   DBUG_ENTER("Field_new_decimal::store_value");
-#ifndef DBUG_OFF
+#ifdef DBUG_TRACE
   {
     char dbug_buff[DECIMAL_MAX_STR_LENGTH+2];
     DBUG_PRINT("enter", ("value: %s", dbug_decimal_as_string(dbug_buff, decimal_value)));
@@ -3448,7 +3458,7 @@ bool Field_new_decimal::store_value(const my_decimal *decimal_value,
     error= 1;
     decimal_value= &decimal_zero;
   }
-#ifndef DBUG_OFF
+#ifdef DBUG_TRACE
   {
     char dbug_buff[DECIMAL_MAX_STR_LENGTH+2];
     DBUG_PRINT("info", ("saving with precision %d  scale: %d  value %s",
@@ -3540,7 +3550,7 @@ int Field_new_decimal::store(const char *from, size_t length,
     }
   }
 
-#ifndef DBUG_OFF
+#ifdef DBUG_TRACE
   char dbug_buff[DECIMAL_MAX_STR_LENGTH+2];
   DBUG_PRINT("enter", ("value: %s",
                        dbug_decimal_as_string(dbug_buff, &decimal_value)));
@@ -7573,7 +7583,7 @@ my_decimal *Field_string::val_decimal(my_decimal *decimal_value)
   THD *thd= get_thd();
   Converter_str2my_decimal_with_warn(thd,
                                      Warn_filter_string(thd, this),
-                                     E_DEC_FATAL_ERROR,
+                                     E_DEC_FATAL_ERROR & ~E_DEC_BAD_NUM,
                                      Field_string::charset(),
                                      (const char *) ptr,
                                      field_length, decimal_value);
@@ -7934,7 +7944,7 @@ my_decimal *Field_varstring::val_decimal(my_decimal *decimal_value)
   DBUG_ASSERT(marked_for_read());
   THD *thd= get_thd();
   Converter_str2my_decimal_with_warn(thd, Warn_filter(thd),
-                                     E_DEC_FATAL_ERROR,
+                                     E_DEC_FATAL_ERROR & ~E_DEC_BAD_NUM,
                                      Field_varstring::charset(),
                                      (const char *) get_data(),
                                      get_length(), decimal_value);
@@ -8780,7 +8790,7 @@ my_decimal *Field_blob::val_decimal(my_decimal *decimal_value)
 
   THD *thd= get_thd();
   Converter_str2my_decimal_with_warn(thd, Warn_filter(thd),
-                                     E_DEC_FATAL_ERROR,
+                                     E_DEC_FATAL_ERROR & ~E_DEC_BAD_NUM,
                                      Field_blob::charset(),
                                      blob, length, decimal_value);
   return decimal_value;
@@ -10011,7 +10021,7 @@ int Field_bit::cmp_prefix(const uchar *a, const uchar *b,
 }
 
 
-int Field_bit::key_cmp(const uchar *str, uint length) const
+int Field_bit::key_cmp(const uchar *str, uint) const
 {
   if (bit_len)
   {
@@ -10020,7 +10030,6 @@ int Field_bit::key_cmp(const uchar *str, uint length) const
     if ((flag= (int) (bits - *str)))
       return flag;
     str++;
-    length--;
   }
   return memcmp(ptr, str, bytes_in_rec);
 }
@@ -10720,7 +10729,7 @@ bool Column_definition::check(THD *thd)
       TIMESTAMP columns get implicit DEFAULT value when
       explicit_defaults_for_timestamp is not set.
     */
-    if ((opt_explicit_defaults_for_timestamp ||
+    if (((thd->variables.option_bits & OPTION_EXPLICIT_DEF_TIMESTAMP) ||
         !is_timestamp_type()) && !vers_sys_field())
     {
       flags|= NO_DEFAULT_VALUE_FLAG;
@@ -10855,6 +10864,7 @@ Column_definition::Column_definition(THD *thd, Field *old_field,
   comment=    old_field->comment;
   vcol_info=  old_field->vcol_info;
   option_list= old_field->option_list;
+  explicitly_nullable= !(old_field->flags & NOT_NULL_FLAG);
   compression_method_ptr= 0;
   versioning= VERSIONING_NOT_SET;
   invisible= old_field->invisible;

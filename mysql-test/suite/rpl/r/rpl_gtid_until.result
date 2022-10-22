@@ -1,4 +1,8 @@
 include/rpl_init.inc [topology=1->2]
+connection server_2;
+include/stop_slave.inc
+CHANGE MASTER TO MASTER_USE_GTID=NO;
+include/start_slave.inc
 connection server_1;
 ALTER TABLE mysql.gtid_slave_pos ENGINE=InnoDB;
 CREATE FUNCTION extract_gtid(d VARCHAR(100), s VARCHAR(100))
@@ -26,6 +30,8 @@ include/stop_slave_io.inc
 START SLAVE UNTIL master_gtid_pos = "";
 ERROR HY000: START SLAVE UNTIL master_gtid_pos requires that slave is using GTID
 CHANGE MASTER TO master_use_gtid=current_pos;
+Warnings:
+Warning	1681	'master_use_gtid=current_pos' is deprecated and will be removed in a future release. Please use master_demote_to_slave=1 instead
 connection server_1;
 CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=InnoDB;
 INSERT INTO t1 VALUES(1);
@@ -193,12 +199,14 @@ SHOW CREATE TABLE t3;
 Table	Create Table
 t3	CREATE TABLE `t3` (
   `a` int(11) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 include/start_slave.inc
 *** Test UNTIL condition that has not yet been logged. ***
 connection server_2;
 include/stop_slave.inc
 RESET SLAVE ALL;
+Warnings:
+Note	4190	RESET SLAVE is implicitly changing the value of 'Using_Gtid' from 'Current_Pos' to 'Slave_Pos'
 RESET MASTER;
 SET GLOBAL gtid_slave_pos='';
 connection server_1;
@@ -212,6 +220,8 @@ INSERT INTO t1 VALUES (10);
 connection server_2;
 CHANGE MASTER TO master_host = '127.0.0.1', master_port = SERVER_MYPORT_1,
 master_user = "root", master_use_gtid = current_pos;
+Warnings:
+Warning	1681	'master_use_gtid=current_pos' is deprecated and will be removed in a future release. Please use master_demote_to_slave=1 instead
 START SLAVE UNTIL master_gtid_pos = '0-1-2';
 include/wait_for_slave_to_start.inc
 connection server_1;

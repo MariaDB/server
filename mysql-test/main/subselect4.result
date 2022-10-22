@@ -1677,7 +1677,7 @@ WHERE ( alias2.f1 , alias2.f2 ) IN ( SELECT max(f2) , f1 FROM t0 GROUP BY f2 , f
 f1	f2
 8	8
 Warnings:
-Warning	1292	Truncated incorrect DOUBLE value: 'u'
+Warning	1292	Truncated incorrect DECIMAL value: 'u'
 EXPLAIN
 SELECT * FROM t2 WHERE (f1b, f2b) IN (SELECT max(f1a), f2a FROM t1 GROUP BY f1a, f2a);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
@@ -1711,7 +1711,7 @@ WHERE ( alias2.f1 , alias2.f2 ) IN ( SELECT max(f2) , f1 FROM t0 GROUP BY f2 , f
 f1	f2
 8	8
 Warnings:
-Warning	1292	Truncated incorrect DOUBLE value: 'u'
+Warning	1292	Truncated incorrect DECIMAL value: 'u'
 EXPLAIN
 SELECT * FROM t2 WHERE (f1b, f2b) IN (SELECT max(f1a), f2a FROM t1 GROUP BY f1a, f2a);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
@@ -1903,8 +1903,8 @@ WHERE SUBQUERY2_t2.col_varchar_nokey IN
 (SELECT col_varchar_nokey FROM t1 GROUP BY col_varchar_nokey));
 col_int_key
 Warnings:
-Warning	1292	Truncated incorrect DOUBLE value: 'v'
-Warning	1292	Truncated incorrect DOUBLE value: 'r'
+Warning	1292	Truncated incorrect DECIMAL value: 'v'
+Warning	1292	Truncated incorrect DECIMAL value: 'r'
 set @@optimizer_switch='subquery_cache=off,materialization=off,in_to_exists=on,semijoin=off';
 EXPLAIN
 SELECT col_int_key
@@ -1928,8 +1928,8 @@ WHERE SUBQUERY2_t2.col_varchar_nokey IN
 (SELECT col_varchar_nokey FROM t1 GROUP BY col_varchar_nokey));
 col_int_key
 Warnings:
-Warning	1292	Truncated incorrect DOUBLE value: 'v'
-Warning	1292	Truncated incorrect DOUBLE value: 'r'
+Warning	1292	Truncated incorrect DECIMAL value: 'v'
+Warning	1292	Truncated incorrect DECIMAL value: 'r'
 drop table t1, t2;
 set @@optimizer_switch = @old_optimizer_switch;
 #
@@ -2997,6 +2997,179 @@ ANALYZE
 }
 DROP TABLE t1;
 # End of 10.2 tests
+#
+# MDEV-29139: Redundannt subquery in GROUP BY clause of ANY/ALL subquery
+#
+create table t1 (a int);
+insert into t1 values (3), (1), (2);
+create table t2 (b int not null);
+insert into t2 values (4), (2);
+create table t3 (c int);
+insert into t3 values (7), (1);
+explain extended select a from t1
+where a >= any (select b from t2 group by (select c from t3 where c = 1));
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
+2	SUBQUERY	t2	ALL	NULL	NULL	NULL	NULL	2	100.00	
+Warnings:
+Note	1003	/* select#1 */ select `test`.`t1`.`a` AS `a` from `test`.`t1` where <nop>(<in_optimizer>(`test`.`t1`.`a`,(/* select#2 */ select min(`test`.`t2`.`b`) from `test`.`t2`) <= <cache>(`test`.`t1`.`a`)))
+select a from t1
+where a >= any (select b from t2 group by (select c from t3 where c = 1));
+a
+3
+2
+prepare stmt from "select a from t1
+where a >= any (select b from t2 group by (select c from t3 where c = 1))";
+execute stmt;
+a
+3
+2
+execute stmt;
+a
+3
+2
+deallocate prepare stmt;
+explain extended select a from t1
+where a <= all (select b from t2 group by (select c from t3 where c = 1));
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
+2	SUBQUERY	t2	ALL	NULL	NULL	NULL	NULL	2	100.00	
+Warnings:
+Note	1003	/* select#1 */ select `test`.`t1`.`a` AS `a` from `test`.`t1` where <not>(<in_optimizer>(`test`.`t1`.`a`,(/* select#2 */ select min(`test`.`t2`.`b`) from `test`.`t2`) < <cache>(`test`.`t1`.`a`)))
+select a from t1
+where a <= all (select b from t2 group by (select c from t3 where c = 1));
+a
+1
+2
+explain extended select a from t1
+where a >= any (select b from t2 group by 1 + (select c from t3 where c = 1));
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
+2	SUBQUERY	t2	ALL	NULL	NULL	NULL	NULL	2	100.00	
+Warnings:
+Note	1003	/* select#1 */ select `test`.`t1`.`a` AS `a` from `test`.`t1` where <nop>(<in_optimizer>(`test`.`t1`.`a`,(/* select#2 */ select min(`test`.`t2`.`b`) from `test`.`t2`) <= <cache>(`test`.`t1`.`a`)))
+select a from t1
+where a >= any (select b from t2 group by 1 + (select c from t3 where c = 1));
+a
+3
+2
+drop table t1,t2,t3;
+#
+# MDEV-29139: Redundant IN/ALL/ANY predicand in GROUP BY clause of
+#             IN/ALL/ANY/EXISTS subquery
+#
+create table t1 (a int);
+create table t2 (b int);
+create table t3 (c int);
+create table t4 (d int);
+insert into t1 values (3), (1);
+insert into t2 values (3), (2);
+insert into t3 values (4), (2);
+insert into t4 values (1), (7);
+explain extended select b from t2
+where exists (select c from t3
+group by (select a from t1 where a = 1) in (select d from t4));
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	2	100.00	
+2	SUBQUERY	t3	ALL	NULL	NULL	NULL	NULL	2	100.00	
+Warnings:
+Note	1003	/* select#1 */ select `test`.`t2`.`b` AS `b` from `test`.`t2` where 1
+select b from t2
+where exists (select c from t3
+group by (select a from t1 where a = 1) in (select d from t4));
+b
+3
+2
+prepare stmt from "select b from t2
+where exists (select c from t3
+group by (select a from t1 where a = 1) in (select d from t4))";
+execute stmt;
+b
+3
+2
+execute stmt;
+b
+3
+2
+deallocate prepare stmt;
+explain extended select b from t2
+where exists (select c from t3
+group by (select a from t1 where a = 1) >=
+any (select d from t4));
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	2	100.00	
+2	SUBQUERY	t3	ALL	NULL	NULL	NULL	NULL	2	100.00	
+Warnings:
+Note	1003	/* select#1 */ select `test`.`t2`.`b` AS `b` from `test`.`t2` where 1
+select b from t2
+where exists (select c from t3
+group by (select a from t1 where a = 1) >=
+any (select d from t4));
+b
+3
+2
+explain extended select b from t2
+where exists (select c from t3
+group by (select a from t1 where a = 1) <
+all (select d from t4));
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	2	100.00	
+2	SUBQUERY	t3	ALL	NULL	NULL	NULL	NULL	2	100.00	
+Warnings:
+Note	1003	/* select#1 */ select `test`.`t2`.`b` AS `b` from `test`.`t2` where 1
+select b from t2
+where exists (select c from t3
+group by (select a from t1 where a = 1) <
+all (select d from t4));
+b
+3
+2
+explain extended select b from t2
+where b in (select c from t3
+group by (select a from t1 where a = 1) in (select d from t4));
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	2	100.00	
+1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	4	func	1	100.00	
+2	MATERIALIZED	t3	ALL	NULL	NULL	NULL	NULL	2	100.00	
+Warnings:
+Note	1003	select `test`.`t2`.`b` AS `b` from `test`.`t2` semi join (`test`.`t3`) where 1
+select b from t2
+where b in (select c from t3
+group by (select a from t1 where a = 1) in (select d from t4));
+b
+2
+explain extended select b from t2
+where b >= any (select c from t3
+group by (select a from t1 where a = 1) in
+(select d from t4));
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+2	SUBQUERY	t3	ALL	NULL	NULL	NULL	NULL	2	100.00	
+Warnings:
+Note	1003	/* select#1 */ select `test`.`t2`.`b` AS `b` from `test`.`t2` where <nop>(<in_optimizer>(`test`.`t2`.`b`,(/* select#2 */ select min(`test`.`t3`.`c`) from `test`.`t3`) <= <cache>(`test`.`t2`.`b`)))
+select b from t2
+where b >= any (select c from t3
+group by (select a from t1 where a = 1) in
+(select d from t4));
+b
+3
+2
+explain extended select b from t2
+where b <= all (select c from t3
+group by (select a from t1 where a = 1) in
+(select d from t4));
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+2	SUBQUERY	t3	ALL	NULL	NULL	NULL	NULL	2	100.00	
+Warnings:
+Note	1003	/* select#1 */ select `test`.`t2`.`b` AS `b` from `test`.`t2` where <not>(<in_optimizer>(`test`.`t2`.`b`,<min>(/* select#2 */ select `test`.`t3`.`c` from `test`.`t3`) < <cache>(`test`.`t2`.`b`)))
+select b from t2
+where b <= all (select c from t3
+group by (select a from t1 where a = 1) in
+(select d from t4));
+b
+2
+drop table t1,t2,t3,t4;
 # End of 10.3 tests
 #
 # MDEV-19134: EXISTS() slower if ORDER BY is defined

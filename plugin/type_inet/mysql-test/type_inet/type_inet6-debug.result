@@ -14,5 +14,5 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `c01` inet6 DEFAULT NULL,
   `c02` inet6 DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t1;

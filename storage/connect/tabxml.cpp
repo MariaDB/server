@@ -518,7 +518,7 @@ bool XMLDEF::DefineAM(PGLOBAL g, LPCSTR am, int poff)
       defcol = "TD";
       break;
     default:
-      sprintf(g->Message, MSG(INV_COL_TYPE), buf);
+      snprintf(g->Message, sizeof(g->Message), MSG(INV_COL_TYPE), buf);
       return true;
     } // endswitch typname
 
@@ -783,7 +783,7 @@ int TDBXML::LoadTableFile(PGLOBAL g, char *filename)
 
     // Initialize the implementation
     if (Docp->Initialize(g, Entry, Zipped)) {
-      sprintf(g->Message, MSG(INIT_FAILED), (Usedom) ? "DOM" : "libxml2");
+      snprintf(g->Message, sizeof(g->Message), MSG(INIT_FAILED), (Usedom) ? "DOM" : "libxml2");
       return RC_FX;
       } // endif init
 
@@ -873,7 +873,7 @@ bool TDBXML::Initialize(PGLOBAL g)
 			// Evaluate table xpath
 			if ((TabNode = Root->SelectSingleNode(g, tabpath))) {
 				if (TabNode->GetType() != XML_ELEMENT_NODE) {
-					sprintf(g->Message, MSG(BAD_NODE_TYPE), TabNode->GetType());
+					snprintf(g->Message, sizeof(g->Message), MSG(BAD_NODE_TYPE), TabNode->GetType());
 					goto error;
 				} // endif Type
 
@@ -890,12 +890,12 @@ bool TDBXML::Initialize(PGLOBAL g)
 				if (!(DBnode = Root->SelectSingleNode(g, tabpath))) {
 					// DB node does not exist yet; we cannot create it
 					// because we don't know where it should be placed
-					sprintf(g->Message, MSG(MISSING_NODE), XmlDB, Xfile);
+					snprintf(g->Message, sizeof(g->Message), MSG(MISSING_NODE), XmlDB, Xfile);
 					goto error;
 				} // endif DBnode
 
 				if (!(TabNode = DBnode->AddChildNode(g, Tabname))) {
-					sprintf(g->Message, MSG(FAIL_ADD_NODE), Tabname);
+					snprintf(g->Message, sizeof(g->Message), MSG(FAIL_ADD_NODE), Tabname);
 					goto error;
 				} // endif TabNode
 
@@ -940,7 +940,7 @@ bool TDBXML::Initialize(PGLOBAL g)
 					goto error;
 
 			} else {
-				sprintf(g->Message, MSG(FILE_UNFOUND), Xfile);
+				snprintf(g->Message, sizeof(g->Message), MSG(FILE_UNFOUND), Xfile);
 
 				if (Mode == MODE_READ) {
 					PushWarning(g, this);
@@ -952,7 +952,7 @@ bool TDBXML::Initialize(PGLOBAL g)
 
 		} else if (rc == RC_INFO) {
 			// Loading failed
-			sprintf(g->Message, MSG(LOADING_FAILED), Xfile);
+			snprintf(g->Message, sizeof(g->Message), MSG(LOADING_FAILED), Xfile);
 			goto error;
 		} else // (rc == RC_FX)
 			goto error;
@@ -985,9 +985,9 @@ bool TDBXML::Initialize(PGLOBAL g)
                              buf, sizeof(buf), NULL, NULL);
 
     if (rc)
-      sprintf(g->Message, "%s: %s", MSG(COM_ERROR), buf);
+      snprintf(g->Message, sizeof(g->Message), "%s: %s", MSG(COM_ERROR), buf);
     else
-      sprintf(g->Message, "%s hr=%x", MSG(COM_ERROR), e.Error());
+      snprintf(g->Message, sizeof(g->Message), "%s hr=%x", MSG(COM_ERROR), e.Error());
 
     goto error;
 #endif   // _WIN32
@@ -1144,7 +1144,7 @@ int TDBXML::RowNumber(PGLOBAL g, bool b)
     /*******************************************************************/
     /*  Don't know how to retrieve RowID for expanded XML tables.      */
     /*******************************************************************/
-    sprintf(g->Message, MSG(NO_ROWID_FOR_AM),
+    snprintf(g->Message, sizeof(g->Message), MSG(NO_ROWID_FOR_AM),
                         GetAmName(g, GetAmType()));
     return 0;          // Means error
   } else
@@ -1266,7 +1266,7 @@ int TDBXML::ReadDB(PGLOBAL g)
     // Get the new row node
 		if (Nlist) {
 			if ((RowNode = Nlist->GetItem(g, Irow, RowNode)) == NULL) {
-				sprintf(g->Message, MSG(MISSING_ROWNODE), Irow);
+				snprintf(g->Message, sizeof(g->Message), MSG(MISSING_ROWNODE), Irow);
 				return RC_FX;
 			} // endif RowNode
 
@@ -1333,7 +1333,7 @@ int TDBXML::DeleteDB(PGLOBAL g, int irc)
     // Delete all rows
     for (Irow = 0; Irow < Nrow; Irow++)
       if ((RowNode = Nlist->GetItem(g, Irow, RowNode)) == NULL) {
-        sprintf(g->Message, MSG(MISSING_ROWNODE), Irow);
+        snprintf(g->Message, sizeof(g->Message), MSG(MISSING_ROWNODE), Irow);
         return RC_FX;
       } else {
         TabNode->DeleteChild(g, RowNode);
@@ -1529,7 +1529,7 @@ bool XMLCOL::ParseXpath(PGLOBAL g, bool mode)
 
   if (Xname) {
     if (Type == 2) {
-      sprintf(g->Message, MSG(BAD_COL_XPATH), Name, Tdbp->Name);
+      snprintf(g->Message, sizeof(g->Message), MSG(BAD_COL_XPATH), Name, Tdbp->Name);
       return true;
     } else
       strcat(pbuf, Xname);
@@ -1561,7 +1561,7 @@ bool XMLCOL::ParseXpath(PGLOBAL g, bool mode)
       if (mode) {
         // For Update or Insert the Xpath must be explicit
         if (strchr("@/.*", *p)) {
-          sprintf(g->Message, MSG(XPATH_NOT_SUPP), Name);
+          snprintf(g->Message, sizeof(g->Message), MSG(XPATH_NOT_SUPP), Name);
           return true;
         } else
           Nodes[i] = p;
@@ -1572,7 +1572,7 @@ bool XMLCOL::ParseXpath(PGLOBAL g, bool mode)
       } // endfor i, p
 
     if (*p == '/' || *p == '.') {
-      sprintf(g->Message, MSG(XPATH_NOT_SUPP), Name);
+      snprintf(g->Message, sizeof(g->Message), MSG(XPATH_NOT_SUPP), Name);
       return true;
     } else if (*p == '@') {
       p++;                           // Remove the @ if mode
@@ -1633,7 +1633,7 @@ bool XMLCOL::ParseXpath(PGLOBAL g, bool mode)
 bool XMLCOL::SetBuffer(PGLOBAL g, PVAL value, bool ok, bool check)
   {
   if (!(To_Val = value)) {
-    sprintf(g->Message, MSG(VALUE_ERROR), Name);
+    snprintf(g->Message, sizeof(g->Message), MSG(VALUE_ERROR), Name);
     return true;
   } else if (Buf_Type == value->GetType()) {
     // Values are of the (good) column type
@@ -1652,7 +1652,7 @@ bool XMLCOL::SetBuffer(PGLOBAL g, PVAL value, bool ok, bool check)
   } else {
     // Values are not of the (good) column type
     if (check) {
-      sprintf(g->Message, MSG(TYPE_VALUE_ERR), Name,
+      snprintf(g->Message, sizeof(g->Message), MSG(TYPE_VALUE_ERR), Name,
               GetTypeName(Buf_Type), GetTypeName(value->GetType()));
       return true;
       } // endif check
@@ -1705,7 +1705,7 @@ void XMLCOL::ReadColumn(PGLOBAL g)
   if (ValNode) {
     if (ValNode->GetType() != XML_ELEMENT_NODE &&
         ValNode->GetType() != XML_ATTRIBUTE_NODE) {
-      sprintf(g->Message, MSG(BAD_VALNODE), ValNode->GetType(), Name);
+      snprintf(g->Message, sizeof(g->Message), MSG(BAD_VALNODE), ValNode->GetType(), Name);
 			throw (int)TYPE_AM_XML;
 		} // endif type
 
@@ -1874,7 +1874,7 @@ void XMLCOL::WriteColumn(PGLOBAL g)
   p = Value->GetCharString(buf);
 
   if (strlen(p) > (unsigned)Long) {
-    sprintf(g->Message, MSG(VALUE_TOO_LONG), p, Name, Long);
+    snprintf(g->Message, sizeof(g->Message), MSG(VALUE_TOO_LONG), p, Name, Long);
 		throw (int)TYPE_AM_XML;
 	} else
     strcpy(Valbuf, p);
@@ -1915,7 +1915,7 @@ void XMULCOL::ReadColumn(PGLOBAL g)
 
       if (N > Tdbp->Limit) {
         N = Tdbp->Limit;
-        sprintf(g->Message, "Multiple values limited to %d", Tdbp->Limit);
+        snprintf(g->Message, sizeof(g->Message), "Multiple values limited to %d", Tdbp->Limit);
         PushWarning(g, Tdbp);
         } // endif N
 
@@ -1924,7 +1924,7 @@ void XMULCOL::ReadColumn(PGLOBAL g)
 
         if (ValNode->GetType() != XML_ELEMENT_NODE &&
             ValNode->GetType() != XML_ATTRIBUTE_NODE) {
-          sprintf(g->Message, MSG(BAD_VALNODE), ValNode->GetType(), Name);
+          snprintf(g->Message, sizeof(g->Message), MSG(BAD_VALNODE), ValNode->GetType(), Name);
 					throw (int)TYPE_AM_XML;
 				} // endif type
 
@@ -2060,7 +2060,7 @@ void XMULCOL::WriteColumn(PGLOBAL g)
         len = Nlx->GetLength();
 
         if (len > 1 && !Tdbp->Xpand) {
-          sprintf(g->Message, MSG(BAD_VAL_UPDATE), Name);
+          snprintf(g->Message, sizeof(g->Message), MSG(BAD_VAL_UPDATE), Name);
 					throw (int)TYPE_AM_XML;
 				} else
           ValNode = Nlx->GetItem(g, Tdbp->Nsub, Vxnp);
@@ -2135,7 +2135,7 @@ void XMULCOL::WriteColumn(PGLOBAL g)
   p = Value->GetCharString(buf);
 
   if (strlen(p) > (unsigned)Long) {
-    sprintf(g->Message, MSG(VALUE_TOO_LONG), p, Name, Long);
+    snprintf(g->Message, sizeof(g->Message), MSG(VALUE_TOO_LONG), p, Name, Long);
 		throw (int)TYPE_AM_XML;
 	} else
     strcpy(Valbuf, p);
@@ -2262,7 +2262,7 @@ void XPOSCOL::WriteColumn(PGLOBAL g)
   p = Value->GetCharString(buf);
 
   if (strlen(p) > (unsigned)Long) {
-    sprintf(g->Message, MSG(VALUE_TOO_LONG), p, Name, Long);
+    snprintf(g->Message, sizeof(g->Message), MSG(VALUE_TOO_LONG), p, Name, Long);
 		throw (int)TYPE_AM_XML;
 	} else
     strcpy(Valbuf, p);

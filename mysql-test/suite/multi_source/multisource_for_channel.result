@@ -7,7 +7,8 @@ ERROR HY000: Incorrect arguments to MASTER_HOST
 change master to
 master_port=MYPORT_1,
 master_host='127.0.0.1',
-master_user='root'
+master_user='root',
+master_use_gtid=no
 for channel 'master1';
 start slave for channel 'master1';
 set default_master_connection = 'master1';
@@ -102,7 +103,8 @@ set default_master_connection = '';
 change master to
 master_port=MYPORT_2,
 master_host='127.0.0.1',
-master_user='root';
+master_user='root',
+master_use_gtid=no;
 start slave;
 include/wait_for_slave_to_start.inc
 #
@@ -318,6 +320,8 @@ Last_SQL_Errno = '0'
 # reset slave
 #
 RESET SLAVE for channel 'master1';
+Warnings:
+Note	4190	RESET SLAVE is implicitly changing the value of 'Using_Gtid' from 'No' to 'Slave_Pos'
 
 show slave status for channel 'master1'
 Master_Port = 'MYPORT_1'

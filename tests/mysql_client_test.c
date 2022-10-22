@@ -17008,25 +17008,25 @@ static void test_bug30472()
 {
   MYSQL con;
 
-  char character_set_name_1[MY_CS_NAME_SIZE];
-  char character_set_client_1[MY_CS_NAME_SIZE];
-  char character_set_results_1[MY_CS_NAME_SIZE];
-  char collation_connnection_1[MY_CS_NAME_SIZE];
+  char character_set_name_1[MY_CS_CHARACTER_SET_NAME_SIZE];
+  char character_set_client_1[MY_CS_CHARACTER_SET_NAME_SIZE];
+  char character_set_results_1[MY_CS_CHARACTER_SET_NAME_SIZE];
+  char collation_connnection_1[MY_CS_COLLATION_NAME_SIZE];
 
-  char character_set_name_2[MY_CS_NAME_SIZE];
-  char character_set_client_2[MY_CS_NAME_SIZE];
-  char character_set_results_2[MY_CS_NAME_SIZE];
-  char collation_connnection_2[MY_CS_NAME_SIZE];
+  char character_set_name_2[MY_CS_CHARACTER_SET_NAME_SIZE];
+  char character_set_client_2[MY_CS_CHARACTER_SET_NAME_SIZE];
+  char character_set_results_2[MY_CS_CHARACTER_SET_NAME_SIZE];
+  char collation_connnection_2[MY_CS_COLLATION_NAME_SIZE];
 
-  char character_set_name_3[MY_CS_NAME_SIZE];
-  char character_set_client_3[MY_CS_NAME_SIZE];
-  char character_set_results_3[MY_CS_NAME_SIZE];
-  char collation_connnection_3[MY_CS_NAME_SIZE];
+  char character_set_name_3[MY_CS_CHARACTER_SET_NAME_SIZE];
+  char character_set_client_3[MY_CS_CHARACTER_SET_NAME_SIZE];
+  char character_set_results_3[MY_CS_CHARACTER_SET_NAME_SIZE];
+  char collation_connnection_3[MY_CS_COLLATION_NAME_SIZE];
 
-  char character_set_name_4[MY_CS_NAME_SIZE];
-  char character_set_client_4[MY_CS_NAME_SIZE];
-  char character_set_results_4[MY_CS_NAME_SIZE];
-  char collation_connnection_4[MY_CS_NAME_SIZE];
+  char character_set_name_4[MY_CS_CHARACTER_SET_NAME_SIZE];
+  char character_set_client_4[MY_CS_CHARACTER_SET_NAME_SIZE];
+  char character_set_results_4[MY_CS_CHARACTER_SET_NAME_SIZE];
+  char collation_connnection_4[MY_CS_COLLATION_NAME_SIZE];
 
   /* Create a new connection. */
 

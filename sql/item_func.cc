@@ -55,6 +55,9 @@
 #include "debug_sync.h"
 #include "sql_base.h"
 #include "sql_cte.h"
+#ifdef WITH_WSREP
+#include "mysql/service_wsrep.h"
+#endif /* WITH_WSREP */
 
 #ifdef NO_EMBEDDED_ACCESS_CHECKS
 #define sp_restore_security_context(A,B) while (0) {}
@@ -775,7 +778,7 @@ bool Item_func_connection_id::fix_fields(THD *thd, Item **ref)
 {
   if (Item_int_func::fix_fields(thd, ref))
     return TRUE;
-  thd->thread_specific_used= TRUE;
+  thd->used|= THD::THREAD_SPECIFIC_USED;
   value= thd->variables.pseudo_thread_id;
   return FALSE;
 }
@@ -2818,9 +2821,9 @@ bool Item_func_rand::fix_fields(THD *thd,Item **ref)
       Once events are forwarded rather than recreated,
       the following can be skipped if inside the slave thread
     */
-    if (!thd->rand_used)
+    if (!(thd->used & THD::RAND_USED))
     {
-      thd->rand_used= 1;
+      thd->used|= THD::RAND_USED;
       thd->rand_saved_seed1= thd->rand.seed1;
       thd->rand_saved_seed2= thd->rand.seed2;
     }
@@ -4606,10 +4609,12 @@ longlong Item_func_sleep::val_int()
 
   mysql_cond_destroy(&cond);
 
+#ifdef ENABLED_DEBUG_SYNC
   DBUG_EXECUTE_IF("sleep_inject_query_done_debug_sync", {
       debug_sync_set_action
         (thd, STRING_WITH_LEN("dispatch_command_end SIGNAL query_done"));
     };);
+#endif
 
   return MY_TEST(!error);                  // Return 1 killed
 }
@@ -6201,6 +6206,8 @@ bool Item_func_match::init_search(THD *thd, bool no_order)
 
   ft_handler= table->file->ft_init_ext(match_flags, key, ft_tmp);
 
+  if (!ft_handler)
+    DBUG_RETURN(1);
   if (join_key)
     table->file->ft_handler=ft_handler;
 

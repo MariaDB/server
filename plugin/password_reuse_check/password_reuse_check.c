@@ -13,6 +13,7 @@
    along with this program; if not, write to the Free Software
    Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
+#include <my_global.h> // for int2store
 #include <stdio.h>     // for snprintf
 #include <string.h>    // for memset
 #include <mysql/plugin_password_validation.h>
@@ -29,6 +30,22 @@ static unsigned interval= 0;
 
 // helping string for bin_to_hex512
 static char digits[]= "0123456789ABCDEF";
+
+/**
+  Store string with length
+
+  @param to              buffer where to put the length and string
+  @param from            the string to store
+
+  @return reference on the byte after copied string
+*/
+
+static char *store_str(char *to, const MYSQL_CONST_LEX_STRING *from)
+{
+  int2store(to, from->length);
+  memcpy(to + 2, from->str, from->length);
+  return to + 2 + from->length;
+}
 
 
 /**
@@ -78,7 +95,7 @@ static int create_table(MYSQL *mysql)
         // 512/8 = 64
         STRING_WITH_LEN("CREATE TABLE mysql." HISTORY_DB_NAME
                         " ( hash binary(64),"
-                        " time timestamp default current_timestamp,"
+                        " time timestamp not null default current_timestamp,"
                         " primary key (hash), index tm (time) )"
                         " ENGINE=Aria")))
   {
@@ -149,7 +166,8 @@ static int validate(const MYSQL_CONST_LEX_STRING *username,
                     const MYSQL_CONST_LEX_STRING *hostname)
 {
   MYSQL *mysql= NULL;
-  size_t key_len= username->length + password->length + hostname->length;
+  size_t key_len= username->length + password->length + hostname->length +
+                  (3 * 2 /* space for storing length of the strings */);
   size_t buff_len= (key_len > SQL_BUFF_LEN ? key_len : SQL_BUFF_LEN);
   size_t len;
   char *buff= malloc(buff_len);
@@ -165,13 +183,16 @@ static int validate(const MYSQL_CONST_LEX_STRING *username,
     return 1;
   }
 
-  memcpy(buff, hostname->str, hostname->length);
-  memcpy(buff + hostname->length, username->str, username->length);
-  memcpy(buff + hostname->length + username->length, password->str,
-          password->length);
-  buff[key_len]= 0;
+  /*
+    Store: username, hostname, password
+    (password first to make its rewriting password in memory simplier)
+  */
+  store_str(store_str(store_str(buff, password), username), hostname);
+  buff[key_len]= 0; // safety
   memset(hash, 0, sizeof(hash));
   my_sha512(hash, buff, key_len);
+  // safety: rewrite password with zerows
+  memset(buff, 0, password->length);
   if (mysql_real_connect_local(mysql) == NULL)
     goto sql_error;
 
@@ -232,10 +253,10 @@ maria_declare_plugin(password_reuse_check)
   PLUGIN_LICENSE_GPL,
   NULL,
   NULL,
-  0x0100,
+  0x0200,
   NULL,
   sysvars,
-  "1.0",
+  "2.0",
   MariaDB_PLUGIN_MATURITY_GAMMA
 }
 maria_declare_plugin_end;

@@ -12,7 +12,7 @@ mariadb5312_datetime	CREATE TABLE `mariadb5312_datetime` (
   `t4` datetime(4) /* mariadb-5.3 */ DEFAULT NULL,
   `t5` datetime(5) /* mariadb-5.3 */ DEFAULT NULL,
   `t6` datetime(6) /* mariadb-5.3 */ DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 SELECT COLUMN_NAME, DATA_TYPE, COLUMN_TYPE FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME='mariadb5312_datetime';
 COLUMN_NAME	t0
 DATA_TYPE	datetime
@@ -90,7 +90,7 @@ mariadb5312_timestamp	CREATE TABLE `mariadb5312_timestamp` (
   `t4` timestamp(4) /* mariadb-5.3 */ NOT NULL DEFAULT '0000-00-00 00:00:00.0000',
   `t5` timestamp(5) /* mariadb-5.3 */ NOT NULL DEFAULT '0000-00-00 00:00:00.00000',
   `t6` timestamp(6) /* mariadb-5.3 */ NOT NULL DEFAULT '0000-00-00 00:00:00.000000'
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 SELECT COLUMN_NAME, DATA_TYPE, COLUMN_TYPE FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME='mariadb5312_timestamp';
 COLUMN_NAME	t0
 DATA_TYPE	timestamp
@@ -168,7 +168,7 @@ mariadb5312_time	CREATE TABLE `mariadb5312_time` (
   `t4` time(4) /* mariadb-5.3 */ DEFAULT NULL,
   `t5` time(5) /* mariadb-5.3 */ DEFAULT NULL,
   `t6` time(6) /* mariadb-5.3 */ DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 SELECT COLUMN_NAME, DATA_TYPE, COLUMN_TYPE FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME='mariadb5312_time';
 COLUMN_NAME	t0
 DATA_TYPE	time

@@ -755,9 +755,8 @@ struct VCOL_STORAGE
 @return		TRUE  malloc failure
 */
 
-bool innobase_allocate_row_for_vcol(
-				    THD *	  thd,
-				    dict_index_t* index,
+bool innobase_allocate_row_for_vcol(THD *thd,
+				    const dict_index_t* index,
 				    mem_heap_t**  heap,
 				    TABLE**	  table,
 				    VCOL_STORAGE* storage);
@@ -773,17 +772,13 @@ public:
 
   ib_vcol_row(mem_heap_t *heap) : heap(heap) {}
 
-  byte *record(THD *thd, dict_index_t *index, TABLE **table)
+  byte *record(THD *thd, const dict_index_t *index, TABLE **table)
   {
-    if (!storage.innobase_record)
-    {
-      bool ok = innobase_allocate_row_for_vcol(thd, index, &heap, table,
-                                               &storage);
-      if (!ok)
-        return NULL;
-    }
+    if (!storage.innobase_record &&
+        !innobase_allocate_row_for_vcol(thd, index, &heap, table, &storage))
+      return nullptr;
     return storage.innobase_record;
-  };
+  }
 
   ~ib_vcol_row()
   {
@@ -815,7 +810,9 @@ void innobase_report_computed_value_failed(dtuple_t *row);
 @param[in]	old_table	during ALTER TABLE, this is the old table
 				or NULL.
 @param[in]	update	update vector for the parent row
-@param[in]	foreign		foreign key information
+@param[in]	ignore_warnings	ignore warnings during calculation. Usually
+				means that a calculation is internal and
+				should have no side effects.
 @return the field filled with computed value */
 dfield_t*
 innobase_get_computed_value(
@@ -828,8 +825,9 @@ innobase_get_computed_value(
 	THD*			thd,
 	TABLE*			mysql_table,
 	byte*			mysql_rec,
-	const dict_table_t*	old_table,
-	const upd_t*		update);
+	const dict_table_t*	old_table=NULL,
+	const upd_t*		update=NULL,
+	bool			ignore_warnings=false);
 
 /** Get the computed value by supplying the base column values.
 @param[in,out]	table		the table whose virtual column

@@ -118,8 +118,10 @@ fedora-ninja:
     - mkdir builddir; cd builddir
     - cmake -DRPM=generic $CMAKE_FLAGS -DCMAKE_BUILD_WITH_INSTALL_RPATH=ON -G Ninja .. 2>&1 | tee -a ../build-$CI_JOB_NAME-$CI_COMMIT_REF_SLUG.log
     - ninja -t graph > ../dependencies.dot && dot -Tpng -o ../dependencies.png ../dependencies.dot
-    - eatmydata ninja package --verbose 2>&1 | tee -a ../build-$CI_JOB_NAME-$CI_COMMIT_REF_SLUG.log
-    # Ninja builds are not affected by bug https://jira.mariadb.org/browse/MDEV-25968
+    - eatmydata ninja package -j 2 --verbose 2>&1 | tee -a ../build-$CI_JOB_NAME-$CI_COMMIT_REF_SLUG.log
+    # @TODO: Unlike other builds, the Ninja builds using Gitlab.com runners don't get stuck, but they do get
+    # stuck on runners with more processors, see https://jira.mariadb.org/browse/MDEV-25968.
+    # Thus, use the same limitation on Ninja builds as well to ensure it never gets stuck due to this bug.
     - ninja test
     - *rpm_listfiles
     - mkdir ../rpm; mv *.rpm ../rpm

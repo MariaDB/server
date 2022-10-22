@@ -864,6 +864,14 @@ SELECT * FROM json_table('[{"name":"Jeans"}]', '$[*]'
 
 
 --echo #
+--echo # MDEV-28480: Assertion `0' failed in Item_row::illegal_method_call
+--echo #             on SELECT FROM JSON_TABLE
+--echo #
+
+--error ER_OPERAND_COLUMNS
+SELECT 1 FROM JSON_TABLE (row(1,2), '$' COLUMNS (o FOR ORDINALITY)) AS j;
+
+--echo #
 --echo # End of 10.6 tests
 --echo #
 
@@ -935,6 +943,54 @@ DROP VIEW v1;
 --echo #
 
 SELECT * FROM JSON_TABLE('{"foo":{"bar":1},"qux":2}', '$' COLUMNS(c1 VARCHAR(8) PATH '$[0]', c2 CHAR(8) PATH '$.*.x')) AS js;
+
+
+--echo #
+--echo # MDEV-29446 Change SHOW CREATE TABLE to display default collations
+--echo #
+
+CREATE VIEW v1 AS
+SELECT * FROM
+JSON_TABLE('[{"name":"Laptop"}]', '$[*]'
+COLUMNS
+(
+  name VARCHAR(10) CHARACTER SET latin1 PATH '$.name')
+) AS jt;
+SHOW CREATE VIEW v1;
+DROP VIEW v1;
+
+CREATE VIEW v1 AS
+SELECT * FROM
+JSON_TABLE('[{"name":"Laptop"}]', '$[*]'
+COLUMNS
+(
+  name VARCHAR(10) CHARACTER SET utf8mb3 PATH '$.name')
+) AS jt;
+SHOW CREATE VIEW v1;
+DROP VIEW v1;
+
+CREATE VIEW v1 AS
+SELECT * FROM
+JSON_TABLE('[{"name":"Laptop"}]', '$[*]'
+COLUMNS
+(
+  name VARCHAR(10) CHARACTER SET BINARY PATH '$.name')
+) AS jt;
+SHOW CREATE VIEW v1;
+DROP VIEW v1;
+
+# ENUM is not supported yet in JSON_TABLE.
+# But if it is eventually supported, the below
+# test should be modified to make sure that "CHARACTER SET BINARY"
+# is not followed by "COLLATE BINARY".
+--error ER_PARSE_ERROR
+CREATE VIEW v1 AS
+SELECT * FROM
+JSON_TABLE('[{"name":"Laptop"}]', '$[*]'
+COLUMNS
+(
+  name ENUM('Laptop') CHARACTER SET BINARY PATH '$.name')
+) AS jt;
 
 --echo #
 --echo # End of 10.9 tests

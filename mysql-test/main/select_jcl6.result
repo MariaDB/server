@@ -3804,7 +3804,7 @@ t1	CREATE TABLE `t1` (
   `i` decimal(19,0) NOT NULL,
   `c` decimal(19,0) NOT NULL,
   `co` decimal(19,0) NOT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 drop table t1;
 select 
 if(1, cast(1111111111111111111 as unsigned), 1) i,
@@ -5273,11 +5273,11 @@ SELECT `varchar_nokey` G1  FROM CC  WHERE `int_nokey` AND `int_key`  <= 4
 HAVING G1  ORDER  BY `varchar_key` LIMIT  6   ;
 G1
 Warnings:
-Warning	1292	Truncated incorrect DOUBLE value: 'j'
-Warning	1292	Truncated incorrect DOUBLE value: 'z'
-Warning	1292	Truncated incorrect DOUBLE value: 'a'
-Warning	1292	Truncated incorrect DOUBLE value: 'q'
-Warning	1292	Truncated incorrect DOUBLE value: 'm'
+Warning	1292	Truncated incorrect DECIMAL value: 'j'
+Warning	1292	Truncated incorrect DECIMAL value: 'z'
+Warning	1292	Truncated incorrect DECIMAL value: 'a'
+Warning	1292	Truncated incorrect DECIMAL value: 'q'
+Warning	1292	Truncated incorrect DECIMAL value: 'm'
 DROP TABLE CC;
 # End of test#45227
 #                    

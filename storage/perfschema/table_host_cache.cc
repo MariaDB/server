@@ -1,4 +1,4 @@
-/* Copyright (c) 2011, 2021, Oracle and/or its affiliates.
+/* Copyright (c) 2011, 2022, Oracle and/or its affiliates.
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License, version 2.0,
@@ -33,6 +33,11 @@
 #include "sql_class.h"
 
 THR_LOCK table_host_cache::m_table_lock;
+
+PFS_engine_table_share_state
+table_host_cache::m_share_state = {
+  false /* m_checked */
+};
 
 PFS_engine_table_share
 table_host_cache::m_share=
@@ -75,7 +80,9 @@ table_host_cache::m_share=
                       "LAST_SEEN TIMESTAMP(0) NOT NULL default 0 comment 'Timestamp of the most recent connection attempt by the IP.',"
                       "FIRST_ERROR_SEEN TIMESTAMP(0) null default 0 comment 'Timestamp of the first error seen from the IP.',"
                       "LAST_ERROR_SEEN TIMESTAMP(0) null default 0 comment 'Timestamp of the most recent error seen from the IP.')") },
-  false  /* perpetual */
+  false, /* m_perpetual */
+  false, /* m_optional */
+  &m_share_state
 };
 
 PFS_engine_table* table_host_cache::create(void)

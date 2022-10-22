@@ -69,7 +69,7 @@ t1	CREATE TABLE `t1` (
   `b` tinyint(1) NOT NULL DEFAULT 0,
   PRIMARY KEY (`id`,`d`),
   CONSTRAINT `CONSTRAINT_1` CHECK (`b` in (0,10))
-) ENGINE=InnoDB DEFAULT CHARSET=latin1
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
  PARTITION BY RANGE  COLUMNS(`d`)
 (PARTITION `p1` VALUES LESS THAN ('2016-10-18') ENGINE = InnoDB,
  PARTITION `p2` VALUES LESS THAN ('2020-10-19') ENGINE = InnoDB)
@@ -94,7 +94,7 @@ t1	CREATE TABLE `t1` (
   `b` tinyint(1) NOT NULL DEFAULT 0,
   PRIMARY KEY (`id`,`d`),
   CONSTRAINT `CONSTRAINT_1` CHECK (`b` in (0,10))
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
  PARTITION BY RANGE  COLUMNS(`d`)
 (PARTITION `p1` VALUES LESS THAN ('2016-10-18') ENGINE = MyISAM,
  PARTITION `p2` VALUES LESS THAN ('2020-10-19') ENGINE = MyISAM)
@@ -116,7 +116,7 @@ t1	CREATE TABLE `t1` (
   `dt2` datetime DEFAULT current_timestamp() ON UPDATE current_timestamp(),
   PRIMARY KEY (`id_2`,`id_3`),
   KEY `id_1` (`id_1`)
-) ENGINE=MyISAM AUTO_INCREMENT=2 DEFAULT CHARSET=latin1 DELAY_KEY_WRITE=1
+) ENGINE=MyISAM AUTO_INCREMENT=2 DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci DELAY_KEY_WRITE=1
  PARTITION BY HASH (`id_2`)
 (PARTITION `p01` ENGINE = MyISAM,
  PARTITION `p02` ENGINE = MyISAM,
@@ -136,7 +136,7 @@ select * from t1 partition (p0);
 pk
 1
 drop table t1;
-create or replace table t1 (pk int not null, x timestamp(6), unique u(pk, x)) engine innodb
+create or replace table t1 (pk int not null, x timestamp(6) not null, unique u(pk, x)) engine innodb
 partition by key() partitions 2;
 insert into t1 (pk, x) values (1, '2000-01-01 00:00'), (2, '2000-01-01 00:01');
 # Same for NOT NULL UNIQUE KEY as this is actually primary key
@@ -147,7 +147,7 @@ select * from t1 partition (p0);
 pk
 1
 drop table t1;
-create or replace table t1 (pk int, x timestamp(6), primary key (pk)) engine innodb
+create or replace table t1 (pk int, x timestamp(6) not null, primary key (pk)) engine innodb
 partition by key(pk) partitions 2;
 insert into t1 (pk, x) values (1, '2000-01-01 00:00'), (2, '2000-01-01 00:01');
 # Inplace for DROP PRIMARY KEY when partitioned by explicit field list is allowed
@@ -200,7 +200,96 @@ pk
 2
 delete from t1;
 drop table t1;
+#
+# MDEV-28576 RENAME COLUMN with NOCOPY algorithm leads to corrupt partitioned table
+#
+create table t (a int, b int) partition by list (b) (partition p1 values in (1, 2));
+insert into t values (0, 1), (2, 2);
+alter table t change b f int, change a b int, algorithm=nocopy;
+check table t;
+Table	Op	Msg_type	Msg_text
+test.t	check	status	OK
+delete from t order by b limit 1;
+drop table t;
 # End of 10.3 tests
+#
+# MDEV-28576 RENAME COLUMN with NOCOPY algorithm leads to corrupt partitioned table
+#
+create table t (a int)
+partition by list (a)
+subpartition by hash(a) subpartitions 2
+(partition p0 values in (1));
+alter table t rename column a to b, algorithm=nocopy;
+show create table t;
+Table	Create Table
+t	CREATE TABLE `t` (
+  `b` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+ PARTITION BY LIST (`b`)
+SUBPARTITION BY HASH (`b`)
+SUBPARTITIONS 2
+(PARTITION `p0` VALUES IN (1) ENGINE = MyISAM)
+alter table t rename column b to c, algorithm=copy;
+show create table t;
+Table	Create Table
+t	CREATE TABLE `t` (
+  `c` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+ PARTITION BY LIST (`c`)
+SUBPARTITION BY HASH (`c`)
+SUBPARTITIONS 2
+(PARTITION `p0` VALUES IN (1) ENGINE = MyISAM)
+drop table t;
+create table t (d int, e int)
+partition by list columns (d, e)
+subpartition by key (d, e)
+(partition p0 values in ((2, 3)));
+alter table t rename column d to f, rename column e to g, algorithm=nocopy;
+show create table t;
+Table	Create Table
+t	CREATE TABLE `t` (
+  `f` int(11) DEFAULT NULL,
+  `g` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+ PARTITION BY LIST  COLUMNS(`f`,`g`)
+SUBPARTITION BY KEY (`f`,`g`)
+(PARTITION `p0` VALUES IN ((2,3)) ENGINE = MyISAM)
+alter table t rename column f to h, rename column g to i, algorithm=copy;
+show create table t;
+Table	Create Table
+t	CREATE TABLE `t` (
+  `h` int(11) DEFAULT NULL,
+  `i` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+ PARTITION BY LIST  COLUMNS(`h`,`i`)
+SUBPARTITION BY KEY (`h`,`i`)
+(PARTITION `p0` VALUES IN ((2,3)) ENGINE = MyISAM)
+drop table t;
+create table t (k int, l int)
+partition by range (k)
+subpartition by hash(l) subpartitions 4
+(partition p0 values less than (5));
+alter table t rename column k to l, rename column l to k;
+show create table t;
+Table	Create Table
+t	CREATE TABLE `t` (
+  `l` int(11) DEFAULT NULL,
+  `k` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+ PARTITION BY RANGE (`l`)
+SUBPARTITION BY HASH (`k`)
+SUBPARTITIONS 4
+(PARTITION `p0` VALUES LESS THAN (5) ENGINE = MyISAM)
+drop table t;
+create table t (a int, b int) partition by list (b) (partition p1 values in (1, 2));
+insert into t values (0, 1), (2, 2);
+alter table t rename column b to f, rename column a to b, algorithm=nocopy;
+check table t;
+Table	Op	Msg_type	Msg_text
+test.t	check	status	OK
+delete from t order by b limit 1;
+drop table t;
+# End of 10.5 tests
 create or replace table t1 (x int primary key)
 partition by range(x) (
 p1 values less than (10),
@@ -214,7 +303,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `x` int(11) NOT NULL,
   PRIMARY KEY (`x`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
  PARTITION BY RANGE (`x`)
 (PARTITION `p1` VALUES LESS THAN (10) ENGINE = MyISAM,
  PARTITION `p2` VALUES LESS THAN (20) ENGINE = MyISAM,
@@ -234,7 +323,7 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `x` int(11) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
  PARTITION BY LIST (`x`)
 (PARTITION `p1` VALUES IN (2,3,4) ENGINE = MyISAM,
  PARTITION `p2` VALUES IN (12,13,14) ENGINE = MyISAM,
@@ -265,3 +354,4 @@ partition by list(x) (
 partitio values in (2, 3, 4),
 pn values in (52, 53, 54));
 drop table t1;
+# End of 10.7 tests

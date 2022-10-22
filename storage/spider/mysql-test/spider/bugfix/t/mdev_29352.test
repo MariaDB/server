@@ -1,0 +1,11 @@
+CREATE TABLE t (c INT);
+SHOW CREATE TABLE t;
+FLUSH TABLES WITH READ LOCK;
+
+--error ER_CANT_UPDATE_WITH_READLOCK
+CREATE FUNCTION spider_bg_direct_sql RETURNS INT SONAME 'ha_spider.so';
+SELECT * FROM t;
+
+--source include/restart_spider.inc
+
+DROP TABLE t;

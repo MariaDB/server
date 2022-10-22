@@ -758,6 +758,7 @@ in the event that you want all of the memory to be dumped
 to a core file.
 
 Returns number of errors found in madvise calls. */
+MY_ATTRIBUTE((used))
 int
 buf_madvise_do_dump()
 {
@@ -806,7 +807,10 @@ void buf_page_print(const byte *read_buf, ulint zip_size)
     byte row[64];
 
     for (byte *r= row; r != &row[64]; r+= 2, read_buf++)
-      r[0]= hex_to_ascii(*read_buf >> 4), r[1]= hex_to_ascii(*read_buf & 15);
+    {
+      r[0]= hex_to_ascii(byte(*read_buf >> 4));
+      r[1]= hex_to_ascii(*read_buf & 15);
+    }
 
     sql_print_information("InnoDB: %.*s", 64, row);
   }
@@ -2113,7 +2117,7 @@ void buf_page_free(fil_space_t *space, uint32_t page, mtr_t *mtr)
     btr_search_drop_page_hash_index(block);
 #endif /* BTR_CUR_HASH_ADAPT */
   block->page.set_freed(block->page.state());
-  mtr->memo_push(block, MTR_MEMO_PAGE_X_FIX);
+  mtr->memo_push(block, MTR_MEMO_PAGE_X_MODIFY);
 }
 
 /** Get read access to a compressed page (usually of type
@@ -2514,6 +2518,9 @@ ignore_block:
 			return nullptr;
 		}
 
+		if (UNIV_UNLIKELY(!block->page.frame)) {
+			goto wait_for_unzip;
+		}
 		/* A read-fix is released after block->page.lock
 		in buf_page_t::read_complete() or
 		buf_pool_t::corrupted_evict(), or
@@ -2544,7 +2551,7 @@ ignore_block:
 		mysql_mutex_lock(&buf_pool.mutex);
 		block->unfix();
 
-			if (!buf_LRU_free_page(&block->page, true)) {
+		if (!buf_LRU_free_page(&block->page, true)) {
 			ut_ad(0);
 		}
 
@@ -2562,6 +2569,7 @@ ignore_block:
 
 	if (UNIV_UNLIKELY(!block->page.frame)) {
 		if (!block->page.lock.x_lock_try()) {
+wait_for_unzip:
 			/* The page is being read or written, or
 			another thread is executing buf_zip_decompress()
 			in buf_page_get_low() on it. */
@@ -2746,11 +2754,7 @@ re_evict:
 			  && state < buf_page_t::WRITE_FIX));
 
 #ifdef BTR_CUR_HASH_ADAPT
-		if (dict_index_t* index = block->index) {
-			if (index->freed()) {
-				btr_search_drop_page_hash_index(block);
-			}
-		}
+		btr_search_drop_page_hash_index(block, true);
 #endif /* BTR_CUR_HASH_ADAPT */
 
 		dberr_t e;
@@ -2807,14 +2811,10 @@ get_latch:
 				goto page_id_mismatch;
 			}
 get_latch_valid:
-#ifdef BTR_CUR_HASH_ADAPT
-			if (dict_index_t* index = block->index) {
-				if (index->freed()) {
-					mtr_t::defer_drop_ahi(block, fix_type);
-				}
-			}
-#endif /* BTR_CUR_HASH_ADAPT */
 			mtr->memo_push(block, fix_type);
+#ifdef BTR_CUR_HASH_ADAPT
+			btr_search_drop_page_hash_index(block, true);
+#endif /* BTR_CUR_HASH_ADAPT */
 			break;
 		case RW_SX_LATCH:
 			fix_type = MTR_MEMO_PAGE_SX_FIX;

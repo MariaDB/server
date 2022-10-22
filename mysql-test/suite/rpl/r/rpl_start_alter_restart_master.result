@@ -1,6 +1,10 @@
 include/master-slave.inc
 [connection master]
 connection slave;
+include/stop_slave.inc
+CHANGE MASTER TO MASTER_USE_GTID=NO;
+include/start_slave.inc
+connection slave;
 SET @old_debug_slave= @@global.debug;
 stop slave;
 SET GLOBAL slave_parallel_threads=4;
@@ -29,7 +33,7 @@ t3	CREATE TABLE `t3` (
   `b` int(11) DEFAULT NULL,
   `d` int(11) DEFAULT NULL,
   PRIMARY KEY (`a`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
@@ -69,7 +73,7 @@ t3	CREATE TABLE `t3` (
   `b` int(11) DEFAULT NULL,
   `d` int(11) DEFAULT NULL,
   PRIMARY KEY (`a`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 connection master;
 SET GLOBAL debug_dbug= @old_debug_master;
 drop table t3;

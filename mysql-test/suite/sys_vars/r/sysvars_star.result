@@ -60,7 +60,7 @@ VARIABLE_NAME	PLUGIN_MATURITY
 SESSION_VALUE	NULL
 GLOBAL_VALUE	alpha
 GLOBAL_VALUE_ORIGIN	CONFIG
-DEFAULT_VALUE	experimental
+DEFAULT_VALUE	gamma
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	ENUM
 VARIABLE_COMMENT	The lowest desirable plugin maturity. Plugins less mature than that will not be installed or loaded
@@ -108,6 +108,7 @@ global_value_path	NULL
 connection default;
 select global_value_path from information_schema.system_variables where variable_name='plugin_maturity';
 global_value_path	var/my.cnf
+disconnect foo;
 drop user foo@localhost;
 set global low_priority_updates=default;
 uninstall soname 'sql_errlog';

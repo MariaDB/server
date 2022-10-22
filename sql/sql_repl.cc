@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2018, Oracle and/or its affiliates.
-   Copyright (c) 2008, 2020, MariaDB Corporation
+   Copyright (c) 2008, 2022, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -2876,6 +2876,7 @@ void mysql_binlog_send(THD* thd, char* log_ident, my_off_t pos,
     info->error= ER_UNKNOWN_ERROR;
     goto err;
   }
+#ifdef ENABLED_DEBUG_SYNC
   DBUG_EXECUTE_IF("simulate_delay_at_shutdown",
                  {
                    const char act[]=
@@ -2884,6 +2885,7 @@ void mysql_binlog_send(THD* thd, char* log_ident, my_off_t pos,
                    DBUG_ASSERT(!debug_sync_set_action(thd,
                                                       STRING_WITH_LEN(act)));
                  };);
+#endif
 
   /*
     heartbeat_period from @master_heartbeat_period user variable
@@ -2973,12 +2975,14 @@ void mysql_binlog_send(THD* thd, char* log_ident, my_off_t pos,
     if (should_stop(info))
       break;
 
+#ifdef ENABLED_DEBUG_SYNC
     DBUG_EXECUTE_IF("wait_after_binlog_EOF",
                     {
                       const char act[]= "now wait_for signal.rotate_finished";
                       DBUG_ASSERT(!debug_sync_set_action(current_thd,
                                                          STRING_WITH_LEN(act)));
                     };);
+#endif
 
     THD_STAGE_INFO(thd,
                    stage_finished_reading_one_binlog_switching_to_next_binlog);
@@ -3420,6 +3424,16 @@ int reset_slave(THD *thd, Master_info* mi)
     goto err;
   }
 
+  if (mi->using_gtid != Master_info::USE_GTID_SLAVE_POS &&
+      mi->master_supports_gtid)
+  {
+    push_warning_printf(
+        thd, Sql_condition::WARN_LEVEL_NOTE, WARN_OPTION_CHANGING,
+        ER_THD(thd, WARN_OPTION_CHANGING), "RESET SLAVE", "Using_Gtid",
+        mi->using_gtid_astext(mi->using_gtid),
+        mi->using_gtid_astext(Master_info::USE_GTID_SLAVE_POS));
+  }
+
   /* Clear master's log coordinates and associated information */
   mi->clear_in_memory_info(thd->lex->reset_slave_info.all);
 
@@ -3812,11 +3826,51 @@ bool change_master(THD* thd, Master_info* mi, bool *master_info_added)
   if (lex_mi->use_gtid_opt == LEX_MASTER_INFO::LEX_GTID_SLAVE_POS)
     mi->using_gtid= Master_info::USE_GTID_SLAVE_POS;
   else if (lex_mi->use_gtid_opt == LEX_MASTER_INFO::LEX_GTID_CURRENT_POS)
+  {
     mi->using_gtid= Master_info::USE_GTID_CURRENT_POS;
+    push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+                        ER_WARN_DEPRECATED_SYNTAX_NO_REPLACEMENT,
+                        ER_THD(thd, ER_WARN_DEPRECATED_SYNTAX),
+                        "master_use_gtid=current_pos", "master_demote_to_slave=1");
+  }
   else if (lex_mi->use_gtid_opt == LEX_MASTER_INFO::LEX_GTID_NO ||
            lex_mi->log_file_name || lex_mi->pos ||
            lex_mi->relay_log_name || lex_mi->relay_log_pos)
+  {
+    if (lex_mi->use_gtid_opt != LEX_MASTER_INFO::LEX_GTID_NO)
+    {
+      push_warning_printf(
+          thd, Sql_condition::WARN_LEVEL_NOTE, WARN_OPTION_CHANGING,
+          ER_THD(thd, WARN_OPTION_CHANGING), "CHANGE MASTER TO", "Using_Gtid",
+          mi->using_gtid_astext(mi->using_gtid),
+          mi->using_gtid_astext(Master_info::USE_GTID_NO));
+    }
     mi->using_gtid= Master_info::USE_GTID_NO;
+  }
+
+  /*
+    Warn about ignored options if there are GTID/log coordinate option
+    conflicts
+  */
+  if (mi->using_gtid != Master_info::USE_GTID_NO)
+  {
+    if (lex_mi->log_file_name)
+      push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
+                          WARN_OPTION_IGNORED,
+                          ER_THD(thd, WARN_OPTION_IGNORED), "MASTER_LOG_FILE");
+    if (lex_mi->pos)
+      push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
+                          WARN_OPTION_IGNORED,
+                          ER_THD(thd, WARN_OPTION_IGNORED), "MASTER_LOG_POS");
+    if (lex_mi->relay_log_name)
+      push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
+                          WARN_OPTION_IGNORED,
+                          ER_THD(thd, WARN_OPTION_IGNORED), "RELAY_LOG_FILE");
+    if (lex_mi->relay_log_pos)
+      push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
+                          WARN_OPTION_IGNORED,
+                          ER_THD(thd, WARN_OPTION_IGNORED), "RELAY_LOG_POS");
+  }
 
   do_ids= ((lex_mi->repl_do_domain_ids_opt ==
             LEX_MASTER_INFO::LEX_MI_ENABLE) ?
@@ -3867,6 +3921,40 @@ bool change_master(THD* thd, Master_info* mi, bool *master_info_added)
      mi->master_log_pos = MY_MAX(BIN_LOG_HEADER_SIZE,
 			      mi->rli.group_master_log_pos);
      strmake_buf(mi->master_log_name, mi->rli.group_master_log_name);
+  }
+
+  /*
+    MASTER_DEMOTE_TO_SLAVE is set. Merge gtid_binlog_pos into gtid_slave_pos.
+  */
+  if (lex_mi->is_demotion_opt)
+  {
+    String new_gtid_state;
+
+    if (mi->using_gtid != Master_info::USE_GTID_SLAVE_POS)
+    {
+      my_error(ER_CM_OPTION_MISSING_REQUIREMENT, MYF(0),
+               "MASTER_DEMOTE_TO_SLAVE", "TRUE", "Using_Gtid=Slave_Pos");
+      ret= TRUE;
+      goto err;
+    }
+
+    if (!mysql_bin_log.is_open())
+    {
+      my_error(ER_NO_BINARY_LOGGING, MYF(0));
+      ret= TRUE;
+      goto err;
+    }
+
+    if ((ret= rpl_append_gtid_state(&new_gtid_state, true)))
+      goto err;
+
+    if (rpl_global_gtid_slave_state->load(
+            thd, new_gtid_state.ptr(), new_gtid_state.length(), true, true))
+    {
+      my_error(ER_FAILED_GTID_STATE_INIT, MYF(0));
+      ret= TRUE;
+      goto err;
+    }
   }
 
   /*
@@ -4119,7 +4207,7 @@ bool mysql_show_binlog_events(THD* thd)
     binlog_size= s.st_size;
     if (lex_mi->pos > binlog_size)
     {
-      sprintf(errmsg_buf, "Invalid pos specified. Requested from pos:%llu is "
+      snprintf(errmsg_buf, sizeof(errmsg_buf), "Invalid pos specified. Requested from pos:%llu is "
               "greater than actual file size:%lu\n", lex_mi->pos,
               (ulong)s.st_size);
       errmsg= errmsg_buf;
