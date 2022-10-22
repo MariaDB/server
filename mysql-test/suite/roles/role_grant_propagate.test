@@ -167,5 +167,35 @@ create role test_role1;
 drop role test_role1;
 
 --echo #
+--echo # MDEV-29851 Cached role privileges are not invalidated when needed
+--echo #
+create role admin;
+create role student;
+create database crm;
+grant create on crm.* to admin;
+grant select on crm.* to student;
+create user intern@localhost;
+grant student to intern@localhost;
+set default role student for intern@localhost;
+
+connect con1, localhost, intern;
+use crm;
+disconnect con1;
+
+connection default;
+grant admin to student;
+
+connect con1, localhost, intern;
+use crm;
+create table t1 (a int);
+disconnect con1;
+
+connection default;
+drop user intern@localhost;
+drop role student;
+drop role admin;
+drop database crm;
+
+--echo #
 --echo # End of 10.3 tests
 --echo #

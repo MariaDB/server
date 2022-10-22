@@ -7152,7 +7152,10 @@ bool mysql_grant_role(THD *thd, List <LEX_USER> &list, bool revoke)
        a role
     */
     if (role_as_user)
+    {
       propagate_role_grants(role_as_user, PRIVS_TO_MERGE::ALL);
+      acl_cache->clear(1);
+    }
   }
 
   mysql_mutex_unlock(&acl_cache->lock);
