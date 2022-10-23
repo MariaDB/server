@@ -35,6 +35,68 @@
 */
 
 
+/*
+  Check if table and database names are equal on local and remote servers
+
+  SYNOPSIS
+    local_and_remote_names_match()
+    thd            Thread descriptor
+    tbl_share      Pointer to current table TABLE_SHARE structure
+
+  DESCRIPTION
+    FederatedX table on the local server may refer to a table having another
+    name on the remote server. The remote table may even reside in a different
+    database. For example:
+
+    -- Remote server
+    CREATE TABLE t1 (id int(32));
+
+    -- Local server
+    CREATE TABLE t2 ENGINE="FEDERATEDX"
+    CONNECTION="mysql://joe:joespass@192.168.1.111:9308/federatedx/t1";
+
+    It's not a problem while the federated_pushdown is disabled 'cause
+    the CONNECTION strings are being parsed for every table during
+    the execution, so the table names are translated from local to remote.
+    But in case of the federated_pushdown the whole query is pushed down
+    to the engine without any translation, so the remote server may try
+    to select data from a nonexistent table (for example, query
+    "SELECT * FROM t2" will try to retrieve data from nonexistent "t2").
+
+    This function checks whether there is a mismatch between local and remote
+    table/database names
+
+  RETURN VALUE
+    false           names are equal
+    true            names are not equal
+
+*/
+bool local_and_remote_names_mismatch(THD *thd, const TABLE_SHARE *tbl_share)
+{
+  FEDERATEDX_SHARE tmp_share;
+  bzero(&tmp_share, sizeof(tmp_share));
+  if (parse_url(thd->mem_root, &tmp_share, tbl_share, 0))
+    return true;
+
+  if (lower_case_table_names)
+  {
+    if (strcasecmp(tmp_share.database, tbl_share->db.str) != 0)
+      return true;
+  }
+  else
+  {
+    if (strncmp(tmp_share.database, tbl_share->db.str, tbl_share->db.length) !=
+        0)
+      return true;
+  }
+
+  return my_strnncoll(system_charset_info, (uchar *) tmp_share.table_name,
+                      strlen(tmp_share.table_name),
+                      (uchar *) tbl_share->table_name.str,
+                      tbl_share->table_name.length) != 0;
+}
+
+
 static derived_handler*
 create_federatedx_derived_handler(THD* thd, TABLE_LIST *derived)
 {
@@ -57,6 +119,9 @@ create_federatedx_derived_handler(THD* thd, TABLE_LIST *derived)
       if (!ht)
         ht= tbl->table->file->partition_ht();
       else if (ht != tbl->table->file->partition_ht())
+        return 0;
+      if (ht == federatedx_hton &&
+          local_and_remote_names_mismatch(thd, tbl->table->s))
         return 0;
     }
   }
@@ -179,6 +244,9 @@ create_federatedx_select_handler(THD* thd, SELECT_LEX *sel)
     if (!ht)
       ht= tbl->table->file->partition_ht();
     else if (ht != tbl->table->file->partition_ht())
+      return 0;
+    if (ht == federatedx_hton &&
+        local_and_remote_names_mismatch(thd, tbl->table->s))
       return 0;
   }
 

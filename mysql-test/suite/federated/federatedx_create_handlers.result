@@ -420,6 +420,29 @@ SELECT * FROM (SELECT * FROM federated.t1 LIMIT 70000) dt;
 SELECT COUNT(DISTINCT a) FROM federated.t2;
 COUNT(DISTINCT a)
 70000
+#
+# MDEV-29640 FederatedX does not properly handle pushdown
+#             in case of difference in local and remote table names
+#
+connection master;
+# Use tables from the previous test. Make sure pushdown works:
+EXPLAIN SELECT COUNT(DISTINCT a) FROM federated.t2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PUSHED SELECT	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL
+SELECT COUNT(DISTINCT a) FROM federated.t2;
+COUNT(DISTINCT a)
+70000
+# Link remote table `federated.t1` with the local table named `t1_local`
+CREATE TABLE t1_local ENGINE="FEDERATED"
+CONNECTION='mysql://root@127.0.0.1:SLAVE_PORT/federated/t1';
+# No pushdown here due to table names mismatch, retrieve data as usual:
+EXPLAIN SELECT COUNT(DISTINCT a) FROM t1_local;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1_local	ALL	NULL	NULL	NULL	NULL	70000	
+SELECT COUNT(DISTINCT a) FROM t1_local;
+COUNT(DISTINCT a)
+70000
+DROP TABLE t1_local;
 set global federated_pushdown=0;
 connection master;
 DROP TABLE IF EXISTS federated.t1;

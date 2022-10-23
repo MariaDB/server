@@ -528,7 +528,7 @@ err:
 }
 
 
-static int parse_url_error(FEDERATEDX_SHARE *share, TABLE_SHARE *table_s,
+static int parse_url_error(FEDERATEDX_SHARE *share, const TABLE_SHARE *table_s,
                            int error_num)
 {
   char buf[FEDERATEDX_QUERY_BUFFER_SIZE];
@@ -609,7 +609,7 @@ error:
     parse_url()
     mem_root            MEM_ROOT pointer for memory allocation
     share               pointer to FEDERATEDX share
-    table               pointer to current TABLE class
+    table_s             pointer to current TABLE_SHARE class
     table_create_flag   determines what error to throw
 
   DESCRIPTION
@@ -658,7 +658,7 @@ error:
 */
 
 static int parse_url(MEM_ROOT *mem_root, FEDERATEDX_SHARE *share,
-                     TABLE_SHARE *table_s, uint table_create_flag)
+                     const TABLE_SHARE *table_s, uint table_create_flag)
 {
   uint error_num= (table_create_flag ?
                    ER_FOREIGN_DATA_STRING_INVALID_CANT_CREATE :

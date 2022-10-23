@@ -266,6 +266,28 @@ INSERT INTO federated.t2
   SELECT * FROM (SELECT * FROM federated.t1 LIMIT 70000) dt;
 SELECT COUNT(DISTINCT a) FROM federated.t2;
 
+
+--echo #
+--echo # MDEV-29640 FederatedX does not properly handle pushdown
+--echo #             in case of difference in local and remote table names
+--echo #
+connection master;
+--echo # Use tables from the previous test. Make sure pushdown works:
+EXPLAIN SELECT COUNT(DISTINCT a) FROM federated.t2;
+SELECT COUNT(DISTINCT a) FROM federated.t2;
+
+--echo # Link remote table `federated.t1` with the local table named `t1_local`
+--replace_result $SLAVE_MYPORT SLAVE_PORT
+eval
+CREATE TABLE t1_local ENGINE="FEDERATED"
+CONNECTION='mysql://root@127.0.0.1:$SLAVE_MYPORT/federated/t1';
+
+--echo # No pushdown here due to table names mismatch, retrieve data as usual:
+EXPLAIN SELECT COUNT(DISTINCT a) FROM t1_local;
+SELECT COUNT(DISTINCT a) FROM t1_local;
+
+DROP TABLE t1_local;
+
 set global federated_pushdown=0;
 
 source include/federated_cleanup.inc;
