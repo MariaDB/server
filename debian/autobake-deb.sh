@@ -58,13 +58,13 @@ replace_uring_with_aio()
 {
   sed 's/liburing-dev/libaio-dev/g' -i debian/control
   sed -e '/-DIGNORE_AIO_CHECK=YES/d' \
-      -e '/-DWITH_URING=yes/d' -i debian/rules
+      -e '/-DWITH_URING=YES/d' -i debian/rules
 }
 
 disable_pmem()
 {
   sed '/libpmem-dev/d' -i debian/control
-  sed '/-DWITH_PMEM=yes/d' -i debian/rules
+  sed '/-DWITH_PMEM=YES/d' -i debian/rules
 }
 
 architecture=$(dpkg-architecture -q DEB_BUILD_ARCH)
