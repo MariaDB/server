@@ -1094,3 +1094,18 @@ DEALLOCATE PREPARE stmt;
 --echo #
 --echo # End of 10.2 tests
 --echo #
+
+--echo #
+--echo # Start of 10.3 tests
+--echo #
+
+--echo #
+--echo # MDEV-14983 Wrong error message with SET sql_mode=sha2(ucs2_value)
+--echo #
+
+--error ER_WRONG_VALUE_FOR_VAR
+SET sql_mode=sha2(CONVERT('a' USING ucs2),0);
+
+--echo #
+--echo # End of 10.3 tests
+--echo #
