@@ -646,14 +646,19 @@ struct trx_rsegs_t {
 struct trx_t : ilist_node<> {
 private:
   /**
-    Count of references.
+    Least significant 31 bits is count of references.
 
     We can't release the locks nor commit the transaction until this reference
     is 0. We can change the state to TRX_STATE_COMMITTED_IN_MEMORY to signify
     that it is no longer "active".
-  */
 
-  Atomic_counter<int32_t> n_ref;
+    If the most significant bit is set this transaction should stop inheriting
+    (GAP)locks. Generally set to true during transaction prepare for RC or lower
+    isolation, if requested. Needed for replication replay where
+    we don't want to get blocked on GAP locks taken for protecting
+    concurrent unique insert or replace operation.
+  */
+  Atomic_relaxed<uint32_t> skip_lock_inheritance_and_n_ref;
 
 
 public:
@@ -983,27 +988,47 @@ public:
   /** Commit the transaction. */
   void commit();
 
-
-  bool is_referenced() const { return n_ref > 0; }
-
+  bool is_referenced() const
+  {
+    return (skip_lock_inheritance_and_n_ref & ~(1U << 31)) > 0;
+  }
 
   void reference()
   {
-#ifdef UNIV_DEBUG
-    auto old_n_ref=
-#endif
-    n_ref++;
-    ut_ad(old_n_ref >= 0);
+    ut_d(auto old_n_ref =)
+    skip_lock_inheritance_and_n_ref.fetch_add(1);
+    ut_ad(int32_t(old_n_ref << 1) >= 0);
   }
-
 
   void release_reference()
   {
-#ifdef UNIV_DEBUG
-    auto old_n_ref=
+    ut_d(auto old_n_ref =)
+    skip_lock_inheritance_and_n_ref.fetch_sub(1);
+    ut_ad(int32_t(old_n_ref << 1) > 0);
+  }
+
+  bool is_not_inheriting_locks() const
+  {
+    return skip_lock_inheritance_and_n_ref >> 31;
+  }
+
+  void set_skip_lock_inheritance()
+  {
+    ut_d(auto old_n_ref=) skip_lock_inheritance_and_n_ref.fetch_add(1U << 31);
+    ut_ad(!(old_n_ref >> 31));
+  }
+
+  void reset_skip_lock_inheritance()
+  {
+#if defined __GNUC__ && (defined __i386__ || defined __x86_64__)
+    __asm__("lock btrl $31, %0" : : "m"(skip_lock_inheritance_and_n_ref));
+#elif defined _MSC_VER && (defined _M_IX86 || defined _M_X64)
+    _interlockedbittestandreset(
+        reinterpret_cast<volatile long *>(&skip_lock_inheritance_and_n_ref),
+        31);
+#else
+    skip_lock_inheritance_and_n_ref.fetch_and(~1U << 31);
 #endif
-    n_ref--;
-    ut_ad(old_n_ref > 0);
   }
 
   /** @return whether the table has lock on
@@ -1031,6 +1056,7 @@ public:
     ut_ad(!autoinc_locks || ib_vector_is_empty(autoinc_locks));
     ut_ad(UT_LIST_GET_LEN(lock.evicted_tables) == 0);
     ut_ad(dict_operation == TRX_DICT_OP_NONE);
+    ut_ad(!is_not_inheriting_locks());
   }
 
   /** @return whether this is a non-locking autocommit transaction */

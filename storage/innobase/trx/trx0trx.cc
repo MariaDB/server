@@ -412,7 +412,8 @@ void trx_t::free()
 
   mod_tables.clear();
 
-  MEM_NOACCESS(&n_ref, sizeof n_ref);
+  MEM_NOACCESS(&skip_lock_inheritance_and_n_ref,
+               sizeof skip_lock_inheritance_and_n_ref);
   /* do not poison mutex */
   MEM_NOACCESS(&id, sizeof id);
   MEM_NOACCESS(&state, sizeof state);
@@ -518,6 +519,7 @@ inline void trx_t::release_locks()
   }
 
   lock.table_locks.clear();
+  reset_skip_lock_inheritance();
 }
 
 /** At shutdown, frees a transaction object. */
