@@ -546,4 +546,225 @@ update orders set o_totalprice = o_totalprice+50 where $c11;
 eval
 select o_orderkey, o_totalprice from orders where $c11;
 
+--echo # LooseScan
+--echo # ==========
+
+create table t1 (a1 char(8), a2 char(8), a3 int);
+create table t2 (b1 char(8), b2 char(8));
+
+insert into t1 values ('1 - 00', '2 - 00', 1);
+insert into t1 values ('1 - 01', '2 - 01', 1);
+insert into t1 values ('1 - 02', '2 - 02', 1);
+
+insert into t2 values ('1 - 01', '2 - 01');
+insert into t2 values ('1 - 01', '2 - 01');
+insert into t2 values ('1 - 02', '2 - 02');
+insert into t2 values ('1 - 02', '2 - 02');
+insert into t2 values ('1 - 03', '2 - 03');
+
+# Indexed columns
+create table t1i (a1 char(8), a2 char(8), a3 int);
+create table t2i (b1 char(8), b2 char(8));
+
+create index it1i1 on t1i (a1);
+create index it1i2 on t1i (a2);
+create index it1i3 on t1i (a1, a2);
+create index it1i4 on t1i (a1, a2, a3);
+
+create index it2i1 on t2i (b1);
+create index it2i2 on t2i (b2);
+create index it2i3 on t2i (b1, b2);
+
+insert into t1i select a1, a2, a3 from t1;
+insert into t2i select * from t2;
+
+set @tmp_optimizer_switch= @@optimizer_switch;
+set optimizer_switch='firstmatch=off,materialization=off';
+
+let $c = (a1, a2) in (select b1, b2 from t2i order by b1, b2);
+
+eval
+explain
+select a1, a2, a3 from t1i where $c;
+eval
+explain format=json
+select a1, a2, a3 from t1i where $c;
+--sorted_result
+eval
+select a1, a2, a3 from t1i where $c;
+
+eval
+explain
+update  t1i set a3=a3+3 where $c;
+eval
+explain format=json
+update  t1i set a3=a3+3 where $c;
+eval
+update  t1i set a3=a3+3 where $c;
+eval
+select a1, a2, a3 from t1i where $c;
+
+eval
+update  t1i set a3=a3-3 where $c;
+--sorted_result
+eval
+select a1, a2, a3 from t1i where $c;
+
+--echo # LooseScan PS
+--echo # =============
+
+eval
+prepare stmt from "
+update  t1i set a3=a3+? where $c;
+";
+
+--sorted_result
+eval
+select a1, a2, a3 from t1i where $c;
+eval
+set @a1=20;
+execute stmt using @a1;
+--sorted_result
+eval
+select a1, a2, a3 from t1i where $c;
+set @a2=10;
+execute stmt using @a2;
+--sorted_result
+eval
+select a1, a2, a3 from t1i where $c;
+execute stmt using -(@a1+@a2);
+--sorted_result
+eval
+select a1, a2, a3 from t1i where $c;
+
+deallocate prepare stmt;
+
+--echo # LooseScan SP
+--echo # ==================
+
+eval
+create procedure p(d int)
+update  t1i set a3=a3+d where $c;
+
+--sorted_result
+eval
+select a1, a2, a3 from t1i where $c;
+eval
+call p(10);
+--sorted_result
+eval
+select a1, a2, a3 from t1i where $c;
+call p(20);
+--sorted_result
+eval
+select a1, a2, a3 from t1i where $c;
+call p(-(10+20));
+--sorted_result
+eval
+select a1, a2, a3 from t1i where $c;
+
+drop procedure p;
+set @@optimizer_switch=@tmp_optimizer_switch;
+drop tables t1,t2,t1i,t2i;
+
+--echo # DuplicateWeedout
+--echo # ==========
+
+create table t0 (a int, b int);
+create table t1 (a int);
+create table t2 (a int);
+
+insert into t0 values (1,1),(1,2),(2,2),(4,4),(5,5);
+insert into t1 values (1),(1),(2),(2);
+insert into t2 values (1);
+
+set @tmp_optimizer_switch= @@optimizer_switch;
+set optimizer_switch='firstmatch=off,loosescan=off,materialization=off';
+
+let $c = a in (select t1.a from t1 left join t2 on t1.a=t2.a);
+
+eval
+explain
+select  a, b from t0 where $c;
+eval
+explain format=json
+select  a, b from t0 where $c;
+--sorted_result
+eval
+select a, b from t0 where $c;
+
+eval
+explain
+update t0 set b=b+3 where $c;
+eval
+explain format=json
+update t0 set b=b+3 where $c;
+eval
+update t0 set b=b+3 where $c;
+--sorted_result
+eval
+select a, b from t0 where $c;
+
+eval
+update t0 set b=b-3 where $c;
+--sorted_result
+eval
+select a, b from t0 where $c;
+
+--echo # DuplicateWeedout PS
+--echo # =============
+
+eval
+prepare stmt from "
+update t0 set b=b+? where $c;
+";
+
+--sorted_result
+eval
+select  a, b from t0 where $c;
+set @a1=20;
+execute stmt using @a1;
+--sorted_result
+eval
+select  a, b from t0 where $c;
+set @a2=10;
+execute stmt using @a2;
+--sorted_result
+eval
+select a, b from t0 where $c;
+execute stmt using -(@a1+@a2);
+--sorted_result
+eval
+select a, b from t0 where $c;
+
+deallocate prepare stmt;
+
+--echo # DuplicateWeedout SP
+--echo # ==================
+
+eval
+create procedure p(d int)
+update t0 set b=b+d where $c;
+
+--sorted_result
+eval
+select  a, b from t0 where $c;
+call p(10);
+--sorted_result
+eval
+select  a, b from t0 where $c;
+call p(20);
+--sorted_result
+eval
+select a, b from t0 where $c;
+call p(-(10+20));
+--sorted_result
+eval
+select a, b from t0 where $c;
+
+drop procedure p;
+drop tables t1,t2,t0;
+
+set @@optimizer_switch=@tmp_optimizer_switch;
+
 DROP DATABASE dbt3_s001;

@@ -2352,4 +2352,380 @@ o_orderkey	o_totalprice
 4903	34363.63
 5607	24660.06
 drop table t;
+# LooseScan
+# ==========
+create table t1 (a1 char(8), a2 char(8));
+create table t2 (b1 char(8), b2 char(8));
+insert into t1 values ('1 - 00', '2 - 00');
+insert into t1 values ('1 - 01', '2 - 01');
+insert into t1 values ('1 - 02', '2 - 02');
+insert into t2 values ('1 - 01', '2 - 01');
+insert into t2 values ('1 - 01', '2 - 01');
+insert into t2 values ('1 - 02', '2 - 02');
+insert into t2 values ('1 - 02', '2 - 02');
+insert into t2 values ('1 - 03', '2 - 03');
+create table t1i (a1 char(8), a2 char(8));
+create table t2i (b1 char(8), b2 char(8));
+create index it1i1 on t1i (a1);
+create index it1i2 on t1i (a2);
+create index it1i3 on t1i (a1, a2);
+create index it2i1 on t2i (b1);
+create index it2i2 on t2i (b2);
+create index it2i3 on t2i (b1, b2);
+insert into t1i select * from t1;
+insert into t2i select * from t2;
+explain
+select a1, a2 from t1i where (a1, a2) in (select b1, b2 from t2i order by b1, b2);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t2i	index	it2i1,it2i2,it2i3	it2i3	18	NULL	5	Using where; Using index; LooseScan
+1	PRIMARY	t1i	ref	it1i1,it1i2,it1i3	it1i3	18	dbt3_s001.t2i.b1,dbt3_s001.t2i.b2	1	Using index
+explain format=json
+select a1, a2 from t1i where (a1, a2) in (select b1, b2 from t2i order by b1, b2);
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t2i",
+          "access_type": "index",
+          "possible_keys": ["it2i1", "it2i2", "it2i3"],
+          "key": "it2i3",
+          "key_length": "18",
+          "used_key_parts": ["b1", "b2"],
+          "rows": 5,
+          "filtered": 50,
+          "attached_condition": "t2i.b1 is not null and t2i.b2 is not null",
+          "using_index": true,
+          "loose_scan": true
+        }
+      },
+      {
+        "table": {
+          "table_name": "t1i",
+          "access_type": "ref",
+          "possible_keys": ["it1i1", "it1i2", "it1i3"],
+          "key": "it1i3",
+          "key_length": "18",
+          "used_key_parts": ["a1", "a2"],
+          "ref": ["dbt3_s001.t2i.b1", "dbt3_s001.t2i.b2"],
+          "rows": 1,
+          "filtered": 100,
+          "using_index": true
+        }
+      }
+    ]
+  }
+}
+select a1, a2 from t1i where (a1, a2) in (select b1, b2 from t2i order by b1, b2);
+a1	a2
+1 - 01	2 - 01
+1 - 02	2 - 02
+create table t as
+select * from t1i where (a1, a2) in (select b1, b2 from t2i order by b1, b2);
+explain
+delete from t1i where (a1, a2) in (select b1, b2 from t2i order by b1, b2);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t2i	index	it2i1,it2i2,it2i3	it2i3	18	NULL	5	Using where; Using index; LooseScan
+1	PRIMARY	t1i	ref	it1i1,it1i2,it1i3	it1i3	18	dbt3_s001.t2i.b1,dbt3_s001.t2i.b2	1	
+explain format=json
+delete from t1i where (a1, a2) in (select b1, b2 from t2i order by b1, b2);
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t2i",
+          "access_type": "index",
+          "possible_keys": ["it2i1", "it2i2", "it2i3"],
+          "key": "it2i3",
+          "key_length": "18",
+          "used_key_parts": ["b1", "b2"],
+          "rows": 5,
+          "filtered": 50,
+          "attached_condition": "t2i.b1 is not null and t2i.b2 is not null",
+          "using_index": true,
+          "loose_scan": true
+        }
+      },
+      {
+        "table": {
+          "table_name": "t1i",
+          "access_type": "ref",
+          "possible_keys": ["it1i1", "it1i2", "it1i3"],
+          "key": "it1i3",
+          "key_length": "18",
+          "used_key_parts": ["a1", "a2"],
+          "ref": ["dbt3_s001.t2i.b1", "dbt3_s001.t2i.b2"],
+          "rows": 1,
+          "filtered": 100
+        }
+      }
+    ]
+  }
+}
+delete from t1i where (a1, a2) in (select b1, b2 from t2i order by b1, b2);
+select a1, a2 from t1i where (a1, a2) in (select b1, b2 from t2i order by b1, b2);
+a1	a2
+insert into t1i select * from t;
+select a1, a2 from t1i where (a1, a2) in (select b1, b2 from t2i order by b1, b2);
+a1	a2
+1 - 01	2 - 01
+1 - 02	2 - 02
+drop table t;
+# LooseScan PS
+# =============
+prepare stmt from "
+delete from t1i where (a1, a2) in (select b1, b2 from t2i order by b1, b2);
+";
+select a1, a2 from t1i where (a1, a2) in (select b1, b2 from t2i order by b1, b2);
+a1	a2
+1 - 01	2 - 01
+1 - 02	2 - 02
+create table t as
+select * from t1i where (a1, a2) in (select b1, b2 from t2i order by b1, b2);
+execute stmt;
+select a1, a2 from t1i where (a1, a2) in (select b1, b2 from t2i order by b1, b2);
+a1	a2
+insert into t1i select * from t;
+select a1, a2 from t1i where (a1, a2) in (select b1, b2 from t2i order by b1, b2);
+a1	a2
+1 - 01	2 - 01
+1 - 02	2 - 02
+create table r as
+select * from t1i where (a1, a2) in (select b1, b2 from t2i order by b1, b2);
+execute stmt;
+select a1, a2 from t1i where (a1, a2) in (select b1, b2 from t2i order by b1, b2);
+a1	a2
+insert into t1i select * from r;
+select a1, a2 from t1i where (a1, a2) in (select b1, b2 from t2i order by b1, b2);
+a1	a2
+1 - 01	2 - 01
+1 - 02	2 - 02
+drop tables r, t;
+deallocate prepare stmt;
+# LooseScan SP
+# ==================
+create procedure p()
+delete from t1i where (a1, a2) in (select b1, b2 from t2i order by b1, b2);
+select a1, a2 from t1i where (a1, a2) in (select b1, b2 from t2i order by b1, b2);
+a1	a2
+1 - 01	2 - 01
+1 - 02	2 - 02
+create table t as
+select * from t1i where (a1, a2) in (select b1, b2 from t2i order by b1, b2);
+call p();
+select a1, a2 from t1i where (a1, a2) in (select b1, b2 from t2i order by b1, b2);
+a1	a2
+insert into t1i select * from t;
+select a1, a2 from t1i where (a1, a2) in (select b1, b2 from t2i order by b1, b2);
+a1	a2
+1 - 01	2 - 01
+1 - 02	2 - 02
+create table r as
+select * from t1i where (a1, a2) in (select b1, b2 from t2i order by b1, b2);
+call p();
+select a1, a2 from t1i where (a1, a2) in (select b1, b2 from t2i order by b1, b2);
+a1	a2
+insert into t1i select * from r;
+select a1, a2 from t1i where (a1, a2) in (select b1, b2 from t2i order by b1, b2);
+a1	a2
+1 - 01	2 - 01
+1 - 02	2 - 02
+drop tables r, t;
+drop procedure p;
+drop tables t1,t2,t1i,t2i;
+# DuplicateWeedout
+# ==========
+create table t0 (a int);
+create table t1 (a int);
+create table t2 (a int);
+insert into t0 values (1),(2),(4),(5);
+insert into t1 values (1),(1),(2),(2);
+insert into t2 values (1);
+set @tmp_optimizer_switch= @@optimizer_switch;
+set optimizer_switch='firstmatch=off,loosescan=off,materialization=off';
+explain
+select a from t0 where a in (select t1.a from t1 left join t2 on t1.a=t2.a);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t0	ALL	NULL	NULL	NULL	NULL	4	
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	4	Using where; Start temporary; Using join buffer (flat, BNL join)
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	1	Using where; End temporary; Using join buffer (incremental, BNL join)
+explain format=json
+select a from t0 where a in (select t1.a from t1 left join t2 on t1.a=t2.a);
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t0",
+          "access_type": "ALL",
+          "rows": 4,
+          "filtered": 100
+        }
+      },
+      {
+        "duplicates_removal": [
+          {
+            "block-nl-join": {
+              "table": {
+                "table_name": "t1",
+                "access_type": "ALL",
+                "rows": 4,
+                "filtered": 100
+              },
+              "buffer_type": "flat",
+              "buffer_size": "152",
+              "join_type": "BNL",
+              "attached_condition": "t1.a = t0.a"
+            }
+          },
+          {
+            "block-nl-join": {
+              "table": {
+                "table_name": "t2",
+                "access_type": "ALL",
+                "rows": 1,
+                "filtered": 100
+              },
+              "buffer_type": "incremental",
+              "buffer_size": "203",
+              "join_type": "BNL",
+              "attached_condition": "trigcond(t1.a = t2.a)"
+            }
+          }
+        ]
+      }
+    ]
+  }
+}
+select a from t0 where a in (select t1.a from t1 left join t2 on t1.a=t2.a);
+a
+1
+2
+create table t as
+select * from t0 where a in (select t1.a from t1 left join t2 on t1.a=t2.a);
+explain
+delete from t0 where a in (select t1.a from t1 left join t2 on t1.a=t2.a);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t0	ALL	NULL	NULL	NULL	NULL	4	
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	4	Using where; Start temporary
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	1	Using where; End temporary
+explain format=json
+delete from t0 where a in (select t1.a from t1 left join t2 on t1.a=t2.a);
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t0",
+          "access_type": "ALL",
+          "rows": 4,
+          "filtered": 100
+        }
+      },
+      {
+        "duplicates_removal": [
+          {
+            "table": {
+              "table_name": "t1",
+              "access_type": "ALL",
+              "rows": 4,
+              "filtered": 100,
+              "attached_condition": "t1.a = t0.a"
+            }
+          },
+          {
+            "table": {
+              "table_name": "t2",
+              "access_type": "ALL",
+              "rows": 1,
+              "filtered": 100,
+              "attached_condition": "trigcond(t1.a = t2.a)"
+            }
+          }
+        ]
+      }
+    ]
+  }
+}
+delete from t0 where a in (select t1.a from t1 left join t2 on t1.a=t2.a);
+select a from t0 where a in (select t1.a from t1 left join t2 on t1.a=t2.a);
+a
+insert into t0 select * from t;
+select a from t0 where a in (select t1.a from t1 left join t2 on t1.a=t2.a);
+a
+1
+2
+drop table t;
+# DuplicateWeedout PS
+# =============
+prepare stmt from "
+delete from t0 where a in (select t1.a from t1 left join t2 on t1.a=t2.a);
+";
+select a from t0 where a in (select t1.a from t1 left join t2 on t1.a=t2.a);
+a
+1
+2
+create table t as
+select * from t0 where a in (select t1.a from t1 left join t2 on t1.a=t2.a);
+execute stmt;
+select a from t0 where a in (select t1.a from t1 left join t2 on t1.a=t2.a);
+a
+insert into t0 select * from t;
+select a from t0 where a in (select t1.a from t1 left join t2 on t1.a=t2.a);
+a
+1
+2
+create table r as
+select * from t0 where a in (select t1.a from t1 left join t2 on t1.a=t2.a);
+execute stmt;
+select a from t0 where a in (select t1.a from t1 left join t2 on t1.a=t2.a);
+a
+insert into t0 select * from r;
+select a from t0 where a in (select t1.a from t1 left join t2 on t1.a=t2.a);
+a
+1
+2
+drop tables r, t;
+deallocate prepare stmt;
+# DuplicateWeedout SP
+# ==================
+create procedure p()
+delete from t0 where a in (select t1.a from t1 left join t2 on t1.a=t2.a);
+select a from t0 where a in (select t1.a from t1 left join t2 on t1.a=t2.a);
+a
+1
+2
+create table t as
+select * from t0 where a in (select t1.a from t1 left join t2 on t1.a=t2.a);
+call p();
+select a from t0 where a in (select t1.a from t1 left join t2 on t1.a=t2.a);
+a
+insert into t0 select * from t;
+select a from t0 where a in (select t1.a from t1 left join t2 on t1.a=t2.a);
+a
+1
+2
+create table r as
+select * from t0 where a in (select t1.a from t1 left join t2 on t1.a=t2.a);
+call p();
+select a from t0 where a in (select t1.a from t1 left join t2 on t1.a=t2.a);
+a
+insert into t0 select * from r;
+select a from t0 where a in (select t1.a from t1 left join t2 on t1.a=t2.a);
+a
+1
+2
+drop tables r, t;
+drop procedure p;
+drop tables t1,t2,t0;
+set @@optimizer_switch=@tmp_optimizer_switch;
 DROP DATABASE dbt3_s001;
