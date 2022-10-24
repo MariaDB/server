@@ -30,6 +30,7 @@ Created 3/26/1996 Heikki Tuuri
 #include "srv0srv.h"
 #include "trx0purge.h"
 #include "srv0mon.h"
+#include "log.h"
 
 #ifdef WITH_WSREP
 # include <mysql/service_wsrep.h>
@@ -369,7 +370,7 @@ void trx_rseg_t::destroy()
 void trx_rseg_t::init(fil_space_t *space, uint32_t page)
 {
   latch.SRW_LOCK_INIT(trx_rseg_latch_key);
-  ut_ad(!this->space);
+  ut_ad(!this->space || this->space != space);
   this->space= space;
   page_no= page;
   last_page_no= FIL_NULL;
@@ -414,6 +415,7 @@ static dberr_t trx_undo_lists_init(trx_rseg_t *rseg, trx_id_t &max_trx_id,
                                    const buf_block_t *rseg_header)
 {
   ut_ad(srv_force_recovery < SRV_FORCE_NO_UNDO_LOG_SCAN);
+  bool is_undo_empty= true;
 
   for (ulint i= 0; i < TRX_RSEG_N_SLOTS; i++)
   {
@@ -424,11 +426,14 @@ static dberr_t trx_undo_lists_init(trx_rseg_t *rseg, trx_id_t &max_trx_id,
                                                               max_trx_id);
       if (!undo)
         return DB_CORRUPTION;
+      if (is_undo_empty)
+        is_undo_empty= !undo->size || undo->state == TRX_UNDO_CACHED;
       rseg->curr_size+= undo->size;
       MONITOR_INC(MONITOR_NUM_UNDO_SLOT_USED);
     }
   }
 
+  trx_sys.set_undo_non_empty(!is_undo_empty);
   return DB_SUCCESS;
 }
 
@@ -532,6 +537,7 @@ static dberr_t trx_rseg_mem_restore(trx_rseg_t *rseg, trx_id_t &max_trx_id,
       purge_sys.purge_queue.push(*rseg);
   }
 
+  trx_sys.set_undo_non_empty(rseg->history_size > 0);
   return err;
 }
 
@@ -592,10 +598,24 @@ dberr_t trx_rseg_array_init()
 				sys, rseg_id);
 			if (page_no != FIL_NULL) {
 				trx_rseg_t& rseg = trx_sys.rseg_array[rseg_id];
-				rseg.init(fil_space_get(
-						  trx_sysf_rseg_get_space(
-							  sys, rseg_id)),
-					  page_no);
+				uint32_t space_id=
+					trx_sysf_rseg_get_space(
+						sys, rseg_id);
+
+				fil_space_t *rseg_space =
+					fil_space_get(space_id);
+				if (!rseg_space) {
+					mtr.commit();
+					err = DB_ERROR;
+					sql_print_error(
+					  "InnoDB: Failed to open the undo "
+					  "tablespace undo%03" PRIu32,
+					  (space_id -
+					   srv_undo_space_id_start + 1));
+					break;
+				}
+
+				rseg.init(rseg_space, page_no);
 				ut_ad(rseg.is_persistent());
 				if ((err = trx_rseg_mem_restore(
 					     &rseg, max_trx_id, &mtr))
@@ -685,29 +705,28 @@ which corresponds to the transaction just being committed.
 In a replication slave, this updates the master binlog position
 up to which replication has proceeded.
 @param[in,out]	rseg_header	rollback segment header
-@param[in]	trx		committing transaction
+@param[in]	log_file_name	binlog file name
+@param[in]	log_offset	binlog file offset
 @param[in,out]	mtr		mini-transaction */
-void trx_rseg_update_binlog_offset(buf_block_t *rseg_header, const trx_t *trx,
+void trx_rseg_update_binlog_offset(buf_block_t *rseg_header,
+                                   const char *log_file_name,
+                                   ulonglong log_offset,
                                    mtr_t *mtr)
 {
-	DBUG_LOG("trx", "trx_mysql_binlog_offset: " << trx->mysql_log_offset);
+  DBUG_PRINT("trx", ("trx_mysql_binlog_offset %llu", log_offset));
+  const size_t len= strlen(log_file_name) + 1;
+  ut_ad(len > 1);
 
-	const size_t len = strlen(trx->mysql_log_file_name) + 1;
+  if (UNIV_UNLIKELY(len > TRX_RSEG_BINLOG_NAME_LEN))
+    return;
 
-	ut_ad(len > 1);
+  mtr->write<8,mtr_t::MAYBE_NOP>(
+    *rseg_header,
+    TRX_RSEG + TRX_RSEG_BINLOG_OFFSET + rseg_header->page.frame,
+    log_offset);
 
-	if (UNIV_UNLIKELY(len > TRX_RSEG_BINLOG_NAME_LEN)) {
-		return;
-	}
+  byte *name= TRX_RSEG + TRX_RSEG_BINLOG_NAME + rseg_header->page.frame;
 
-	mtr->write<8,mtr_t::MAYBE_NOP>(*rseg_header,
-				       TRX_RSEG + TRX_RSEG_BINLOG_OFFSET
-				       + rseg_header->page.frame,
-				       trx->mysql_log_offset);
-
-	void* name = TRX_RSEG + TRX_RSEG_BINLOG_NAME + rseg_header->page.frame;
-
-	if (memcmp(trx->mysql_log_file_name, name, len)) {
-		mtr->memcpy(*rseg_header, name, trx->mysql_log_file_name, len);
-	}
+  if (memcmp(log_file_name, name, len))
+    mtr->memcpy(*rseg_header, name, log_file_name, len);
 }

@@ -1,0 +1,80 @@
+#
+#  MDEV-19229 Allow innodb_undo_tablespaces to be changed
+#	after database creation
+#
+call mtr.add_suppression("Found .* prepared XA transactions");
+call mtr.add_suppression("InnoDB: Plugin initialization aborted");
+call mtr.add_suppression("Plugin 'InnoDB' init function returned error");
+call mtr.add_suppression("Plugin 'InnoDB' registration as a STORAGE ENGINE failed");
+call mtr.add_suppression("InnoDB: Cannot change innodb_undo_tablespaces=\\d+ because previous shutdown was not with innodb_fast_shutdown=0");
+CREATE TABLE t1(f1 INT NOT NULL)ENGINE=InnoDB;
+connect con_purge,localhost,root,,,;
+START TRANSACTION WITH CONSISTENT SNAPSHOT;
+connection default;
+INSERT INTO t1 VALUES(1);
+UPDATE t1 SET f1=100;
+# case 1: Undo log left to purge
+# restart: --innodb_undo_tablespaces=2
+# Display 4 undo tablespaces
+select @@global.innodb_undo_tablespaces;
+@@global.innodb_undo_tablespaces
+4
+# Should list 4 undo log tablespaces
+undo001
+undo002
+undo003
+undo004
+# case 2: XA transaction alone left
+InnoDB		0 transactions not purged
+XA START 'zombie';
+INSERT INTO t1 VALUES(2);
+XA END 'zombie';
+XA PREPARE 'zombie';
+# restart: --innodb_undo_tablespaces=2
+# Display 4 undo tablespaces
+select @@global.innodb_undo_tablespaces;
+@@global.innodb_undo_tablespaces
+4
+# Should list 4 undo log tablespaces
+undo001
+undo002
+undo003
+undo004
+XA COMMIT 'zombie';
+# case 3: Successful innodb_undo_tablespace upgrade
+SET GLOBAL innodb_fast_shutdown=0;
+# restart: --innodb_undo_tablespaces=2
+# Display 2 undo tablespaces
+SELECT @@global.innodb_undo_tablespaces;
+@@global.innodb_undo_tablespaces
+2
+# Should list 2 undo log tablespaces
+undo001
+undo002
+DROP TABLE t1;
+InnoDB		0 transactions not purged
+# case 4: Reduce the innodb_undo_tablespace to 0
+# restart: --innodb_undo_tablespaces=0
+# Display 0 undo tablespace
+SELECT @@global.innodb_undo_tablespaces;
+@@global.innodb_undo_tablespaces
+0
+# Shouldn't list any undo log tablespaces
+# case 5: Change undo tablespace when force_recovery < 5
+# restart: --innodb_undo_tablespaces=2 --innodb_force_recovery=4
+# Display 2 undo tablespace
+SELECT @@global.innodb_undo_tablespaces;
+@@global.innodb_undo_tablespaces
+2
+# Should list 2 undo log tablespaces
+undo001
+undo002
+# case 6: Fail to change undo tablespace when force_recovery > 4
+# restart: --innodb_undo_tablespaces=4 --innodb_force_recovery=5
+# Display 2 undo tablespace
+SELECT @@global.innodb_undo_tablespaces;
+@@global.innodb_undo_tablespaces
+2
+# Should list 2 undo log tablespaces, not 4
+undo001
+undo002

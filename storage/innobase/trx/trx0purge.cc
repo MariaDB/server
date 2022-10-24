@@ -306,7 +306,9 @@ trx_purge_add_undo_to_history(const trx_t* trx, trx_undo_t*& undo, mtr_t* mtr)
 		/* Update the latest MySQL binlog name and offset info
 		in rollback segment header if MySQL binlogging is on
 		or the database server is a MySQL replication save. */
-		trx_rseg_update_binlog_offset(rseg_header, trx, mtr);
+		trx_rseg_update_binlog_offset(
+			rseg_header, trx->mysql_log_file_name,
+			trx->mysql_log_offset, mtr);
 	}
 
 	/* Add the log as the first in the history list */

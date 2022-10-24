@@ -326,11 +326,246 @@ static dberr_t srv_undo_tablespace_create(const char* name)
 	return(err);
 }
 
-/* Validate the number of undo opened undo tablespace and user given
-undo tablespace
-@return DB_SUCCESS if it is valid */
-static dberr_t srv_validate_undo_tablespaces()
+inline dberr_t trx_sys_t::reset_page(mtr_t *mtr)
 {
+  dberr_t err= DB_SUCCESS;
+  buf_block_t *sys_header= buf_page_get_gen(
+    page_id_t(TRX_SYS_SPACE, TRX_SYS_PAGE_NO), 0, RW_X_LATCH, nullptr,
+    BUF_GET, mtr, &err);
+
+  if (!sys_header) return err;
+
+  const bool dblwr_enabled=
+    mach_read_from_4(TRX_SYS_DOUBLEWRITE_MAGIC + TRX_SYS_DOUBLEWRITE +
+                     sys_header->page.frame)
+    == TRX_SYS_DOUBLEWRITE_MAGIC_N;
+
+  char doublewrite[TRX_SYS_DOUBLEWRITE_BLOCK2 + 4];
+  memcpy(doublewrite, TRX_SYS_DOUBLEWRITE + sys_header->page.frame,
+         sizeof doublewrite);
+
+  fsp_init_file_page(fil_system.sys_space, sys_header, mtr);
+
+  mtr->write<2>(*sys_header, FIL_PAGE_TYPE + sys_header->page.frame,
+                FIL_PAGE_TYPE_TRX_SYS);
+
+  mtr->write<4>(*sys_header,
+                TRX_SYS + TRX_SYS_RSEGS + TRX_SYS_RSEG_PAGE_NO +
+                sys_header->page.frame, FSP_FIRST_RSEG_PAGE_NO);
+  mtr->memset(sys_header,
+             TRX_SYS + TRX_SYS_RSEGS + TRX_SYS_RSEG_SLOT_SIZE,
+	     254 * TRX_SYS_RSEG_SLOT_SIZE, 0xff);
+
+  static_assert(TRX_SYS_RSEG_SLOT_SIZE == 8, "");
+
+  if (dblwr_enabled)
+  {
+    mtr->memcpy(
+      *sys_header, sys_header->page.frame + TRX_SYS_DOUBLEWRITE,
+      doublewrite, sizeof doublewrite);
+    mtr->memmove(
+      *sys_header,
+      TRX_SYS_DOUBLEWRITE + FSEG_HEADER_SIZE + TRX_SYS_DOUBLEWRITE_REPEAT,
+      TRX_SYS_DOUBLEWRITE + FSEG_HEADER_SIZE, 12);
+    memcpy(
+      sys_header->page.frame + TRX_SYS_DOUBLEWRITE
+      + FSEG_HEADER_SIZE + TRX_SYS_DOUBLEWRITE_REPEAT,
+      sys_header->page.frame + TRX_SYS_DOUBLEWRITE + FSEG_HEADER_SIZE, 12);
+  }
+
+  return DB_SUCCESS;
+}
+
+/** Delete the old undo tablespaces present in the undo log directory */
+static dberr_t srv_undo_delete_old_tablespaces()
+{
+  /* Delete the old undo tablespaces*/
+  for (uint32_t i= 0; i < srv_undo_tablespaces_open; ++i)
+    fil_close_tablespace(srv_undo_space_id_start + i);
+
+  DBUG_EXECUTE_IF("after_deleting_old_undo_abort", return DB_ERROR;);
+
+  /* Do checkpoint to get rid of old undo log tablespaces redo logs */
+  log_make_checkpoint();
+
+  DBUG_EXECUTE_IF("after_deleting_old_undo_success", return DB_ERROR;);
+
+  for (uint32_t i= 0; i < srv_undo_tablespaces_open; ++i)
+  {
+    char name[OS_FILE_MAX_PATH];
+    snprintf(name, sizeof name, "%s/undo%03" PRIu32, srv_undo_dir, i + 1);
+    os_file_delete_if_exists(innodb_data_file_key, name, nullptr);
+  }
+
+  return DB_SUCCESS;
+}
+
+/** Recreate the undo log tablespaces */
+static dberr_t srv_undo_tablespaces_reinit()
+{
+  mtr_t mtr;
+  dberr_t err;
+  buf_block_t *first_rseg_hdr;
+  uint32_t latest_space_id;
+
+  mtr.start();
+
+  buf_block_t *dict_hdr= buf_page_get_gen(
+    page_id_t(DICT_HDR_SPACE, DICT_HDR_PAGE_NO), 0, RW_X_LATCH,
+    nullptr, BUF_GET, &mtr, &err);
+
+  if (!dict_hdr)
+    goto func_exit;
+
+  /* Assign the new space id for the first undo tablespace */
+  latest_space_id= mach_read_from_4(
+    DICT_HDR + DICT_HDR_MAX_SPACE_ID + dict_hdr->page.frame);
+
+  if (latest_space_id + srv_undo_tablespaces > SRV_SPACE_ID_UPPER_BOUND)
+  {
+    err= DB_ERROR;
+    sql_print_error("InnoDB: Running out of tablespace id");
+    goto func_exit;
+  }
+
+  first_rseg_hdr=
+    buf_page_get_gen(trx_sys.rseg_array[0].page_id(), 0, RW_X_LATCH,
+                     nullptr, BUF_GET, &mtr, &err);
+  if (!first_rseg_hdr)
+    goto func_exit;
+
+  /* Reset TRX_SYS page */
+  err= trx_sys.reset_page(&mtr);
+
+  if (err)
+    goto func_exit;
+
+  if (srv_undo_tablespaces_open == 0)
+  {
+    /* Free the system rollback segment */
+    for (ulint i= 1; i < TRX_SYS_N_RSEGS; i++)
+    {
+      trx_rseg_t *rseg= &trx_sys.rseg_array[i];
+      if (rseg->space != fil_system.sys_space)
+        continue;
+      buf_block_t *block= buf_page_get_gen(
+        rseg->page_id(), 0, RW_X_LATCH, nullptr, BUF_GET, &mtr);
+      if (!block) break;
+      while (!fseg_free_step(TRX_RSEG + TRX_RSEG_FSEG_HEADER +
+                             block->page.frame, &mtr));
+    }
+  }
+
+  for (ulint rseg_id= 1; rseg_id < TRX_SYS_N_RSEGS; rseg_id++)
+  {
+    trx_rseg_t *rseg= &trx_sys.rseg_array[rseg_id];
+    rseg->destroy();
+    rseg->init(nullptr, FIL_NULL);
+  }
+
+  if (trx_sys.recovered_binlog_lsn
+#ifdef WITH_WSREP
+      || !trx_sys.recovered_wsrep_xid.is_null()
+#endif /* WITH_WSREP */
+     )
+  {
+    /* Update binlog offset, binlog file name & wsrep xid in
+    system tablespace rollback segment */
+    if (trx_sys.recovered_binlog_lsn)
+    {
+      ut_d(const size_t len = strlen(trx_sys.recovered_binlog_filename) + 1);
+      ut_ad(len > 1);
+      ut_ad(len <= TRX_RSEG_BINLOG_NAME_LEN);
+      trx_rseg_update_binlog_offset(
+        first_rseg_hdr, trx_sys.recovered_binlog_filename,
+        trx_sys.recovered_binlog_offset, &mtr);
+    }
+
+#ifdef WITH_WSREP
+    if (!trx_sys.recovered_wsrep_xid.is_null())
+      trx_rseg_update_wsrep_checkpoint(
+        first_rseg_hdr, &trx_sys.recovered_wsrep_xid, &mtr);
+#endif /* WITH_WSREP */
+  }
+
+  dict_hdr->page.fix();
+
+  mtr.commit();
+
+  DBUG_EXECUTE_IF("after_rseg_reset_abort",
+                  log_write_up_to(mtr.commit_lsn(), true);
+                  dict_hdr->page.unfix();
+                  return DB_ERROR;);
+
+  sql_print_information(
+    "InnoDB: Reinitializing innodb_undo_tablespaces= %u from %u",
+    srv_undo_tablespaces, srv_undo_tablespaces_open);
+
+  /* Delete the old undo tablespaces */
+  err= srv_undo_delete_old_tablespaces();
+  if (err)
+  {
+    dict_hdr->page.unfix();
+    return err;
+  }
+
+  mtr.start();
+
+  dict_hdr->page.lock.x_lock();
+  mtr.memo_push(dict_hdr, MTR_MEMO_PAGE_X_FIX);
+
+  if (srv_undo_tablespaces == 0)
+  {
+    srv_undo_space_id_start= 0;
+    srv_undo_tablespaces_open= 0;
+    goto func_exit;
+  }
+
+  srv_undo_space_id_start= latest_space_id;
+  if (fil_assign_new_space_id(&srv_undo_space_id_start))
+    mtr.write<4>(*dict_hdr, DICT_HDR + DICT_HDR_MAX_SPACE_ID
+                 + dict_hdr->page.frame, srv_undo_space_id_start);
+
+  /* Re-create the new undo tablespaces */
+  err= srv_undo_tablespaces_init(true, &mtr);
+func_exit:
+  mtr.commit();
+
+  DBUG_EXECUTE_IF("after_reinit_undo_abort",
+                  log_write_up_to(mtr.commit_lsn(), true);
+                  err= DB_ERROR;);
+
+  if (err == DB_SUCCESS)
+  {
+    /* Usually, recovery must work no matter when
+    log_checkpoints are triggered. This is a special case,
+    because this code is executed as part of InnoDB startup.
+    Backup requires that the server has been started up,
+    backup should never observe the log records that
+    were written in mtr and also srv_undo_tablespaces_init()
+    initializes the undo tablespace start id based on page0
+    content before reading the redo log */
+    log_make_checkpoint();
+
+    DBUG_EXECUTE_IF("after_reinit_undo_success", err= DB_ERROR;);
+    srv_undo_tablespaces_active= srv_undo_tablespaces;
+  }
+  return err;
+}
+
+/** Reinitialize the undo tablespaces when there is no undo log
+left to purge/rollback and validate the number of undo opened
+undo tablespace and user given undo tablespace
+@return DB_SUCCESS if it is valid */
+static dberr_t srv_undo_tablespaces_reinitialize()
+{
+
+  /* Re-create the undo tablespaces if it has no undo logs
+  left to purge/rollback */
+  if (srv_undo_tablespaces != srv_undo_tablespaces_open &&
+      trx_sys.is_undo_empty())
+    return srv_undo_tablespaces_reinit();
+
   /* If the user says that there are fewer than what we find we
   tolerate that discrepancy but not the inverse. Because there could
   be unused undo tablespaces for future use. */
@@ -344,15 +579,14 @@ static dberr_t srv_validate_undo_tablespaces()
 
     return DB_ERROR;
   }
+  else if (srv_undo_tablespaces < srv_undo_tablespaces_open)
+    sql_print_warning("InnoDB: Cannot change innodb_undo_tablespaces=%u "
+                      "because previous shutdown was not with "
+                      "innodb_fast_shutdown=0", srv_undo_tablespaces);
   else if (srv_undo_tablespaces_open > 0)
-  {
-    ib::info() << "Opened " << srv_undo_tablespaces_open
-	       << " undo tablespaces";
+    sql_print_information("InnoDB: Opened " UINT32PF " undo tablespaces",
+                          srv_undo_tablespaces_open);
 
-    if (srv_undo_tablespaces == 0)
-      ib::warn() << "innodb_undo_tablespaces=0 disables"
-		 " dedicated undo log tablespaces";
-  }
   return DB_SUCCESS;
 }
 
@@ -539,25 +773,25 @@ srv_check_undo_redo_logs_exists()
 	return(DB_SUCCESS);
 }
 
-static dberr_t srv_all_undo_tablespaces_open(bool create_new_db,
-					     uint32_t n_undo)
+static dberr_t srv_all_undo_tablespaces_open(bool create_new_undo,
+                                             uint32_t n_undo)
 {
   /* Open all the undo tablespaces that are currently in use. If we
   fail to open any of these it is a fatal error. The tablespace ids
   should be contiguous. It is a fatal error because they are required
   for recovery and are referenced by the UNDO logs (a.k.a RBS). */
 
-  uint32_t prev_id= create_new_db ? srv_undo_space_id_start - 1 : 0;
+  uint32_t prev_id= create_new_undo ? srv_undo_space_id_start - 1 : 0;
 
   for (uint32_t i= 0; i < n_undo; ++i)
   {
     char name[OS_FILE_MAX_PATH];
     snprintf(name, sizeof name, "%s/undo%03u", srv_undo_dir, i + 1);
-    uint32_t space_id= srv_undo_tablespace_open(create_new_db, name, i);
+    uint32_t space_id= srv_undo_tablespace_open(create_new_undo, name, i);
     if (!space_id)
     {
-      if (!create_new_db)
-	break;
+      if (!create_new_undo)
+        break;
       ib::error() << "Unable to open create tablespace '" << name << "'.";
       return DB_ERROR;
     }
@@ -583,23 +817,25 @@ static dberr_t srv_all_undo_tablespaces_open(bool create_new_db,
   {
      char name[OS_FILE_MAX_PATH];
      snprintf(name, sizeof name, "%s/undo%03u", srv_undo_dir, i);
-     if (!srv_undo_tablespace_open(create_new_db, name, i))
+     if (!srv_undo_tablespace_open(create_new_undo, name, i))
        break;
      ++srv_undo_tablespaces_open;
   }
 
-  return srv_validate_undo_tablespaces();
+  return DB_SUCCESS;
 }
 
 /** Open the configured number of dedicated undo tablespaces.
-@param[in]	create_new_db	whether the database is being initialized
+@param[in]	create_new_undo	whether the undo tablespaces has to be created
+@param[in,out]	mtr		mini-transaction
 @return DB_SUCCESS or error code */
-dberr_t srv_undo_tablespaces_init(bool create_new_db)
+dberr_t srv_undo_tablespaces_init(bool create_new_undo, mtr_t *mtr)
 {
   srv_undo_tablespaces_open= 0;
 
+  ut_ad(!create_new_undo || mtr);
   ut_a(srv_undo_tablespaces <= TRX_SYS_N_RSEGS);
-  ut_a(!create_new_db || srv_operation == SRV_OPERATION_NORMAL);
+  ut_a(!create_new_undo || srv_operation == SRV_OPERATION_NORMAL);
 
   if (srv_undo_tablespaces == 1)
     srv_undo_tablespaces= 0;
@@ -607,9 +843,8 @@ dberr_t srv_undo_tablespaces_init(bool create_new_db)
   /* Create the undo spaces only if we are creating a new
   instance. We don't allow creating of new undo tablespaces
   in an existing instance (yet). */
-  if (create_new_db)
+  if (create_new_undo)
   {
-    srv_undo_space_id_start= 1;
     DBUG_EXECUTE_IF("innodb_undo_upgrade", srv_undo_space_id_start= 3;);
 
     for (ulint i= 0; i < srv_undo_tablespaces; ++i)
@@ -630,11 +865,11 @@ dberr_t srv_undo_tablespaces_init(bool create_new_db)
   already exist. */
   srv_undo_tablespaces_active= srv_undo_tablespaces;
 
-  uint32_t n_undo= (create_new_db || srv_operation == SRV_OPERATION_BACKUP ||
-		    srv_operation == SRV_OPERATION_RESTORE_DELTA)
+  uint32_t n_undo= (create_new_undo || srv_operation == SRV_OPERATION_BACKUP ||
+                 srv_operation == SRV_OPERATION_RESTORE_DELTA)
     ? srv_undo_tablespaces : TRX_SYS_N_RSEGS;
 
-  if (dberr_t err= srv_all_undo_tablespaces_open(create_new_db, n_undo))
+  if (dberr_t err= srv_all_undo_tablespaces_open(create_new_undo, n_undo))
     return err;
 
   /* Initialize srv_undo_space_id_start=0 when there are no
@@ -642,17 +877,13 @@ dberr_t srv_undo_tablespaces_init(bool create_new_db)
   if (srv_undo_tablespaces_open == 0)
     srv_undo_space_id_start= 0;
 
-  if (create_new_db)
+  if (create_new_undo)
   {
-    mtr_t mtr;
     for (uint32_t i= 0; i < srv_undo_tablespaces; ++i)
     {
-      mtr.start();
       dberr_t err= fsp_header_init(fil_space_get(srv_undo_space_id_start + i),
-                                   SRV_UNDO_TABLESPACE_SIZE_IN_PAGES, &mtr);
-      mtr.commit();
-      if (err)
-        return err;
+                                   SRV_UNDO_TABLESPACE_SIZE_IN_PAGES, mtr);
+      if (err) return err;
     }
   }
 
@@ -1121,15 +1352,23 @@ dberr_t srv_start(bool create_new_db)
 			}
 			return srv_init_abort(err);
 		}
+
+		srv_undo_space_id_start= 1;
 	}
 
 	/* Open log file and data files in the systemtablespace: we keep
 	them open until database shutdown */
 	ut_d(fil_system.sys_space->recv_size = srv_sys_space_size_debug);
 
-	err = fil_system.sys_space->open(create_new_db)
-		? srv_undo_tablespaces_init(create_new_db)
-		: DB_ERROR;
+	if (fil_system.sys_space->open(create_new_db)) {
+		mtr_t mtr;
+		mtr.start();
+		err= srv_undo_tablespaces_init(create_new_db, &mtr);
+		mtr.commit();
+	}
+	else {
+		err= DB_ERROR;
+	}
 
 	/* If the force recovery is set very high then we carry on regardless
 	of all errors. Basically this is fingers crossed mode. */
@@ -1226,10 +1465,7 @@ dberr_t srv_start(bool create_new_db)
 			/* This must precede recv_sys.apply(true). */
 			srv_undo_tablespaces_active
 				= trx_rseg_get_n_undo_tablespaces();
-			err = srv_validate_undo_tablespaces();
-			if (err != DB_SUCCESS) {
-				return srv_init_abort(err);
-			}
+
 			if (srv_operation != SRV_OPERATION_RESTORE) {
 				dict_sys.load_sys_tables();
 			}
@@ -1269,8 +1505,8 @@ dberr_t srv_start(bool create_new_db)
 
 		if (!srv_read_only_mode) {
 			const uint32_t flags = FSP_FLAGS_PAGE_SSIZE();
-			for (uint32_t id = 0; id <= srv_undo_tablespaces;
-			     id++) {
+			for (uint32_t id = srv_undo_space_id_start;
+			     id <= srv_undo_tablespaces; id++) {
 				if (fil_space_t* space = fil_space_get(id)) {
 					fsp_flags_try_adjust(space, flags);
 				}
@@ -1415,6 +1651,16 @@ dberr_t srv_start(bool create_new_db)
 	    && !buf_dblwr.create()) {
 		return(srv_init_abort(DB_ERROR));
 	}
+
+	/* Recreate the undo tablespaces */
+	if (!high_level_read_only) {
+		err = srv_undo_tablespaces_reinitialize();
+		if (err) {
+			return srv_init_abort(err);
+		}
+	}
+
+	srv_undo_tablespaces = srv_undo_tablespaces_open;
 
 	/* Here the double write buffer has already been created and so
 	any new rollback segments will be allocated after the double

@@ -725,6 +725,12 @@ corrupted:
 		return err;
 	}
 
+	if (trx_sys.is_undo_empty()) {
+func_exit:
+		purge_sys.clone_oldest_view();
+		return DB_SUCCESS;
+	}
+
 	/* Look from the rollback segments if there exist undo logs for
 	transactions. */
 	const time_t	start_time	= time(NULL);
@@ -785,8 +791,7 @@ corrupted:
 		ib::info() << "Trx id counter is " << trx_sys.get_max_trx_id();
 	}
 
-	purge_sys.clone_oldest_view();
-	return DB_SUCCESS;
+	goto func_exit;
 }
 
 /** Assign a persistent rollback segment in a round-robin fashion,
@@ -843,8 +848,7 @@ static trx_rseg_t* trx_assign_rseg_low()
 			ut_ad(rseg->is_persistent());
 
 			if (rseg->space != fil_system.sys_space) {
-				if (rseg->skip_allocation()
-				    || !srv_undo_tablespaces) {
+				if (rseg->skip_allocation()) {
 					continue;
 				}
 			} else if (const fil_space_t *space =

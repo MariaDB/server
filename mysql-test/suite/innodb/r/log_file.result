@@ -184,7 +184,7 @@ SELECT * FROM INFORMATION_SCHEMA.ENGINES
 WHERE engine = 'innodb'
 AND support IN ('YES', 'DEFAULT', 'ENABLED');
 ENGINE	SUPPORT	COMMENT	TRANSACTIONS	XA	SAVEPOINTS
-FOUND 1 /InnoDB: Expected to open innodb_undo_tablespaces=3 but was able to find only 1/ in mysqld.1.err
+FOUND 1 /InnoDB: Failed to open the undo tablespace/ in mysqld.1.err
 bak_ib_logfile0
 bak_ibdata1
 bak_ibdata2
@@ -214,7 +214,7 @@ SELECT * FROM INFORMATION_SCHEMA.ENGINES
 WHERE engine = 'innodb'
 AND support IN ('YES', 'DEFAULT', 'ENABLED');
 ENGINE	SUPPORT	COMMENT	TRANSACTIONS	XA	SAVEPOINTS
-FOUND 1 /InnoDB: Expected to open innodb_undo_tablespaces=3 but was able to find only 0/ in mysqld.1.err
+FOUND 2 /InnoDB: Failed to open the undo tablespace/ in mysqld.1.err
 bak_ib_logfile0
 bak_ibdata1
 bak_ibdata2

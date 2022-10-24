@@ -325,10 +325,9 @@ bool trx_sys_create_rsegs()
 		/* Increase the number of active undo
 		tablespace in case new rollback segment
 		assigned to new undo tablespace. */
-		if (space > srv_undo_tablespaces_active) {
+		if (space > (srv_undo_space_id_start
+			     + srv_undo_tablespaces_active - 1)) {
 			srv_undo_tablespaces_active++;
-
-			ut_ad(srv_undo_tablespaces_active == space);
 		}
 	}
 

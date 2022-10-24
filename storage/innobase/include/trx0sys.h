@@ -855,6 +855,8 @@ class trx_sys_t
 
   bool m_initialised;
 
+  /** False if there is no undo log to purge or rollback */
+  bool undo_log_nonempty;
 public:
   /** List of all transactions. */
   thread_safe_trx_ilist_t trx_list;
@@ -1165,6 +1167,20 @@ public:
     return count;
   }
 
+  /** Set the undo log empty value */
+  void set_undo_non_empty(bool val)
+  {
+    if (!undo_log_nonempty)
+      undo_log_nonempty= val;
+  }
+
+  /** Get the undo log empty value */
+  bool is_undo_empty() const { return !undo_log_nonempty; }
+
+  /* Reset the trx_sys page and retain the dblwr information,
+  system rollback segment header page
+  @return error code */
+  inline dberr_t reset_page(mtr_t *mtr);
 private:
   static my_bool find_same_or_older_callback(rw_trx_hash_element_t *element,
                                              trx_id_t *id)

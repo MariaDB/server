@@ -3826,89 +3826,6 @@ next_datadir_item:
 	return(err);
 }
 
-/** Assign srv_undo_space_id_start variable if there are undo tablespace present.
-Read the TRX_SYS page from ibdata1 file and get the minimum space id from
-the first slot rollback segments of TRX_SYS_PAGE_NO.
-@retval DB_ERROR if file open or page read failed.
-@retval DB_SUCCESS if srv_undo_space_id assigned successfully. */
-static dberr_t xb_assign_undo_space_start()
-{
-
-	pfs_os_file_t	file;
-	bool		ret;
-	dberr_t		error = DB_SUCCESS;
-	uint32_t	space;
-	uint32_t 	fsp_flags;
-	int		n_retries = 5;
-
-	if (srv_undo_tablespaces == 0) {
-		return error;
-	}
-
-	file = os_file_create(0, srv_sys_space.first_datafile()->filepath(),
-		OS_FILE_OPEN, OS_FILE_NORMAL, OS_DATA_FILE, true, &ret);
-
-	if (!ret) {
-		msg("Error opening %s", srv_sys_space.first_datafile()->filepath());
-		return DB_ERROR;
-	}
-
-	byte* page = static_cast<byte*>
-		(aligned_malloc(srv_page_size, srv_page_size));
-
-	if (os_file_read(IORequestRead, file, page, 0, srv_page_size)
-	    != DB_SUCCESS) {
-		msg("Reading first page failed.\n");
-		error = DB_ERROR;
-		goto func_exit;
-	}
-
-	fsp_flags = mach_read_from_4(
-		page + FSP_HEADER_OFFSET + FSP_SPACE_FLAGS);
-retry:
-	if (os_file_read(IORequestRead, file, page,
-			 TRX_SYS_PAGE_NO << srv_page_size_shift,
-			 srv_page_size) != DB_SUCCESS) {
-		msg("Reading TRX_SYS page failed.");
-		error = DB_ERROR;
-		goto func_exit;
-	}
-
-	/* TRX_SYS page can't be compressed or encrypted. */
-	if (buf_page_is_corrupted(false, page, fsp_flags)) {
-		if (n_retries--) {
-			std::this_thread::sleep_for(
-				std::chrono::milliseconds(1));
-			goto retry;
-		} else {
-			msg("mariabackup: TRX_SYS page corrupted.\n");
-			error = DB_ERROR;
-			goto func_exit;
-		}
-	}
-
-	/* 0th slot always points to system tablespace.
-	1st slot should point to first undotablespace which is minimum. */
-
-	ut_ad(mach_read_from_4(TRX_SYS + TRX_SYS_RSEGS
-			       + TRX_SYS_RSEG_SLOT_SIZE
-			       + TRX_SYS_RSEG_PAGE_NO + page)
-	      != FIL_NULL);
-
-	space = mach_read_from_4(TRX_SYS + TRX_SYS_RSEGS
-				 + TRX_SYS_RSEG_SLOT_SIZE
-				 + TRX_SYS_RSEG_SPACE + page);
-
-	srv_undo_space_id_start = space;
-
-func_exit:
-	aligned_free(page);
-	ret = os_file_close(file);
-	ut_a(ret);
-
-	return error;
-}
-
 /****************************************************************************
 Populates the tablespace memory cache by scanning for and opening data files.
 @returns DB_SUCCESS or error code.*/
@@ -3946,14 +3863,7 @@ xb_load_tablespaces()
 	}
 
 	/* Add separate undo tablespaces to fil_system */
-
-	err = xb_assign_undo_space_start();
-
-	if (err != DB_SUCCESS) {
-		return err;
-	}
-
-	err = srv_undo_tablespaces_init(false);
+	err = srv_undo_tablespaces_init(false, nullptr);
 
 	if (err != DB_SUCCESS) {
 		return(err);
