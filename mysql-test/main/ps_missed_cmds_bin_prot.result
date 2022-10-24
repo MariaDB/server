@@ -104,32 +104,11 @@ HANDLER t1 CLOSE;
 DROP TABLE t1;
 # Test case 10: Check that the statements 'HELP'
 # is supported by prepared statements
-HELP `ALTER SERVER`;
+INSERT INTO mysql.help_topic VALUES (0, 'Tamagotchi', 0, 'This digital pet is not a KB article', 'no example', 'https://tamagotchi.com/');
+HELP `Tamagotchi`;
 name	description	example
-ALTER SERVER	Syntax
-------
-
-ALTER SERVER server_name
-  OPTIONS (option [, option] ...)
-
-Description
------------
-
-Alters the server information for server_name, adjusting the specified options
-as per the CREATE SERVER command. The corresponding fields in the
-mysql.servers table are updated accordingly. This statement requires the SUPER
-privilege or, from MariaDB 10.5.2, the FEDERATED ADMIN privilege.
-
-ALTER SERVER is not written to the binary log, irrespective of the binary log
-format being used. From MariaDB 10.1.13, Galera replicates the CREATE SERVER,
-ALTER SERVER and DROP SERVER statements.
-
-Examples
---------
-
-ALTER SERVER s OPTIONS (USER 'sally');
-
-URL: mariadb.com/kb/en/alter-server/	
+Tamagotchi	This digital pet is not a KB article	no example
+DELETE FROM mysql.help_topic WHERE help_topic_id = 0;
 # Test case 11: Check that the statements CREATE/ALTER/DROP PROCEDURE
 # are supported by prepared statements
 CREATE PROCEDURE p1() SET @a=1;
