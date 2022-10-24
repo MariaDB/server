@@ -208,6 +208,8 @@ void my_free(void *ptr)
   */
   TRASH_FREE(ptr, old_size);
 #endif
+  MEM_UNDEFINED(ptr, old_size);
+
   sf_free(mh);
   DBUG_VOID_RETURN;
 }
