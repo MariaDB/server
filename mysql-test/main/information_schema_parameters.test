@@ -339,6 +339,10 @@ query_vertical SELECT * FROM INFORMATION_SCHEMA.PARAMETERS
   AND SPECIFIC_NAME = 'процедурка';
 SHOW STATUS LIKE 'handler_read%next';
 
+--replace_column 1 #
+SELECT COUNT(*) FROM information_schema.PARAMETERS
+  WHERE SPECIFIC_CATALOG = NULL;
+
 # Cleanup
 DROP DATABASE i_s_parameters_test;
 USE test;

@@ -801,5 +801,9 @@ SHOW STATUS LIKE 'handler_read%next';
 Variable_name	Value
 Handler_read_next	1
 Handler_read_rnd_next	2
+SELECT COUNT(*) FROM information_schema.PARAMETERS
+WHERE SPECIFIC_CATALOG = NULL;
+COUNT(*)
+#
 DROP DATABASE i_s_parameters_test;
 USE test;

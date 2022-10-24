@@ -6804,7 +6804,7 @@ int fill_schema_proc(THD *thd, TABLE_LIST *tables, COND *cond)
   if (get_lookup_field_values(thd, cond, false, tables, &lookup))
   {
     // There can be no matching records for the condition
-    return 0;
+    DBUG_RETURN(0);
   }
 
   start_new_trans new_trans(thd);
