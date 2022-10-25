@@ -496,6 +496,13 @@ public:
     return false;
   }
 
+  /** @return the first undo record that modified the table */
+  undo_no_t get_first() const
+  {
+    ut_ad(valid());
+    return LIMIT & first;
+  }
+
   /** Add the tuple to the transaction bulk buffer for the given index.
   @param entry  tuple to be inserted
   @param index  bulk insert for the index
@@ -1126,6 +1133,22 @@ public:
     return &it->second;
   }
 
+  /** Rollback all bulk insert operations */
+  void bulk_rollback()
+  {
+    undo_no_t low_limit= UINT64_MAX;
+    for (auto& t : mod_tables)
+    {
+      if (!t.second.is_bulk_insert())
+        continue;
+      if (t.second.get_first() < low_limit)
+        low_limit= t.second.get_first();
+    }
+
+    trx_savept_t bulk_save{low_limit};
+    rollback(&bulk_save);
+  }
+
   /** Do the bulk insert for the buffered insert operation
   for the transaction.
   @return DB_SUCCESS or error code */
@@ -1138,7 +1161,10 @@ public:
     for (auto& t : mod_tables)
       if (t.second.is_bulk_insert())
         if (dberr_t err= t.second.write_bulk(t.first, this))
+        {
+          bulk_rollback();
           return err;
+        }
     return DB_SUCCESS;
   }
 
