@@ -609,7 +609,7 @@ error:
     parse_url()
     mem_root            MEM_ROOT pointer for memory allocation
     share               pointer to FEDERATEDX share
-    table               pointer to current TABLE class
+    table_s             pointer to current TABLE_SHARE class
     table_create_flag   determines what error to throw
 
   DESCRIPTION

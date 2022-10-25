@@ -420,6 +420,55 @@ SELECT * FROM (SELECT * FROM federated.t1 LIMIT 70000) dt;
 SELECT COUNT(DISTINCT a) FROM federated.t2;
 COUNT(DISTINCT a)
 70000
+#
+# MDEV-29640 FederatedX does not properly handle pushdown
+#             in case of difference in local and remote table names
+#
+connection master;
+# Use tables from the previous test. Make sure pushdown works:
+EXPLAIN SELECT COUNT(DISTINCT a) FROM federated.t2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PUSHED SELECT	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL
+SELECT COUNT(DISTINCT a) FROM federated.t2;
+COUNT(DISTINCT a)
+70000
+# Link remote table `federated.t1` with the local table named `t1_local`
+CREATE TABLE federated.t1_local ENGINE="FEDERATED"
+CONNECTION='mysql://root@127.0.0.1:SLAVE_PORT/federated/t1';
+# No pushdown here due to table names mismatch, retrieve data as usual:
+EXPLAIN SELECT COUNT(DISTINCT a) FROM federated.t1_local;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1_local	ALL	NULL	NULL	NULL	NULL	70000	
+SELECT COUNT(DISTINCT a) FROM federated.t1_local;
+COUNT(DISTINCT a)
+70000
+#
+# MDEV-29863 Server crashes in federatedx_txn::acquire after select from
+#            the Federated table with partitions and federated_pushdown=1
+#            in case of difference in local and remote table names
+#
+connection slave;
+CREATE TABLE federated.t3 (a INT);
+INSERT INTO federated.t3 VALUES (1),(2),(3);
+CREATE TABLE federated.t4 (a INT);
+connection master;
+CREATE SERVER fedlink FOREIGN DATA WRAPPER mysql 
+OPTIONS (USER 'root', HOST '127.0.0.1', DATABASE 'federated',
+PORT SLAVE_PORT);
+CREATE TABLE federated.t3 (a INT)
+ENGINE=FEDERATED
+CONNECTION='mysql://root@127.0.0.1:$SLAVE_MYPORT/federated/t3'
+  PARTITION BY list (a)
+(PARTITION p1 VALUES IN (1) CONNECTION='fedlink/t3',
+PARTITION p2 VALUES IN (2) CONNECTION='fedlink/t4');
+EXPLAIN SELECT * FROM federated.t3;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	3	
+SELECT * FROM federated.t3;
+a
+1
+2
+3
 set global federated_pushdown=0;
 connection master;
 DROP TABLE IF EXISTS federated.t1;
