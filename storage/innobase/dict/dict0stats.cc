@@ -1036,6 +1036,12 @@ struct index_field_stats_t
         n_non_null_key_vals(n_non_null_key_vals)
   {
   }
+
+  bool is_bulk_operation() const
+  {
+    return n_diff_key_vals == UINT64_MAX &&
+      n_sample_sizes == UINT64_MAX && n_non_null_key_vals == UINT64_MAX;
+  }
 };
 
 /*******************************************************************//**
@@ -1377,13 +1383,16 @@ relatively quick and is used to calculate transient statistics that
 are not saved on disk. This was the only way to calculate statistics
 before the Persistent Statistics feature was introduced.
 This function doesn't update the defragmentation related stats.
-Only persistent statistics supports defragmentation stats. */
+Only persistent statistics supports defragmentation stats.
+@return error code
+@retval DB_SUCCESS_LOCKED_REC if the table under bulk insert operation */
 static
-void
+dberr_t
 dict_stats_update_transient_for_index(
 /*==================================*/
 	dict_index_t*	index)	/*!< in/out: index */
 {
+	dberr_t err = DB_SUCCESS;
 	if (srv_force_recovery >= SRV_FORCE_NO_TRX_UNDO
 	    && (srv_force_recovery >= SRV_FORCE_NO_LOG_REDO
 		|| !dict_index_is_clust(index))) {
@@ -1397,6 +1406,7 @@ dummy_empty:
 		index->table->stats_mutex_lock();
 		dict_stats_empty_index(index, false);
 		index->table->stats_mutex_unlock();
+		return err;
 #if defined UNIV_DEBUG || defined UNIV_IBUF_DEBUG
 	} else if (ibuf_debug && !dict_index_is_clust(index)) {
 		goto dummy_empty;
@@ -1420,6 +1430,7 @@ invalid:
 
 		const auto bulk_trx_id = index->table->bulk_trx_id;
 		if (bulk_trx_id && trx_sys.find(nullptr, bulk_trx_id, false)) {
+			err= DB_SUCCESS_LOCKED_REC;
 			goto invalid;
 		}
 
@@ -1461,6 +1472,8 @@ invalid:
 			}
 		}
 	}
+
+	return err;
 }
 
 /*********************************************************************//**
@@ -1468,9 +1481,11 @@ Calculates new estimates for table and index statistics. This function
 is relatively quick and is used to calculate transient statistics that
 are not saved on disk.
 This was the only way to calculate statistics before the
-Persistent Statistics feature was introduced. */
+Persistent Statistics feature was introduced.
+@return error code
+@retval DB_SUCCESS_LOCKED REC if the table under bulk insert operation */
 static
-void
+dberr_t
 dict_stats_update_transient(
 /*========================*/
 	dict_table_t*	table)	/*!< in/out: table */
@@ -1479,6 +1494,7 @@ dict_stats_update_transient(
 
 	dict_index_t*	index;
 	ulint		sum_of_index_sizes	= 0;
+	dberr_t		err = DB_SUCCESS;
 
 	/* Find out the sizes of the indexes and how many different values
 	for the key they approximately have */
@@ -1487,15 +1503,15 @@ dict_stats_update_transient(
 
 	if (!table->space) {
 		/* Nothing to do. */
+empty_table:
 		dict_stats_empty_table(table, true);
-		return;
+		return err;
 	} else if (index == NULL) {
 		/* Table definition is corrupt */
 
 		ib::warn() << "Table " << table->name
 			<< " has no indexes. Cannot calculate statistics.";
-		dict_stats_empty_table(table, true);
-		return;
+		goto empty_table;
 	}
 
 	for (; index != NULL; index = dict_table_get_next_index(index)) {
@@ -1507,14 +1523,15 @@ dict_stats_update_transient(
 		}
 
 		if (dict_stats_should_ignore_index(index)
-		    || !index->is_readable()) {
+		    || !index->is_readable()
+		    || err == DB_SUCCESS_LOCKED_REC) {
 			index->table->stats_mutex_lock();
 			dict_stats_empty_index(index, false);
 			index->table->stats_mutex_unlock();
 			continue;
 		}
 
-		dict_stats_update_transient_for_index(index);
+		err = dict_stats_update_transient_for_index(index);
 
 		sum_of_index_sizes += index->stat_index_size;
 	}
@@ -1538,6 +1555,8 @@ dict_stats_update_transient(
 	table->stat_initialized = TRUE;
 
 	table->stats_mutex_unlock();
+
+	return err;
 }
 
 /* @{ Pseudo code about the relation between the following functions
@@ -2420,6 +2439,19 @@ struct index_stats_t
     for (ulint i= 0; i < n_uniq; ++i)
       stats.push_back(index_field_stats_t{0, 1, 0});
   }
+
+  void set_bulk_operation()
+  {
+    memset((void*) &stats[0], 0xff, stats.size() * sizeof stats[0]);
+  }
+
+  bool is_bulk_operation() const
+  {
+    for (auto &s : stats)
+      if (!s.is_bulk_operation())
+        return false;
+    return true;
+  }
 };
 
 /** Set dict_index_t::stat_n_diff_key_vals[] and stat_n_sample_sizes[].
@@ -2549,8 +2581,7 @@ empty_index:
 
 	const auto bulk_trx_id = index->table->bulk_trx_id;
 	if (bulk_trx_id && trx_sys.find(nullptr, bulk_trx_id, false)) {
-		result.index_size = 1;
-		result.n_leaf_pages = 1;
+		result.set_bulk_operation();
 		goto empty_index;
 	}
 
@@ -2812,7 +2843,8 @@ found_level:
 Calculates new estimates for table and index statistics. This function
 is relatively slow and is used to calculate persistent statistics that
 will be saved on disk.
-@return DB_SUCCESS or error code */
+@return DB_SUCCESS or error code
+@retval DB_SUCCESS_LOCKED_REC if the table under bulk insert operation */
 static
 dberr_t
 dict_stats_update_persistent(
@@ -2845,6 +2877,10 @@ dict_stats_update_persistent(
 	table->stats_mutex_unlock();
 
 	index_stats_t stats = dict_stats_analyze_index(index);
+
+	if (stats.is_bulk_operation()) {
+		return DB_SUCCESS_LOCKED_REC;
+	}
 
 	table->stats_mutex_lock();
 	index->stat_index_size = stats.index_size;
@@ -3841,7 +3877,8 @@ dict_stats_update_for_index(
 /*********************************************************************//**
 Calculates new estimates for table and index statistics. The statistics
 are used in query optimization.
-@return DB_SUCCESS or error code */
+@return DB_SUCCESS or error code
+@retval DB_SUCCESS_LOCKED_REC if the table under bulk insert operation */
 dberr_t
 dict_stats_update(
 /*==============*/
@@ -4054,9 +4091,7 @@ dict_stats_update(
 	}
 
 transient:
-	dict_stats_update_transient(table);
-
-	return(DB_SUCCESS);
+	return dict_stats_update_transient(table);
 }
 
 /** Execute DELETE FROM mysql.innodb_table_stats

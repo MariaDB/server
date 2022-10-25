@@ -182,3 +182,14 @@ CREATE TABLE t (i INT) ENGINE=InnoDB PARTITION BY HASH (i) PARTITIONS 2;
 INSERT INTO t VALUES (0);
 INSERT INTO t VALUES (1),(0),(1);
 DROP TABLE t;
+#
+# MDEV-28327 InnoDB persistent statistics fail to update
+#		after bulk insert
+#
+CREATE TABLE t1 (a INT PRIMARY KEY)ENGINE=InnoDB;
+INSERT INTO t1 SELECT * FROM seq_1_to_4096;
+# Wait till statistics update after bulk insert operation
+SELECT n_rows FROM mysql.innodb_table_stats WHERE TABLE_NAME="t1";
+n_rows
+4096
+DROP TABLE t1;
