@@ -1,0 +1,2 @@
+deadlock_wait_lock_race : MDEV-29869: often hangs in lock wait timeout
+deadlock_wait_thr_race : MDEV-29869: often hangs in lock wait timeout
