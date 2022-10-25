@@ -413,3 +413,49 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 2	SUBQUERY	t1	system	NULL	NULL	NULL	NULL	1	
 drop table t1, t2;
 # End of 10.1 tests
+#
+# End of 10.2 test
+#
+#
+# MDEV-25564: Server crashed on running some EXPLAIN statements
+#
+EXPLAIN (SELECT 1,3) UNION (SELECT 2,1) ORDER BY (SELECT 2);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+2	UNION	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+NULL	UNION RESULT	<union1,2>	ALL	NULL	NULL	NULL	NULL	NULL	Using filesort
+Warnings:
+Note	1249	Select 3 was reduced during optimization
+#
+# MDEV-23160: SIGSEGV in Explain_node::print_explain_for_children on UNION SELECT
+#
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (1),(2),(3);
+EXPLAIN
+SELECT *
+FROM t1
+WHERE
+a IN (SELECT a FROM t1
+UNION
+SELECT a FROM t1 ORDER BY (SELECT a))
+UNION
+SELECT * FROM t1 ORDER BY (SELECT a);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	3	Using where
+2	DEPENDENT SUBQUERY	t1	ALL	NULL	NULL	NULL	NULL	3	Using where
+3	DEPENDENT UNION	t1	ALL	NULL	NULL	NULL	NULL	3	Using where
+NULL	UNION RESULT	<union2,3>	ALL	NULL	NULL	NULL	NULL	NULL	
+5	UNION	t1	ALL	NULL	NULL	NULL	NULL	3	
+NULL	UNION RESULT	<union1,5>	ALL	NULL	NULL	NULL	NULL	NULL	Using filesort
+6	DEPENDENT SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+drop table t1;
+explain
+VALUES ( (VALUES (2))) UNION VALUES ( (SELECT 3));
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+5	SUBQUERY	<derived2>	ALL	NULL	NULL	NULL	NULL	2	
+2	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+3	UNION	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+NULL	UNION RESULT	<union1,3>	ALL	NULL	NULL	NULL	NULL	NULL	
+Warnings:
+Note	1249	Select 4 was reduced during optimization

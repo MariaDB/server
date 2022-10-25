@@ -1313,3 +1313,19 @@ a	a
 4	4
 6	6
 drop table t1,t2,t3;
+#
+# MDEV-16549: Server crashes in Item_field::fix_fields on query with
+# view and subquery, Assertion `context' failed, Assertion `field' failed
+#
+CREATE TABLE t1 (a DECIMAL, b INT);
+INSERT INTO t1 VALUES (1,1),(2,2);
+CREATE VIEW v1 AS SELECT * FROM ( SELECT * FROM t1 WHERE a <> RAND() ) sq;
+SELECT * FROM v1 WHERE b > 0;
+a	b
+1	1
+2	2
+DROP VIEW v1;
+DROP TABLE t1;
+#
+# End of 10.3 tests
+#

@@ -790,4 +790,14 @@ ALTER TABLE t2 IMPORT TABLESPACE;
 --enable_warnings
 DROP TABLE t2, t1;
 
+--echo #
+--echo #  MDEV-29778  Having Unique index interference with MATCH
+--echo #		from a FULLTEXT
+--echo #
+CREATE TABLE t1(f1 VARCHAR(100), FULLTEXT(f1),
+		UNIQUE INDEX(f1))ENGINE=InnoDB;
+INSERT INTO t1 VALUES("test");
+SELECT f1, MATCH(f1) AGAINST ("test" IN BOOLEAN MODE) FROM t1;
+DROP TABLE t1;
+
 --echo # End of 10.3 tests

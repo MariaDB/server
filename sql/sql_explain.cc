@@ -662,7 +662,11 @@ int Explain_node::print_explain_for_children(Explain_query *query,
   for (int i= 0; i < (int) children.elements(); i++)
   {
     Explain_node *node= query->get_node(children.at(i));
-    if (node->print_explain(query, output, explain_flags, is_analyze))
+    /*
+      Note: node may not be present because for certain kinds of subqueries,
+      the optimizer is not able to see that they were eliminated.
+    */
+    if (node && node->print_explain(query, output, explain_flags, is_analyze))
       return 1;
   }
   return 0;
@@ -706,8 +710,15 @@ void Explain_node::print_explain_json_for_children(Explain_query *query,
   for (int i= 0; i < (int) children.elements(); i++)
   {
     Explain_node *node= query->get_node(children.at(i));
-    /* Derived tables are printed inside Explain_table_access objects */
     
+    /*
+      Note: node may not be present because for certain kinds of subqueries,
+      the optimizer is not able to see that they were eliminated.
+    */
+    if (!node)
+      continue;
+
+    /* Derived tables are printed inside Explain_table_access objects */
     if (!is_connection_printable_in_json(node->connection_type))
       continue;
 

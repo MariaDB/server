@@ -1785,5 +1785,11 @@ SELECT DISTINCT a IN ( COLLATION (AVG ('x'))) FROM t1 ;
 DROP TABLE t1;
 
 --echo #
+--echo #  MDEV-29678 Valgrind/MSAN uninitialised value errors upon PS with ALTER under ONLY_FULL_GROUP_BY
+--echo #
+
+SET STATEMENT sql_mode=ONLY_FULL_GROUP_BY FOR EXECUTE IMMEDIATE 'ALTER TABLE mysql.time_zone_transition ORDER BY Time_zone_id, Transition_time';
+
+--echo #
 --echo # End of 10.3 tests
 --echo #

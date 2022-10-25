@@ -5625,6 +5625,104 @@ a.a	a.b
 DEALLOCATE PREPARE stmt;
 DROP PROCEDURE p1;
 #
+# MDEV-16128: Server crash in Item_func::print_op on 2nd execution of PS
+#
+CREATE TABLE t1 (a varchar(10));
+CREATE TABLE t2 (b varchar(10) CHARACTER SET utf8 );
+CREATE TABLE t3 (c varchar(10) CHARACTER SET utf8);
+INSERT INTO t1 VALUES ('b');
+INSERT INTO t2 VALUES ('b');
+INSERT INTO t3 VALUES ('b');
+PREPARE stmt FROM "SELECT t1.* FROM (t1 JOIN t2 ON (t2.b = t1.a)) WHERE (EXISTS (SELECT 1 FROM t3 WHERE t3.c = t1.a))";
+EXECUTE stmt;
+a
+b
+# Without the patch second execution of the prepared statement
+# would lead to server crash.
+EXECUTE stmt;
+a
+b
+# Clean up
+DEALLOCATE PREPARE stmt;
+DROP TABLE t1, t2, t3;
+CREATE TABLE t1 (a varchar(10));
+CREATE TABLE t2 (b varchar(10) CHARACTER SET utf8);
+INSERT INTO t1 VALUES ('b');
+INSERT INTO t2 VALUES ('b');
+PREPARE stmt FROM 'SELECT STRAIGHT_JOIN 1 FROM t1 WHERE EXISTS (SELECT 1 FROM t2 WHERE t2.b = t1.a)';
+EXECUTE stmt;
+1
+1
+# Without the patch second execution of the prepared statement
+# would lead to server crash.
+EXECUTE stmt;
+1
+1
+# Clean up
+DEALLOCATE PREPARE stmt;
+# Check that EXECUTE USING is run correctly
+PREPARE stmt FROM 'SELECT 300 FROM t1 WHERE EXISTS (SELECT 100 FROM t2 WHERE t2.b = ?)';
+EXECUTE stmt USING 'b';
+300
+300
+EXECUTE stmt USING 'b';
+300
+300
+EXECUTE stmt USING 'd';
+300
+EXECUTE stmt USING 'd';
+300
+EXECUTE stmt USING _binary 'b';
+300
+300
+EXECUTE stmt USING _binary 'b';
+300
+300
+EXECUTE stmt USING _binary 'B';
+300
+300
+EXECUTE stmt USING 'B';
+300
+300
+EXECUTE stmt USING _binary 'd';
+300
+EXECUTE stmt USING _binary 'd';
+300
+EXECUTE stmt USING _ucs2 'b';
+300
+300
+EXECUTE stmt USING _ucs2 'b';
+300
+300
+EXECUTE stmt USING _ucs2 'd';
+300
+EXECUTE stmt USING _ucs2 'd';
+300
+EXECUTE stmt USING _latin1 'b';
+300
+300
+EXECUTE stmt USING _latin1 'b';
+300
+300
+EXECUTE stmt USING _latin1 'd';
+300
+EXECUTE stmt USING _latin1 'd';
+300
+CREATE TABLE t3 (c VARCHAR(10) CHARACTER SET ucs2);
+INSERT INTO t3 VALUES ('b');
+PREPARE stmt FROM 'SELECT 300 FROM t1 WHERE EXISTS (SELECT 100 FROM t3 WHERE t3.c = ?)';
+EXECUTE stmt USING 'b';
+300
+300
+EXECUTE stmt USING 'b';
+300
+300
+EXECUTE stmt USING 'd';
+300
+EXECUTE stmt USING 'd';
+300
+DROP TABLE t1, t2, t3;
+#
 # MDEV-19263: Server crashes in mysql_handle_single_derived
 # upon 2nd execution of PS
 #

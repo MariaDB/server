@@ -6398,6 +6398,17 @@ DEALLOCATE PREPARE stmt;
 # End of 10.2 tests
 #
 #
+# Start of 10.3 tests
+#
+#
+# MDEV-14983 Wrong error message with SET sql_mode=sha2(ucs2_value)
+#
+SET sql_mode=sha2(CONVERT('a' USING ucs2),0);
+ERROR 42000: Variable 'sql_mode' can't be set to the value of '022a6979e6dab7aa5ae4c3e5e45f7e977112a7e63593820dbec1ec738a24f93c'
+#
+# End of 10.3 tests
+#
+#
 # Start of 10.4 tests
 #
 #

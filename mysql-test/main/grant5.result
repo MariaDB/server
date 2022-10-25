@@ -246,6 +246,60 @@ connection default;
 disconnect con1;
 drop database db1;
 drop user foo@localhost;
+#
+# MDEV-28455: CREATE TEMPORARY TABLES privilege
+#            is insufficient for SHOW COLUMNS
+#
+create database db;
+create user foo@localhost;
+create user bar@localhost;
+create user buz@localhost;
+grant create temporary tables on db.* to foo@localhost;
+grant create temporary tables on db.* to bar@localhost;
+connect  con1,localhost,foo,,db;
+create temporary table tmp (a int, key(a));
+show tables;
+Tables_in_db
+show full tables;
+Tables_in_db	Table_type
+show table status;
+Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
+show index in tmp;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+tmp	1	a	1	a	A	NULL	NULL	NULL	YES	BTREE		
+show columns in tmp;
+Field	Type	Null	Key	Default	Extra
+a	int(11)	YES	MUL	NULL	
+show full columns in tmp;
+Field	Type	Collation	Null	Key	Default	Extra	Privileges	Comment
+a	int(11)	NULL	YES	MUL	NULL		select,insert,update,references	
+# we don't expect to show temporary tables in information_schema.columns
+select * from information_schema.columns where table_schema='db';
+TABLE_CATALOG	TABLE_SCHEMA	TABLE_NAME	COLUMN_NAME	ORDINAL_POSITION	COLUMN_DEFAULT	IS_NULLABLE	DATA_TYPE	CHARACTER_MAXIMUM_LENGTH	CHARACTER_OCTET_LENGTH	NUMERIC_PRECISION	NUMERIC_SCALE	DATETIME_PRECISION	CHARACTER_SET_NAME	COLLATION_NAME	COLUMN_TYPE	COLUMN_KEY	EXTRA	PRIVILEGES	COLUMN_COMMENT	IS_GENERATED	GENERATION_EXPRESSION
+disconnect con1;
+connect  con1,localhost,bar,,db;
+show full columns in tmp;
+ERROR 42000: SELECT command denied to user 'bar'@'localhost' for table `db`.`tmp`
+disconnect con1;
+connection default;
+grant select on db.* to bar@localhost;
+connect  con1,localhost,bar,,db;
+show grants for current_user;
+Grants for bar@localhost
+GRANT USAGE ON *.* TO `bar`@`localhost`
+GRANT SELECT, CREATE TEMPORARY TABLES ON `db`.* TO `bar`@`localhost`
+show full columns in tmp;
+ERROR 42S02: Table 'db.tmp' doesn't exist
+disconnect con1;
+connect  con1,localhost,buz,,;
+show columns in db.tmp;
+ERROR 42000: SELECT command denied to user 'buz'@'localhost' for table `db`.`tmp`
+disconnect con1;
+connection default;
+drop database db;
+drop user foo@localhost;
+drop user bar@localhost;
+drop user buz@localhost;
 # End of 10.3 tests
 create user u1@h identified with 'mysql_native_password' using 'pwd';
 ERROR HY000: Password hash should be a 41-digit hexadecimal number

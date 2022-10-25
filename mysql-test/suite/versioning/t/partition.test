@@ -1090,6 +1090,80 @@ insert into t select * from t;
 drop table tcount, t;
 
 --echo #
+--echo # MDEV-19569 Assertion `table_list->table' failed in find_field_in_table_ref and Assertion `table_ref->table || table_ref->view' in Field_iterator_table_ref::set_field_iterator
+--echo #
+create table t1 (i int); 
+create table t2 (i int); 
+ 
+--error ER_SUBQUERIES_NOT_SUPPORTED
+alter table t1 partition by system_time 
+  interval (select i from t2) day (partition p1 history, partition pn current);
+
+drop table t1;
+
+--error ER_SUBQUERIES_NOT_SUPPORTED
+create table t1 (id int) with system versioning
+  partition by system_time 
+  interval (select i from t2) day (partition p1 history, partition pn current);
+
+--error ER_PART_WRONG_VALUE
+create table t1 (id int) with system versioning
+  partition by system_time
+  interval "hello" day (partition p1 history, partition pn current);
+
+create table t1 (id int) with system versioning
+  partition by system_time
+  interval 3.893 day (partition p1 history, partition pn current);
+
+drop table t1, t2;
+
+create table t1 (id int) with system versioning
+  partition by system_time interval "3-11" year_month (partition p1 history, partition pn current);
+--replace_result $default_engine DEFAULT_ENGINE
+show create table t1;
+drop table t1;
+
+create table t1 (id int) with system versioning
+  partition by system_time interval "3 11" day_hour (partition p1 history, partition pn current);
+--replace_result $default_engine DEFAULT_ENGINE
+show create table t1;
+drop table t1;
+
+create table t1 (id int) with system versioning
+  partition by system_time interval "3 11:12" day_minute (partition p1 history, partition pn current);
+--replace_result $default_engine DEFAULT_ENGINE
+show create table t1;
+drop table t1;
+
+create table t1 (id int) with system versioning
+  partition by system_time interval "3 11:12:13" day_second (partition p1 history, partition pn current);
+--replace_result $default_engine DEFAULT_ENGINE
+show create table t1;
+drop table t1;
+
+create table t1 (id int) with system versioning
+  partition by system_time interval "11:12" hour_minute (partition p1 history, partition pn current);
+--replace_result $default_engine DEFAULT_ENGINE
+show create table t1;
+drop table t1;
+
+create table t1 (id int) with system versioning
+  partition by system_time interval "11:12:13" hour_second (partition p1 history, partition pn current);
+--replace_result $default_engine DEFAULT_ENGINE
+show create table t1;
+drop table t1;
+
+create table t1 (id int) with system versioning
+  partition by system_time interval "12:13" minute_second (partition p1 history, partition pn current);
+--replace_result $default_engine DEFAULT_ENGINE
+show create table t1;
+drop table t1;
+
+--error ER_PART_WRONG_VALUE
+create table t1 (id int) with system versioning
+  partition by system_time interval "12:13.123" minute_microsecond (partition p1 history, partition pn current);
+
+--echo #
 --echo # End of 10.3 tests
 --echo #
 
