@@ -2656,13 +2656,13 @@ double Item_func_sphere_distance::spherical_distance_points(Geometry *g1,
       break;
   }
 
-  if (err_hv > 0)
+  if (err_hv == 1)
     my_error(ER_STD_OUT_OF_RANGE_ERROR, MYF(0),
              "Longitude should be [-180,180]", "ST_Distance_Sphere");
   else if(err_hv < 0)
     my_error(ER_STD_OUT_OF_RANGE_ERROR, MYF(0),
              "Latitude should be [-90,90]", "ST_Distance_Sphere");
-  else if (err_sph)
+  else if (err_sph || err_hv == 2)
     my_error(ER_CANT_CREATE_GEOMETRY_OBJECT, MYF(0));
   return res;
 }
