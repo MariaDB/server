@@ -197,3 +197,29 @@ delete from t order by b limit 1;
 drop table t;
 
 --echo # End of 10.3 tests
+
+--echo #
+--echo # Start of 10.4 tests
+--echo #
+
+--echo #
+--echo # MDEV-28545 MyISAM reorganize partition corrupt older table format
+--echo #
+
+SET GLOBAL mysql56_temporal_format=OFF;
+CREATE TABLE t (ts timestamp, KEY (ts)) ENGINE=MyISAM
+PARTITION BY RANGE (unix_timestamp(ts)) (
+  PARTITION p1 VALUES LESS THAN (1645398000),
+  PARTITION pn VALUES LESS THAN MAXVALUE
+);
+
+SET GLOBAL mysql56_temporal_format=ON;
+FLUSH TABLES;
+ALTER TABLE t DROP PARTITION p1;
+CHECK TABLE t;
+DROP TABLE t;
+SET GLOBAL mysql56_temporal_format=DEFAULT;
+
+--echo #
+--echo # End of 10.4 tests
+--echo #

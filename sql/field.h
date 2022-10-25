@@ -5203,6 +5203,13 @@ public:
 
   bool vers_check_timestamp(const Lex_table_name &table_name) const;
   bool vers_check_bigint(const Lex_table_name &table_name) const;
+
+  static void upgrade_data_types(List<Create_field> &list)
+  {
+    List_iterator<Create_field> it(list);
+    while (Create_field *f= it++)
+      f->type_handler()->Column_definition_implicit_upgrade(f);
+  }
 };
 
 
