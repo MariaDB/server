@@ -5417,11 +5417,12 @@ opt_part_option:
 
 opt_versioning_rotation:
          /* empty */ {}
-       | INTERVAL_SYM expr interval opt_versioning_interval_start
+       | { Lex->clause_that_disallows_subselect= "INTERVAL"; }
+         INTERVAL_SYM expr interval opt_versioning_interval_start
          {
            partition_info *part_info= Lex->part_info;
            const char *table_name= Lex->create_last_non_select_table->table_name.str;
-           if (unlikely(part_info->vers_set_interval(thd, $2, $3, $4, table_name)))
+           if (unlikely(part_info->vers_set_interval(thd, $3, $4, $5, table_name)))
              MYSQL_YYABORT;
          }
        | LIMIT ulonglong_num

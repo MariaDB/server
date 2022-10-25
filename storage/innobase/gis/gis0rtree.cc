@@ -896,7 +896,7 @@ rtr_page_split_and_insert(
 	lock_prdt_t		new_prdt;
 	rec_t*			first_rec = NULL;
 	int			first_rec_group = 1;
-	ulint			n_iterations = 0;
+	IF_DBUG(bool iterated = false,);
 
 	if (!*heap) {
 		*heap = mem_heap_create(1024);
@@ -1128,7 +1128,7 @@ corrupted:
 	the page, and it'll need the second round split in this case.
 	We test this scenario here*/
 	DBUG_EXECUTE_IF("rtr_page_need_second_split",
-			if (n_iterations == 0) {
+			if (!iterated) {
 				rec = NULL;
 				goto after_insert; }
 	);
@@ -1198,7 +1198,7 @@ after_insert:
 		parent. */
 		rtr_clean_rtr_info(cursor->rtr_info, true);
 		cursor->rtr_info = NULL;
-		n_iterations++;
+		IF_DBUG(iterated=true,);
 
 		rec_t* i_rec = page_rec_get_next(page_get_infimum_rec(
 			buf_block_get_frame(block)));

@@ -1,0 +1,36 @@
+--source include/have_innodb.inc
+
+let $datadir=`select @@datadir`;
+
+--echo #
+--echo # Start of 10.4 tests
+--echo #
+
+--echo #
+--echo # MDEV-29481 mariadb-upgrade prints confusing statement
+--echo #
+
+CREATE TABLE pet4 (
+  build_time double(18,7) DEFAULT NULL,
+  KEY idx1 (build_time)) ENGINE=InnoDB;
+FLUSH TABLES;
+remove_file $datadir/test/pet4.frm;
+copy_file std_data/mysql_upgrade/mdev29481_100104_innodb.frm $datadir/test/pet4.frm;
+SHOW CREATE TABLE pet4;
+CHECK TABLE pet4 FOR UPGRADE;
+ALTER TABLE pet4 ADD i1 INTEGER, ALGORITHM=INSTANT;
+DROP TABLE pet4;
+
+CREATE TABLE pet4 (
+  build_time double(18,7) DEFAULT NULL,
+  KEY idx1 (build_time)) ENGINE=InnoDB;
+FLUSH TABLES;
+remove_file $datadir/test/pet4.frm;
+copy_file std_data/mysql_upgrade/mdev29481_100104_innodb.frm $datadir/test/pet4.frm;
+SHOW CREATE TABLE pet4;
+ALTER TABLE pet4 ADD i1 INTEGER, ALGORITHM=NOCOPY;
+DROP TABLE pet4;
+
+--echo #
+--echo # End of 10.4 tests
+--echo #

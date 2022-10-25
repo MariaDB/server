@@ -399,7 +399,8 @@ void trx_t::free()
     autoinc_locks= NULL;
   }
 
-  MEM_NOACCESS(&n_ref, sizeof n_ref);
+  MEM_NOACCESS(&skip_lock_inheritance_and_n_ref,
+               sizeof skip_lock_inheritance_and_n_ref);
   /* do not poison mutex */
   MEM_NOACCESS(&id, sizeof id);
   MEM_NOACCESS(&state, sizeof state);
@@ -499,6 +500,7 @@ inline void trx_t::release_locks()
   }
 
   lock.table_locks.clear();
+  reset_skip_lock_inheritance();
   id= 0;
   while (dict_table_t *table= UT_LIST_GET_FIRST(lock.evicted_tables))
   {
