@@ -1134,8 +1134,8 @@ trx_finalize_for_fts(
 	trx->fts_trx = NULL;
 }
 
-
-extern "C" void thd_decrement_pending_ops(MYSQL_THD);
+extern "C" MYSQL_THD thd_increment_pending_ops(MYSQL_THD);
+extern "C" void  thd_decrement_pending_ops(MYSQL_THD);
 
 
 #include "../log/log0sync.h"
@@ -1168,7 +1168,7 @@ sync:
   }
 
   completion_callback cb;
-  if ((cb.m_param = innodb_thd_increment_pending_ops(trx->mysql_thd)))
+  if ((cb.m_param = thd_increment_pending_ops(trx->mysql_thd)))
   {
     cb.m_callback = (void (*)(void *)) thd_decrement_pending_ops;
     log_write_up_to(lsn, flush, false, &cb);

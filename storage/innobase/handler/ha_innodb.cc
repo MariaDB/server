@@ -1823,15 +1823,6 @@ MYSQL_THD innobase_create_background_thd(const char* name)
 	return thd;
 }
 
-extern "C" void thd_increment_pending_ops(MYSQL_THD);
-
-THD *innodb_thd_increment_pending_ops(THD *thd)
-{
-  if (!thd || THDVAR(thd, background_thread))
-    return nullptr;
-  thd_increment_pending_ops(thd);
-  return thd;
-}
 
 /** Close opened tables, free memory, delete items for a MYSQL_THD.
 @param[in]	thd	MYSQL_THD to reset */
