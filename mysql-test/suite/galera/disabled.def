@@ -25,6 +25,9 @@ galera_var_ignore_apply_errors : MDEV-26770 galera_var_ignore_apply_errors fails
 galera_var_node_address : MDEV-20485 Galera test failure
 galera_var_retry_autocommit: MDEV-18181 Galera test failure on galera.galera_var_retry_autocommit
 partition : MDEV-19958 Galera test failure on galera.partition
-query_cache: MDEV-15805 Test failure on galera.query_cache
-versioning_trx_id: MDEV-18590: galera.versioning_trx_id: Test failure: mysqltest: Result content mismatch
+query_cache : MDEV-15805 Test failure on galera.query_cache
+versioning_trx_id : MDEV-18590: galera.versioning_trx_id: Test failure: mysqltest: Result content mismatch
 galera_bf_abort_at_after_statement : Unstable
+galera.MW-284 : MDEV-29861: Galera test case hangs
+galera.galera_binlog_checksum : MDEV-29861: Galera test case hangs
+galera_var_notify_ssl_ipv6 : MDEV-29861: Galera test case hangs
