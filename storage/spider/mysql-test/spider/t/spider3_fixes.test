@@ -276,6 +276,17 @@ CREATE TEMPORARY TABLE t1 (
 ) ENGINE=Spider;
 
 
+--echo #
+--echo # MDEV-29800 ERROR 1062 (23000): Duplicate entry 'test-t-0' for key 'PRIMARY' ...
+--echo #
+--connection master_1
+CREATE TABLE t_r (a INT KEY AUTO_INCREMENT) ENGINE=Spider;
+ALTER TABLE t_r ADD b TEXT;
+--disable_warnings
+CREATE OR REPLACE TABLE t_r (a INT) ENGINE=Spider;
+--enable_warnings
+DROP TABLE t_r;
+
 --echo
 --echo deinit
 --disable_warnings
