@@ -2601,51 +2601,53 @@ double Item_func_sphere_distance::spherical_distance_points(Geometry *g1,
   switch (g2->get_class_info()->m_type_id)
   {
     case Geometry::wkb_point:
-    // Optimization for point-point case
+    {
+      Gis_point *g2p= static_cast<Gis_point *>(g2);
+      // Optimization for point-point case
       if (g1->get_class_info()->m_type_id == Geometry::wkb_point)
       {
-        res= static_cast<Gis_point *>(g2)->calculate_haversine(g1, r, &error);
+        res= g2p->calculate_haversine(g1, r, &error);
       }
       else
       {
         // Optimization for single point in Multipoint
         if (g1->get_data_size() == len)
         {
-          res= static_cast<Gis_point *>(g2)->calculate_haversine(g1, r, &error);
+          res= g2p->calculate_haversine(g1, r, &error);
         }
         else
         {
           // There are multipoints in g1
           // g1 is MultiPoint and calculate MP.sphericaldistance from g2 Point
           if (g1->get_data_size() != GET_SIZE_ERROR)
-            static_cast<Gis_point *>(g2)->spherical_distance_multipoints(
-                                        (Gis_multi_point *)g1, r, &res, &error);
+            g2p->spherical_distance_multipoints(g1, r, &res, &error);
         }
       }
       break;
+    }
 
     case Geometry::wkb_multipoint:
       // Optimization for point-point case
       if (g1->get_class_info()->m_type_id == Geometry::wkb_point)
       {
+        Gis_point *g1p= static_cast<Gis_point *>(g1);
          // Optimization for single point in Multipoint g2
         if (g2->get_data_size() == len)
         {
-          res= static_cast<Gis_point *>(g1)->calculate_haversine(g2, r, &error);
+          res= g1p->calculate_haversine(g2, r, &error);
         }
         else
         {
           if (g2->get_data_size() != GET_SIZE_ERROR)
           // g1 is a point (casted to multi_point) and g2 multipoint
-            static_cast<Gis_point *>(g1)->spherical_distance_multipoints(
-                                        (Gis_multi_point *)g2, r, &res, &error);
+            g1p->spherical_distance_multipoints(g2, r, &res, &error);
         }
       }
       else
       {
+        Gis_multi_point *g1mp= static_cast<Gis_multi_point *>(g1);
         // Multipoints in g1 and g2 - no optimization
-        static_cast<Gis_multi_point *>(g1)->spherical_distance_multipoints(
-                                        (Gis_multi_point *)g2, r, &res, &error);
+        g1mp->spherical_distance_multipoints(g2, r, &res, &error);
       }
       break;
 
@@ -2654,16 +2656,12 @@ double Item_func_sphere_distance::spherical_distance_points(Geometry *g1,
       break;
   }
 
-  if (res < 0)
-    goto handle_error;
-
-  handle_error:
-    if (error > 0)
-      my_error(ER_STD_OUT_OF_RANGE_ERROR, MYF(0),
-               "Longitude should be [-180,180]", "ST_Distance_Sphere");
-    else if(error < 0)
-      my_error(ER_STD_OUT_OF_RANGE_ERROR, MYF(0),
-               "Latitude should be [-90,90]", "ST_Distance_Sphere");
+  if (error > 0)
+    my_error(ER_STD_OUT_OF_RANGE_ERROR, MYF(0),
+             "Longitude should be [-180,180]", "ST_Distance_Sphere");
+  else if(error < 0)
+    my_error(ER_STD_OUT_OF_RANGE_ERROR, MYF(0),
+             "Latitude should be [-90,90]", "ST_Distance_Sphere");
   return res;
 }
 
