@@ -1,0 +1,37 @@
+connect suspend_purge,localhost,root,,;
+START TRANSACTION WITH CONSISTENT SNAPSHOT;
+connection default;
+CREATE TABLE t (a int PRIMARY KEY, b int) engine = InnoDB;
+CREATE TABLE t2 (a int PRIMARY KEY) engine = InnoDB;
+INSERT INTO t VALUES (10, 10), (20, 20), (30, 30);
+INSERT INTO t2 VALUES (10), (20), (30);
+BEGIN;
+UPDATE t2 SET a = a + 100;
+SELECT * FROM t WHERE a = 20 FOR UPDATE;
+a	b
+20	20
+connect con_2,localhost,root,,;
+SET TRANSACTION ISOLATION LEVEL READ COMMITTED;
+SET DEBUG_SYNC = 'lock_trx_handle_wait_enter SIGNAL upd_locked WAIT_FOR upd_cont';
+SET DEBUG_SYNC = 'trx_t_release_locks_enter SIGNAL sel_cont WAIT_FOR upd_cont_2';
+BEGIN;
+UPDATE t SET b = 100;
+connection default;
+SET DEBUG_SYNC="now WAIT_FOR upd_locked";
+SET DEBUG_SYNC="deadlock_report_before_lock_releasing SIGNAL upd_cont WAIT_FOR sel_cont";
+SET DEBUG_SYNC="lock_wait_before_suspend SIGNAL sel_before_suspend";
+SELECT * FROM t WHERE a = 10 FOR UPDATE;;
+connect con_3,localhost,root,,;
+SET DEBUG_SYNC="now WAIT_FOR sel_before_suspend";
+SET DEBUG_SYNC="now SIGNAL upd_cont_2";
+disconnect con_3;
+connection con_2;
+ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
+disconnect con_2;
+connection default;
+a	b
+10	10
+SET DEBUG_SYNC = 'RESET';
+DROP TABLE t;
+DROP TABLE t2;
+disconnect suspend_purge;

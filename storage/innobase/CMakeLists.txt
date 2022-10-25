@@ -328,7 +328,6 @@ SET(INNOBASE_SOURCES
 	include/row0row.h
 	include/row0row.inl
 	include/row0sel.h
-	include/row0sel.inl
 	include/row0types.h
 	include/row0uins.h
 	include/row0umod.h

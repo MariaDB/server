@@ -485,6 +485,7 @@ TRANSACTIONAL_INLINE inline void trx_t::commit_state()
 /** Release any explicit locks of a committing transaction. */
 inline void trx_t::release_locks()
 {
+  DEBUG_SYNC_C("trx_t_release_locks_enter");
   DBUG_ASSERT(state == TRX_STATE_COMMITTED_IN_MEMORY);
   DBUG_ASSERT(!is_referenced());
 
@@ -785,7 +786,7 @@ corrupted:
 		ib::info() << "Trx id counter is " << trx_sys.get_max_trx_id();
 	}
 
-	purge_sys.clone_oldest_view();
+	purge_sys.clone_oldest_view<true>();
 	return DB_SUCCESS;
 }
 
@@ -2176,6 +2177,7 @@ trx_set_rw_mode(
 	ut_ad(trx->rsegs.m_redo.rseg != 0);
 
 	trx_sys.register_rw(trx);
+	ut_ad(trx->id);
 
 	/* So that we can see our own changes. */
 	if (trx->read_view.is_open()) {

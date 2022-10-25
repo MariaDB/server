@@ -24,7 +24,7 @@ COMMIT;
 UPDATE t1 SET a=1;
 connection default;
 InnoDB		0 transactions not purged
-CHECK TABLE t1;
+CHECK TABLE t1 EXTENDED;
 Table	Op	Msg_type	Msg_text
 test.t1	check	status	OK
 SELECT b1 FROM t1;
@@ -123,7 +123,7 @@ COMMIT;
 disconnect con1;
 connection default;
 InnoDB		0 transactions not purged
-CHECK TABLE t1;
+CHECK TABLE t1 EXTENDED;
 Table	Op	Msg_type	Msg_text
 test.t1	check	status	OK
 SELECT b1 FROM t1;
@@ -134,7 +134,7 @@ SELECT * FROM t1;
 a	b	b1	a1	a4	b3
 100	10	10	100	90	100
 100	10	10	100	90	100
-CHECK TABLE t2;
+CHECK TABLE t2 EXTENDED;
 Table	Op	Msg_type	Msg_text
 test.t2	check	status	OK
 DROP TABLE t2, t1, t0;

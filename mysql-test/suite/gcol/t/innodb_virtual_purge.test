@@ -38,7 +38,7 @@ UPDATE t1 SET a=1;
 connection default;
 --source ../../innodb/include/wait_all_purged.inc
 
-CHECK TABLE t1;
+CHECK TABLE t1 EXTENDED;
 SELECT b1 FROM t1;
 
 
@@ -123,11 +123,11 @@ disconnect con1;
 connection default;
 --source ../../innodb/include/wait_all_purged.inc
 
-CHECK TABLE t1;
+CHECK TABLE t1 EXTENDED;
 SELECT b1 FROM t1;
 
 SELECT * FROM t1;
-CHECK TABLE t2;
+CHECK TABLE t2 EXTENDED;
 DROP TABLE t2, t1, t0;
 
 CREATE TABLE t1 (a VARCHAR(30), b INT, a2 VARCHAR(30) GENERATED ALWAYS AS (a) VIRTUAL);

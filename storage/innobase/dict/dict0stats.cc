@@ -33,6 +33,7 @@ Created Jan 06, 2010 Vasil Dimov
 #include <mysql_com.h>
 #include "log.h"
 #include "btr0btr.h"
+#include "que0que.h"
 
 #include <algorithm>
 #include <map>

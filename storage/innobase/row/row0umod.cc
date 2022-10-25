@@ -216,26 +216,23 @@ static ulint row_trx_id_offset(const rec_t* rec, const dict_index_t* index)
 }
 
 /** Determine if rollback must execute a purge-like operation.
-@param[in,out]	node	row undo
-@param[in,out]	mtr	mini-transaction
+@param node   row undo
 @return	whether the record should be purged */
-static bool row_undo_mod_must_purge(undo_node_t* node, mtr_t* mtr)
+static bool row_undo_mod_must_purge(const undo_node_t &node)
 {
-	ut_ad(node->rec_type == TRX_UNDO_UPD_DEL_REC);
-	ut_ad(!node->table->is_temporary());
+  ut_ad(node.rec_type == TRX_UNDO_UPD_DEL_REC);
+  ut_ad(!node.table->is_temporary());
 
-	btr_cur_t* btr_cur = btr_pcur_get_btr_cur(&node->pcur);
-	ut_ad(btr_cur->index->is_primary());
-	DEBUG_SYNC_C("rollback_purge_clust");
+  const btr_cur_t &btr_cur= node.pcur.btr_cur;
+  ut_ad(btr_cur.index->is_primary());
+  DEBUG_SYNC_C("rollback_purge_clust");
 
-	if (!purge_sys.changes_visible(node->new_trx_id, node->table->name)) {
-		return false;
-	}
+  if (!purge_sys.is_purgeable(node.new_trx_id))
+    return false;
 
-	const rec_t* rec = btr_cur_get_rec(btr_cur);
-
-	return trx_read_trx_id(rec + row_trx_id_offset(rec, btr_cur->index))
-		== node->new_trx_id;
+  const rec_t *rec= btr_cur_get_rec(&btr_cur);
+  return trx_read_trx_id(rec + row_trx_id_offset(rec, btr_cur.index)) ==
+    node.new_trx_id;
 }
 
 /***********************************************************//**
@@ -251,7 +248,6 @@ row_undo_mod_clust(
 {
 	btr_pcur_t*	pcur;
 	mtr_t		mtr;
-	bool		have_latch = false;
 	dberr_t		err;
 	dict_index_t*	index;
 
@@ -347,9 +343,7 @@ row_undo_mod_clust(
 			btr_pcur_commit_specify_mtr(pcur, &mtr);
 		} else {
 			index->set_modified(mtr);
-			have_latch = true;
-			purge_sys.latch.rd_lock(SRW_LOCK_CALL);
-			if (!row_undo_mod_must_purge(node, &mtr)) {
+			if (!row_undo_mod_must_purge(*node)) {
 				goto mtr_commit_exit;
 			}
 			err = btr_cur_optimistic_delete(&pcur->btr_cur, 0,
@@ -358,9 +352,7 @@ row_undo_mod_clust(
 				goto mtr_commit_exit;
 			}
 			err = DB_SUCCESS;
-			purge_sys.latch.rd_unlock();
 			btr_pcur_commit_specify_mtr(pcur, &mtr);
-			have_latch = false;
 		}
 
 		mtr.start();
@@ -376,9 +368,7 @@ row_undo_mod_clust(
 		if (index->table->is_temporary()) {
 			mtr.set_log_mode(MTR_LOG_NO_REDO);
 		} else {
-			have_latch = true;
-			purge_sys.latch.rd_lock(SRW_LOCK_CALL);
-			if (!row_undo_mod_must_purge(node, &mtr)) {
+			if (!row_undo_mod_must_purge(*node)) {
 				goto mtr_commit_exit;
 			}
 			index->set_modified(mtr);
@@ -400,17 +390,12 @@ row_undo_mod_clust(
 
 		mtr.start();
 		if (pcur->restore_position(BTR_MODIFY_LEAF, &mtr)
-		    != btr_pcur_t::SAME_ALL) {
-			goto mtr_commit_exit;
-		}
-		rec_t* rec = btr_pcur_get_rec(pcur);
-		have_latch = true;
-		purge_sys.latch.rd_lock(SRW_LOCK_CALL);
-		if (!purge_sys.changes_visible(node->new_trx_id,
-					       node->table->name)) {
+		    != btr_pcur_t::SAME_ALL
+		    || !purge_sys.is_purgeable(node->new_trx_id)) {
 			goto mtr_commit_exit;
 		}
 
+		rec_t* rec = btr_pcur_get_rec(pcur);
 		ulint trx_id_offset = index->trx_id_offset;
 		ulint trx_id_pos = index->n_uniq ? index->n_uniq : 1;
 		/* Reserve enough offsets for the PRIMARY KEY and
@@ -477,10 +462,6 @@ row_undo_mod_clust(
 	}
 
 mtr_commit_exit:
-	if (have_latch) {
-		purge_sys.latch.rd_unlock();
-	}
-
 	btr_pcur_commit_specify_mtr(pcur, &mtr);
 
 func_exit:
