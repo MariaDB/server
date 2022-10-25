@@ -1151,7 +1151,8 @@ int Gis_point::spherical_distance_multipoints(Geometry *g, const double r,
                                     POINT_DATA_SIZE*(i-1), POINT_DATA_SIZE);
     s[len-1]= '\0';
     temp= Geometry::construct(&buff_temp, s, len);
-    DBUG_ASSERT(temp);
+    if (!temp)
+      return 1;
     temp_res= this->calculate_haversine(temp, r, err);
     if (res > temp_res)
       res= temp_res;
@@ -2335,7 +2336,8 @@ int Gis_multi_point::spherical_distance_multipoints(Geometry *g, const double r,
                                     POINT_DATA_SIZE*(i-1), POINT_DATA_SIZE);
     s[len-1]= '\0';
     temp= Geometry::construct(&buff_temp, s, len);
-    DBUG_ASSERT(temp);
+    if (!temp)
+      return 1;
     // Optimization for single Multipoint
     if (num_of_points2 == 1)
     {
@@ -2354,7 +2356,8 @@ int Gis_multi_point::spherical_distance_multipoints(Geometry *g, const double r,
                                        POINT_DATA_SIZE*(j-1), POINT_DATA_SIZE);
       s2[len-1]= '\0';
       temp2= Geometry::construct(&buff_temp2, s2, len);
-      DBUG_ASSERT(temp2);
+      if (!temp2)
+        return 1;
       temp_res= static_cast<Gis_point *>(temp)->calculate_haversine(temp2, r, err);
       if (res > temp_res)
         res= temp_res;

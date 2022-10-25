@@ -3090,6 +3090,11 @@ SELECT IS_FREE_LOCK(POINT(1,1));
 --error ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION
 SELECT IS_USED_LOCK(POINT(1,1));
 
+--echo #
+--echo # MDEV-26161 crash in Gis_point::calculate_haversine
+--echo #
+--error ER_CANT_CREATE_GEOMETRY_OBJECT
+select st_distance_sphere(x'01030000000400000004000000000000', multipoint(point(124,204)), 10);
 
 --echo #
 --echo # End of 10.3 tests
