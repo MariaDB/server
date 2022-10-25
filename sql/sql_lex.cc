@@ -2937,6 +2937,7 @@ void st_select_lex::init_query()
   item_list.empty();
   min_max_opt_list.empty();
   join= 0;
+  cur_pos_in_select_list= UNDEF_POS;
   having= prep_having= where= prep_where= 0;
   cond_pushed_into_where= cond_pushed_into_having= 0;
   attach_to_conds.empty();

@@ -420,9 +420,18 @@ bool Item_func::setup_args_and_comparator(THD *thd, Arg_comparator *cmp)
   if (args[0]->cmp_type() == STRING_RESULT &&
       args[1]->cmp_type() == STRING_RESULT)
   {
+    Query_arena *arena, backup;
+    arena= thd->activate_stmt_arena_if_needed(&backup);
+
     DTCollation tmp;
-    if (agg_arg_charsets_for_comparison(tmp, args, 2))
-      return true;
+    bool ret= agg_arg_charsets_for_comparison(tmp, args, 2);
+
+    if (arena)
+      thd->restore_active_arena(arena, &backup);
+
+    if (ret)
+      return ret;
+
     cmp->m_compare_collation= tmp.collation;
   }
   //  Convert constants when compared to int/year field

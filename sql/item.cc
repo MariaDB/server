@@ -9838,6 +9838,8 @@ bool Item_trigger_field::set_value(THD *thd, sp_rcontext * /*ctx*/, Item **it)
 
   if (!item || fix_fields_if_needed(thd, NULL))
     return true;
+  if (field->vers_sys_field())
+    return false;
 
   // NOTE: field->table->copy_blobs should be false here, but let's
   // remember the value at runtime to avoid subtle bugs.
@@ -10669,6 +10671,20 @@ void view_error_processor(THD *thd, void *data)
   ((TABLE_LIST *)data)->hide_view_error(thd);
 }
 
+/**
+  Name resolution context with resolution in only one table
+*/
+
+Name_resolution_context::Name_resolution_context(TABLE_LIST *table):
+  outer_context(0), table_list(0), select_lex(0),
+  error_processor_data(0),
+  security_ctx(0)
+{
+  resolve_in_select_list= FALSE;
+  error_processor= &dummy_error_processor;
+  // resolve only in this table
+  first_name_resolution_table= last_name_resolution_table= table;
+}
 
 st_select_lex *Item_ident::get_depended_from() const
 {

@@ -1537,6 +1537,107 @@ create trigger tr before insert on t for each row update tcount set c = c + 1;
 insert into t select * from t;
 drop table tcount, t;
 #
+# MDEV-19569 Assertion `table_list->table' failed in find_field_in_table_ref and Assertion `table_ref->table || table_ref->view' in Field_iterator_table_ref::set_field_iterator
+#
+create table t1 (i int);
+create table t2 (i int);
+alter table t1 partition by system_time 
+interval (select i from t2) day (partition p1 history, partition pn current);
+ERROR 42000: INTERVAL does not support subqueries or stored functions
+drop table t1;
+create table t1 (id int) with system versioning
+partition by system_time 
+interval (select i from t2) day (partition p1 history, partition pn current);
+ERROR 42000: INTERVAL does not support subqueries or stored functions
+create table t1 (id int) with system versioning
+partition by system_time
+interval "hello" day (partition p1 history, partition pn current);
+ERROR HY000: Wrong parameters for partitioned `t1`: wrong value for 'INTERVAL'
+create table t1 (id int) with system versioning
+partition by system_time
+interval 3.893 day (partition p1 history, partition pn current);
+drop table t1, t2;
+create table t1 (id int) with system versioning
+partition by system_time interval "3-11" year_month (partition p1 history, partition pn current);
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `id` int(11) DEFAULT NULL
+) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci WITH SYSTEM VERSIONING
+ PARTITION BY SYSTEM_TIME INTERVAL '3-11' YEAR_MONTH
+(PARTITION `p1` HISTORY ENGINE = DEFAULT_ENGINE,
+ PARTITION `pn` CURRENT ENGINE = DEFAULT_ENGINE)
+drop table t1;
+create table t1 (id int) with system versioning
+partition by system_time interval "3 11" day_hour (partition p1 history, partition pn current);
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `id` int(11) DEFAULT NULL
+) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci WITH SYSTEM VERSIONING
+ PARTITION BY SYSTEM_TIME INTERVAL '3 11' DAY_HOUR
+(PARTITION `p1` HISTORY ENGINE = DEFAULT_ENGINE,
+ PARTITION `pn` CURRENT ENGINE = DEFAULT_ENGINE)
+drop table t1;
+create table t1 (id int) with system versioning
+partition by system_time interval "3 11:12" day_minute (partition p1 history, partition pn current);
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `id` int(11) DEFAULT NULL
+) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci WITH SYSTEM VERSIONING
+ PARTITION BY SYSTEM_TIME INTERVAL '3 11:12' DAY_MINUTE
+(PARTITION `p1` HISTORY ENGINE = DEFAULT_ENGINE,
+ PARTITION `pn` CURRENT ENGINE = DEFAULT_ENGINE)
+drop table t1;
+create table t1 (id int) with system versioning
+partition by system_time interval "3 11:12:13" day_second (partition p1 history, partition pn current);
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `id` int(11) DEFAULT NULL
+) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci WITH SYSTEM VERSIONING
+ PARTITION BY SYSTEM_TIME INTERVAL '3 11:12:13' DAY_SECOND
+(PARTITION `p1` HISTORY ENGINE = DEFAULT_ENGINE,
+ PARTITION `pn` CURRENT ENGINE = DEFAULT_ENGINE)
+drop table t1;
+create table t1 (id int) with system versioning
+partition by system_time interval "11:12" hour_minute (partition p1 history, partition pn current);
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `id` int(11) DEFAULT NULL
+) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci WITH SYSTEM VERSIONING
+ PARTITION BY SYSTEM_TIME INTERVAL '11:12' HOUR_MINUTE
+(PARTITION `p1` HISTORY ENGINE = DEFAULT_ENGINE,
+ PARTITION `pn` CURRENT ENGINE = DEFAULT_ENGINE)
+drop table t1;
+create table t1 (id int) with system versioning
+partition by system_time interval "11:12:13" hour_second (partition p1 history, partition pn current);
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `id` int(11) DEFAULT NULL
+) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci WITH SYSTEM VERSIONING
+ PARTITION BY SYSTEM_TIME INTERVAL '11:12:13' HOUR_SECOND
+(PARTITION `p1` HISTORY ENGINE = DEFAULT_ENGINE,
+ PARTITION `pn` CURRENT ENGINE = DEFAULT_ENGINE)
+drop table t1;
+create table t1 (id int) with system versioning
+partition by system_time interval "12:13" minute_second (partition p1 history, partition pn current);
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `id` int(11) DEFAULT NULL
+) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci WITH SYSTEM VERSIONING
+ PARTITION BY SYSTEM_TIME INTERVAL '12:13' MINUTE_SECOND
+(PARTITION `p1` HISTORY ENGINE = DEFAULT_ENGINE,
+ PARTITION `pn` CURRENT ENGINE = DEFAULT_ENGINE)
+drop table t1;
+create table t1 (id int) with system versioning
+partition by system_time interval "12:13.123" minute_microsecond (partition p1 history, partition pn current);
+ERROR HY000: Wrong parameters for partitioned `t1`: wrong value for 'INTERVAL'
+#
 # End of 10.3 tests
 #
 #

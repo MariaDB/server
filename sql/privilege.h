@@ -293,7 +293,7 @@ constexpr privilege_t SHOW_CREATE_TABLE_ACLS=
   existing temporary tables (CREATE_ACL is necessary for ALTER ... RENAME).
 */
 constexpr privilege_t TMP_TABLE_ACLS=
-  COL_DML_ACLS | ALL_TABLE_DDL_ACLS;
+  COL_DML_ACLS | ALL_TABLE_DDL_ACLS | REFERENCES_ACL;
 
 
 

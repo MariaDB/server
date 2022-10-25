@@ -5039,6 +5039,77 @@ DEALLOCATE PREPARE stmt;
 DROP PROCEDURE p1;
 
 --echo #
+--echo # MDEV-16128: Server crash in Item_func::print_op on 2nd execution of PS
+--echo #
+
+CREATE TABLE t1 (a varchar(10));
+CREATE TABLE t2 (b varchar(10) CHARACTER SET utf8 );
+CREATE TABLE t3 (c varchar(10) CHARACTER SET utf8);
+INSERT INTO t1 VALUES ('b');
+INSERT INTO t2 VALUES ('b');
+INSERT INTO t3 VALUES ('b');
+
+PREPARE stmt FROM "SELECT t1.* FROM (t1 JOIN t2 ON (t2.b = t1.a)) WHERE (EXISTS (SELECT 1 FROM t3 WHERE t3.c = t1.a))";
+EXECUTE stmt;
+--echo # Without the patch second execution of the prepared statement
+--echo # would lead to server crash.
+EXECUTE stmt;
+--echo # Clean up
+DEALLOCATE PREPARE stmt;
+DROP TABLE t1, t2, t3;
+
+CREATE TABLE t1 (a varchar(10));
+CREATE TABLE t2 (b varchar(10) CHARACTER SET utf8);
+INSERT INTO t1 VALUES ('b');
+INSERT INTO t2 VALUES ('b');
+PREPARE stmt FROM 'SELECT STRAIGHT_JOIN 1 FROM t1 WHERE EXISTS (SELECT 1 FROM t2 WHERE t2.b = t1.a)';
+EXECUTE stmt;
+--echo # Without the patch second execution of the prepared statement
+--echo # would lead to server crash.
+EXECUTE stmt;
+
+--echo # Clean up
+DEALLOCATE PREPARE stmt;
+
+--echo # Check that EXECUTE USING is run correctly
+PREPARE stmt FROM 'SELECT 300 FROM t1 WHERE EXISTS (SELECT 100 FROM t2 WHERE t2.b = ?)';
+EXECUTE stmt USING 'b';
+EXECUTE stmt USING 'b';
+
+EXECUTE stmt USING 'd';
+EXECUTE stmt USING 'd';
+
+EXECUTE stmt USING _binary 'b';
+EXECUTE stmt USING _binary 'b';
+
+EXECUTE stmt USING _binary 'B';
+EXECUTE stmt USING 'B';
+
+EXECUTE stmt USING _binary 'd';
+EXECUTE stmt USING _binary 'd';
+
+EXECUTE stmt USING _ucs2 'b';
+EXECUTE stmt USING _ucs2 'b';
+
+EXECUTE stmt USING _ucs2 'd';
+EXECUTE stmt USING _ucs2 'd';
+
+EXECUTE stmt USING _latin1 'b';
+EXECUTE stmt USING _latin1 'b';
+
+EXECUTE stmt USING _latin1 'd';
+EXECUTE stmt USING _latin1 'd';
+
+CREATE TABLE t3 (c VARCHAR(10) CHARACTER SET ucs2);
+INSERT INTO t3 VALUES ('b');
+PREPARE stmt FROM 'SELECT 300 FROM t1 WHERE EXISTS (SELECT 100 FROM t3 WHERE t3.c = ?)';
+EXECUTE stmt USING 'b';
+EXECUTE stmt USING 'b';
+EXECUTE stmt USING 'd';
+EXECUTE stmt USING 'd';
+DROP TABLE t1, t2, t3;
+
+--echo #
 --echo # MDEV-19263: Server crashes in mysql_handle_single_derived
 --echo # upon 2nd execution of PS
 --echo #

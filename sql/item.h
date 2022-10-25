@@ -244,6 +244,8 @@ struct Name_resolution_context: Sql_alloc
     security_ctx(0)
     {}
 
+  Name_resolution_context(TABLE_LIST *table);
+
   void init()
   {
     resolve_in_select_list= FALSE;
