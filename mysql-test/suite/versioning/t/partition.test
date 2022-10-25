@@ -1388,6 +1388,7 @@ drop table tcount, t;
 --echo #
 --echo # MDEV-19569 Assertion `table_list->table' failed in find_field_in_table_ref and Assertion `table_ref->table || table_ref->view' in Field_iterator_table_ref::set_field_iterator
 --echo #
+set timestamp=unix_timestamp('2000-01-01 00:00:00');
 create table t1 (i int); 
 create table t2 (i int); 
  
