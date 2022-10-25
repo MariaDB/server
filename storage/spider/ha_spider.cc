@@ -8857,6 +8857,7 @@ int ha_spider::rename_table(
     goto error;
   }
   if (
+    sql_command == SQLCOM_CREATE_TABLE ||
     sql_command == SQLCOM_RENAME_TABLE ||
     (sql_command == SQLCOM_ALTER_TABLE && !trx->tmp_flg) ||
     !(alter_table_from =

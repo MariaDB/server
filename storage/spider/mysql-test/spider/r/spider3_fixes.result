@@ -208,6 +208,14 @@ CREATE TEMPORARY TABLE t1 (
 a INT
 ) ENGINE=Spider;
 ERROR HY000: Table storage engine 'SPIDER' does not support the create option 'TEMPORARY'
+#
+# MDEV-29800 ERROR 1062 (23000): Duplicate entry 'test-t-0' for key 'PRIMARY' ...
+#
+connection master_1;
+CREATE TABLE t_r (a INT KEY AUTO_INCREMENT) ENGINE=Spider;
+ALTER TABLE t_r ADD b TEXT;
+CREATE OR REPLACE TABLE t_r (a INT) ENGINE=Spider;
+DROP TABLE t_r;
 
 deinit
 connection master_1;
