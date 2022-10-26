@@ -28,8 +28,10 @@ galera_var_notify_cmd : MDEV-21905 Galera test galera_var_notify_cmd causes hang
 galera_var_notify_ssl_ipv6 : hangs after the merge of MDEV-27682
 galera_var_retry_autocommit: MDEV-18181 Galera test failure on galera.galera_var_retry_autocommit
 partition : MDEV-19958 Galera test failure on galera.partition
-query_cache: MDEV-15805 Test failure on galera.query_cache
-versioning_trx_id: MDEV-18590: galera.versioning_trx_id: Test failure: mysqltest: Result content mismatch
+query_cache : MDEV-15805 Test failure on galera.query_cache
+versioning_trx_id : MDEV-18590: galera.versioning_trx_id: Test failure: mysqltest: Result content mismatch
 galera_bf_abort_at_after_statement : Unstable
 galera_bf_abort_shutdown : MDEV-29773 Assertion failure on sql/wsrep_mysqld.cc:2893 in wsrep_bf_abort_shutdown
-
+galera.MW-284 : MDEV-29861: Galera test case hangs
+galera.galera_binlog_checksum : MDEV-29861: Galera test case hangs
+galera_var_notify_ssl_ipv6 : MDEV-29861: Galera test case hangs

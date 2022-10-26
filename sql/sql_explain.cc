@@ -1676,6 +1676,7 @@ void Explain_rowid_filter::print_explain_json(Explain_query *query,
   if (is_analyze)
   {
     writer->add_member("r_rows").add_double(tracker->get_container_elements());
+    writer->add_member("r_lookups").add_ll(tracker->get_container_lookups());
     writer->add_member("r_selectivity_pct").
       add_double(tracker->get_r_selectivity_pct() * 100.0);
     writer->add_member("r_buffer_size").
