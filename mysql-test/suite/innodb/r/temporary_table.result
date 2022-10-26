@@ -775,3 +775,18 @@ INSERT INTO t VALUES (1);
 START TRANSACTION READ ONLY;
 UPDATE t SET a = NULL;
 ROLLBACK;
+DROP TABLE t;
+#
+# MDEV-29886 Assertion !index->table->is_temporary() failed
+# in trx_undo_prev_version_build upon CHECK
+#
+CREATE TEMPORARY TABLE t (a INT, KEY(a)) ENGINE=InnoDB SELECT 1;
+UPDATE t SET a=2;
+CHECK TABLE t;
+Table	Op	Msg_type	Msg_text
+test.t	check	status	OK
+CHECK TABLE t EXTENDED;
+Table	Op	Msg_type	Msg_text
+test.t	check	status	OK
+DROP TEMPORARY TABLE t;
+# End of 10.6 tests

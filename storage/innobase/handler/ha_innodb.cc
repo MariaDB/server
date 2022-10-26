@@ -15220,6 +15220,7 @@ ha_innobase::check(
 	of records in some index; to play safe, we normally use
 	REPEATABLE READ here */
 	m_prebuilt->trx->isolation_level = high_level_read_only
+		&& !m_prebuilt->table->is_temporary()
 		? TRX_ISO_READ_UNCOMMITTED
 		: TRX_ISO_REPEATABLE_READ;
 

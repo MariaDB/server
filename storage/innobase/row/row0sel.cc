@@ -6228,6 +6228,7 @@ func_exit:
   ReadView check_table_extended_view;
   ReadView &view=
     prebuilt->need_to_access_clustered &&
+    !prebuilt->table->is_temporary() &&
     prebuilt->trx->isolation_level != TRX_ISO_READ_UNCOMMITTED
     ? check_table_extended_view : prebuilt->trx->read_view;
   if (&view == &check_table_extended_view)
