@@ -10,4 +10,5 @@
 #
 ##############################################################################
 
-GCF-1060 : MDEV-26528 wrong usage of mutex LOCK_thd_kill and LOCK_thd_kill
+galera_sr_cc_master : MDEV-29882 Galera test failure on galera_sr_cc_master
+
