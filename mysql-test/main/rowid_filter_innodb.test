@@ -32,6 +32,8 @@ insert into t1 values
   (85,'a','a',-1),(86,'a','a',5),(87,'a','a',null),(88,'a','a',160),
   (89,null,null,null),(90,'a','a',14785),(91,'a','a',0),(92,'a','a',null);
 
+analyze table t1;
+
 let $q=
 ( select * from t1
     where (f1 is null and f2 is null) and (f2 between 'a' and 'z' or f1 in ('a')))
@@ -73,13 +75,13 @@ drop table t1, t2;
 
 create table t1 (a int, b int, key (b), key (a)) engine=innodb;
 insert into t1
-select (rand(1)*1000)/10, (rand(1001)*1000)/50 from seq_1_to_1000;
+select (rand(1)*1000)/10, (rand(1001)*1000)/20 from seq_1_to_1000;
 analyze table t1;
 
 let $q=
-select count(*) from t1 where a in (22,83,11) and b=2;
+select count(*) from t1 where a between 21 and 30 and b=2;
 let $q1=
-select * from t1 where a in (22,83,11) and b=2;
+select * from t1 where a between 21 and 30 and b=2;
 
 set @save_optimizer_switch= @@optimizer_switch;
 
@@ -224,7 +226,7 @@ set global innodb_stats_persistent= @stats.save;
 
 CREATE TABLE t1 (
   id int(11) unsigned NOT NULL AUTO_INCREMENT,
-  domain varchar(255) NOT NULL,
+  domain varchar(32) NOT NULL,
   registrant_name varchar(255) DEFAULT NULL,
   registrant_organization varchar(255) DEFAULT NULL,
   registrant_street1 varchar(255) DEFAULT NULL,
@@ -317,6 +319,66 @@ technical_email, technical_telephone, json, timestamp) VALUES
  null, 'KOELN', '50937', 'GERMANY', 'ICANN@EXPIRES-2009.WEBCARE24.COM',
  '492214307580', '', '2017-01-30 10:08:29');
 
+let $sqi=
+INSERT INTO t1 (
+domain, registrant_name, registrant_organization, registrant_street1,
+registrant_street2, registrant_street3, registrant_street4, registrant_street5,
+registrant_city, registrant_postal_code, registrant_country, registrant_email,
+registrant_telephone, administrative_name, administrative_organization,
+administrative_street1, administrative_street2, administrative_street3,
+administrative_street4, administrative_street5, administrative_city,
+administrative_postal_code, administrative_country, administrative_email,
+administrative_telephone, technical_name, technical_organization,
+technical_street1, technical_street2, technical_street3, technical_street4,
+technical_street5, technical_city, technical_postal_code, technical_country,
+technical_email, technical_telephone, json, timestamp)
+VALUES
+('www.mailhost.i-dev.fr', null, null, null, null, null, null, null, null,
+ null, null, null, null, null, null, null, null, null, null, null, null, null,
+ null, null, null, null, null, null, null, null, null, null, null, null, null,
+ null, null, '', '2016-12-22 09:18:28');
+
+eval $sqi;
+eval $sqi;
+eval $sqi;
+eval $sqi;
+eval $sqi;
+eval $sqi;
+eval $sqi;
+eval $sqi;
+
+let $qi=
+INSERT INTO t1 (
+domain, registrant_name, registrant_organization, registrant_street1,
+registrant_street2, registrant_street3, registrant_street4, registrant_street5,
+registrant_city, registrant_postal_code, registrant_country, registrant_email,
+registrant_telephone, administrative_name, administrative_organization,
+administrative_street1, administrative_street2, administrative_street3,
+administrative_street4, administrative_street5, administrative_city,
+administrative_postal_code, administrative_country, administrative_email,
+administrative_telephone, technical_name, technical_organization,
+technical_street1, technical_street2, technical_street3, technical_street4,
+technical_street5, technical_city, technical_postal_code, technical_country,
+technical_email, technical_telephone, json, timestamp)
+SELECT
+domain, registrant_name, registrant_organization, registrant_street1,
+registrant_street2, registrant_street3, registrant_street4, registrant_street5,
+registrant_city, registrant_postal_code, registrant_country, registrant_email,
+registrant_telephone, administrative_name, administrative_organization,
+administrative_street1, administrative_street2, administrative_street3,
+administrative_street4, administrative_street5, administrative_city,
+administrative_postal_code, administrative_country, administrative_email,
+administrative_telephone, technical_name, technical_organization,
+technical_street1, technical_street2, technical_street3, technical_street4,
+technical_street5, technical_city, technical_postal_code, technical_country,
+technical_email, technical_telephone, json, timestamp
+FROM t1;
+
+eval $qi;
+eval $qi;
+
+ANALYZE TABLE t1 PERSISTENT FOR ALL;
+
 SET @save_optimizer_switch=@@optimizer_switch;
 
 SET optimizer_switch='mrr=on,mrr_sort_keys=on';
@@ -324,7 +386,7 @@ SET optimizer_switch='mrr=on,mrr_sort_keys=on';
 let $q=
 SELECT * FROM t1
   WHERE 1 = 1 AND domain = 'www.mailhost.i-dev.fr' AND
-        timestamp >= DATE_ADD(CURRENT_TIMESTAMP, INTERVAL -1 MONTH)
+        timestamp >= DATE_ADD('2017-01-30 08:24:51', INTERVAL -1 MONTH)
 ORDER BY timestamp DESC;
 
 eval $q;
@@ -497,6 +559,11 @@ insert into filt(id,aceid,clid,fh) values
 (6341490487802728362,6341490487802728360,1,8948400944397203540),
 (6341490487802728363,6341490487802728361,1,6701841652906431497);
 
+insert into filt select id+10000,aceid,clid,fh from filt;
+insert into filt select id+20000,aceid,clid,fh from filt;
+insert into filt select id+40000,aceid,clid,fh from filt;
+insert into filt select id+80000,aceid,clid,fh from filt;
+
 analyze table filt, acei, acli;
 
 let $q=
@@ -545,19 +612,28 @@ CREATE TABLE t1 (pk int NOT NULL, c1 varchar(1)) engine=innodb;
 INSERT INTO t1 VALUES
 (1,NULL),(15,'o'),(16,'x'),(19,'t'),(35,'k'),(36,'h'),(42,'t'),(43,'h'),
 (53,'l'),(62,'a'),(71,NULL),(79,'u'),(128,'y'),(129,NULL),(133,NULL);
+INSERT INTO t1 SELECT * FROM t1;
+INSERT INTO t1 SELECT * FROM t1;
 
 CREATE TABLE t2 (
-i1 int, c1 varchar(1) NOT NULL, KEY c1 (c1), KEY i1 (i1)
+i1 int, c1 varchar(1) NOT NULL,
+filler1 char(255) default '0', filler2 char(255) default '0',
+KEY c1 (c1), KEY i1 (i1)
 ) engine=innodb;
-INSERT INTO t2 VALUES
-(1,'1'),(NULL,'1'),(42,'t'),(NULL,'1'),(79,'u'),(NULL,'1'),
-(NULL,'4'),(NULL,'4'),(NULL,'1'),(NULL,'u'),(2,'1'),(NULL,'w');
+INSERT INTO t2(i1,c1) VALUES
+(NULL,'1'),(1,'1'),(2,'t'),(3,'1'),(4,'u'),(5,'1'),
+(6,'4'),(7,'4'),(8,'1'),(1,'u'),(2,'1'),(NULL,'w');
 INSERT INTO t2 SELECT * FROM t2;
+INSERT INTO t2 SELECT * FROM t2;
+INSERT INTO t2 SELECT * FROM t2;
+INSERT INTO t2 SELECT * FROM t2;
+
+ANALYZE TABLE t1,t2 PERSISTENT FOR ALL;
 
 let $q=
 SELECT * FROM t1
 WHERE t1.c1 NOT IN (SELECT t2.c1 FROM t2, t1 AS a1
-                      WHERE t2.i1 = t1.pk AND t2.i1 IS NOT NULL);
+                      WHERE t2.i1 = t1.pk AND t2.i1 BETWEEN 3 AND 5);
 
 eval $q;
 eval EXPLAIN EXTENDED $q;

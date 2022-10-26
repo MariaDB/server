@@ -320,7 +320,7 @@ DROP TABLE t1,t2;
 --echo #
 
 CREATE TABLE t1 (
-  pk1 INT PRIMARY KEY, a1 INT, b1 VARCHAR(1), KEY(b1)
+  pk1 INT PRIMARY KEY, a1 INT, b1 VARCHAR(1), KEY(a1), KEY(b1)
 ) ENGINE=MyISAM;
 INSERT INTO t1 VALUES
 (10,0,'z'),(11,3,'j'),(12,8,'f'),(13,8,'p'),(14,6,'w'),(15,0,'c'),(16,1,'j'),
@@ -340,12 +340,17 @@ INSERT INTO t1 VALUES
 (107,8,'z'),(108,3,'k'),(109,65,NULL);
 
 CREATE TABLE t2 (pk2 INT PRIMARY KEY, a2 INT, b2 VARCHAR(1)) ENGINE=MyISAM;
-INSERT INTO t2 VALUES (1,1,'x');
+INSERT INTO t2 VALUES (1,1,'i');
 INSERT INTO t2 SELECT * FROM t1;
 
 let $q=
-SELECT * FROM t1 INNER JOIN t2 ON ( pk1 <> pk2 AND pk1 = a2 )
+SELECT * FROM t1 INNER JOIN t2 ON ( pk1+1 = pk2+2 AND a1 = a2 )
   WHERE b1 <= ( SELECT MAX(b2) FROM t2 WHERE pk2 <= 1 );
+
+INSERT INTO t1 SELECT pk1+200, a1, b1 FROM t1;
+INSERT INTO t1 SELECT pk1+400, a1, b1 FROM t1;
+
+ANALYZE TABLE t1,t2 PERSISTENT FOR ALL;
 
 eval $q;
 eval EXPLAIN EXTENDED $q;
@@ -399,11 +404,210 @@ set @save_optimizer_switch= @@optimizer_switch;
 SET @@optimizer_switch="index_merge_sort_union=OFF";
 CREATE TABLE t1 (a INT, b INT, INDEX(a), INDEX(b));
 INSERT INTO t1 VALUES (0,0),(1,0),(-1,1), (-2,1), (-2,3), (-3,4), (-2,4);
+INSERT INTO t1 SELECT * FROM t1;
+INSERT INTO t1 SELECT * FROM t1;
+INSERT INTO t1 SELECT * FROM t1;
+INSERT INTO t1 SELECT * FROM t1;
+INSERT INTO t1 SELECT * FROM t1;
+INSERT INTO t1 SELECT * FROM t1;
+
+ANALYZE table t1 PERSISTENT FOR ALL;
+
 explain
 SELECT * FROM t1 WHERE a > 0 AND b=0;
 SELECT * FROM t1 WHERE a > 0 AND b=0;
 drop table t1;
 SET @@optimizer_switch=@save_optimizer_switch;
 
+
+--echo #
+--echo # MDEV-28846: Poor performance when rowid filter contains no elements
+--echo #
+
+--source include/have_sequence.inc
+
+create table t1 (
+  pk int primary key auto_increment,
+  nm varchar(32),
+  fl1 tinyint default 0,
+  fl2 tinyint default 0,
+  index idx1(nm, fl1),
+  index idx2(fl2)
+) engine=myisam;
+
+create table name (
+  pk int primary key auto_increment,
+  nm bigint
+) engine=myisam;
+
+create table flag2 (
+  pk int primary key auto_increment,
+  fl2 tinyint
+) engine=myisam;
+
+insert into name(nm) select seq from seq_1_to_1000 order by rand(17);
+insert into flag2(fl2) select seq mod 2 from seq_1_to_1000 order by rand(19);
+
+insert into t1(nm,fl2)
+  select nm, fl2 from name, flag2 where name.pk = flag2.pk;
+
+analyze table t1 persistent for all;
+
+let $a=
+`select concat((select nm from t1 where fl2=0 order by RAND(13) limit 1),'%')`;
+eval select '$a' as a;
+
+set optimizer_switch='rowid_filter=on';
+eval
+explain
+select * from t1  where nm like '$a' AND fl2 = 0;
+--source include/analyze-format.inc
+eval
+analyze format=json
+select * from t1  where nm like '$a' AND fl2 = 0;
+eval
+select * from t1  where nm like '$a' AND fl2 = 0;
+
+truncate table name;
+truncate table flag2;
+truncate table t1;
+
+insert into name(nm) select seq from seq_1_to_1000 order by rand(17);
+insert into flag2(fl2) select seq mod 2 from seq_1_to_1000 order by rand(19);
+
+insert into t1(nm,fl2)
+  select nm, fl2 from name, flag2 where name.pk = flag2.pk;
+
+analyze table t1 persistent for all;
+
+set optimizer_switch='rowid_filter=off';
+eval
+explain
+select * from t1  where nm like '$a' AND fl2 = 0;
+--source include/analyze-format.inc
+eval
+analyze format=json
+select * from t1  where nm like '$a' AND fl2 = 0;
+eval
+select * from t1  where nm like '$a' AND fl2 = 0;
+
+truncate table name;
+truncate table flag2;
+truncate table t1;
+
+insert into name(nm) select seq from seq_1_to_1000 order by rand(17);
+insert into flag2(fl2) select seq mod 10 from seq_1_to_1000 order by rand(19);
+
+insert into t1(nm,fl2)
+  select nm, fl2 from name, flag2 where name.pk = flag2.pk;
+
+analyze table t1 persistent for all;
+
+let $a=
+`select concat((select nm from t1 where fl2=0 order by RAND(13) limit 1),'%')`;
+eval select '$a' as a;
+
+set optimizer_switch='rowid_filter=on';
+eval
+explain
+select * from t1  where nm like '$a' AND fl2 = 0;
+eval
+select * from t1  where nm like '$a' AND fl2 = 0;
+
+truncate table name;
+truncate table flag2;
+truncate table t1;
+
+insert into name(nm) select seq from seq_1_to_10000 order by rand(17);
+insert into flag2(fl2) select seq mod 100 from seq_1_to_10000 order by rand(19);
+
+insert into t1(nm,fl2)
+  select nm, fl2 from name, flag2 where name.pk = flag2.pk;
+
+analyze table t1 persistent for all;
+
+let $a=
+`select concat(left((select nm from t1 where fl2=0 order by RAND(13) limit 1),2),'%')`;
+eval select '$a' as a;
+
+set optimizer_switch='rowid_filter=on';
+eval
+explain
+select * from t1  where nm like '$a' AND fl2 = 0;
+--source include/analyze-format.inc
+eval
+analyze format=json
+select * from t1  where nm like '$a' AND fl2 = 0;
+eval
+select * from t1  where nm like '$a' AND fl2 = 0;
+
+drop table name, flag2;
+drop table t1;
+
+# This test shows that if the container is empty there are no lookups into it
+
+create table t1 (
+  pk int primary key auto_increment,
+  nm char(255),
+  fl1 tinyint default 0,
+  fl2 int default 0,
+  index idx1(nm, fl1),
+  index idx2(fl2)
+) engine=myisam;
+
+create table name (
+  pk int primary key auto_increment,
+  nm bigint
+) engine=myisam;
+
+create table flag2 (
+  pk int primary key auto_increment,
+  fl2 int
+) engine=myisam;
+
+insert into name(nm) select seq from seq_1_to_10000 order by rand(17);
+insert into flag2(fl2) select seq mod 10 from seq_1_to_10000 order by rand(19);
+
+insert into t1(nm,fl2)
+  select nm, fl2 from name, flag2 where name.pk = flag2.pk;
+
+analyze table t1 persistent for all;
+
+let $q=
+select * from t1
+where
+(
+  nm like '3400%' or nm like '3402%' or nm like '3403%' or
+  nm like '3404%' or nm like '3405%' or nm like '3406%' or nm like '3407%' or
+  nm like '3409%' or
+  nm like '3411%' or nm like '3412%' or nm like '3413%' or
+  nm like '3414%' or nm like '3415%' or nm like '3416%' or nm like '3417%' or
+  nm like '3418%' or nm like '3419%' or
+  nm like '3421%' or nm like '3422%' or nm like '3423%' or
+  nm like '3424%' or nm like '3425%' or nm like '3426%' or nm like '3427%' or
+  nm like '3428%' or nm like '3429%' or
+  nm like '3430%' or nm like '3431%' or nm like '3432%' or nm like '3433%' or
+  nm like '3434%' or nm like '3435%' or nm like '3436%' or nm like '3437%' or
+  nm like '3439%' or
+  nm like '3440%' or nm like '3441%' or nm like '3442%' or nm like '3443%' or
+  nm like '3444%' or nm like '3445%' or nm like '3446%' or nm like '3447%' or
+  nm like '3448%'
+) and fl2 = 0;
+
+eval $q;
+--source include/analyze-format.inc
+eval analyze format=json $q;
+
+create table t0 select * from t1  where nm like '34%';
+delete from t1 using t1,t0 where t1.nm=t0.nm;
+--source include/analyze-format.inc
+eval analyze format=json $q;
+
+drop table t0;
+
+set optimizer_switch='rowid_filter=default';
+
+drop table name, flag2;
+drop table t1;
 
 set @@use_stat_tables=@save_use_stat_tables;
