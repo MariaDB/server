@@ -1071,10 +1071,9 @@ double Gis_point::calculate_haversine(const Geometry *g,
     point_temp[point_size-1]= '\0';
     Geometry_buffer gbuff;
     Geometry *gg= Geometry::construct(&gbuff, point_temp, point_size-1);
-    DBUG_ASSERT(gg);
-    if (static_cast<Gis_point *>(gg)->get_xy_radian(&x2r, &y2r))
+    if (!gg || static_cast<Gis_point *>(gg)->get_xy_radian(&x2r, &y2r))
     {
-      DBUG_ASSERT(0);
+      *error= 2;
       return -1;
     }
   }
@@ -1082,15 +1081,16 @@ double Gis_point::calculate_haversine(const Geometry *g,
   {
     if (static_cast<const Gis_point *>(g)->get_xy_radian(&x2r, &y2r))
     {
-      DBUG_ASSERT(0);
+      *error= 2;
       return -1;
     }
   }
   if (this->get_xy_radian(&x1r, &y1r))
   {
-    DBUG_ASSERT(0);
+    *error= 2;
     return -1;
   }
+  //
   // Check boundary conditions: longitude[-180,180]
   if (!((x2r >= -M_PI && x2r <= M_PI) && (x1r >= -M_PI && x1r <= M_PI)))
   {
@@ -1143,15 +1143,20 @@ int Gis_point::spherical_distance_multipoints(Geometry *g, const double r,
   {
     Geometry_buffer buff_temp;
     Geometry *temp;
+    const char *pt_ptr= g->get_data_ptr()+
+      4+WKB_HEADER_SIZE*i + POINT_DATA_SIZE*(i-1);
 
     // First 4 bytes are handled already, make sure to create a Point
     memset(s + 4, Geometry::wkb_point, 1);
+    if (g->no_data(pt_ptr, POINT_DATA_SIZE))
+      return 1;
+
     memcpy(s + 5, g->get_data_ptr() + 5, 4);
-    memcpy(s + 4 + WKB_HEADER_SIZE, g->get_data_ptr() + 4 + WKB_HEADER_SIZE*i +\
-                                    POINT_DATA_SIZE*(i-1), POINT_DATA_SIZE);
+    memcpy(s + 4 + WKB_HEADER_SIZE, pt_ptr, POINT_DATA_SIZE);
     s[len-1]= '\0';
     temp= Geometry::construct(&buff_temp, s, len);
-    DBUG_ASSERT(temp);
+    if (!temp)
+      return 1;
     temp_res= this->calculate_haversine(temp, r, err);
     if (res > temp_res)
       res= temp_res;
@@ -2328,14 +2333,18 @@ int Gis_multi_point::spherical_distance_multipoints(Geometry *g, const double r,
     Geometry *temp;
     double temp_res= 0.0;
     char s[len];
+    const char *pt_ptr= get_data_ptr()+
+      4+WKB_HEADER_SIZE*i + POINT_DATA_SIZE*(i-1);
     // First 4 bytes are handled already, make sure to create a Point
     memset(s + 4, Geometry::wkb_point, 1);
+    if (no_data(pt_ptr, POINT_DATA_SIZE))
+      return 1;
     memcpy(s + 5, this->get_data_ptr() + 5, 4);
-    memcpy(s + 4 + WKB_HEADER_SIZE, this->get_data_ptr() + 4 + WKB_HEADER_SIZE*i +\
-                                    POINT_DATA_SIZE*(i-1), POINT_DATA_SIZE);
+    memcpy(s + 4 + WKB_HEADER_SIZE, pt_ptr, POINT_DATA_SIZE);
     s[len-1]= '\0';
     temp= Geometry::construct(&buff_temp, s, len);
-    DBUG_ASSERT(temp);
+    if (!temp)
+      return 1;
     // Optimization for single Multipoint
     if (num_of_points2 == 1)
     {
@@ -2347,14 +2356,18 @@ int Gis_multi_point::spherical_distance_multipoints(Geometry *g, const double r,
       Geometry_buffer buff_temp2;
       Geometry *temp2;
       char s2[len];
+      const char *pt_ptr= g->get_data_ptr()+
+        4+WKB_HEADER_SIZE*j + POINT_DATA_SIZE*(j-1);
       // First 4 bytes are handled already, make sure to create a Point
       memset(s2 + 4, Geometry::wkb_point, 1);
+      if (g->no_data(pt_ptr, POINT_DATA_SIZE))
+        return 1;
       memcpy(s2 + 5, g->get_data_ptr() + 5, 4);
-      memcpy(s2 + 4 + WKB_HEADER_SIZE, g->get_data_ptr() + 4 + WKB_HEADER_SIZE*j +\
-                                       POINT_DATA_SIZE*(j-1), POINT_DATA_SIZE);
+      memcpy(s2 + 4 + WKB_HEADER_SIZE, pt_ptr, POINT_DATA_SIZE);
       s2[len-1]= '\0';
       temp2= Geometry::construct(&buff_temp2, s2, len);
-      DBUG_ASSERT(temp2);
+      if (!temp2)
+        return 1;
       temp_res= static_cast<Gis_point *>(temp)->calculate_haversine(temp2, r, err);
       if (res > temp_res)
         res= temp_res;

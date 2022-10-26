@@ -314,6 +314,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #define MYSQL_SERVER 1
 #include <my_global.h>
 #include <mysql/plugin.h>
+#include <mysql.h>
 #include "ha_federatedx.h"
 #include "sql_servers.h"
 #include "sql_analyse.h"                        // append_escaped()
