@@ -2112,17 +2112,16 @@ static my_bool test_if_special_chars(const char *str)
   name                 Unquoted string containing that which will be quoted
   buff                 The buffer that contains the quoted value, also returned
   force                Flag to make it ignore 'test_if_special_chars'
-  quote_c              Charater to use as the enclosing quote
 
   Returns
      A pointer to the quoted string, or the original string if nothing has
      changed.
 
 */
-static char *quote(const char *name, char *buff, my_bool force, char quote_c)
+static char *quote_name(const char *name, char *buff, my_bool force)
 {
   char *to= buff;
-  char qtype= (opt_compatible_mode & MASK_ANSI_QUOTES) ? '\"' : quote_c;
+  char qtype= (opt_compatible_mode & MASK_ANSI_QUOTES) ? '\"' : '`';
 
   if (!force && !opt_quoted && !test_if_special_chars(name))
     return (char*) name;
@@ -2136,29 +2135,7 @@ static char *quote(const char *name, char *buff, my_bool force, char quote_c)
   to[0]= qtype;
   to[1]= 0;
   return buff;
-} /* quote */
-
-
-/*
-  quote_name(name, buff, force)
-
-  quote() with the ` character
-*/
-static char *quote_name(const char *name, char *buff, my_bool force)
-{
-  return quote(name, buff, force, '`');
-}
-
-
-/*
-  quote_string(name, buff, force)
-
-  quote() with the ' character
-*/
-static char *quote_string(const char *name, char *buff)
-{
-  return quote(name, buff, 0, '\'');
-}
+} /* quote_name */
 
 
 /*
@@ -3429,7 +3406,7 @@ static uint get_table_structure(const char *table, const char *db, char *table_t
               quote_name(row[SHOW_FIELDNAME], name_buff, 0));
       if (opt_header)
         dynstr_append_checked(&select_field_names_for_header,
-                              quote_string(row[SHOW_FIELDNAME], name_buff));
+                              quote_for_equal(row[SHOW_FIELDNAME], name_buff));
     }
     init=0;
     /*
@@ -3534,7 +3511,7 @@ static uint get_table_structure(const char *table, const char *db, char *table_t
               quote_name(row[SHOW_FIELDNAME], name_buff, 0));
       if (opt_header)
         dynstr_append_checked(&select_field_names_for_header,
-                              quote_string(row[SHOW_FIELDNAME], name_buff));
+                              quote_for_equal(row[SHOW_FIELDNAME], name_buff));
       init=1;
     }
     init=0;

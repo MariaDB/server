@@ -45,7 +45,18 @@ course_id	name	description	num_years	escape_çÇÁá!#%"';5	Course 1	Course Desc
 # Dump header and data rows into outfile with several options above combined
 #
 'course_id','name','description','num_years','escape_çÇÁá!#%"\'';'5','Course 1','Course Description 1','3',\N;
-'course_id','name','description','num_years','escape_çÇÁá!#%"\'';'5','Course 1','Course Description 1','3',\N;INSERT INTO `courses` VALUES (4, 'Course 2', 'Course Description 2', 4, NULL);
+'course_id','name','description','num_years','escape_çÇÁá!#%"\'';'5','Course 1','Course Description 1','3',\N;
+#
+# --skip-quote-names
+#
+course_id	name	description	num_years	escape_çÇÁá!#%"'
+5	Course 1	Course Description 1	3	\N
+#
+# --compatible=ansi
+#
+course_id	name	description	num_years	escape_çÇÁá!#%"'
+5	Course 1	Course Description 1	3	\N
+INSERT INTO `courses` VALUES (4, 'Course 2', 'Course Description 2', 4, NULL);
 INSERT INTO `courses` VALUES (3, 'Course 3', 'Course Description 3', 3, NULL);
 INSERT INTO `courses` VALUES (2, 'Course 4', 'Course Description 4', 5, NULL);
 INSERT INTO `courses` VALUES (1, 'Course 5', 'Course Description 5', 3, NULL);
