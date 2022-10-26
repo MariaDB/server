@@ -54,9 +54,8 @@ DROP TABLE t1;
 # MDEV-25663 Double free of transaction during TRUNCATE
 #
 call mtr.add_suppression("InnoDB: \\(Too many concurrent transactions\\)");
-SET DEBUG_DBUG='-d,ib_create_table_fail_too_many_trx';
-CREATE TABLE t1 (b CHAR(12), FULLTEXT KEY(b)) engine=InnoDB;
 SET @save_dbug= @@debug_dbug;
+CREATE TABLE t1 (b CHAR(12), FULLTEXT KEY(b)) engine=InnoDB;
 SET debug_dbug='+d,ib_create_table_fail_too_many_trx';
 TRUNCATE t1;
 ERROR HY000: Got error -1 "Internal error < 0 (Not system error)" from storage engine InnoDB

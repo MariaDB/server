@@ -118,8 +118,8 @@ struct list_node :public Sql_alloc
 {
   list_node *next;
   void *info;
-  list_node(void *info_par,list_node *next_par)
-    :next(next_par),info(info_par)
+  list_node(const void *info_par, list_node *next_par)
+    :next(next_par), info(const_cast<void *>(info_par))
   {}
   list_node()					/* For end_of_list */
   {
@@ -384,7 +384,7 @@ public:
 #endif // LIST_EXTRA_DEBUG
 
 protected:
-  void after(void *info,list_node *node)
+  void after(const void *info, list_node *node)
   {
     list_node *new_node=new list_node(info,node->next);
     node->next=new_node;
@@ -445,11 +445,11 @@ public:
   {
     el= &list->first;
   }
-  inline void *replace(void *element)
+  inline void *replace(const void *element)
   {						// Return old element
     void *tmp=current->info;
     DBUG_ASSERT(current->info != 0);
-    current->info=element;
+    current->info= const_cast<void *>(element);
     return tmp;
   }
   void *replace(base_list &new_list)
@@ -472,7 +472,7 @@ public:
     el=prev;
     current=0;					// Safeguard
   }
-  void after(void *element)			// Insert element after current
+  void after(const void *element)		// Insert element after current
   {
     list->after(element,current);
     current=current->next;

@@ -1,3 +1,7 @@
+# remove this include in 10.6 version, 
+# if MDEV-27871 will be fix
+--source include/no_view_protocol.inc
+
 -- source include/have_eucjpms.inc
 
 

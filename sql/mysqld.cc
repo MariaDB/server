@@ -4303,14 +4303,24 @@ static int init_common_variables()
   if (ignore_db_dirs_init())
     exit(1);
 
-#ifdef _WIN32
-  get_win_tzname(system_time_zone, sizeof(system_time_zone));
-#elif defined(HAVE_TZNAME)
   struct tm tm_tmp;
-  localtime_r(&server_start_time,&tm_tmp);
-  const char *tz_name=  tzname[tm_tmp.tm_isdst != 0 ? 1 : 0];
-  strmake_buf(system_time_zone, tz_name);
-#endif /* HAVE_TZNAME */
+  localtime_r(&server_start_time, &tm_tmp);
+
+#ifdef HAVE_TZNAME
+#ifdef _WIN32
+  /*
+   If env.variable TZ is set, derive timezone name from it.
+   Otherwise, use IANA tz name from get_win_tzname.
+  */
+  if (!getenv("TZ"))
+    get_win_tzname(system_time_zone, sizeof(system_time_zone));
+  else
+#endif
+  {
+    const char *tz_name= tzname[tm_tmp.tm_isdst != 0 ? 1 : 0];
+    strmake_buf(system_time_zone, tz_name);
+  }
+#endif
 
   /*
     We set SYSTEM time zone as reasonable default and
@@ -5027,10 +5037,9 @@ static void init_ssl()
     DBUG_PRINT("info",("ssl_acceptor_fd: %p", ssl_acceptor_fd));
     if (!ssl_acceptor_fd)
     {
-      sql_print_warning("Failed to setup SSL");
-      sql_print_warning("SSL error: %s", sslGetErrString(error));
-      opt_use_ssl = 0;
-      have_ssl= SHOW_OPTION_DISABLED;
+      sql_print_error("Failed to setup SSL");
+      sql_print_error("SSL error: %s", sslGetErrString(error));
+      unireg_abort(1);
     }
     if (global_system_variables.log_warnings > 0)
     {

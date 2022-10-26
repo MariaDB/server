@@ -1,4 +1,7 @@
 
+#remove this include after fix MDEV-27871
+--source include/no_view_protocol.inc
+
 set names binary;
 
 --echo #

@@ -1,0 +1,9 @@
+--source include/not_embedded.inc
+
+#
+# @@global.wsrep_on is not allowed if there
+# is no wsrep_provider
+#
+--error ER_WRONG_ARGUMENTS
+SET GLOBAL wsrep_on=ON;
+SELECT @@global.wsrep_on;

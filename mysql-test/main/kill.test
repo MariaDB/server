@@ -10,6 +10,9 @@
 -- source include/not_embedded.inc
 -- source include/have_debug_sync.inc
 -- source include/not_threadpool.inc
+
+--disable_service_connection
+
 set local sql_mode="";
 set global sql_mode="";
 
@@ -504,6 +507,9 @@ drop table t2;
 --echo #
 --echo # Test kill USER
 --echo #
+set global sql_mode=default;
+--source include/count_sessions.inc
+set global sql_mode='';
 grant ALL on test.* to test@localhost;
 grant ALL on test.* to test2@localhost;
 connect (con3, localhost, test,,);
@@ -528,6 +534,7 @@ connection con4;
 --error 2013,2006,5014
 select 1;
 connection default;
+--source include/wait_until_count_sessions.inc
 
 --echo #
 --echo # MDEV-4911 - add KILL query id, and add query id information to
@@ -602,3 +609,4 @@ DROP TABLE t1, t2;
 --echo #
 --error ER_PARSE_ERROR
 kill query id user 'foo';
+--enable_service_connection

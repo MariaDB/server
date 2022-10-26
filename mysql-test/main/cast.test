@@ -2,6 +2,10 @@
 # Test of cast function
 #
 
+#remove this include after fix MDEV-27871
+# discuss what to do with "set names binary"
+--source include/no_view_protocol.inc
+
 # For TIME->DATETIME conversion
 SET timestamp=unix_timestamp('2001-02-03 10:20:30');
 

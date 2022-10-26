@@ -21,7 +21,7 @@ i
 1
 # Following RENAME should not replicate to other node.
 RENAME TABLE t1 TO t2;
-ERROR 42000: DROP, ALTER command denied to user 'foo'@'localhost' for table 't1'
+ERROR 42000: DROP, ALTER command denied to user 'foo'@'localhost' for table `test`.`t1`
 # On node 2
 connection node_2;
 USE test;

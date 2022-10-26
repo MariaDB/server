@@ -1,3 +1,6 @@
+#remove this include after fix MDEV-27871
+--source include/no_view_protocol.inc
+
 --disable_warnings
 DROP TABLE IF EXISTS t1;
 DROP TABLE IF EXISTS t2;

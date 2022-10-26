@@ -2,7 +2,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `Name` varchar(256) NOT NULL,
   `Description` varchar(256) DEFAULT NULL
-) ENGINE=CONNECT DEFAULT CHARSET=latin1 `TABLE_TYPE`='ODBC' `CATFUNC`='Sources'
+) ENGINE=CONNECT DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci `TABLE_TYPE`='ODBC' `CATFUNC`='Sources'
 SET NAMES utf8;
 #
 # Checking CATFUNC=Tables
@@ -15,8 +15,10 @@ Table_Cat	Table_Schema	Table_Name	Table_Type	Remark
 mtr	public	t1	TABLE	
 mtr	public	t2	TABLE	
 mtr	public	v1	VIEW	
+mtr	schema1	space_in_column_name	TABLE	
 mtr	schema1	t1	TABLE	
 mtr	schema1	t2	TABLE	
+mtr	schema1	t3	TABLE	
 mtr	schema1	v1	VIEW	
 DROP TABLE t1;
 # All tables in all schemas
@@ -26,8 +28,10 @@ Table_Cat	Table_Schema	Table_Name	Table_Type	Remark
 mtr	public	t1	TABLE	
 mtr	public	t2	TABLE	
 mtr	public	v1	VIEW	
+mtr	schema1	space_in_column_name	TABLE	
 mtr	schema1	t1	TABLE	
 mtr	schema1	t2	TABLE	
+mtr	schema1	t3	TABLE	
 mtr	schema1	v1	VIEW	
 DROP TABLE t1;
 # All tables in all schemas
@@ -37,8 +41,10 @@ Table_Cat	Table_Schema	Table_Name	Table_Type	Remark
 mtr	public	t1	TABLE	
 mtr	public	t2	TABLE	
 mtr	public	v1	VIEW	
+mtr	schema1	space_in_column_name	TABLE	
 mtr	schema1	t1	TABLE	
 mtr	schema1	t2	TABLE	
+mtr	schema1	t3	TABLE	
 mtr	schema1	v1	VIEW	
 DROP TABLE t1;
 # All tables in the default schema ("public")
@@ -99,8 +105,11 @@ Table_Cat	Table_Schema	Table_Name	Column_Name	Data_Type	Type_Name	Column_Size	Bu
 mtr	public	t1	a	4	int4	10	4	0	10	0	
 mtr	public	t2	a	4	int4	10	4	0	10	0	
 mtr	public	v1	a	4	int4	10	4	0	10	1	
+mtr	schema1	space_in_column_name	my space column	1	bpchar	20	80	NULL	NULL	0	
 mtr	schema1	t1	a	1	bpchar	10	40	NULL	NULL	0	
 mtr	schema1	t2	a	1	bpchar	10	40	NULL	NULL	0	
+mtr	schema1	t3	a	1	bpchar	10	40	NULL	NULL	0	
+mtr	schema1	t3	b	1	bpchar	10	40	NULL	NULL	0	
 mtr	schema1	v1	a	1	bpchar	10	40	NULL	NULL	1	
 DROP TABLE t1;
 # All columns in the schemas "public" and "schema1"
@@ -110,8 +119,11 @@ Table_Cat	Table_Schema	Table_Name	Column_Name	Data_Type	Type_Name	Column_Size	Bu
 mtr	public	t1	a	4	int4	10	4	0	10	0	
 mtr	public	t2	a	4	int4	10	4	0	10	0	
 mtr	public	v1	a	4	int4	10	4	0	10	1	
+mtr	schema1	space_in_column_name	my space column	1	bpchar	20	80	NULL	NULL	0	
 mtr	schema1	t1	a	1	bpchar	10	40	NULL	NULL	0	
 mtr	schema1	t2	a	1	bpchar	10	40	NULL	NULL	0	
+mtr	schema1	t3	a	1	bpchar	10	40	NULL	NULL	0	
+mtr	schema1	t3	b	1	bpchar	10	40	NULL	NULL	0	
 mtr	schema1	v1	a	1	bpchar	10	40	NULL	NULL	1	
 DROP TABLE t1;
 # All tables "t1" in all schemas
@@ -150,7 +162,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(10) NOT NULL
-) ENGINE=CONNECT DEFAULT CHARSET=latin1 CONNECTION='DSN=ConnectEnginePostgresql;UID=mtr;PWD=mtr' `TABLE_TYPE`='ODBC'
+) ENGINE=CONNECT DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci CONNECTION='DSN=ConnectEnginePostgresql;UID=mtr;PWD=mtr' `TABLE_TYPE`='ODBC'
 SELECT * FROM t1;
 a
 10
@@ -161,7 +173,7 @@ SHOW CREATE TABLE t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `a` int(10) NOT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 SELECT * FROM t2;
 a
 10
@@ -182,7 +194,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(10) NOT NULL
-) ENGINE=CONNECT DEFAULT CHARSET=latin1 CONNECTION='DSN=ConnectEnginePostgresql;UID=mtr;PWD=mtr' `TABLE_TYPE`='ODBC' `TABNAME`='public.t1'
+) ENGINE=CONNECT DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci CONNECTION='DSN=ConnectEnginePostgresql;UID=mtr;PWD=mtr' `TABLE_TYPE`='ODBC' `TABNAME`='public.t1'
 SELECT * FROM t1;
 a
 10
@@ -195,7 +207,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` char(10) NOT NULL
-) ENGINE=CONNECT DEFAULT CHARSET=utf8 CONNECTION='DSN=ConnectEnginePostgresql;UID=mtr;PWD=mtr' `TABLE_TYPE`='ODBC' `TABNAME`='schema1.t1' `DATA_CHARSET`='utf8'
+) ENGINE=CONNECT DEFAULT CHARSET=utf8 COLLATE=utf8_general_ci CONNECTION='DSN=ConnectEnginePostgresql;UID=mtr;PWD=mtr' `TABLE_TYPE`='ODBC' `TABNAME`='schema1.t1' `DATA_CHARSET`='utf8'
 SELECT * FROM t1;
 a
 aaa
@@ -206,8 +218,8 @@ CREATE TABLE t2 AS SELECT * FROM t1;
 SHOW CREATE TABLE t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
-  `a` char(10) CHARACTER SET utf8 NOT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+  `a` char(10) CHARACTER SET utf8 COLLATE utf8_general_ci NOT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 SELECT * FROM t2;
 a
 aaa
@@ -230,7 +242,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` char(10) DEFAULT NULL
-) ENGINE=CONNECT DEFAULT CHARSET=utf8 CONNECTION='DSN=ConnectEnginePostgresql;UID=mtr;PWD=mtr' `TABLE_TYPE`='ODBC' `TABNAME`='schema1.v1' `DATA_CHARSET`='utf8'
+) ENGINE=CONNECT DEFAULT CHARSET=utf8 COLLATE=utf8_general_ci CONNECTION='DSN=ConnectEnginePostgresql;UID=mtr;PWD=mtr' `TABLE_TYPE`='ODBC' `TABNAME`='schema1.v1' `DATA_CHARSET`='utf8'
 SELECT * FROM t1;
 a
 aaa
@@ -241,8 +253,8 @@ CREATE TABLE t2 AS SELECT * FROM t1;
 SHOW CREATE TABLE t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
-  `a` char(10) CHARACTER SET utf8 DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+  `a` char(10) CHARACTER SET utf8 COLLATE utf8_general_ci DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 SELECT * FROM t2;
 a
 aaa
@@ -265,7 +277,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` char(10) NOT NULL
-) ENGINE=CONNECT DEFAULT CHARSET=utf8 CONNECTION='DSN=ConnectEnginePostgresql;UID=mtr;PWD=mtr' `TABLE_TYPE`='ODBC' `TABNAME`='schema1.t2' `DATA_CHARSET`='utf8'
+) ENGINE=CONNECT DEFAULT CHARSET=utf8 COLLATE=utf8_general_ci CONNECTION='DSN=ConnectEnginePostgresql;UID=mtr;PWD=mtr' `TABLE_TYPE`='ODBC' `TABNAME`='schema1.t2' `DATA_CHARSET`='utf8'
 SELECT * FROM t1;
 a
 xxx
@@ -276,8 +288,8 @@ CREATE TABLE t2 AS SELECT * FROM t1;
 SHOW CREATE TABLE t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
-  `a` char(10) CHARACTER SET utf8 NOT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+  `a` char(10) CHARACTER SET utf8 COLLATE utf8_general_ci NOT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 SELECT * FROM t2;
 a
 xxx
@@ -294,3 +306,16 @@ zzz
 ÄÖÜ
 DROP VIEW v1;
 DROP TABLE t1;
+CREATE TABLE t1 (a VARCHAR(6), b VARCHAR(6), PRIMARY KEY(a, b)) ENGINE=CONNECT TABNAME='schema1.t3' CHARSET=utf8 DATA_CHARSET=utf8 TABLE_TYPE=ODBC CONNECTION='DSN=ConnectEnginePostgresql;UID=mtr;PWD=mtr';
+DELETE FROM t1 WHERE a='20';
+Warnings:
+Note	1105	schema1.t3: 0 affected rows
+DROP TABLE t1;
+#
+# MDEV-29687 ODBC tables do not quote identifier names correctly
+#
+CREATE TABLE pg_in_maria ENGINE=CONNECT TABNAME='schema1.space_in_column_name' CHARSET=utf8 DATA_CHARSET=utf8 TABLE_TYPE=ODBC CONNECTION='DSN=ConnectEnginePostgresql;UID=mtr;PWD=mtr' quoted=1;
+SELECT * from pg_in_maria;
+my space column
+My value
+DROP TABLE pg_in_maria;

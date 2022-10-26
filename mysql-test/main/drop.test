@@ -96,7 +96,8 @@ drop table t1;
 # removing of database name from cache" reappeared in 5.1 as bug#19403
 # In its case crash happened when one concurrently executed DROP DATABASE
 # and one of name-locking command.
-# 
+#
+--disable_service_connection
 --disable_warnings
 drop database if exists mysqltest;
 drop table if exists t1;
@@ -125,6 +126,7 @@ connection addconroot1;
 disconnect addconroot1;
 --source include/wait_until_disconnected.inc
 connection default;
+--enable_service_connection
 
 #
 # Bug#25858 Some DROP TABLE under LOCK TABLES can cause deadlocks

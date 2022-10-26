@@ -2,6 +2,9 @@
 DROP TABLE IF EXISTS t1, t2;
 --enable_warnings
 
+#enable view protocol after fix MDEV-27871 
+-- source include/no_view_protocol.inc
+
 --echo #
 --echo # Bug#31663 FIELDS TERMINATED BY special character
 --echo #

@@ -21,7 +21,7 @@
 # Test cases for bug#15650
 #      DELETE with LEFT JOIN crashes server with innodb_locks_unsafe_for_binlog
 #
-
+--disable_service_connection
 --disable_warnings
 drop table if exists t1,t2,t3,t4,t5,t6,t7,t8,t9,t10;
 --enable_warnings
@@ -52,15 +52,19 @@ eval create table t1(a int not null, b int, primary key(a)) engine = $engine_typ
 insert into t1 values(1,1),(2,2),(3,1),(4,2),(5,1),(6,2),(7,3);
 commit;
 set autocommit = 0;
+--disable_view_protocol
 select * from t1 lock in share mode;
+--enable_view_protocol
 update t1 set b = 5 where b = 1;
 connection b;
 set autocommit = 0;
 #
 # S-lock to records (2,2),(4,2), and (6,2) should not be released in a update
 #
+--disable_view_protocol
 --error ER_LOCK_WAIT_TIMEOUT
 select * from t1 where a = 2 and b = 2 for update;
+--enable_view_protocol
 connection a;
 commit;
 connection b;
@@ -113,7 +117,9 @@ eval create table t2(d int not null, e int, primary key(d)) engine = $engine_typ
 insert into t2 values (8,6),(12,1),(3,1);
 commit;
 set autocommit = 0;
+--disable_view_protocol
 select * from t2 for update;
+--enable_view_protocol
 connection b;
 set autocommit = 0;
 insert into t1 select * from t2;
@@ -171,7 +177,9 @@ eval create table t9(d int not null, e int, primary key(d)) engine = $engine_typ
 insert into t9 values (8,6),(12,1),(3,1);
 commit;
 set autocommit = 0;
+--disable_view_protocol
 select * from t2 for update;
+--enable_view_protocol
 connection b;
 set autocommit = 0;
 SET SESSION TRANSACTION ISOLATION LEVEL SERIALIZABLE;
@@ -263,3 +271,4 @@ disconnect h;
 disconnect i;
 disconnect j;
 drop table t1, t2, t3, t5, t6, t8, t9;
+--enable_service_connection

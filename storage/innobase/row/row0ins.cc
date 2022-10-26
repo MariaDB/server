@@ -307,7 +307,7 @@ row_ins_clust_index_entry_by_modify(
 	}
 
 	update = row_upd_build_difference_binary(
-		cursor->index, entry, rec, NULL, true,
+		cursor->index, entry, rec, NULL, true, true,
 		thr_get_trx(thr), heap, mysql_table, &err);
 	if (err != DB_SUCCESS) {
 		return(err);
@@ -1137,7 +1137,7 @@ row_ins_foreign_check_on_constraint(
 					tmp_heap);
 		btr_pcur_open_with_no_init(clust_index, ref,
 					   PAGE_CUR_LE, BTR_SEARCH_LEAF,
-					   cascade->pcur, 0, mtr);
+					   cascade->pcur, mtr);
 
 		clust_rec = btr_pcur_get_rec(cascade->pcur);
 		clust_block = btr_pcur_get_block(cascade->pcur);
@@ -2958,7 +2958,7 @@ row_ins_sec_index_entry_low(
 		err = btr_cur_search_to_nth_level(
 			index, 0, entry, PAGE_CUR_RTREE_INSERT,
 			search_mode,
-			&cursor, 0, __FILE__, __LINE__, &mtr);
+			&cursor, __FILE__, __LINE__, &mtr);
 
 		if (mode == BTR_MODIFY_LEAF && rtr_info.mbr_adj) {
 			mtr_commit(&mtr);
@@ -2977,7 +2977,7 @@ row_ins_sec_index_entry_low(
 			err = btr_cur_search_to_nth_level(
 				index, 0, entry, PAGE_CUR_RTREE_INSERT,
 				search_mode,
-				&cursor, 0, __FILE__, __LINE__, &mtr);
+				&cursor, __FILE__, __LINE__, &mtr);
 			mode = BTR_MODIFY_TREE;
 		}
 
@@ -2989,7 +2989,7 @@ row_ins_sec_index_entry_low(
 		err = btr_cur_search_to_nth_level(
 			index, 0, entry, PAGE_CUR_LE,
 			search_mode,
-			&cursor, 0, __FILE__, __LINE__, &mtr);
+			&cursor, __FILE__, __LINE__, &mtr);
 	}
 
 	if (err != DB_SUCCESS) {
@@ -3083,7 +3083,7 @@ row_ins_sec_index_entry_low(
 			index, 0, entry, PAGE_CUR_LE,
 			(search_mode
 			 & ~(BTR_INSERT | BTR_IGNORE_SEC_UNIQUE)),
-			&cursor, 0, __FILE__, __LINE__, &mtr);
+			&cursor, __FILE__, __LINE__, &mtr);
 	}
 
 	if (row_ins_must_modify_rec(&cursor)) {

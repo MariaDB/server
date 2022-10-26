@@ -391,10 +391,24 @@ public:
   bool add_with_element(With_element *elem);
 
   /* Add this with clause to the list of with clauses used in the statement */
-  void add_to_list(With_clause ** &last_next)
+  void add_to_list(With_clause **ptr, With_clause ** &last_next)
   {
-    *last_next= this;
-    last_next= &this->next_with_clause;
+    if (embedding_with_clause)
+    {
+      /* 
+        An embedded with clause is always placed before the embedding one
+        in the list of with clauses used in the query.
+      */
+      while (*ptr != embedding_with_clause)
+        ptr= &(*ptr)->next_with_clause;
+      *ptr= this;
+      next_with_clause= embedding_with_clause;
+    }
+    else
+    {
+      *last_next= this;
+      last_next= &this->next_with_clause;
+    }
   }
 
   void set_owner(st_select_lex_unit *unit) { owner= unit; }

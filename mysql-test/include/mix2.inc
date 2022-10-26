@@ -157,7 +157,7 @@ drop table t1;
 
 
 # Test of reading on secondary key with may be null
-
+--disable_view_protocol
 eval create table t1 (a int,b varchar(20),key(a)) engine=$engine_type;
 insert into t1 values (1,""), (2,"testing");
 select * from t1 where a = 1;
@@ -289,7 +289,7 @@ drop table t1;
 rename table t2 to t1;
 drop table t1;
 set autocommit=1;
-
+--enable_view_protocol
 #
 # The following simple tests failed at some point
 #

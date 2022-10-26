@@ -1,4 +1,6 @@
 --source include/not_embedded.inc
+
+--disable_service_connection
 #
 # SHUTDOWN statement
 #
@@ -36,3 +38,4 @@ drop user user1@localhost;
 --let SEARCH_FILE= $MYSQLTEST_VARDIR/log/mysqld.1.err
 --let SEARCH_PATTERN=mysqld(\.exe)? \(initiated by: root\[root\] @ localhost \[(::1)?\]\): Normal shutdown
 --source include/search_pattern_in_file.inc
+--enable_service_connection

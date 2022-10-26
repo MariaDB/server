@@ -63,7 +63,7 @@ Debug_role_merges_column	0
 Debug_role_merges_routine	0
 connection foo;
 select count(*) from mysql.roles_mapping;
-ERROR 42000: SELECT command denied to user 'foo'@'localhost' for table 'roles_mapping'
+ERROR 42000: SELECT command denied to user 'foo'@'localhost' for table `mysql`.`roles_mapping`
 set role role10;
 select count(*) from mysql.roles_mapping;
 count(*)
@@ -118,7 +118,7 @@ count(*)
 set role none;
 set role role10;
 select count(*) from mysql.roles_mapping;
-ERROR 42000: SELECT command denied to user 'foo'@'localhost' for table 'roles_mapping'
+ERROR 42000: SELECT command denied to user 'foo'@'localhost' for table `mysql`.`roles_mapping`
 set role none;
 connection default;
 grant select on mysql.* to role1;
@@ -131,7 +131,7 @@ Debug_role_merges_column	0
 Debug_role_merges_routine	0
 connection foo;
 select count(*) from mysql.roles_mapping;
-ERROR 42000: SELECT command denied to user 'foo'@'localhost' for table 'roles_mapping'
+ERROR 42000: SELECT command denied to user 'foo'@'localhost' for table `mysql`.`roles_mapping`
 set role role10;
 select count(*) from mysql.roles_mapping;
 count(*)
@@ -171,7 +171,7 @@ Debug_role_merges_column	0
 Debug_role_merges_routine	0
 connection foo;
 select count(*) from mysql.roles_mapping;
-ERROR 42000: SELECT command denied to user 'foo'@'localhost' for table 'roles_mapping'
+ERROR 42000: SELECT command denied to user 'foo'@'localhost' for table `mysql`.`roles_mapping`
 set role none;
 connection default;
 grant select on mysql.roles_mapping to role1;
@@ -184,7 +184,7 @@ Debug_role_merges_column	0
 Debug_role_merges_routine	0
 connection foo;
 select count(*) from mysql.roles_mapping;
-ERROR 42000: SELECT command denied to user 'foo'@'localhost' for table 'roles_mapping'
+ERROR 42000: SELECT command denied to user 'foo'@'localhost' for table `mysql`.`roles_mapping`
 set role role10;
 select count(*) from mysql.roles_mapping;
 count(*)
@@ -224,7 +224,7 @@ Debug_role_merges_column	0
 Debug_role_merges_routine	0
 connection foo;
 select count(*) from mysql.roles_mapping;
-ERROR 42000: SELECT command denied to user 'foo'@'localhost' for table 'roles_mapping'
+ERROR 42000: SELECT command denied to user 'foo'@'localhost' for table `mysql`.`roles_mapping`
 set role none;
 connection default;
 grant select(User) on mysql.roles_mapping to role1;
@@ -237,7 +237,7 @@ Debug_role_merges_column	9
 Debug_role_merges_routine	0
 connection foo;
 select count(*) from mysql.roles_mapping;
-ERROR 42000: SELECT command denied to user 'foo'@'localhost' for table 'roles_mapping'
+ERROR 42000: SELECT command denied to user 'foo'@'localhost' for table `mysql`.`roles_mapping`
 set role role10;
 select count(concat(User,Host,Role)) from mysql.roles_mapping;
 ERROR 42000: SELECT command denied to user 'foo'@'localhost' for column 'Host' in table 'roles_mapping'
@@ -334,7 +334,7 @@ Debug_role_merges_column	30
 Debug_role_merges_routine	0
 connection foo;
 select count(concat(Host)) from mysql.roles_mapping;
-ERROR 42000: SELECT command denied to user 'foo'@'localhost' for table 'roles_mapping'
+ERROR 42000: SELECT command denied to user 'foo'@'localhost' for table `mysql`.`roles_mapping`
 set role none;
 connection default;
 create procedure pr1() select "pr1";

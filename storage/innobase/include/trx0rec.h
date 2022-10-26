@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2019, MariaDB Corporation.
+Copyright (c) 2017, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -136,30 +136,6 @@ trx_undo_update_rec_get_update(
 	mem_heap_t*	heap,	/*!< in: memory heap from which the memory
 				needed is allocated */
 	upd_t**		upd);	/*!< out, own: update vector */
-/*******************************************************************//**
-Builds a partial row from an update undo log record, for purge.
-It contains the columns which occur as ordering in any index of the table.
-Any missing columns are indicated by col->mtype == DATA_MISSING.
-@return pointer to remaining part of undo record */
-byte*
-trx_undo_rec_get_partial_row(
-/*=========================*/
-	const byte*	ptr,	/*!< in: remaining part in update undo log
-				record of a suitable type, at the start of
-				the stored index columns;
-				NOTE that this copy of the undo log record must
-				be preserved as long as the partial row is
-				used, as we do NOT copy the data in the
-				record! */
-	dict_index_t*	index,	/*!< in: clustered index */
-	const upd_t*	update,	/*!< in: updated columns */
-	dtuple_t**	row,	/*!< out, own: partial row */
-	ibool		ignore_prefix, /*!< in: flag to indicate if we
-				expect blob prefixes in undo. Used
-				only in the assertion. */
-	mem_heap_t*	heap)	/*!< in: memory heap from which the memory
-				needed is allocated */
-	MY_ATTRIBUTE((nonnull, warn_unused_result));
 /** Report a RENAME TABLE operation.
 @param[in,out]	trx	transaction
 @param[in]	table	table that is being renamed

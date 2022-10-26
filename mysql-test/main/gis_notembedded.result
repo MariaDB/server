@@ -39,7 +39,7 @@ create user foo@localhost;
 grant execute on mysql.* to foo@localhost;
 connect  foo, localhost, foo;
 call mysql.AddGeometryColumn('', 'mysql', 'proc', 'c', 10);
-ERROR 42000: ALTER command denied to user 'foo'@'localhost' for table 'proc'
+ERROR 42000: ALTER command denied to user 'foo'@'localhost' for table `mysql`.`proc`
 disconnect foo;
 connection default;
 drop user foo@localhost;

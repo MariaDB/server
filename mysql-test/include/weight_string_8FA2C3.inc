@@ -1,3 +1,5 @@
+#enable after fix MDEV-29290
+--disable_view_protocol
 select collation(cast(0x8FA2C3 as char));
 select hex(weight_string(cast(0x6141 as char)));
 select hex(weight_string(cast(0x8FA2C3 as char)));
@@ -33,4 +35,4 @@ select hex(weight_string(cast(0x8FA2C38FA2C38FA2C3 as char), 3, 4, 0xC0));
 select hex(weight_string(cast(0x8FA2C38FA2C38FA2C3 as char), 4, 4, 0xC0));
 select hex(weight_string(cast(0x8FA2C38FA2C38FA2C3 as char), 5, 4, 0xC0));
 select hex(weight_string(cast(0x8FA2C38FA2C38FA2C3 as char),25, 4, 0xC0));
-
+--enable_view_protocol

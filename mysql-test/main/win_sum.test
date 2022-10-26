@@ -35,6 +35,8 @@ insert into t1 values
 (126 , 6, 1, NULL),
 (127 , 6, 1, NULL);
 
+#enable after fix MDEV-27871
+--disable_view_protocol
 
 --sorted_result
 select pk, a, b, sum(b) over (partition by a order by pk ROWS BETWEEN 1 PRECEDING AND 1 FOLLOWING)
@@ -43,5 +45,6 @@ from t1;
 --sorted_result
 select pk, a, c, sum(c) over (partition by a order by pk ROWS BETWEEN 1 PRECEDING AND 1 FOLLOWING)
 from t1;
+--enable_view_protocol
 
 drop table t1;

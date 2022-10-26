@@ -7703,6 +7703,11 @@ ha_innobase::build_template(
 	m_prebuilt->versioned_write = table->versioned_write(VERS_TRX_ID);
 	m_prebuilt->need_to_access_clustered = (index == clust_index);
 
+	if (m_prebuilt->in_fts_query) {
+		/* Do clustered index lookup to fetch the FTS_DOC_ID */
+		m_prebuilt->need_to_access_clustered = true;
+	}
+
 	/* Either m_prebuilt->index should be a secondary index, or it
 	should be the clustered index. */
 	ut_ad(dict_index_is_clust(index) == (index == clust_index));
@@ -21138,7 +21143,8 @@ innobase_get_computed_value(
 	TABLE*			mysql_table,
 	byte*			mysql_rec,
 	const dict_table_t*	old_table,
-	const upd_t*		update)
+	const upd_t*		update,
+	bool			ignore_warnings)
 {
 	byte		rec_buf2[REC_VERSION_56_MAX_INDEX_COL_LEN];
 	byte*		buf;
@@ -21236,7 +21242,9 @@ innobase_get_computed_value(
 
 	MY_BITMAP *old_write_set = dbug_tmp_use_all_columns(mysql_table, &mysql_table->write_set);
 	MY_BITMAP *old_read_set = dbug_tmp_use_all_columns(mysql_table, &mysql_table->read_set);
-	ret = mysql_table->update_virtual_field(mysql_table->field[col->m_col.ind]);
+	ret = mysql_table->update_virtual_field(
+		mysql_table->field[col->m_col.ind],
+		ignore_warnings);
 	dbug_tmp_restore_column_map(&mysql_table->read_set, old_read_set);
 	dbug_tmp_restore_column_map(&mysql_table->write_set, old_write_set);
 

@@ -9,19 +9,29 @@ select json_value('{"key1":123}', '$.key2');
 select json_value('{"key1":123}', '$.key1');
 select json_value('{"key1":[1,2,3]}', '$.key1');
 select json_value('{"key1": [1,2,3], "key1":123}', '$.key1');
+
+#enable after fix MDEV-27871
+--disable_view_protocol
 select JSON_VALUE('{ "x": [0,1], "y": "[0,1]", "z": "Mon\\\"t\\\"y" }','$.z');
+--enable_view_protocol
 
 select json_query('{"key1":{"a":1, "b":[1,2]}}', '$.key2');
 select json_query('{"key1":{"a":1, "b":[1,2]}}', '$.key1');
 select json_query('{"key1": 1}', '$.key1');
 select json_query('{"key1":123, "key1": [1,2,3]}', '$.key1');
+#enable after fix MDEV-27871
+--disable_view_protocol
 select json_query('{"key1":123, "key1": [1,2,3]}', concat('$', repeat('.k', 1000)));
+--enable_view_protocol
 
 select json_array();
 select json_array(1);
+#enable after fix MDEV-28649
+--disable_view_protocol
 select json_array(1, "text", false, null);
 
 select json_array_append('["a", "b"]', '$', FALSE);
+--enable_view_protocol
 select json_array_append('{"k1":1, "k2":["a", "b"]}', '$.k2', 2);
 select json_array_append('["a", ["b", "c"], "d"]', '$[0]', 2);
 
@@ -29,9 +39,15 @@ select json_array_insert('["a", {"b": [1, 2]}, [3, 4]]', '$[1]', 'x');
 select json_array_insert('["a", {"b": [1, 2]}, [3, 4]]', '$[2]', 'x');
 select json_array_insert('["a", {"b": [1, 2]}, [3, 4]]', '$[3]', 'x');
 select json_array_insert('["a", {"b": [1, 2]}, [3, 4]]', '$[4]', 'x');
+#enable after fix MDEV-27871
+--disable_view_protocol
 select json_array_insert('["a", {"b": [1, 2]}, [3, 4]]', '$[1].b[0]', 'x');
+--enable_view_protocol
 select json_array_insert('true', '$', 1);
+#enable after fix MDEV-27871
+--disable_view_protocol
 select json_array_insert('["a", {"b": [1, 2]}, [3, 4]]', '$[2][1]', 'y');
+--enable_view_protocol
 
 select json_contains('{"k1":123, "k2":345}', '123', '$.k1');
 select json_contains('"you"', '"you"');
@@ -56,7 +72,10 @@ select json_contains('{"a":1}', '{}');
 select json_contains('[1, {"a":1}]', '{}');
 select json_contains('[1, {"a":1}]', '{"a":1}');
 select json_contains('[{"abc":"def", "def":"abc"}]', '["foo","bar"]');
+#enable after fix MDEV-27871
+--disable_view_protocol
 select json_contains('[{"abc":"def", "def":"abc"}, "bar"]', '["bar", {}]');
+--disable_view_protocol
 select json_contains('[{"a":"b"},{"c":"d"}]','{"c":"d"}');
 
 select json_contains_path('{"key1":1, "key2":[2,3]}', "oNE", "$.key2[1]");

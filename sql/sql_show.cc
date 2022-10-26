@@ -1172,7 +1172,8 @@ public:
       my_snprintf(m_view_access_denied_message, MYSQL_ERRMSG_SIZE,
                   ER_THD(thd, ER_TABLEACCESS_DENIED_ERROR), "SHOW VIEW",
                   m_sctx->priv_user,
-                  m_sctx->host_or_ip, m_top_view->get_table_name());
+                  m_sctx->host_or_ip,
+                  m_top_view->get_db_name(), m_top_view->get_table_name());
     }
     return m_view_access_denied_message_ptr;
   }
@@ -1264,7 +1265,8 @@ mysqld_show_create_get_fields(THD *thd, TABLE_LIST *table_list,
       DBUG_PRINT("debug", ("check_table_access failed"));
       my_error(ER_TABLEACCESS_DENIED_ERROR, MYF(0),
               "SHOW", thd->security_ctx->priv_user,
-              thd->security_ctx->host_or_ip, table_list->alias.str);
+              thd->security_ctx->host_or_ip,
+              table_list->db.str, table_list->alias.str);
       goto exit;
     }
     DBUG_PRINT("debug", ("check_table_access succeeded"));
@@ -1293,7 +1295,8 @@ mysqld_show_create_get_fields(THD *thd, TABLE_LIST *table_list,
     {
       my_error(ER_TABLEACCESS_DENIED_ERROR, MYF(0),
               "SHOW", thd->security_ctx->priv_user,
-              thd->security_ctx->host_or_ip, table_list->alias.str);
+              thd->security_ctx->host_or_ip,
+              table_list->db.str, table_list->alias.str);
       goto exit;
     }
   }
@@ -6026,6 +6029,15 @@ static int get_schema_column_record(THD *thd, TABLE_LIST *tables,
   show_table->use_all_columns();               // Required for default
   restore_record(show_table, s->default_values);
 
+#ifndef NO_EMBEDDED_ACCESS_CHECKS
+  check_access(thd, SELECT_ACL, db_name->str,
+               &tables->grant.privilege, 0, 0, MY_TEST(tables->schema_table));
+  if (is_temporary_table(tables))
+  {
+    tables->grant.privilege|= TMP_TABLE_ACLS;
+  }
+#endif
+
   for (; (field= *ptr) ; ptr++)
   {
     if(field->invisible > INVISIBLE_USER)
@@ -6046,13 +6058,13 @@ static int get_schema_column_record(THD *thd, TABLE_LIST *tables,
 
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
     uint col_access;
-    check_access(thd,SELECT_ACL, db_name->str,
-                 &tables->grant.privilege, 0, 0, MY_TEST(tables->schema_table));
     col_access= get_column_grant(thd, &tables->grant,
                                  db_name->str, table_name->str,
                                  field->field_name.str) & COL_ACLS;
+
     if (!tables->schema_table && !col_access)
       continue;
+
     char *end= tmp;
     for (uint bitnr=0; col_access ; col_access>>=1,bitnr++)
     {
@@ -7114,13 +7126,15 @@ static bool store_trigger(THD *thd, Trigger *trigger,
   table->field[14]->store(STRING_WITH_LEN("OLD"), cs);
   table->field[15]->store(STRING_WITH_LEN("NEW"), cs);
 
-  if (trigger->create_time)
+  if (trigger->hr_create_time.val)
   {
+    /* timestamp is in microseconds */
     table->field[16]->set_notnull();
-    thd->variables.time_zone->gmt_sec_to_TIME(&timestamp,
-                                              (my_time_t)(trigger->create_time/100));
-    /* timestamp is with 6 digits */
-    timestamp.second_part= (trigger->create_time % 100) * 10000;
+    thd->variables.time_zone->
+      gmt_sec_to_TIME(&timestamp,
+                      (my_time_t)
+                      hrtime_to_time(trigger->hr_create_time));
+    timestamp.second_part= hrtime_sec_part(trigger->hr_create_time);
     ((Field_temporal_with_date*) table->field[16])->store_time_dec(&timestamp,
                                                                    2);
   }
@@ -10291,12 +10305,14 @@ static bool show_create_trigger_impl(THD *thd, Trigger *trigger)
            trigger->db_cl_name.length,
            system_charset_info);
 
-  if (trigger->create_time)
+  if (trigger->hr_create_time.val)
   {
     MYSQL_TIME timestamp;
-    thd->variables.time_zone->gmt_sec_to_TIME(&timestamp,
-                                              (my_time_t)(trigger->create_time/100));
-    timestamp.second_part= (trigger->create_time % 100) * 10000;
+    thd->variables.time_zone->
+      gmt_sec_to_TIME(&timestamp,
+                      (my_time_t)
+                      hrtime_to_time(trigger->hr_create_time));
+    timestamp.second_part= hrtime_sec_part(trigger->hr_create_time);
     p->store(&timestamp, 2);
   }
   else

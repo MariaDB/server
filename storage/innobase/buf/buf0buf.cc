@@ -4815,6 +4815,10 @@ buf_page_get_known_nowait(
 
 	ut_a(buf_block_get_state(block) == BUF_BLOCK_FILE_PAGE);
 
+	/* The check for the page was not freed would already have been
+	performed when the block descriptor was acquired by the thread for the
+	first time.*/
+
 	buf_block_buf_fix_inc(block, file, line);
 
 	buf_page_set_accessed(&block->page);
@@ -4860,24 +4864,6 @@ buf_page_get_known_nowait(
 	ut_a(block->page.buf_fix_count > 0);
 	ut_a(buf_block_get_state(block) == BUF_BLOCK_FILE_PAGE);
 #endif /* UNIV_DEBUG || UNIV_BUF_DEBUG */
-
-#ifdef UNIV_DEBUG
-	if (mode != BUF_KEEP_OLD) {
-		/* If mode == BUF_KEEP_OLD, we are executing an I/O
-		completion routine.  Avoid a bogus assertion failure
-		when ibuf_merge_or_delete_for_page() is processing a
-		page that was just freed due to DROP INDEX, or
-		deleting a record from SYS_INDEXES. This check will be
-		skipped in recv_recover_page() as well. */
-
-# ifdef BTR_CUR_HASH_ADAPT
-		ut_ad(!block->page.file_page_was_freed
-		      || btr_search_check_marked_free_index(block));
-# else /* BTR_CUR_HASH_ADAPT */
-		ut_ad(!block->page.file_page_was_freed);
-# endif /* BTR_CUR_HASH_ADAPT */
-	}
-#endif /* UNIV_DEBUG */
 
 	buf_pool->stat.n_page_gets++;
 

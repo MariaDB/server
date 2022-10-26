@@ -11,11 +11,11 @@ CREATE USER u1@localhost;
 grant ALL on db.v1 to u1@localhost;
 connect  con1,localhost,u1,,;
 select * from db.t1;
-ERROR 42000: SELECT command denied to user 'u1'@'localhost' for table 't1'
+ERROR 42000: SELECT command denied to user 'u1'@'localhost' for table `db`.`t1`
 explain select * from db.t1;
-ERROR 42000: SELECT command denied to user 'u1'@'localhost' for table 't1'
+ERROR 42000: SELECT command denied to user 'u1'@'localhost' for table `db`.`t1`
 analyze select * from db.t1;
-ERROR 42000: SELECT command denied to user 'u1'@'localhost' for table 't1'
+ERROR 42000: SELECT command denied to user 'u1'@'localhost' for table `db`.`t1`
 select * from db.v1;
 i	c
 2	bar

@@ -18,4 +18,8 @@
 # Created: 2009-01-14 mleich
 #
 
+# Tests will be skipped for the view protocol because the view protocol creates 
+# an additional util connection and other statistics data
+-- source include/no_view_protocol.inc
+
 let $count_sessions= query_get_value(SHOW STATUS LIKE 'Threads_connected', Value, 1);

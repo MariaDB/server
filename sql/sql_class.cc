@@ -3881,6 +3881,7 @@ Statement::Statement(LEX *lex_arg, MEM_ROOT *mem_root_arg,
   lex(lex_arg),
   db(null_clex_str)
 {
+  hr_prepare_time.val= 0,
   name= null_clex_str;
 }
 
@@ -3897,6 +3898,7 @@ void Statement::set_statement(Statement *stmt)
   column_usage=   stmt->column_usage;
   lex=            stmt->lex;
   query_string=   stmt->query_string;
+  hr_prepare_time=    stmt->hr_prepare_time;
 }
 
 

@@ -150,7 +150,7 @@ t1	0	my_idx1	1	f6	###	###	###	###	###	###	###
 t1	0	my_idx1	2	f1	###	###	###	###	###	###	###	
 t1	0	my_idx2	1	f3	###	###	###	###	###	###	###	
 SHOW INDEXES FROM db_datadict.t2;
-ERROR 42000: SELECT command denied to user 'testuser1'@'localhost' for table 't2'
+ERROR 42000: SELECT command denied to user 'testuser1'@'localhost' for table `db_datadict`.`t2`
 connection default;
 disconnect testuser1;
 DROP USER 'testuser1'@'localhost';

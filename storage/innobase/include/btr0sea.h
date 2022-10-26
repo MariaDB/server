@@ -80,7 +80,6 @@ btr_search_guess_on_hash(
 	ulint		mode,
 	ulint		latch_mode,
 	btr_cur_t*	cursor,
-	rw_lock_t*	ahi_latch,
 	mtr_t*		mtr);
 
 /** Move or delete hash entries for moved records, usually in a page split.

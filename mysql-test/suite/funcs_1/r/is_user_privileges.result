@@ -1052,7 +1052,7 @@ PRIVILEGE_TYPE	UPDATE
 IS_GRANTABLE	NO
 SELECT * FROM mysql.user
 WHERE user LIKE 'testuser%' ORDER BY host, user;
-ERROR 42000: SELECT command denied to user 'testuser2'@'localhost' for table 'user'
+ERROR 42000: SELECT command denied to user 'testuser2'@'localhost' for table `mysql`.`user`
 SHOW GRANTS;
 Grants for testuser2@localhost
 GRANT INSERT, UPDATE ON *.* TO `testuser2`@`localhost`
@@ -1066,7 +1066,7 @@ PRIVILEGE_TYPE	USAGE
 IS_GRANTABLE	NO
 SELECT * FROM mysql.user
 WHERE user LIKE 'testuser%' ORDER BY host, user;
-ERROR 42000: SELECT command denied to user 'testuser3'@'localhost' for table 'user'
+ERROR 42000: SELECT command denied to user 'testuser3'@'localhost' for table `mysql`.`user`
 SHOW GRANTS;
 Grants for testuser3@localhost
 GRANT USAGE ON *.* TO `testuser3`@`localhost`
@@ -1246,12 +1246,12 @@ PRIVILEGE_TYPE	USAGE
 IS_GRANTABLE	NO
 SELECT * FROM mysql.user
 WHERE user LIKE 'testuser%' ORDER BY host, user;
-ERROR 42000: SELECT command denied to user 'testuser1'@'localhost' for table 'user'
+ERROR 42000: SELECT command denied to user 'testuser1'@'localhost' for table `mysql`.`user`
 SHOW GRANTS;
 Grants for testuser1@localhost
 GRANT USAGE ON *.* TO `testuser1`@`localhost`
 CREATE TABLE db_datadict.tb_55 ( c1 TEXT );
-ERROR 42000: CREATE command denied to user 'testuser1'@'localhost' for table 'tb_55'
+ERROR 42000: CREATE command denied to user 'testuser1'@'localhost' for table `db_datadict`.`tb_55`
 SELECT * FROM information_schema.user_privileges
 WHERE grantee LIKE '''testuser%'''
 ORDER BY grantee, table_catalog, privilege_type;
@@ -1261,12 +1261,12 @@ PRIVILEGE_TYPE	USAGE
 IS_GRANTABLE	NO
 SELECT * FROM mysql.user
 WHERE user LIKE 'testuser%' ORDER BY host, user;
-ERROR 42000: SELECT command denied to user 'testuser1'@'localhost' for table 'user'
+ERROR 42000: SELECT command denied to user 'testuser1'@'localhost' for table `mysql`.`user`
 SHOW GRANTS;
 Grants for testuser1@localhost
 GRANT USAGE ON *.* TO `testuser1`@`localhost`
 CREATE TABLE db_datadict.tb_66 ( c1 TEXT );
-ERROR 42000: CREATE command denied to user 'testuser1'@'localhost' for table 'tb_66'
+ERROR 42000: CREATE command denied to user 'testuser1'@'localhost' for table `db_datadict`.`tb_66`
 
 # Add ALL on db_datadict.* (and select on mysql.user) to testuser1;
 connection default;
@@ -1591,7 +1591,7 @@ GRANT USAGE ON *.* TO `testuser1`@`localhost`
 GRANT ALL PRIVILEGES ON `db_datadict`.* TO `testuser1`@`localhost` WITH GRANT OPTION
 GRANT SELECT ON `mysql`.`user` TO `testuser1`@`localhost`
 CREATE TABLE db_datadict.tb_56 ( c1 TEXT );
-ERROR 42000: CREATE command denied to user 'testuser1'@'localhost' for table 'tb_56'
+ERROR 42000: CREATE command denied to user 'testuser1'@'localhost' for table `db_datadict`.`tb_56`
 USE db_datadict;
 SELECT * FROM information_schema.user_privileges
 WHERE grantee LIKE '''testuser%'''
@@ -1926,7 +1926,7 @@ PRIVILEGE_TYPE	USAGE
 IS_GRANTABLE	NO
 SELECT * FROM mysql.user
 WHERE user LIKE 'testuser%' ORDER BY host, user;
-ERROR 42000: SELECT command denied to user 'testuser1'@'localhost' for table 'user'
+ERROR 42000: SELECT command denied to user 'testuser1'@'localhost' for table `mysql`.`user`
 SHOW GRANTS;
 Grants for testuser1@localhost
 GRANT USAGE ON *.* TO `testuser1`@`localhost`

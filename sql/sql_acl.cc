@@ -3456,7 +3456,7 @@ bool change_password(THD *thd, LEX_USER *user)
     goto end;
   }
 
-  acl_cache->clear(1);				// Clear locked hostname cache
+  hostname_cache_refresh();                    // Clear locked hostname cache
   mysql_mutex_unlock(&acl_cache->lock);
   result= 0;
   if (mysql_bin_log.is_open())
@@ -3621,7 +3621,6 @@ int acl_set_default_role(THD *thd, const char *host, const char *user,
       goto end;
     }
 
-    acl_cache->clear(1);
     mysql_mutex_unlock(&acl_cache->lock);
     result= 0;
     if (mysql_bin_log.is_open())
@@ -6540,7 +6539,8 @@ int mysql_table_grant(THD *thd, TABLE_LIST *table_list,
                            table_list->grant.want_privilege);
         my_error(ER_TABLEACCESS_DENIED_ERROR, MYF(0),
                  command, thd->security_ctx->priv_user,
-                 thd->security_ctx->host_or_ip, table_list->alias.str);
+                 thd->security_ctx->host_or_ip, table_list->db.str,
+                 table_list->alias.str);
         DBUG_RETURN(-1);
       }
     }
@@ -7152,7 +7152,10 @@ bool mysql_grant_role(THD *thd, List <LEX_USER> &list, bool revoke)
        a role
     */
     if (role_as_user)
+    {
       propagate_role_grants(role_as_user, PRIVS_TO_MERGE::ALL);
+      acl_cache->clear(1);
+    }
   }
 
   mysql_mutex_unlock(&acl_cache->lock);
@@ -7600,8 +7603,8 @@ bool grant_reload(THD *thd)
   @see check_table_access
 
   @note
-     This functions assumes that either number of tables to be inspected
-     by it is limited explicitly (i.e. is is not UINT_MAX) or table list
+     This function assumes that either number of tables to be inspected
+     by it is limited explicitly (i.e. is not UINT_MAX) or table list
      used and thd->lex->query_tables_own_last value correspond to each
      other (the latter should be either 0 or point to next_global member
      of one of elements of this table list).
@@ -7810,7 +7813,7 @@ err:
     my_error(ER_TABLEACCESS_DENIED_ERROR, MYF(0),
              command,
              sctx->priv_user,
-             sctx->host_or_ip,
+             sctx->host_or_ip, tl ? tl->db.str : "unknown",
              tl ? tl->get_table_name() : "unknown");
   }
   DBUG_RETURN(TRUE);
@@ -7993,7 +7996,7 @@ bool check_grant_all_columns(THD *thd, ulong want_access_arg,
   Security_context *sctx= thd->security_ctx;
   ulong UNINIT_VAR(want_access);
   const char *table_name= NULL;
-  const char* db_name;
+  const char* db_name= NULL;
   GRANT_INFO *grant;
   GRANT_TABLE *UNINIT_VAR(grant_table);
   GRANT_TABLE *UNINIT_VAR(grant_table_role);
@@ -8081,7 +8084,7 @@ err:
   if (using_column_privileges)
     my_error(ER_TABLEACCESS_DENIED_ERROR, MYF(0),
              command, sctx->priv_user,
-             sctx->host_or_ip, table_name);
+             sctx->host_or_ip, db_name, table_name);
   else
     my_error(ER_COLUMNACCESS_DENIED_ERROR, MYF(0),
              command,
@@ -13256,11 +13259,11 @@ static bool acl_check_ssl(THD *thd, const ACL_USER *acl_user)
         if (global_system_variables.log_warnings)
           sql_print_information("X509 issuer mismatch: should be '%s' "
                             "but is '%s'", acl_user->x509_issuer, ptr);
-        free(ptr);
+        OPENSSL_free(ptr);
         X509_free(cert);
         return 1;
       }
-      free(ptr);
+      OPENSSL_free(ptr);
     }
     /* X509 subject is specified, we check it .. */
     if (acl_user->x509_subject)
@@ -13273,11 +13276,11 @@ static bool acl_check_ssl(THD *thd, const ACL_USER *acl_user)
         if (global_system_variables.log_warnings)
           sql_print_information("X509 subject mismatch: should be '%s' but is '%s'",
                           acl_user->x509_subject, ptr);
-        free(ptr);
+        OPENSSL_free(ptr);
         X509_free(cert);
         return 1;
       }
-      free(ptr);
+      OPENSSL_free(ptr);
     }
     X509_free(cert);
     return 0;
