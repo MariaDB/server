@@ -2,17 +2,23 @@
 --source include/have_debug_sync.inc
 --source include/count_sessions.inc
 
---connect(suspend_purge,localhost,root,,)
 # Purge can cause deadlock in the test, requesting page's RW_X_LATCH for trx
 # ids reseting, after trx 2 acqured RW_S_LATCH and suspended in debug sync point
 # lock_trx_handle_wait_enter, waiting for upd_cont signal, which must be
 # emitted after the last SELECT in this test. The last SELECT will hang waiting
 # for purge RW_X_LATCH releasing, and trx 2 will be rolled back by timeout.
-START TRANSACTION WITH CONSISTENT SNAPSHOT;
 
---connection default
-CREATE TABLE t (a int PRIMARY KEY, b int) engine = InnoDB;
-CREATE TABLE t2 (a int PRIMARY KEY) engine = InnoDB;
+# There is deadlock_report_before_lock_releasing sync point in
+# Deadlock::report(), which is waiting for sel_cont signal under
+# lock_sys_t lock. The signal must be issued after "UPDATE t SET b = 100"
+# rollback, and that rollback is executing undo record, which is blocked on
+# dict_sys latch request. dict_sys is locked by the thread of statistics
+# update(dict_stats_save()), and during that update lock_sys lock is requested,
+# and can't be acquired as Deadlock::report() holds it. We have to disable
+# statistics update to make the test stable.
+
+CREATE TABLE t (a int PRIMARY KEY, b int) engine = InnoDB STATS_PERSISTENT=0;
+CREATE TABLE t2 (a int PRIMARY KEY) engine = InnoDB STATS_PERSISTENT=0;
 
 INSERT INTO t VALUES (10, 10), (20, 20), (30, 30);
 INSERT INTO t2 VALUES (10), (20), (30);
@@ -58,5 +64,4 @@ SET DEBUG_SYNC="lock_wait_before_suspend SIGNAL upd_cont";
 SET DEBUG_SYNC = 'RESET';
 DROP TABLE t;
 DROP TABLE t2;
---disconnect suspend_purge
 --source include/wait_until_count_sessions.inc
