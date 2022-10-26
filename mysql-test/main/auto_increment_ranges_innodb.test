@@ -23,7 +23,7 @@ drop table t1;
 --echo # MDEV-21842: auto_increment does not increment with compound primary
 --echo # key on partitioned table
 --echo #
-
+--disable_service_connection
 create or replace table `t` (
   `id` bigint(20) unsigned not null auto_increment,
   `a` int(10) not null ,
@@ -76,4 +76,4 @@ disconnect con2;
 --connection default
 select * from t;
 drop table t;
-
+--enable_service_connection

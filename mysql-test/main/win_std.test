@@ -25,6 +25,9 @@ select std(c) over (order by a)
 from t2;
 --enable_warnings
 
+#enable after fix MDEV-27871
+--disable_view_protocol
+
 --echo # Empty frame.
 select std(b) over (order by a rows between 2 following and 1 following)
 from t2;
@@ -135,6 +138,7 @@ from t2;
 --sorted_result
 select pk, a, b, std(b) over (order by a range between 0 following and 1 following)
 from t2;
+--enable_view_protocol
 
 drop table t1;
 drop table t2;

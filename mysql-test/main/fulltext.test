@@ -278,6 +278,7 @@ drop table t1;
 #
 # UTF8
 #
+--disable_service_connection
 SET NAMES latin1;
 CREATE TABLE t1 (t text character set utf8 not null, fulltext(t));
 INSERT t1 VALUES ('Mit freundlichem Grüß'), ('aus Osnabrück');
@@ -298,7 +299,7 @@ alter table t1 modify t varchar(200) collate latin1_german2_ci not null;
 SELECT t, collation(t) FROM t1 WHERE MATCH t AGAINST ('Osnabrück');
 SELECT t, collation(t) FROM t1 WHERE MATCH t AGAINST ('Osnabrueck');
 DROP TABLE t1;
-
+--enable_service_connection
 #
 # bug#3964
 #
@@ -346,7 +347,9 @@ drop table t1, t2;
 CREATE TABLE t1 (t VARCHAR(200) CHARACTER SET utf8 COLLATE utf8_unicode_ci, FULLTEXT (t));
 SET NAMES latin1;
 INSERT INTO t1 VALUES('Mit freundlichem Grüß aus Osnabrück');
+--disable_service_connection
 SELECT COUNT(*) FROM t1 WHERE MATCH(t) AGAINST ('"osnabrück"' IN BOOLEAN MODE);
+--enable_service_connection
 DROP TABLE t1;
 
 #
@@ -655,6 +658,7 @@ DROP TABLE t1;
 --echo #
 --echo # MDEV-6146 Can't mix (latin1_swedish_ci,NUMERIC) and (utf8_unicode_ci,IMPLICIT) for MATCH
 --echo #
+--disable_service_connection
 SET NAMES utf8;
 CREATE TABLE t1
 (
@@ -682,7 +686,7 @@ INSERT INTO t1 VALUES ('nnn5 x5 y5 Ã¶Ã¶Ã¶5','mmm5 	');
 SELECT * FROM t1 WHERE MATCH (txt1,txt2) AGAINST ('Ã¶Ã¶Ã¶1' IN BOOLEAN MODE);
 SELECT * FROM t1 WHERE MATCH (txt1,txt2) AGAINST ('Ã¹Ã¹Ã¹2' IN BOOLEAN MODE);
 DROP TABLE t1;
-
+--enable_service_connection
 
 --echo #
 --echo # MDEV-14743: Server crashes in Item_func_match::init_search
@@ -691,7 +695,10 @@ DROP TABLE t1;
 CREATE TABLE t1 (f VARCHAR(8));
 INSERT INTO t1 VALUES ('foo'),('bar');
 
+#enable after fix MDEV-27871
+--disable_view_protocol
 SELECT 'foo' IN (  SELECT f FROM t1 GROUP BY MATCH(f) AGAINST ( 'qux' IN BOOLEAN MODE ) );
+--enable_view_protocol
 SELECT 'foo' IN (  SELECT f FROM t1 GROUP BY MATCH(f) AGAINST ( 'qux' IN BOOLEAN MODE )) as f1, MATCH(f) AGAINST ( 'qux' IN BOOLEAN MODE ) as f2 from t1 ;
 explain extended
 SELECT 'foo' IN (  SELECT f FROM t1 GROUP BY MATCH(f) AGAINST ( 'qux' IN BOOLEAN MODE )) as f1, MATCH(f) AGAINST ( 'qux' IN BOOLEAN MODE ) as f2 from t1 ;

@@ -8,6 +8,7 @@
 # As non transactional engine we use Aria with TRANSACTIONAL = 0
 --source include/have_aria.inc
 
+--disable_service_connection
 # Following connections are used in a few of the following tests
 connect (con1,localhost,root,,);
 
@@ -61,6 +62,7 @@ INSERT INTO t_permanent_aria SET col1 = 1;
 CREATE TABLE throw_away (col1 INT) ENGINE = Aria TRANSACTIONAL = 0;
 --error ER_BACKUP_LOCK_IS_ACTIVE
 RENAME TABLE t_permanent_aria To throw_away;
+--disable_view_protocol
 --echo # - DDL creating a temporary table is allowed.
 CREATE TEMPORARY TABLE t_temporary_aria (col1 INT) ENGINE = Aria TRANSACTIONAL = 0;
 --echo # - DML modifying that temporary table is allowed.
@@ -107,6 +109,7 @@ ALTER TABLE t_temporary_aria ADD KEY idx(col2);
 BACKUP STAGE END;
 
 DROP TABLE t_permanent_aria;
+--enable_view_protocol
 
 --echo #-----------------------------------------------------------------------
 --echo # Show that non transactional tables locks with BACKUP STAGE FLUSH
@@ -155,3 +158,4 @@ drop table t1;
 --echo #
 
 disconnect con1;
+--enable_service_connection

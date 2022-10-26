@@ -23,7 +23,7 @@ if (!$MYSQLHOTCOPY)
 #       be skipped if Perl modules required by the mysqlhotcopy tool are not
 #       found when the script is run this way.
 
-
+--disable_service_connection
 let $MYSQLD_DATADIR= `SELECT @@datadir`;
 --disable_warnings
 DROP DATABASE IF EXISTS hotcopy_test;
@@ -134,4 +134,4 @@ DROP DATABASE hotcopy_test_cpy;
 DROP DATABASE hotcopy_test;
 DROP DATABASE hotcopy_save;
 DROP DATABASE hotcopy_save_old;
-
+--enable_service_connection

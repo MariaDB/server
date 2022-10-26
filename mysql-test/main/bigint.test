@@ -311,6 +311,7 @@ select cast(-19999999999999999999 as signed);
 #
 
 # PS protocol gives different metadata for `Max length' column
+--disable_view_protocol
 --disable_ps_protocol
 --enable_metadata
 select -9223372036854775808;
@@ -319,6 +320,7 @@ select -((9223372036854775808));
 select -(-(9223372036854775808));
 --disable_metadata
 --enable_ps_protocol
+--enable_view_protocol
 select --9223372036854775808, ---9223372036854775808, ----9223372036854775808;
 select -(-9223372036854775808), -(-(-9223372036854775808));
 

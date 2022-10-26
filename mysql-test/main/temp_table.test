@@ -2,6 +2,9 @@
 --source include/not_embedded.inc
 --source include/have_innodb.inc
 
+#View cannot has temporary table in definition
+--source include/no_view_protocol.inc
+
 #
 # Test of temporary tables
 #

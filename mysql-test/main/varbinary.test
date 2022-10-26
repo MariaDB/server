@@ -142,13 +142,19 @@ select x'41', 0+x'3635';
 
 select N'abc', length(N'abc');
 
+#enable after fix MDEV-28535
+--disable_view_protocol
 select N'', length(N'');
 
 select '', length('');
+--enable_view_protocol
 
+#enable after fix MDEV-28696
+--disable_view_protocol
 select b'', 0+b'';
 
 select x'', 0+x'';
+--enable_view_protocol
 
 --error ER_BAD_FIELD_ERROR
 select 0x;

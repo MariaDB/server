@@ -97,7 +97,10 @@ CREATE TABLE t3 (
   b varchar(1024) DEFAULT NULL
 );
 insert into t3 select mod(seq*3,20)+1, repeat(char(33+mod(seq,90)),mod(seq,10)*100) from seq_1_to_23;
+#chack after fix MDEV-28571
+--disable_view_protocol
 SELECT sq.a,length(sq.f) FROM (SELECT a, GROUP_CONCAT(b,b) AS f FROM t3 GROUP BY a ORDER BY a desc) as sq WHERE ROWNUM() <= 10;
+--enable_view_protocol
 drop table t3;
 
 --echo #
@@ -433,6 +436,7 @@ drop table t1;
 create table t1 (a int);
 insert into t1 values (1),(2),(3),(4),(5);
 
+--disable_view_protocol
 let $query=
 select * from (select a from t1 where a < 1000) as tt where rownum() <= 2;
 flush status;
@@ -481,6 +485,7 @@ eval prepare stmt from "$query";
 execute stmt;
 execute stmt;
 deallocate prepare stmt;
+--enable_view_protocol
 
 --echo # Other limit
 

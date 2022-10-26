@@ -614,6 +614,10 @@ SET optimizer_switch=@save_optimizer_switch;
 --echo #
 --echo # MDEV-7893: table_elimination works wrong with on computed expression and compound unique key
 --echo #  (just a testcase)
+
+#enable after fix MDEV-28602
+--disable_view_protocol
+
 CREATE TABLE t1 (
   PostID int(10) unsigned NOT NULL
 ) DEFAULT CHARSET=utf8;
@@ -641,3 +645,4 @@ LIMIT 1;
 
 DROP TABLE t1,t2;
 
+--enable_view_protocol

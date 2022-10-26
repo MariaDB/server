@@ -1,3 +1,5 @@
+#enable after fix MDEV-29290
+--disable_view_protocol
 select @@collation_connection;
 select hex(weight_string('a' LEVEL 1));
 select hex(weight_string('A' LEVEL 1));
@@ -8,3 +10,4 @@ select hex(weight_string('abc' as char(5) LEVEL 1));
 select hex(weight_string('abc' as char(5) LEVEL 1 REVERSE));
 select hex(weight_string('abc' as char(5) LEVEL 1 DESC));
 select hex(weight_string('abc' as char(5) LEVEL 1 DESC REVERSE));
+--enable_view_protocol

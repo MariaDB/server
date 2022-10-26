@@ -65,12 +65,13 @@ drop table t1;
 --echo
 --echo
 
+--disable_service_connection
 SET NAMES utf8;
 create database betäubungsmittelverschreibungsverordnung;
 use betäubungsmittelverschreibungsverordnung;
 select database() as "database" union all select database();
 drop database betäubungsmittelverschreibungsverordnung;
-
+--enable_service_connection
 
 --echo #
 --echo # End of 10.2 tests
