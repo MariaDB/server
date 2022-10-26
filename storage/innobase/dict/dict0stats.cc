@@ -1418,7 +1418,8 @@ dummy_empty:
 		mtr_t	mtr;
 
 		mtr.start();
-		mtr_s_lock_index(index, &mtr);
+		mtr_sx_lock_index(index, &mtr);
+
 		dberr_t err;
 		buf_block_t* root = btr_root_block_get(index, RW_SX_LATCH,
 						       &mtr, &err);
@@ -1434,7 +1435,7 @@ invalid:
 			goto invalid;
 		}
 
-		mtr.x_lock_space(index->table->space);
+		mtr.s_lock_space(index->table->space);
 
 		ulint dummy, size;
 		index->stat_index_size
@@ -2559,9 +2560,9 @@ static index_stats_t dict_stats_analyze_index(dict_index_t* index)
 	DEBUG_PRINTF("  %s(index=%s)\n", __func__, index->name());
 
 	mtr.start();
-	mtr_s_lock_index(index, &mtr);
+	mtr_sx_lock_index(index, &mtr);
 	dberr_t err;
-        buf_block_t* root = btr_root_block_get(index, RW_SX_LATCH, &mtr, &err);
+	buf_block_t* root = btr_root_block_get(index, RW_SX_LATCH, &mtr, &err);
 	if (!root) {
 empty_index:
 		mtr.commit();
@@ -2570,7 +2571,7 @@ empty_index:
 	}
 
 	uint16_t root_level = btr_page_get_level(root->page.frame);
-	mtr.x_lock_space(index->table->space);
+	mtr.s_lock_space(index->table->space);
 	ulint dummy, size;
 	result.index_size
 		= fseg_n_reserved_pages(*root, PAGE_HEADER + PAGE_BTR_SEG_LEAF

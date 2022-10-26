@@ -1102,6 +1102,7 @@ dberr_t dict_index_t::clear(que_thr_t *thr)
     mtr.set_log_mode(MTR_LOG_NO_REDO);
   else
     set_modified(mtr);
+  mtr_sx_lock_index(this, &mtr);
 
   dberr_t err;
   if (buf_block_t *root_block=
