@@ -2292,7 +2292,7 @@ static void activate_tcp_port(uint port,
                               Dynamic_array<MYSQL_SOCKET> *sockets,
                               bool is_extra_port= false)
 {
-  struct addrinfo *ai, *a, *b = NULL, *head = NULL;
+  struct addrinfo *ai, *a = NULL, *head = NULL;
   struct addrinfo hints;
   int error;
   int	arg;
@@ -2314,7 +2314,7 @@ static void activate_tcp_port(uint port,
 
   my_snprintf(port_buf, NI_MAXSERV, "%d", port);
 
-  if  (real_bind_addr_str && *real_bind_addr_str)
+  if (real_bind_addr_str && *real_bind_addr_str)
   {
 
     char *end;
@@ -2324,20 +2324,8 @@ static void activate_tcp_port(uint port,
     {
       end= strcend(real_bind_addr_str, DELIM);
       strmake(address, real_bind_addr_str, (uint) (end - real_bind_addr_str));
+
       error= getaddrinfo(address, port_buf, &hints, &ai);
-      if (!head)
-      {
-        head= ai;
-      }
-      if (b)
-      {
-        b->ai_next= ai;
-      }
-      b= ai;
-      while (b->ai_next)
-      {
-        b= b->ai_next;
-      }
       if (unlikely(error != 0))
       {
         DBUG_PRINT("error", ("Got error: %d from getaddrinfo()", error));
@@ -2345,6 +2333,20 @@ static void activate_tcp_port(uint port,
         sql_print_error("%s: %s", ER_DEFAULT(ER_IPSOCK_ERROR),
                         gai_strerror(error));
         unireg_abort(1); /* purecov: tested */
+      }
+
+      if (!head)
+      {
+        head= ai;
+      }
+      if (a)
+      {
+        a->ai_next= ai;
+      }
+      a= ai;
+      while (a->ai_next)
+      {
+        a= a->ai_next;
       }
 
       real_bind_addr_str= end + 1;
