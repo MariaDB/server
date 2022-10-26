@@ -4230,9 +4230,13 @@ static void dump_table(const char *table, const char *db, const uchar *hash_key,
 
     if (opt_header)
     {
-      dynstr_append_checked(&query_string, " FROM (SELECT 0 AS `_$is_data_row$_`,");
+      dynstr_append_checked(&query_string, " FROM ( SELECT ");
+      if (order_by)
+        dynstr_append_checked(&query_string, " 0 AS `_$is_data_row$_`,");
       dynstr_append_checked(&query_string, select_field_names_for_header.str);
-      dynstr_append_checked(&query_string, " UNION ALL SELECT 1 AS `_$is_data_row$_`,");
+      dynstr_append_checked(&query_string, " UNION ALL SELECT ");
+      if (order_by)
+        dynstr_append_checked(&query_string, "1 AS `_$is_data_row$_`,");
       dynstr_append_checked(&query_string, select_field_names.str);
     }
     dynstr_append_checked(&query_string, " FROM ");
@@ -4247,12 +4251,12 @@ static void dump_table(const char *table, const char *db, const uchar *hash_key,
       dynstr_append_checked(&query_string, where);
     }
     if (opt_header)
-      dynstr_append_checked(&query_string, ") s ORDER BY `_$is_data_row$_`");
+      dynstr_append_checked(&query_string, ") s");
 
     if (order_by)
     {
       if (opt_header)
-        dynstr_append_checked(&query_string, ",");
+        dynstr_append_checked(&query_string, " ORDER BY `_$is_data_row$_`,");
       else
         dynstr_append_checked(&query_string, " ORDER BY ");
       dynstr_append_checked(&query_string, order_by);
