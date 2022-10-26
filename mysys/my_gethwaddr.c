@@ -33,8 +33,14 @@ static my_bool memcpy_and_test(uchar *to, uchar *from, uint len)
   return res;
 }
 
-#if defined(__APPLE__) || defined(__FreeBSD__)
+#if defined(__APPLE__) || defined(__FreeBSD__) || defined(__OpenBSD__)
+#ifdef __OpenBSD__
+#include <netinet/in.h>
+#include <net/if_arp.h>
+#include <netinet/if_ether.h>
+#else
 #include <net/ethernet.h>
+#endif
 #include <sys/sysctl.h>
 #include <net/route.h>
 #include <net/if.h>
