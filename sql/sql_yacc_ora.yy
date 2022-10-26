@@ -5954,10 +5954,11 @@ opt_part_option:
 
 opt_versioning_rotation:
          /* empty */ {}
-       | INTERVAL_SYM expr interval opt_versioning_interval_start
+       | { Lex->expr_allows_subselect= false; }
+         INTERVAL_SYM expr interval opt_versioning_interval_start
          {
            partition_info *part_info= Lex->part_info;
-           if (unlikely(part_info->vers_set_interval(thd, $2, $3, $4)))
+           if (unlikely(part_info->vers_set_interval(thd, $3, $4, $5)))
              MYSQL_YYABORT;
          }
        | LIMIT ulonglong_num
@@ -12866,11 +12867,16 @@ order_clause:
                */
                DBUG_ASSERT(sel->master_unit()->fake_select_lex);
                lex->current_select= sel->master_unit()->fake_select_lex;
+               lex->push_context(&sel->master_unit()->fake_select_lex->context, thd->mem_root);
              }
           }
           order_list
           {
-
+            if (Lex->current_select ==
+                Lex->current_select->master_unit()->fake_select_lex)
+            {
+              Lex->pop_context();
+            }
           }
          ;
 
