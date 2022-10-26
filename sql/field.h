@@ -1552,12 +1552,6 @@ public:
     Used by the ALTER TABLE
   */
   virtual bool is_equal(const Column_definition &new_field) const= 0;
-  // Used as double dispatch pattern: calls virtual method of handler
-  virtual bool
-  can_be_converted_by_engine(const Column_definition &new_type) const
-  {
-    return false;
-  }
   /* convert decimal to longlong with overflow check */
   longlong convert_decimal2longlong(const my_decimal *val, bool unsigned_flag,
                                     int *err);
@@ -3621,10 +3615,6 @@ public:
   void sql_type(String &str) const;
   void sql_rpl_type(String*) const;
   bool is_equal(const Column_definition &new_field) const;
-  bool can_be_converted_by_engine(const Column_definition &new_type) const
-  {
-    return table->file->can_convert_string(this, new_type);
-  }
   virtual uchar *pack(uchar *to, const uchar *from,
                       uint max_length);
   virtual const uchar *unpack(uchar* to, const uchar *from,
@@ -3751,10 +3741,6 @@ public:
                        uchar *new_ptr, uint32 length,
                        uchar *new_null_ptr, uint new_null_bit);
   bool is_equal(const Column_definition &new_field) const;
-  bool can_be_converted_by_engine(const Column_definition &new_type) const
-  {
-    return table->file->can_convert_varstring(this, new_type);
-  }
   void hash(ulong *nr, ulong *nr2);
   uint length_size() const { return length_bytes; }
   void print_key_value(String *out, uint32 length);
@@ -4128,10 +4114,6 @@ public:
   uint32 char_length() const;
   uint32 character_octet_length() const;
   bool is_equal(const Column_definition &new_field) const;
-  bool can_be_converted_by_engine(const Column_definition &new_type) const
-  {
-    return table->file->can_convert_blob(this, new_type);
-  }
   void print_key_value(String *out, uint32 length);
 
   friend void TABLE::remember_blob_values(String *blob_storage);
@@ -4247,10 +4229,6 @@ public:
            !table->copy_blobs;
   }
   bool is_equal(const Column_definition &new_field) const;
-  bool can_be_converted_by_engine(const Column_definition &new_type) const
-  {
-    return table->file->can_convert_geom(this, new_type);
-  }
 
   int  store(const char *to, size_t length, CHARSET_INFO *charset);
   int  store(double nr);
