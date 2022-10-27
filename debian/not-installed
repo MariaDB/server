@@ -1,5 +1,4 @@
 etc/columnstore/storagemanager.cnf.example # Copy of etc/columnstore/storagemanager.cnf that is installed
-etc/logrotate.d/mysql # Debian packaging uses mariadb-server.mysql-server.logrotate
 etc/my.cnf # Debian packaging has /etc/mysql/my.cnf, which is a symlink to mariadb.cnf
 etc/mysql/mariadb.conf.d/client.cnf # Debian packaging uses files from debian/additions/mariadb.cnf.d/
 etc/mysql/mariadb.conf.d/enable_encryption.preset # Debian packaging uses files from debian/additions/mariadb.cnf.d/
@@ -51,6 +50,7 @@ usr/share/mysql/Mongo2.jar
 usr/share/mysql/Mongo3.jar
 usr/share/mysql/binary-configure
 usr/share/mysql/magic
+usr/share/mysql/mariadb.logrotate
 usr/share/mysql/maria_add_gis_sp.sql # mariadb-server-core.install has *_bootstrap.sql
 usr/share/mysql/mysql-test/asan.supp
 usr/share/mysql/mysql-test/lsan.supp
