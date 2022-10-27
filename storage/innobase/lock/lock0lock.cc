@@ -4116,7 +4116,6 @@ static bool lock_release_on_prepare_try(trx_t *trx)
 
   lock_sys.rd_unlock();
   trx->mutex_unlock();
-  trx->set_skip_lock_inheritance();
   return all_released;
 }
 
@@ -4124,6 +4123,8 @@ static bool lock_release_on_prepare_try(trx_t *trx)
 and release possible other transactions waiting because of these locks. */
 void lock_release_on_prepare(trx_t *trx)
 {
+  auto _ = make_scope_exit([trx]() { trx->set_skip_lock_inheritance(); });
+
   for (ulint count= 5; count--; )
     if (lock_release_on_prepare_try(trx))
       return;
