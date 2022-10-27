@@ -1,0 +1,1693 @@
+include/master-slave.inc
+[connection master]
+connection slave;
+connection master;
+CREATE TABLE t1 (x int) with system versioning;
+insert into t1 values (1);
+select * from t1 order by x;
+x
+1
+delete from t1;
+select * from t1 order by x;
+x
+select * from t1 for system_time all order by row_end, x;
+x
+1
+connection slave;
+select * from t1 order by x;
+x
+select * from t1 for system_time all order by row_end, x;
+x
+1
+connection master;
+insert into t1 values (2);
+connection slave;
+select * from t1 order by x;
+x
+2
+connection master;
+update t1 set x = 3;
+connection slave;
+select * from t1 order by x;
+x
+3
+select * from t1 for system_time all order by row_end, x;
+x
+1
+2
+3
+# check unversioned -> versioned replication
+connection master;
+create or replace table t1 (x int primary key);
+connection slave;
+alter table t1 with system versioning;
+connection master;
+insert into t1 values (1);
+connection slave;
+select * from t1 order by x;
+x
+1
+select * from t1 for system_time all order by row_end, x;
+x
+1
+connection master;
+update t1 set x= 2 where x = 1;
+connection slave;
+select * from t1 order by x;
+x
+2
+select * from t1 for system_time all order by row_end, x;
+x
+1
+2
+connection master;
+delete from t1;
+connection slave;
+select * from t1 order by x;
+x
+select * from t1 for system_time all order by row_end, x;
+x
+1
+2
+# same thing (UPDATE, DELETE), but without PK
+connection master;
+create or replace table t1 (x int);
+connection slave;
+alter table t1 with system versioning;
+connection master;
+insert into t1 values (1);
+update t1 set x= 2 where x = 1;
+connection slave;
+select * from t1 order by x;
+x
+2
+select * from t1 for system_time all order by row_end, x;
+x
+1
+2
+connection master;
+delete from t1;
+connection slave;
+select * from t1 order by x;
+x
+select * from t1 for system_time all order by row_end, x;
+x
+1
+2
+# multi-update
+connection master;
+create or replace table t1 (x int) with system versioning;
+create or replace table t2 (x int) with system versioning;
+insert into t1 values (1);
+insert into t2 values (2);
+update t1, t2 set t1.x=11, t2.x=22;
+connection slave;
+select * from t1 order by x;
+x
+11
+select * from t2 order by x;
+x
+22
+select * from t1 for system_time all order by row_end, x;
+x
+1
+11
+select * from t2 for system_time all order by row_end, x;
+x
+2
+22
+# MDEV-14767 system_versioning_alter_history breaks ALTER replication
+## Case 1: KEEP on the master, ALTER will work on the slave
+connection master;
+create or replace table t1 (a int) with system versioning;
+set system_versioning_alter_history= KEEP;
+alter table t1 add column b int;
+connection slave;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL
+) ENGINE=ENGINE DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
+## Case 2: ERROR on the master, it'll fail on the master, the slave won't see it
+connection master;
+set system_versioning_alter_history= ERROR;
+alter table t1 drop column b;
+ERROR HY000: Not allowed for system-versioned `test`.`t1`. Change @@system_versioning_alter_history to proceed with ALTER.
+connection slave;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL
+) ENGINE=ENGINE DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
+## Case 3: table is not versioned on the master, ALTER will work on the slave
+connection master;
+create or replace table t1 (a int);
+connection slave;
+create or replace table t1 (a int) with system versioning;
+connection master;
+alter table t1 add column b int;
+connection slave;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL
+) ENGINE=ENGINE DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
+connection master;
+drop table t1, t2;
+create table t1 (i int) with system versioning partition by system_time limit 8 ( partition p1 history, partition p2 history, partition pn current );
+insert into t1 values (1);
+update t1 set i = 1;
+update t1 set i = 0;
+connection slave;
+connection master;
+drop table t1;
+reset master;
+connection slave;
+include/stop_slave.inc
+reset slave;
+include/start_slave.inc
+connection slave;
+connection master;
+CREATE TABLE t1 (x int) with system versioning;
+insert into t1 values (1);
+select * from t1 order by x;
+x
+1
+delete from t1;
+select * from t1 order by x;
+x
+select * from t1 for system_time all order by row_end, x;
+x
+1
+connection slave;
+select * from t1 order by x;
+x
+select * from t1 for system_time all order by row_end, x;
+x
+1
+connection master;
+insert into t1 values (2);
+connection slave;
+select * from t1 order by x;
+x
+2
+connection master;
+update t1 set x = 3;
+connection slave;
+select * from t1 order by x;
+x
+3
+select * from t1 for system_time all order by row_end, x;
+x
+1
+2
+3
+# check unversioned -> versioned replication
+connection master;
+create or replace table t1 (x int primary key);
+connection slave;
+alter table t1 with system versioning;
+connection master;
+insert into t1 values (1);
+connection slave;
+select * from t1 order by x;
+x
+1
+select * from t1 for system_time all order by row_end, x;
+x
+1
+connection master;
+update t1 set x= 2 where x = 1;
+connection slave;
+select * from t1 order by x;
+x
+2
+select * from t1 for system_time all order by row_end, x;
+x
+1
+2
+connection master;
+delete from t1;
+connection slave;
+select * from t1 order by x;
+x
+select * from t1 for system_time all order by row_end, x;
+x
+1
+2
+# same thing (UPDATE, DELETE), but without PK
+connection master;
+create or replace table t1 (x int);
+connection slave;
+alter table t1 with system versioning;
+connection master;
+insert into t1 values (1);
+update t1 set x= 2 where x = 1;
+connection slave;
+select * from t1 order by x;
+x
+2
+select * from t1 for system_time all order by row_end, x;
+x
+1
+2
+connection master;
+delete from t1;
+connection slave;
+select * from t1 order by x;
+x
+select * from t1 for system_time all order by row_end, x;
+x
+1
+2
+# multi-update
+connection master;
+create or replace table t1 (x int) with system versioning;
+create or replace table t2 (x int) with system versioning;
+insert into t1 values (1);
+insert into t2 values (2);
+update t1, t2 set t1.x=11, t2.x=22;
+connection slave;
+select * from t1 order by x;
+x
+11
+select * from t2 order by x;
+x
+22
+select * from t1 for system_time all order by row_end, x;
+x
+1
+11
+select * from t2 for system_time all order by row_end, x;
+x
+2
+22
+# MDEV-14767 system_versioning_alter_history breaks ALTER replication
+## Case 1: KEEP on the master, ALTER will work on the slave
+connection master;
+create or replace table t1 (a int) with system versioning;
+set system_versioning_alter_history= KEEP;
+alter table t1 add column b int;
+connection slave;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL
+) ENGINE=ENGINE DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
+## Case 2: ERROR on the master, it'll fail on the master, the slave won't see it
+connection master;
+set system_versioning_alter_history= ERROR;
+alter table t1 drop column b;
+ERROR HY000: Not allowed for system-versioned `test`.`t1`. Change @@system_versioning_alter_history to proceed with ALTER.
+connection slave;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL
+) ENGINE=ENGINE DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
+## Case 3: table is not versioned on the master, ALTER will work on the slave
+connection master;
+create or replace table t1 (a int);
+connection slave;
+create or replace table t1 (a int) with system versioning;
+connection master;
+alter table t1 add column b int;
+connection slave;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL
+) ENGINE=ENGINE DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
+connection master;
+drop table t1, t2;
+create table t1 (i int) with system versioning partition by system_time limit 8 ( partition p1 history, partition p2 history, partition pn current );
+insert into t1 values (1);
+update t1 set i = 1;
+update t1 set i = 0;
+connection slave;
+connection master;
+drop table t1;
+reset master;
+connection slave;
+include/stop_slave.inc
+reset slave;
+include/start_slave.inc
+connection slave;
+connection master;
+CREATE TABLE t1 (x int) with system versioning;
+insert into t1 values (1);
+select * from t1 order by x;
+x
+1
+delete from t1;
+select * from t1 order by x;
+x
+select * from t1 for system_time all order by row_end, x;
+x
+1
+connection slave;
+select * from t1 order by x;
+x
+select * from t1 for system_time all order by row_end, x;
+x
+1
+connection master;
+insert into t1 values (2);
+connection slave;
+select * from t1 order by x;
+x
+2
+connection master;
+update t1 set x = 3;
+connection slave;
+select * from t1 order by x;
+x
+3
+select * from t1 for system_time all order by row_end, x;
+x
+1
+2
+3
+# check unversioned -> versioned replication
+connection master;
+create or replace table t1 (x int primary key);
+connection slave;
+alter table t1 with system versioning;
+connection master;
+insert into t1 values (1);
+connection slave;
+select * from t1 order by x;
+x
+1
+select * from t1 for system_time all order by row_end, x;
+x
+1
+connection master;
+update t1 set x= 2 where x = 1;
+connection slave;
+select * from t1 order by x;
+x
+2
+select * from t1 for system_time all order by row_end, x;
+x
+1
+2
+connection master;
+delete from t1;
+connection slave;
+select * from t1 order by x;
+x
+select * from t1 for system_time all order by row_end, x;
+x
+1
+2
+# same thing (UPDATE, DELETE), but without PK
+connection master;
+create or replace table t1 (x int);
+connection slave;
+alter table t1 with system versioning;
+connection master;
+insert into t1 values (1);
+update t1 set x= 2 where x = 1;
+connection slave;
+select * from t1 order by x;
+x
+2
+select * from t1 for system_time all order by row_end, x;
+x
+1
+2
+connection master;
+delete from t1;
+connection slave;
+select * from t1 order by x;
+x
+select * from t1 for system_time all order by row_end, x;
+x
+1
+2
+# multi-update
+connection master;
+create or replace table t1 (x int) with system versioning;
+create or replace table t2 (x int) with system versioning;
+insert into t1 values (1);
+insert into t2 values (2);
+update t1, t2 set t1.x=11, t2.x=22;
+connection slave;
+select * from t1 order by x;
+x
+11
+select * from t2 order by x;
+x
+22
+select * from t1 for system_time all order by row_end, x;
+x
+1
+11
+select * from t2 for system_time all order by row_end, x;
+x
+2
+22
+# MDEV-14767 system_versioning_alter_history breaks ALTER replication
+## Case 1: KEEP on the master, ALTER will work on the slave
+connection master;
+create or replace table t1 (a int) with system versioning;
+set system_versioning_alter_history= KEEP;
+alter table t1 add column b int;
+connection slave;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL
+) ENGINE=ENGINE DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
+## Case 2: ERROR on the master, it'll fail on the master, the slave won't see it
+connection master;
+set system_versioning_alter_history= ERROR;
+alter table t1 drop column b;
+ERROR HY000: Not allowed for system-versioned `test`.`t1`. Change @@system_versioning_alter_history to proceed with ALTER.
+connection slave;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL
+) ENGINE=ENGINE DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
+## Case 3: table is not versioned on the master, ALTER will work on the slave
+connection master;
+create or replace table t1 (a int);
+connection slave;
+create or replace table t1 (a int) with system versioning;
+connection master;
+alter table t1 add column b int;
+connection slave;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL
+) ENGINE=ENGINE DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
+connection master;
+drop table t1, t2;
+create table t1 (i int) with system versioning partition by system_time limit 8 ( partition p1 history, partition p2 history, partition pn current );
+insert into t1 values (1);
+update t1 set i = 1;
+update t1 set i = 0;
+connection slave;
+connection master;
+drop table t1;
+reset master;
+connection slave;
+include/stop_slave.inc
+reset slave;
+include/start_slave.inc
+connection slave;
+connection master;
+CREATE TABLE t1 (x int) with system versioning;
+insert into t1 values (1);
+select * from t1 order by x;
+x
+1
+delete from t1;
+select * from t1 order by x;
+x
+select * from t1 for system_time all order by row_end, x;
+x
+1
+connection slave;
+select * from t1 order by x;
+x
+select * from t1 for system_time all order by row_end, x;
+x
+1
+connection master;
+insert into t1 values (2);
+connection slave;
+select * from t1 order by x;
+x
+2
+connection master;
+update t1 set x = 3;
+connection slave;
+select * from t1 order by x;
+x
+3
+select * from t1 for system_time all order by row_end, x;
+x
+1
+2
+3
+# check unversioned -> versioned replication
+connection master;
+create or replace table t1 (x int primary key);
+connection slave;
+alter table t1 with system versioning;
+connection master;
+insert into t1 values (1);
+connection slave;
+select * from t1 order by x;
+x
+1
+select * from t1 for system_time all order by row_end, x;
+x
+1
+connection master;
+update t1 set x= 2 where x = 1;
+connection slave;
+select * from t1 order by x;
+x
+2
+select * from t1 for system_time all order by row_end, x;
+x
+1
+2
+connection master;
+delete from t1;
+connection slave;
+select * from t1 order by x;
+x
+select * from t1 for system_time all order by row_end, x;
+x
+1
+2
+# same thing (UPDATE, DELETE), but without PK
+connection master;
+create or replace table t1 (x int);
+connection slave;
+alter table t1 with system versioning;
+connection master;
+insert into t1 values (1);
+update t1 set x= 2 where x = 1;
+connection slave;
+select * from t1 order by x;
+x
+2
+select * from t1 for system_time all order by row_end, x;
+x
+1
+2
+connection master;
+delete from t1;
+connection slave;
+select * from t1 order by x;
+x
+select * from t1 for system_time all order by row_end, x;
+x
+1
+2
+# multi-update
+connection master;
+create or replace table t1 (x int) with system versioning;
+create or replace table t2 (x int) with system versioning;
+insert into t1 values (1);
+insert into t2 values (2);
+update t1, t2 set t1.x=11, t2.x=22;
+connection slave;
+select * from t1 order by x;
+x
+11
+select * from t2 order by x;
+x
+22
+select * from t1 for system_time all order by row_end, x;
+x
+1
+11
+select * from t2 for system_time all order by row_end, x;
+x
+2
+22
+# MDEV-14767 system_versioning_alter_history breaks ALTER replication
+## Case 1: KEEP on the master, ALTER will work on the slave
+connection master;
+create or replace table t1 (a int) with system versioning;
+set system_versioning_alter_history= KEEP;
+alter table t1 add column b int;
+connection slave;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL
+) ENGINE=ENGINE DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
+## Case 2: ERROR on the master, it'll fail on the master, the slave won't see it
+connection master;
+set system_versioning_alter_history= ERROR;
+alter table t1 drop column b;
+ERROR HY000: Not allowed for system-versioned `test`.`t1`. Change @@system_versioning_alter_history to proceed with ALTER.
+connection slave;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL
+) ENGINE=ENGINE DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
+## Case 3: table is not versioned on the master, ALTER will work on the slave
+connection master;
+create or replace table t1 (a int);
+connection slave;
+create or replace table t1 (a int) with system versioning;
+connection master;
+alter table t1 add column b int;
+connection slave;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL
+) ENGINE=ENGINE DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
+connection master;
+drop table t1, t2;
+create table t1 (i int) with system versioning partition by system_time limit 8 ( partition p1 history, partition p2 history, partition pn current );
+insert into t1 values (1);
+update t1 set i = 1;
+update t1 set i = 0;
+connection slave;
+connection master;
+drop table t1;
+reset master;
+connection slave;
+include/stop_slave.inc
+reset slave;
+include/start_slave.inc
+connection slave;
+connection master;
+CREATE TABLE t1 (x int) with system versioning;
+insert into t1 values (1);
+select * from t1 order by x;
+x
+1
+delete from t1;
+select * from t1 order by x;
+x
+select * from t1 for system_time all order by row_end, x;
+x
+1
+connection slave;
+select * from t1 order by x;
+x
+select * from t1 for system_time all order by row_end, x;
+x
+1
+connection master;
+insert into t1 values (2);
+connection slave;
+select * from t1 order by x;
+x
+2
+connection master;
+update t1 set x = 3;
+connection slave;
+select * from t1 order by x;
+x
+3
+select * from t1 for system_time all order by row_end, x;
+x
+1
+2
+3
+# check unversioned -> versioned replication
+connection master;
+create or replace table t1 (x int primary key);
+connection slave;
+alter table t1 with system versioning;
+connection master;
+insert into t1 values (1);
+connection slave;
+select * from t1 order by x;
+x
+1
+select * from t1 for system_time all order by row_end, x;
+x
+1
+connection master;
+update t1 set x= 2 where x = 1;
+connection slave;
+select * from t1 order by x;
+x
+2
+select * from t1 for system_time all order by row_end, x;
+x
+1
+2
+connection master;
+delete from t1;
+connection slave;
+select * from t1 order by x;
+x
+select * from t1 for system_time all order by row_end, x;
+x
+1
+2
+# same thing (UPDATE, DELETE), but without PK
+connection master;
+create or replace table t1 (x int);
+connection slave;
+alter table t1 with system versioning;
+connection master;
+insert into t1 values (1);
+update t1 set x= 2 where x = 1;
+connection slave;
+select * from t1 order by x;
+x
+2
+select * from t1 for system_time all order by row_end, x;
+x
+1
+2
+connection master;
+delete from t1;
+connection slave;
+select * from t1 order by x;
+x
+select * from t1 for system_time all order by row_end, x;
+x
+1
+2
+# multi-update
+connection master;
+create or replace table t1 (x int) with system versioning;
+create or replace table t2 (x int) with system versioning;
+insert into t1 values (1);
+insert into t2 values (2);
+update t1, t2 set t1.x=11, t2.x=22;
+connection slave;
+select * from t1 order by x;
+x
+11
+select * from t2 order by x;
+x
+22
+select * from t1 for system_time all order by row_end, x;
+x
+1
+11
+select * from t2 for system_time all order by row_end, x;
+x
+2
+22
+# MDEV-14767 system_versioning_alter_history breaks ALTER replication
+## Case 1: KEEP on the master, ALTER will work on the slave
+connection master;
+create or replace table t1 (a int) with system versioning;
+set system_versioning_alter_history= KEEP;
+alter table t1 add column b int;
+connection slave;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL
+) ENGINE=ENGINE DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
+## Case 2: ERROR on the master, it'll fail on the master, the slave won't see it
+connection master;
+set system_versioning_alter_history= ERROR;
+alter table t1 drop column b;
+ERROR HY000: Not allowed for system-versioned `test`.`t1`. Change @@system_versioning_alter_history to proceed with ALTER.
+connection slave;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL
+) ENGINE=ENGINE DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
+## Case 3: table is not versioned on the master, ALTER will work on the slave
+connection master;
+create or replace table t1 (a int);
+connection slave;
+create or replace table t1 (a int) with system versioning;
+connection master;
+alter table t1 add column b int;
+connection slave;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL
+) ENGINE=ENGINE DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
+connection master;
+drop table t1, t2;
+create table t1 (i int) with system versioning partition by system_time limit 8 ( partition p1 history, partition p2 history, partition pn current );
+insert into t1 values (1);
+update t1 set i = 1;
+update t1 set i = 0;
+connection slave;
+connection master;
+drop table t1;
+reset master;
+connection slave;
+include/stop_slave.inc
+reset slave;
+include/start_slave.inc
+connection slave;
+connection master;
+CREATE TABLE t1 (x int) with system versioning;
+insert into t1 values (1);
+select * from t1 order by x;
+x
+1
+delete from t1;
+select * from t1 order by x;
+x
+select * from t1 for system_time all order by row_end, x;
+x
+1
+connection slave;
+select * from t1 order by x;
+x
+select * from t1 for system_time all order by row_end, x;
+x
+1
+connection master;
+insert into t1 values (2);
+connection slave;
+select * from t1 order by x;
+x
+2
+connection master;
+update t1 set x = 3;
+connection slave;
+select * from t1 order by x;
+x
+3
+select * from t1 for system_time all order by row_end, x;
+x
+1
+2
+3
+# check unversioned -> versioned replication
+connection master;
+create or replace table t1 (x int primary key);
+connection slave;
+alter table t1 with system versioning;
+connection master;
+insert into t1 values (1);
+connection slave;
+select * from t1 order by x;
+x
+1
+select * from t1 for system_time all order by row_end, x;
+x
+1
+connection master;
+update t1 set x= 2 where x = 1;
+connection slave;
+select * from t1 order by x;
+x
+2
+select * from t1 for system_time all order by row_end, x;
+x
+1
+2
+connection master;
+delete from t1;
+connection slave;
+select * from t1 order by x;
+x
+select * from t1 for system_time all order by row_end, x;
+x
+1
+2
+# same thing (UPDATE, DELETE), but without PK
+connection master;
+create or replace table t1 (x int);
+connection slave;
+alter table t1 with system versioning;
+connection master;
+insert into t1 values (1);
+update t1 set x= 2 where x = 1;
+connection slave;
+select * from t1 order by x;
+x
+2
+select * from t1 for system_time all order by row_end, x;
+x
+1
+2
+connection master;
+delete from t1;
+connection slave;
+select * from t1 order by x;
+x
+select * from t1 for system_time all order by row_end, x;
+x
+1
+2
+# multi-update
+connection master;
+create or replace table t1 (x int) with system versioning;
+create or replace table t2 (x int) with system versioning;
+insert into t1 values (1);
+insert into t2 values (2);
+update t1, t2 set t1.x=11, t2.x=22;
+connection slave;
+select * from t1 order by x;
+x
+11
+select * from t2 order by x;
+x
+22
+select * from t1 for system_time all order by row_end, x;
+x
+1
+11
+select * from t2 for system_time all order by row_end, x;
+x
+2
+22
+# MDEV-14767 system_versioning_alter_history breaks ALTER replication
+## Case 1: KEEP on the master, ALTER will work on the slave
+connection master;
+create or replace table t1 (a int) with system versioning;
+set system_versioning_alter_history= KEEP;
+alter table t1 add column b int;
+connection slave;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL
+) ENGINE=ENGINE DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
+## Case 2: ERROR on the master, it'll fail on the master, the slave won't see it
+connection master;
+set system_versioning_alter_history= ERROR;
+alter table t1 drop column b;
+ERROR HY000: Not allowed for system-versioned `test`.`t1`. Change @@system_versioning_alter_history to proceed with ALTER.
+connection slave;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL
+) ENGINE=ENGINE DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
+## Case 3: table is not versioned on the master, ALTER will work on the slave
+connection master;
+create or replace table t1 (a int);
+connection slave;
+create or replace table t1 (a int) with system versioning;
+connection master;
+alter table t1 add column b int;
+connection slave;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL
+) ENGINE=ENGINE DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
+connection master;
+drop table t1, t2;
+create table t1 (i int) with system versioning partition by system_time limit 8 ( partition p1 history, partition p2 history, partition pn current );
+insert into t1 values (1);
+update t1 set i = 1;
+update t1 set i = 0;
+connection slave;
+connection master;
+drop table t1;
+reset master;
+connection slave;
+include/stop_slave.inc
+reset slave;
+include/start_slave.inc
+connection slave;
+connection master;
+CREATE TABLE t1 (x int) with system versioning;
+insert into t1 values (1);
+select * from t1 order by x;
+x
+1
+delete from t1;
+select * from t1 order by x;
+x
+select * from t1 for system_time all order by row_end, x;
+x
+1
+connection slave;
+select * from t1 order by x;
+x
+select * from t1 for system_time all order by row_end, x;
+x
+1
+connection master;
+insert into t1 values (2);
+connection slave;
+select * from t1 order by x;
+x
+2
+connection master;
+update t1 set x = 3;
+connection slave;
+select * from t1 order by x;
+x
+3
+select * from t1 for system_time all order by row_end, x;
+x
+1
+2
+3
+# check unversioned -> versioned replication
+connection master;
+create or replace table t1 (x int primary key);
+connection slave;
+alter table t1 with system versioning;
+connection master;
+insert into t1 values (1);
+connection slave;
+select * from t1 order by x;
+x
+1
+select * from t1 for system_time all order by row_end, x;
+x
+1
+connection master;
+update t1 set x= 2 where x = 1;
+connection slave;
+select * from t1 order by x;
+x
+2
+select * from t1 for system_time all order by row_end, x;
+x
+1
+2
+connection master;
+delete from t1;
+connection slave;
+select * from t1 order by x;
+x
+select * from t1 for system_time all order by row_end, x;
+x
+1
+2
+# same thing (UPDATE, DELETE), but without PK
+connection master;
+create or replace table t1 (x int);
+connection slave;
+alter table t1 with system versioning;
+connection master;
+insert into t1 values (1);
+update t1 set x= 2 where x = 1;
+connection slave;
+select * from t1 order by x;
+x
+2
+select * from t1 for system_time all order by row_end, x;
+x
+1
+2
+connection master;
+delete from t1;
+connection slave;
+select * from t1 order by x;
+x
+select * from t1 for system_time all order by row_end, x;
+x
+1
+2
+# multi-update
+connection master;
+create or replace table t1 (x int) with system versioning;
+create or replace table t2 (x int) with system versioning;
+insert into t1 values (1);
+insert into t2 values (2);
+update t1, t2 set t1.x=11, t2.x=22;
+connection slave;
+select * from t1 order by x;
+x
+11
+select * from t2 order by x;
+x
+22
+select * from t1 for system_time all order by row_end, x;
+x
+1
+11
+select * from t2 for system_time all order by row_end, x;
+x
+2
+22
+# MDEV-14767 system_versioning_alter_history breaks ALTER replication
+## Case 1: KEEP on the master, ALTER will work on the slave
+connection master;
+create or replace table t1 (a int) with system versioning;
+set system_versioning_alter_history= KEEP;
+alter table t1 add column b int;
+connection slave;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL
+) ENGINE=ENGINE DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
+## Case 2: ERROR on the master, it'll fail on the master, the slave won't see it
+connection master;
+set system_versioning_alter_history= ERROR;
+alter table t1 drop column b;
+ERROR HY000: Not allowed for system-versioned `test`.`t1`. Change @@system_versioning_alter_history to proceed with ALTER.
+connection slave;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL
+) ENGINE=ENGINE DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
+## Case 3: table is not versioned on the master, ALTER will work on the slave
+connection master;
+create or replace table t1 (a int);
+connection slave;
+create or replace table t1 (a int) with system versioning;
+connection master;
+alter table t1 add column b int;
+connection slave;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL
+) ENGINE=ENGINE DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
+connection master;
+drop table t1, t2;
+create table t1 (i int) with system versioning partition by system_time limit 8 ( partition p1 history, partition p2 history, partition pn current );
+insert into t1 values (1);
+update t1 set i = 1;
+update t1 set i = 0;
+connection slave;
+connection master;
+drop table t1;
+reset master;
+connection slave;
+include/stop_slave.inc
+reset slave;
+include/start_slave.inc
+connection slave;
+connection master;
+CREATE TABLE t1 (x int) with system versioning;
+insert into t1 values (1);
+select * from t1 order by x;
+x
+1
+delete from t1;
+select * from t1 order by x;
+x
+select * from t1 for system_time all order by row_end, x;
+x
+1
+connection slave;
+select * from t1 order by x;
+x
+select * from t1 for system_time all order by row_end, x;
+x
+1
+connection master;
+insert into t1 values (2);
+connection slave;
+select * from t1 order by x;
+x
+2
+connection master;
+update t1 set x = 3;
+connection slave;
+select * from t1 order by x;
+x
+3
+select * from t1 for system_time all order by row_end, x;
+x
+1
+2
+3
+# check unversioned -> versioned replication
+connection master;
+create or replace table t1 (x int primary key);
+connection slave;
+alter table t1 with system versioning;
+connection master;
+insert into t1 values (1);
+connection slave;
+select * from t1 order by x;
+x
+1
+select * from t1 for system_time all order by row_end, x;
+x
+1
+connection master;
+update t1 set x= 2 where x = 1;
+connection slave;
+select * from t1 order by x;
+x
+2
+select * from t1 for system_time all order by row_end, x;
+x
+1
+2
+connection master;
+delete from t1;
+connection slave;
+select * from t1 order by x;
+x
+select * from t1 for system_time all order by row_end, x;
+x
+1
+2
+# same thing (UPDATE, DELETE), but without PK
+connection master;
+create or replace table t1 (x int);
+connection slave;
+alter table t1 with system versioning;
+connection master;
+insert into t1 values (1);
+update t1 set x= 2 where x = 1;
+connection slave;
+select * from t1 order by x;
+x
+2
+select * from t1 for system_time all order by row_end, x;
+x
+1
+2
+connection master;
+delete from t1;
+connection slave;
+select * from t1 order by x;
+x
+select * from t1 for system_time all order by row_end, x;
+x
+1
+2
+# multi-update
+connection master;
+create or replace table t1 (x int) with system versioning;
+create or replace table t2 (x int) with system versioning;
+insert into t1 values (1);
+insert into t2 values (2);
+update t1, t2 set t1.x=11, t2.x=22;
+connection slave;
+select * from t1 order by x;
+x
+11
+select * from t2 order by x;
+x
+22
+select * from t1 for system_time all order by row_end, x;
+x
+1
+11
+select * from t2 for system_time all order by row_end, x;
+x
+2
+22
+# MDEV-14767 system_versioning_alter_history breaks ALTER replication
+## Case 1: KEEP on the master, ALTER will work on the slave
+connection master;
+create or replace table t1 (a int) with system versioning;
+set system_versioning_alter_history= KEEP;
+alter table t1 add column b int;
+connection slave;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL
+) ENGINE=ENGINE DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
+## Case 2: ERROR on the master, it'll fail on the master, the slave won't see it
+connection master;
+set system_versioning_alter_history= ERROR;
+alter table t1 drop column b;
+ERROR HY000: Not allowed for system-versioned `test`.`t1`. Change @@system_versioning_alter_history to proceed with ALTER.
+connection slave;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL
+) ENGINE=ENGINE DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
+## Case 3: table is not versioned on the master, ALTER will work on the slave
+connection master;
+create or replace table t1 (a int);
+connection slave;
+create or replace table t1 (a int) with system versioning;
+connection master;
+alter table t1 add column b int;
+connection slave;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL
+) ENGINE=ENGINE DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
+connection master;
+drop table t1, t2;
+create table t1 (i int) with system versioning partition by system_time limit 8 ( partition p1 history, partition p2 history, partition pn current );
+insert into t1 values (1);
+update t1 set i = 1;
+update t1 set i = 0;
+connection slave;
+connection master;
+drop table t1;
+reset master;
+connection slave;
+include/stop_slave.inc
+reset slave;
+include/start_slave.inc
+connection slave;
+connection master;
+CREATE TABLE t1 (x int) with system versioning;
+insert into t1 values (1);
+select * from t1 order by x;
+x
+1
+delete from t1;
+select * from t1 order by x;
+x
+select * from t1 for system_time all order by row_end, x;
+x
+1
+connection slave;
+select * from t1 order by x;
+x
+select * from t1 for system_time all order by row_end, x;
+x
+1
+connection master;
+insert into t1 values (2);
+connection slave;
+select * from t1 order by x;
+x
+2
+connection master;
+update t1 set x = 3;
+connection slave;
+select * from t1 order by x;
+x
+3
+select * from t1 for system_time all order by row_end, x;
+x
+1
+2
+3
+# check unversioned -> versioned replication
+connection master;
+create or replace table t1 (x int primary key);
+connection slave;
+alter table t1 with system versioning;
+connection master;
+insert into t1 values (1);
+connection slave;
+select * from t1 order by x;
+x
+1
+select * from t1 for system_time all order by row_end, x;
+x
+1
+connection master;
+update t1 set x= 2 where x = 1;
+connection slave;
+select * from t1 order by x;
+x
+2
+select * from t1 for system_time all order by row_end, x;
+x
+1
+2
+connection master;
+delete from t1;
+connection slave;
+select * from t1 order by x;
+x
+select * from t1 for system_time all order by row_end, x;
+x
+1
+2
+# same thing (UPDATE, DELETE), but without PK
+connection master;
+create or replace table t1 (x int);
+connection slave;
+alter table t1 with system versioning;
+connection master;
+insert into t1 values (1);
+update t1 set x= 2 where x = 1;
+connection slave;
+select * from t1 order by x;
+x
+2
+select * from t1 for system_time all order by row_end, x;
+x
+1
+2
+connection master;
+delete from t1;
+connection slave;
+select * from t1 order by x;
+x
+select * from t1 for system_time all order by row_end, x;
+x
+1
+2
+# multi-update
+connection master;
+create or replace table t1 (x int) with system versioning;
+create or replace table t2 (x int) with system versioning;
+insert into t1 values (1);
+insert into t2 values (2);
+update t1, t2 set t1.x=11, t2.x=22;
+connection slave;
+select * from t1 order by x;
+x
+11
+select * from t2 order by x;
+x
+22
+select * from t1 for system_time all order by row_end, x;
+x
+1
+11
+select * from t2 for system_time all order by row_end, x;
+x
+2
+22
+# MDEV-14767 system_versioning_alter_history breaks ALTER replication
+## Case 1: KEEP on the master, ALTER will work on the slave
+connection master;
+create or replace table t1 (a int) with system versioning;
+set system_versioning_alter_history= KEEP;
+alter table t1 add column b int;
+connection slave;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL
+) ENGINE=ENGINE DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
+## Case 2: ERROR on the master, it'll fail on the master, the slave won't see it
+connection master;
+set system_versioning_alter_history= ERROR;
+alter table t1 drop column b;
+ERROR HY000: Not allowed for system-versioned `test`.`t1`. Change @@system_versioning_alter_history to proceed with ALTER.
+connection slave;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL
+) ENGINE=ENGINE DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
+## Case 3: table is not versioned on the master, ALTER will work on the slave
+connection master;
+create or replace table t1 (a int);
+connection slave;
+create or replace table t1 (a int) with system versioning;
+connection master;
+alter table t1 add column b int;
+connection slave;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL
+) ENGINE=ENGINE DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
+connection master;
+drop table t1, t2;
+create table t1 (i int) with system versioning partition by system_time limit 8 ( partition p1 history, partition p2 history, partition pn current );
+insert into t1 values (1);
+update t1 set i = 1;
+update t1 set i = 0;
+connection slave;
+connection master;
+drop table t1;
+reset master;
+connection slave;
+include/stop_slave.inc
+reset slave;
+include/start_slave.inc
+connection slave;
+connection master;
+CREATE TABLE t1 (x int) with system versioning;
+insert into t1 values (1);
+select * from t1 order by x;
+x
+1
+delete from t1;
+select * from t1 order by x;
+x
+select * from t1 for system_time all order by row_end, x;
+x
+1
+connection slave;
+select * from t1 order by x;
+x
+select * from t1 for system_time all order by row_end, x;
+x
+1
+connection master;
+insert into t1 values (2);
+connection slave;
+select * from t1 order by x;
+x
+2
+connection master;
+update t1 set x = 3;
+connection slave;
+select * from t1 order by x;
+x
+3
+select * from t1 for system_time all order by row_end, x;
+x
+1
+2
+3
+# check unversioned -> versioned replication
+connection master;
+create or replace table t1 (x int primary key);
+connection slave;
+alter table t1 with system versioning;
+connection master;
+insert into t1 values (1);
+connection slave;
+select * from t1 order by x;
+x
+1
+select * from t1 for system_time all order by row_end, x;
+x
+1
+connection master;
+update t1 set x= 2 where x = 1;
+connection slave;
+select * from t1 order by x;
+x
+2
+select * from t1 for system_time all order by row_end, x;
+x
+1
+2
+connection master;
+delete from t1;
+connection slave;
+select * from t1 order by x;
+x
+select * from t1 for system_time all order by row_end, x;
+x
+1
+2
+# same thing (UPDATE, DELETE), but without PK
+connection master;
+create or replace table t1 (x int);
+connection slave;
+alter table t1 with system versioning;
+connection master;
+insert into t1 values (1);
+update t1 set x= 2 where x = 1;
+connection slave;
+select * from t1 order by x;
+x
+2
+select * from t1 for system_time all order by row_end, x;
+x
+1
+2
+connection master;
+delete from t1;
+connection slave;
+select * from t1 order by x;
+x
+select * from t1 for system_time all order by row_end, x;
+x
+1
+2
+# multi-update
+connection master;
+create or replace table t1 (x int) with system versioning;
+create or replace table t2 (x int) with system versioning;
+insert into t1 values (1);
+insert into t2 values (2);
+update t1, t2 set t1.x=11, t2.x=22;
+connection slave;
+select * from t1 order by x;
+x
+11
+select * from t2 order by x;
+x
+22
+select * from t1 for system_time all order by row_end, x;
+x
+1
+11
+select * from t2 for system_time all order by row_end, x;
+x
+2
+22
+# MDEV-14767 system_versioning_alter_history breaks ALTER replication
+## Case 1: KEEP on the master, ALTER will work on the slave
+connection master;
+create or replace table t1 (a int) with system versioning;
+set system_versioning_alter_history= KEEP;
+alter table t1 add column b int;
+connection slave;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL
+) ENGINE=ENGINE DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
+## Case 2: ERROR on the master, it'll fail on the master, the slave won't see it
+connection master;
+set system_versioning_alter_history= ERROR;
+alter table t1 drop column b;
+ERROR HY000: Not allowed for system-versioned `test`.`t1`. Change @@system_versioning_alter_history to proceed with ALTER.
+connection slave;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL
+) ENGINE=ENGINE DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
+## Case 3: table is not versioned on the master, ALTER will work on the slave
+connection master;
+create or replace table t1 (a int);
+connection slave;
+create or replace table t1 (a int) with system versioning;
+connection master;
+alter table t1 add column b int;
+connection slave;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL
+) ENGINE=ENGINE DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
+connection master;
+drop table t1, t2;
+create table t1 (i int) with system versioning partition by system_time limit 8 ( partition p1 history, partition p2 history, partition pn current );
+insert into t1 values (1);
+update t1 set i = 1;
+update t1 set i = 0;
+connection slave;
+connection master;
+drop table t1;
+reset master;
+connection slave;
+include/stop_slave.inc
+reset slave;
+include/start_slave.inc
+include/rpl_end.inc
