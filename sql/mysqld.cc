@@ -2460,9 +2460,16 @@ static void activate_tcp_port(uint port,
           we can live with an error in the log and hope the other addresses
           are successful. We catch if no successful bindings occur at the
           end of this function.
+
+          FreeBSD returns EADDRNOTAVAIL, and EADDRNOTAVAIL is even in Linux
+          manual pages. So may was well apply uniform behaviour.
         */
 #ifdef _WIN32
         if (s_errno == 10049)
+	  continue;
+#endif
+#ifdef EADDRNOTAVAIL
+        if (s_errno == EADDRNOTAVAIL)
 	  continue;
 #endif
         sql_print_error("Do you already have another server running on "
