@@ -1,7 +1,3 @@
-[submodule "libmariadb"]
-	path = libmariadb
-	url = https://code.devsnc.com/dev/sumo-mariadb-connector-c.git
-	branch = master
 [submodule "storage/rocksdb/rocksdb"]
 	path = storage/rocksdb/rocksdb
 	url = https://github.com/facebook/rocksdb.git
@@ -12,3 +8,6 @@
 [submodule "extra/wolfssl/wolfssl"]
 	path = extra/wolfssl/wolfssl
 	url = https://github.com/wolfSSL/wolfssl.git
+[submodule "libmariadb"]
+	path = libmariadb
+	url = https://github.com/mariadb-corporation/mariadb-connector-c.git
