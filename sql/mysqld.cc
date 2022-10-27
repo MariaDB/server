@@ -135,8 +135,6 @@
 
 #define mysqld_charset &my_charset_latin1
 
-#define DELIM ','
-
 extern "C" {					// Because of SCO 3.2V4.2
 #include <sys/stat.h>
 #ifndef __GNU_LIBRARY__
@@ -2322,7 +2320,7 @@ static void activate_tcp_port(uint port,
 
     do
     {
-      end= strcend(real_bind_addr_str, DELIM);
+      end= strcend(real_bind_addr_str, ',');
       strmake(address, real_bind_addr_str, (uint) (end - real_bind_addr_str));
 
       error= getaddrinfo(address, port_buf, &hints, &ai);

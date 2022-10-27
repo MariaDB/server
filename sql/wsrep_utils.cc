@@ -458,7 +458,7 @@ unsigned int wsrep_check_ip (const char* const addr, bool *is_ipv6)
   *is_ipv6= false;
 
   char *end;
-  char address[FN_REFLEN];
+  char address[INET6_ADDRSTRLEN];
 
   end= strcend(addr, ',');
   strmake(address, addr, (uint) (end - addr));
